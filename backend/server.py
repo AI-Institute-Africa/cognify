@@ -385,7 +385,10 @@ async def create_course(course_data: CourseCreate, current_user: dict = Depends(
     course = Course(**course_data.model_dump())
     course_dict = course.model_dump()
     course_dict['created_at'] = course_dict['created_at'].isoformat()
-    await db.courses.insert_one(course_dict)
+    result = await db.courses.insert_one(course_dict)
+    
+    # Remove MongoDB _id and return the course data
+    course_dict.pop('_id', None)
     return serialize_doc(course_dict)
 
 @courses_router.get("/{course_id}")
