@@ -85,6 +85,9 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  // isAuthenticated should check both token and user for proper auth state
+  const isAuthenticated = !!token && !!user;
+
   const value = {
     user,
     token,
@@ -92,7 +95,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    isAuthenticated: !!user
+    isAuthenticated
   };
 
   return (
