@@ -377,7 +377,7 @@ async def get_courses(current_user: dict = Depends(get_current_user)):
         courses = await db.courses.find({}, {"_id": 0}).to_list(100)
     return [serialize_doc(c) for c in courses]
 
-@courses_router.post("")
+@courses_router.post("", status_code=201)
 async def create_course(course_data: CourseCreate, current_user: dict = Depends(get_current_user)):
     if current_user['role'] not in ['admin', 'teacher']:
         raise HTTPException(status_code=403, detail="Not authorized")
@@ -385,7 +385,7 @@ async def create_course(course_data: CourseCreate, current_user: dict = Depends(
     course = Course(**course_data.model_dump())
     course_dict = course.model_dump()
     course_dict['created_at'] = course_dict['created_at'].isoformat()
-    result = await db.courses.insert_one(course_dict)
+    await db.courses.insert_one(course_dict)
     
     # Remove MongoDB _id and return the course data
     course_dict.pop('_id', None)
