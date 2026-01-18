@@ -1,13 +1,15 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import io
+import base64
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
@@ -27,8 +29,11 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'default-secret-key')
 JWT_ALGORITHM = os.environ.get('JWT_ALGORITHM', 'HS256')
 JWT_EXPIRATION_HOURS = int(os.environ.get('JWT_EXPIRATION_HOURS', 24))
 
+# Supported Languages
+SUPPORTED_LANGUAGES = ['en', 'sn', 'nd', 'sw', 'zu']  # English, Shona, Ndebele, Swahili, Zulu
+
 # Create the main app
-app = FastAPI(title="EduOS 2026", description="AI-Powered School Management Platform")
+app = FastAPI(title="EduOS 2026", description="AI-Powered School Management Platform - Phase 2")
 
 # Create routers
 api_router = APIRouter(prefix="/api")
@@ -44,6 +49,11 @@ achievements_router = APIRouter(prefix="/achievements", tags=["Achievements"])
 ai_router = APIRouter(prefix="/ai", tags=["AI Services"])
 dashboard_router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 notifications_router = APIRouter(prefix="/notifications", tags=["Notifications"])
+orgs_router = APIRouter(prefix="/organizations", tags=["Organizations"])
+knowledge_router = APIRouter(prefix="/knowledge", tags=["Knowledge Graph"])
+mentor_router = APIRouter(prefix="/mentor", tags=["AI Mentor"])
+content_router = APIRouter(prefix="/content", tags=["Multimodal Content"])
+voice_router = APIRouter(prefix="/voice", tags=["Voice & Avatar"])
 
 security = HTTPBearer()
 
@@ -53,6 +63,20 @@ class UserRole(str, Enum):
     TEACHER = "teacher"
     STUDENT = "student"
     PARENT = "parent"
+    ORG_ADMIN = "org_admin"
+
+class OrgType(str, Enum):
+    SCHOOL = "school"
+    UNIVERSITY = "university"
+    GOVERNMENT = "government"
+    INSTITUTION = "institution"
+    CORPORATE = "corporate"
+
+class OrgStatus(str, Enum):
+    PENDING = "pending"
+    VERIFIED = "verified"
+    REJECTED = "rejected"
+    SUSPENDED = "suspended"
 
 class FeeStatus(str, Enum):
     PENDING = "pending"
@@ -66,7 +90,157 @@ class AttendanceStatus(str, Enum):
     LATE = "late"
     EXCUSED = "excused"
 
-# Models
+class ContentType(str, Enum):
+    TEXT = "text"
+    AUDIO = "audio"
+    VIDEO = "video"
+    IMAGE = "image"
+
+class ConceptStatus(str, Enum):
+    NOT_STARTED = "not_started"
+    LEARNING = "learning"
+    MASTERED = "mastered"
+    NEEDS_REVIEW = "needs_review"
+
+# ==================== PHASE 2 MODELS ====================
+
+# Organization Models
+class Organization(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    org_type: OrgType
+    country: str
+    address: str
+    phone: str
+    email: EmailStr
+    website: Optional[str] = None
+    logo_url: Optional[str] = None
+    registration_number: Optional[str] = None
+    verification_docs: List[str] = []
+    status: OrgStatus = OrgStatus.PENDING
+    admin_user_id: Optional[str] = None
+    participant_count: int = 0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class OrganizationCreate(BaseModel):
+    name: str
+    org_type: OrgType
+    country: str
+    address: str
+    phone: str
+    email: EmailStr
+    website: Optional[str] = None
+    registration_number: Optional[str] = None
+    admin_name: str
+    admin_email: EmailStr
+    admin_password: str
+
+# Knowledge Graph Models
+class Concept(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str
+    subject: str
+    grade_level: str
+    prerequisites: List[str] = []
+    dependencies: List[str] = []
+    cross_links: List[str] = []  # Links to other subjects
+    real_world_apps: List[str] = []
+    difficulty: int = 1  # 1-10
+    estimated_time_minutes: int = 30
+    content_modules: List[str] = []  # IDs of content modules
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class LearnerConceptState(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    concept_id: str
+    status: ConceptStatus = ConceptStatus.NOT_STARTED
+    confidence: float = 0.0  # 0-1
+    retention_score: float = 0.0  # 0-1
+    last_reviewed: Optional[datetime] = None
+    next_review: Optional[datetime] = None
+    attempts: int = 0
+    correct_attempts: int = 0
+    time_spent_minutes: int = 0
+    notes: List[str] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# AI Mentor Models
+class MentorProfile(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    personality_traits: Dict[str, float] = {}  # e.g., {"patience": 0.8, "humor": 0.5}
+    learning_style: str = "visual"  # visual, auditory, kinesthetic, reading
+    preferred_pace: str = "moderate"  # slow, moderate, fast
+    preferred_language: str = "en"
+    voice_id: Optional[str] = None  # ElevenLabs voice ID
+    avatar_settings: Dict[str, Any] = {}
+    conversation_history: List[Dict] = []
+    strengths: List[str] = []
+    weaknesses: List[str] = []
+    goals: List[str] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class MentorConversation(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    messages: List[Dict] = []
+    context: Dict[str, Any] = {}
+    topic: Optional[str] = None
+    mood: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# Multimodal Content Models
+class ContentModule(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    concept_id: str
+    title: str
+    content_type: ContentType
+    content_url: Optional[str] = None
+    content_text: Optional[str] = None
+    language: str = "en"
+    translations: Dict[str, str] = {}  # language_code: translated_content
+    audio_url: Optional[str] = None
+    video_url: Optional[str] = None
+    images: List[str] = []
+    duration_minutes: int = 0
+    difficulty: int = 1
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# Voice/Avatar Models
+class VoiceProfile(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    name: str
+    description: Optional[str] = None
+    voice_id: str  # ElevenLabs voice ID
+    is_cloned: bool = False
+    clone_source: Optional[str] = None  # e.g., "father", "brother", "custom"
+    sample_urls: List[str] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# Syllabus Ingestion Models
+class SyllabusUpload(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    filename: str
+    file_url: str
+    status: str = "processing"  # processing, completed, failed
+    extracted_concepts: List[str] = []
+    generated_modules: List[str] = []
+    error_message: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# Original Phase 1 Models (keeping for backward compatibility)
 class UserBase(BaseModel):
     model_config = ConfigDict(extra="ignore")
     email: EmailStr
@@ -78,6 +252,8 @@ class UserCreate(BaseModel):
     password: str
     full_name: str
     role: UserRole = UserRole.STUDENT
+    organization_id: Optional[str] = None
+    preferred_language: str = "en"
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -85,6 +261,8 @@ class UserLogin(BaseModel):
 
 class User(UserBase):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    organization_id: Optional[str] = None
+    preferred_language: str = "en"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_active: bool = True
     profile_image: Optional[str] = None
@@ -102,6 +280,7 @@ class StudentProfile(BaseModel):
     grade_level: str
     section: str
     parent_id: Optional[str] = None
+    organization_id: Optional[str] = None
     date_of_birth: Optional[str] = None
     address: Optional[str] = None
     phone: Optional[str] = None
@@ -109,6 +288,7 @@ class StudentProfile(BaseModel):
     enrolled_courses: List[str] = []
     gpa: float = 0.0
     career_aptitude_score: Optional[dict] = None
+    learning_profile: Dict[str, Any] = {}
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class TeacherProfile(BaseModel):
@@ -117,6 +297,7 @@ class TeacherProfile(BaseModel):
     user_id: str
     employee_id: str
     department: str
+    organization_id: Optional[str] = None
     subjects: List[str] = []
     qualifications: List[str] = []
     phone: Optional[str] = None
@@ -131,10 +312,13 @@ class Course(BaseModel):
     name: str
     description: str
     teacher_id: Optional[str] = None
+    organization_id: Optional[str] = None
     grade_level: str
     credits: int = 3
     schedule: Optional[dict] = None
     syllabus: Optional[str] = None
+    syllabus_upload_id: Optional[str] = None
+    concepts: List[str] = []  # Knowledge graph concept IDs
     enrolled_students: List[str] = []
     max_students: int = 30
     is_active: bool = True
@@ -195,6 +379,7 @@ class Fee(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     student_id: str
+    organization_id: Optional[str] = None
     fee_type: str
     amount: float
     due_date: str
@@ -246,6 +431,13 @@ class Notification(BaseModel):
 class ChatMessage(BaseModel):
     message: str
     context: Optional[str] = None
+    language: str = "en"
+    include_audio: bool = False
+
+class TTSRequest(BaseModel):
+    text: str
+    voice_id: Optional[str] = None
+    language: str = "en"
 
 # Helper Functions
 def hash_password(password: str) -> str:
@@ -254,10 +446,11 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed.encode())
 
-def create_token(user_id: str, role: str) -> str:
+def create_token(user_id: str, role: str, org_id: str = None) -> str:
     payload = {
         "sub": user_id,
         "role": role,
+        "org_id": org_id,
         "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
@@ -282,7 +475,916 @@ def serialize_doc(doc: dict) -> dict:
         doc['created_at'] = doc['created_at'].isoformat()
     if doc and 'graded_at' in doc and isinstance(doc['graded_at'], datetime):
         doc['graded_at'] = doc['graded_at'].isoformat()
+    if doc and 'last_reviewed' in doc and isinstance(doc['last_reviewed'], datetime):
+        doc['last_reviewed'] = doc['last_reviewed'].isoformat()
+    if doc and 'next_review' in doc and isinstance(doc['next_review'], datetime):
+        doc['next_review'] = doc['next_review'].isoformat()
     return doc
+
+# ==================== ORGANIZATION ROUTES ====================
+
+@orgs_router.post("/register", status_code=201)
+async def register_organization(org_data: OrganizationCreate):
+    """Register a new organization with admin user"""
+    # Check if org email exists
+    existing_org = await db.organizations.find_one({"email": org_data.email})
+    if existing_org:
+        raise HTTPException(status_code=400, detail="Organization email already registered")
+    
+    # Check if admin email exists
+    existing_user = await db.users.find_one({"email": org_data.admin_email})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Admin email already registered")
+    
+    # Create organization
+    org = Organization(
+        name=org_data.name,
+        org_type=org_data.org_type,
+        country=org_data.country,
+        address=org_data.address,
+        phone=org_data.phone,
+        email=org_data.email,
+        website=org_data.website,
+        registration_number=org_data.registration_number
+    )
+    org_dict = org.model_dump()
+    org_dict['created_at'] = org_dict['created_at'].isoformat()
+    
+    # Create admin user
+    admin_user = {
+        "id": str(uuid.uuid4()),
+        "email": org_data.admin_email,
+        "full_name": org_data.admin_name,
+        "role": "org_admin",
+        "organization_id": org.id,
+        "password_hash": hash_password(org_data.admin_password),
+        "preferred_language": "en",
+        "is_active": True,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    org_dict['admin_user_id'] = admin_user['id']
+    
+    await db.organizations.insert_one(org_dict)
+    await db.users.insert_one(admin_user)
+    
+    token = create_token(admin_user['id'], admin_user['role'], org.id)
+    
+    return {
+        "message": "Organization registered successfully. Awaiting verification.",
+        "organization_id": org.id,
+        "status": org.status,
+        "access_token": token,
+        "user": {"id": admin_user['id'], "email": admin_user['email'], "full_name": admin_user['full_name'], "role": admin_user['role']}
+    }
+
+@orgs_router.post("/{org_id}/upload-verification")
+async def upload_verification_docs(
+    org_id: str,
+    files: List[UploadFile] = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload verification documents for organization"""
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    if current_user.get('organization_id') != org_id and current_user['role'] != 'admin':
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Store file references (in production, upload to S3/GCS)
+    doc_urls = []
+    for file in files:
+        content = await file.read()
+        # Store as base64 for now (in production use cloud storage)
+        doc_id = str(uuid.uuid4())
+        doc_urls.append(f"/api/documents/{doc_id}")
+        await db.documents.insert_one({
+            "id": doc_id,
+            "org_id": org_id,
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "content": base64.b64encode(content).decode(),
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+    
+    await db.organizations.update_one(
+        {"id": org_id},
+        {"$push": {"verification_docs": {"$each": doc_urls}}}
+    )
+    
+    return {"message": "Documents uploaded successfully", "document_urls": doc_urls}
+
+@orgs_router.get("/{org_id}")
+async def get_organization(org_id: str, current_user: dict = Depends(get_current_user)):
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    return serialize_doc(org)
+
+@orgs_router.post("/{org_id}/verify")
+async def verify_organization(org_id: str, approved: bool, current_user: dict = Depends(get_current_user)):
+    """Admin only: Verify or reject organization"""
+    if current_user['role'] != 'admin':
+        raise HTTPException(status_code=403, detail="Only platform admins can verify organizations")
+    
+    new_status = OrgStatus.VERIFIED if approved else OrgStatus.REJECTED
+    await db.organizations.update_one(
+        {"id": org_id},
+        {"$set": {"status": new_status}}
+    )
+    return {"message": f"Organization {new_status}", "status": new_status}
+
+@orgs_router.post("/{org_id}/enroll-participant")
+async def enroll_participant(
+    org_id: str,
+    user_data: UserCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Enroll a new participant in organization"""
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    if org['status'] != 'verified':
+        raise HTTPException(status_code=400, detail="Organization not verified yet")
+    
+    if current_user.get('organization_id') != org_id and current_user['role'] not in ['admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Check if user exists
+    existing = await db.users.find_one({"email": user_data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Create user
+    user = User(
+        email=user_data.email,
+        full_name=user_data.full_name,
+        role=user_data.role,
+        organization_id=org_id,
+        preferred_language=user_data.preferred_language
+    )
+    user_dict = user.model_dump()
+    user_dict['password_hash'] = hash_password(user_data.password)
+    user_dict['created_at'] = user_dict['created_at'].isoformat()
+    
+    await db.users.insert_one(user_dict)
+    
+    # Create profile based on role
+    if user_data.role == UserRole.STUDENT:
+        profile = StudentProfile(
+            user_id=user.id,
+            student_id=f"STU{str(uuid.uuid4())[:8].upper()}",
+            grade_level="Grade 10",
+            section="A",
+            organization_id=org_id
+        )
+        profile_dict = profile.model_dump()
+        profile_dict['created_at'] = profile_dict['created_at'].isoformat()
+        await db.student_profiles.insert_one(profile_dict)
+    elif user_data.role == UserRole.TEACHER:
+        profile = TeacherProfile(
+            user_id=user.id,
+            employee_id=f"TCH{str(uuid.uuid4())[:8].upper()}",
+            department="General",
+            organization_id=org_id
+        )
+        profile_dict = profile.model_dump()
+        profile_dict['created_at'] = profile_dict['created_at'].isoformat()
+        await db.teacher_profiles.insert_one(profile_dict)
+    
+    # Update participant count
+    await db.organizations.update_one(
+        {"id": org_id},
+        {"$inc": {"participant_count": 1}}
+    )
+    
+    return {"message": "Participant enrolled successfully", "user_id": user.id}
+
+# ==================== KNOWLEDGE GRAPH ROUTES ====================
+
+@knowledge_router.get("/concepts")
+async def get_concepts(
+    subject: Optional[str] = None,
+    grade_level: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all concepts, optionally filtered"""
+    query = {}
+    if subject:
+        query['subject'] = subject
+    if grade_level:
+        query['grade_level'] = grade_level
+    
+    concepts = await db.concepts.find(query, {"_id": 0}).to_list(1000)
+    return [serialize_doc(c) for c in concepts]
+
+@knowledge_router.get("/concepts/{concept_id}")
+async def get_concept(concept_id: str, current_user: dict = Depends(get_current_user)):
+    concept = await db.concepts.find_one({"id": concept_id}, {"_id": 0})
+    if not concept:
+        raise HTTPException(status_code=404, detail="Concept not found")
+    
+    # Get related concepts
+    if concept.get('prerequisites'):
+        prereqs = await db.concepts.find({"id": {"$in": concept['prerequisites']}}, {"_id": 0}).to_list(100)
+        concept['prerequisite_details'] = [serialize_doc(p) for p in prereqs]
+    
+    return serialize_doc(concept)
+
+@knowledge_router.get("/user-progress")
+async def get_user_knowledge_progress(current_user: dict = Depends(get_current_user)):
+    """Get user's progress across all concepts"""
+    states = await db.learner_concept_states.find(
+        {"user_id": current_user['id']},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    # Enrich with concept details
+    for state in states:
+        concept = await db.concepts.find_one({"id": state['concept_id']}, {"_id": 0})
+        if concept:
+            state['concept'] = serialize_doc(concept)
+    
+    return [serialize_doc(s) for s in states]
+
+@knowledge_router.post("/concepts/{concept_id}/update-state")
+async def update_concept_state(
+    concept_id: str,
+    confidence: float = 0.0,
+    time_spent: int = 0,
+    correct: bool = False,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update learner's state for a concept"""
+    state = await db.learner_concept_states.find_one(
+        {"user_id": current_user['id'], "concept_id": concept_id},
+        {"_id": 0}
+    )
+    
+    if state:
+        # Update existing state
+        updates = {
+            "confidence": confidence,
+            "time_spent_minutes": state.get('time_spent_minutes', 0) + time_spent,
+            "attempts": state.get('attempts', 0) + 1,
+            "last_reviewed": datetime.now(timezone.utc).isoformat()
+        }
+        if correct:
+            updates['correct_attempts'] = state.get('correct_attempts', 0) + 1
+        
+        # Calculate retention and next review
+        correct_rate = updates.get('correct_attempts', 0) / updates['attempts'] if updates['attempts'] > 0 else 0
+        updates['retention_score'] = correct_rate
+        
+        # Spaced repetition: schedule next review
+        if correct_rate >= 0.8:
+            updates['status'] = 'mastered'
+            updates['next_review'] = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+        elif correct_rate >= 0.5:
+            updates['status'] = 'learning'
+            updates['next_review'] = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
+        else:
+            updates['status'] = 'needs_review'
+            updates['next_review'] = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+        
+        await db.learner_concept_states.update_one(
+            {"user_id": current_user['id'], "concept_id": concept_id},
+            {"$set": updates}
+        )
+    else:
+        # Create new state
+        new_state = LearnerConceptState(
+            user_id=current_user['id'],
+            concept_id=concept_id,
+            confidence=confidence,
+            time_spent_minutes=time_spent,
+            attempts=1,
+            correct_attempts=1 if correct else 0,
+            status=ConceptStatus.LEARNING,
+            last_reviewed=datetime.now(timezone.utc)
+        )
+        state_dict = new_state.model_dump()
+        state_dict['created_at'] = state_dict['created_at'].isoformat()
+        state_dict['last_reviewed'] = state_dict['last_reviewed'].isoformat()
+        await db.learner_concept_states.insert_one(state_dict)
+    
+    return {"message": "State updated successfully"}
+
+# ==================== AI MENTOR ROUTES ====================
+
+@mentor_router.get("/profile")
+async def get_mentor_profile(current_user: dict = Depends(get_current_user)):
+    """Get or create AI mentor profile for user"""
+    profile = await db.mentor_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+    
+    if not profile:
+        # Create default profile
+        new_profile = MentorProfile(user_id=current_user['id'])
+        profile_dict = new_profile.model_dump()
+        profile_dict['created_at'] = profile_dict['created_at'].isoformat()
+        await db.mentor_profiles.insert_one(profile_dict)
+        profile = profile_dict
+    
+    return serialize_doc(profile)
+
+@mentor_router.post("/profile/update")
+async def update_mentor_profile(
+    learning_style: Optional[str] = None,
+    preferred_pace: Optional[str] = None,
+    preferred_language: Optional[str] = None,
+    goals: Optional[List[str]] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update AI mentor profile settings"""
+    updates = {}
+    if learning_style:
+        updates['learning_style'] = learning_style
+    if preferred_pace:
+        updates['preferred_pace'] = preferred_pace
+    if preferred_language:
+        updates['preferred_language'] = preferred_language
+    if goals:
+        updates['goals'] = goals
+    
+    await db.mentor_profiles.update_one(
+        {"user_id": current_user['id']},
+        {"$set": updates},
+        upsert=True
+    )
+    return {"message": "Profile updated successfully"}
+
+@mentor_router.post("/chat")
+async def mentor_chat(chat_data: ChatMessage, current_user: dict = Depends(get_current_user)):
+    """Chat with AI mentor"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        # Get mentor profile for personalization
+        profile = await db.mentor_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+        
+        # Get recent conversation history
+        recent_convos = await db.mentor_conversations.find(
+            {"user_id": current_user['id']},
+            {"_id": 0}
+        ).sort("created_at", -1).limit(5).to_list(5)
+        
+        # Get user's learning progress
+        progress = await db.learner_concept_states.find(
+            {"user_id": current_user['id']},
+            {"_id": 0}
+        ).to_list(100)
+        
+        learning_context = ""
+        if progress:
+            mastered = sum(1 for p in progress if p.get('status') == 'mastered')
+            needs_review = sum(1 for p in progress if p.get('status') == 'needs_review')
+            learning_context = f"Mastered concepts: {mastered}, Needs review: {needs_review}"
+        
+        # Build personalized system message
+        language_map = {
+            'en': 'English',
+            'sn': 'Shona',
+            'nd': 'Ndebele',
+            'sw': 'Swahili',
+            'zu': 'Zulu'
+        }
+        preferred_lang = language_map.get(chat_data.language, 'English')
+        
+        system_message = f"""You are a personal AI learning mentor for {current_user.get('full_name', 'the student')}.
+You remember all past interactions and adapt your teaching style accordingly.
+Current learning profile: Style={profile.get('learning_style', 'visual') if profile else 'visual'}, Pace={profile.get('preferred_pace', 'moderate') if profile else 'moderate'}
+{f'Learning Progress: {learning_context}' if learning_context else ''}
+Goals: {profile.get('goals', ['General learning']) if profile else ['General learning']}
+Respond in {preferred_lang}. Be encouraging, patient, and adapt explanations to the learner's style.
+If they struggle, provide hints and analogies. Remember their strengths and weaknesses."""
+        
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"mentor-{current_user['id']}",
+            system_message=system_message
+        )
+        chat.with_model("openai", "gpt-5.2")
+        
+        user_message = UserMessage(text=chat_data.message)
+        response = await chat.send_message(user_message)
+        
+        # Store conversation
+        convo = {
+            "id": str(uuid.uuid4()),
+            "user_id": current_user['id'],
+            "messages": [
+                {"role": "user", "content": chat_data.message},
+                {"role": "assistant", "content": response}
+            ],
+            "topic": chat_data.context,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.mentor_conversations.insert_one(convo)
+        
+        result = {"response": response, "language": chat_data.language}
+        
+        # Generate audio if requested
+        if chat_data.include_audio:
+            try:
+                audio_data = await generate_tts_audio(response, profile.get('voice_id') if profile else None)
+                if audio_data:
+                    result['audio_url'] = audio_data
+            except Exception as e:
+                logging.warning(f"TTS generation failed: {str(e)}")
+        
+        return result
+        
+    except ImportError:
+        raise HTTPException(status_code=500, detail="AI module not available")
+    except Exception as e:
+        logging.error(f"Mentor Chat Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
+
+@mentor_router.post("/hint")
+async def get_concept_hint(
+    concept_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get a 30-second hint for a concept"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        concept = await db.concepts.find_one({"id": concept_id}, {"_id": 0})
+        if not concept:
+            raise HTTPException(status_code=404, detail="Concept not found")
+        
+        # Get user's background
+        profile = await db.mentor_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+        
+        system_message = """You are a micro-hint generator. Provide a 30-second hint that:
+1. Gives a fresh perspective on the concept
+2. Uses an analogy tailored to the learner's background
+3. Is concise and actionable
+Keep response under 100 words."""
+        
+        chat = LlmChat(api_key=api_key, session_id=f"hint-{current_user['id']}", system_message=system_message)
+        chat.with_model("openai", "gpt-5.2")
+        
+        prompt = f"Concept: {concept['name']}\nDescription: {concept['description']}\nLearner style: {profile.get('learning_style', 'visual') if profile else 'visual'}\nProvide a quick hint with an analogy."
+        
+        response = await chat.send_message(UserMessage(text=prompt))
+        
+        return {"hint": response, "concept_name": concept['name']}
+        
+    except Exception as e:
+        logging.error(f"Hint generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== MULTIMODAL CONTENT ROUTES ====================
+
+@content_router.post("/translate")
+async def translate_content(
+    text: str,
+    target_language: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Translate content to target language"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        language_map = {
+            'en': 'English',
+            'sn': 'Shona',
+            'nd': 'Ndebele',
+            'sw': 'Swahili',
+            'zu': 'Zulu'
+        }
+        target = language_map.get(target_language, 'English')
+        
+        system_message = f"You are a translator. Translate the following text to {target}. Maintain educational context and clarity. Only provide the translation, no explanations."
+        
+        chat = LlmChat(api_key=api_key, session_id=f"translate-{current_user['id']}", system_message=system_message)
+        chat.with_model("openai", "gpt-5.2")
+        
+        response = await chat.send_message(UserMessage(text=text))
+        
+        return {"original": text, "translated": response, "target_language": target_language}
+        
+    except Exception as e:
+        logging.error(f"Translation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@content_router.post("/generate-multimodal")
+async def generate_multimodal_content(
+    concept_id: str,
+    content_types: List[ContentType],
+    language: str = "en",
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate multimodal content for a concept"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        concept = await db.concepts.find_one({"id": concept_id}, {"_id": 0})
+        if not concept:
+            raise HTTPException(status_code=404, detail="Concept not found")
+        
+        result = {"concept_id": concept_id, "content": {}}
+        
+        # Generate text content
+        if ContentType.TEXT in content_types:
+            chat = LlmChat(
+                api_key=api_key,
+                session_id=f"content-{current_user['id']}",
+                system_message="You are an educational content creator. Create clear, engaging explanations."
+            )
+            chat.with_model("openai", "gpt-5.2")
+            
+            prompt = f"Create a detailed explanation for: {concept['name']}\nDescription: {concept['description']}\nTarget level: {concept['grade_level']}"
+            text_content = await chat.send_message(UserMessage(text=prompt))
+            result['content']['text'] = text_content
+        
+        # Generate audio content (TTS)
+        if ContentType.AUDIO in content_types and result['content'].get('text'):
+            try:
+                audio_url = await generate_tts_audio(result['content']['text'][:500])  # Limit for TTS
+                if audio_url:
+                    result['content']['audio_url'] = audio_url
+            except Exception as e:
+                logging.warning(f"Audio generation failed: {str(e)}")
+        
+        return result
+        
+    except Exception as e:
+        logging.error(f"Content generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@content_router.post("/analyze-upload")
+async def analyze_uploaded_content(
+    file: UploadFile = File(...),
+    question: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Analyze uploaded document/image and answer questions"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        content = await file.read()
+        content_type = file.content_type
+        
+        # For text files, extract content
+        if 'text' in content_type or file.filename.endswith(('.txt', '.md')):
+            text_content = content.decode('utf-8')
+        else:
+            # For other files, use base64 encoding for AI analysis
+            text_content = f"[File: {file.filename}, Type: {content_type}]"
+        
+        system_message = """You are an educational content analyzer. Analyze the provided content and answer questions about it.
+If it's a syllabus, extract topics and structure.
+If it's study material, summarize key points.
+Be helpful and educational."""
+        
+        chat = LlmChat(api_key=api_key, session_id=f"analyze-{current_user['id']}", system_message=system_message)
+        chat.with_model("openai", "gpt-5.2")
+        
+        prompt = f"Content:\n{text_content[:5000]}\n\n"
+        if question:
+            prompt += f"Question: {question}"
+        else:
+            prompt += "Please analyze this content and provide key insights."
+        
+        response = await chat.send_message(UserMessage(text=prompt))
+        
+        return {
+            "filename": file.filename,
+            "analysis": response,
+            "question": question
+        }
+        
+    except Exception as e:
+        logging.error(f"Content analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== VOICE & AVATAR ROUTES ====================
+
+async def generate_tts_audio(text: str, voice_id: str = None) -> Optional[str]:
+    """Generate TTS audio using ElevenLabs"""
+    try:
+        elevenlabs_key = os.environ.get('ELEVENLABS_API_KEY')
+        if not elevenlabs_key:
+            return None
+        
+        from elevenlabs import ElevenLabs
+        from elevenlabs.types import VoiceSettings
+        
+        client = ElevenLabs(api_key=elevenlabs_key)
+        
+        audio_generator = client.text_to_speech.convert(
+            text=text[:500],  # Limit text length
+            voice_id=voice_id or "21m00Tcm4TlvDq8ikWAM",  # Default voice
+            model_id="eleven_multilingual_v2",
+            voice_settings=VoiceSettings(
+                stability=0.7,
+                similarity_boost=0.8
+            )
+        )
+        
+        audio_data = b""
+        for chunk in audio_generator:
+            audio_data += chunk
+        
+        audio_b64 = base64.b64encode(audio_data).decode()
+        return f"data:audio/mpeg;base64,{audio_b64}"
+        
+    except Exception as e:
+        logging.error(f"TTS Error: {str(e)}")
+        return None
+
+@voice_router.post("/tts")
+async def text_to_speech(
+    request: TTSRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Convert text to speech"""
+    audio_url = await generate_tts_audio(request.text, request.voice_id)
+    if not audio_url:
+        raise HTTPException(status_code=500, detail="TTS service unavailable")
+    
+    return {"audio_url": audio_url, "text": request.text}
+
+@voice_router.get("/voices")
+async def get_available_voices(current_user: dict = Depends(get_current_user)):
+    """Get available voices including user's cloned voices"""
+    user_voices = await db.voice_profiles.find(
+        {"user_id": current_user['id']},
+        {"_id": 0}
+    ).to_list(100)
+    
+    # Add default voices
+    default_voices = [
+        {"id": "21m00Tcm4TlvDq8ikWAM", "name": "Rachel (Default)", "is_cloned": False},
+        {"id": "EXAVITQu4vr4xnSDxMaL", "name": "Sarah (Calm)", "is_cloned": False},
+        {"id": "onwK4e9ZLuTAKqWW03F9", "name": "Daniel (Professional)", "is_cloned": False},
+    ]
+    
+    return {
+        "default_voices": default_voices,
+        "user_voices": [serialize_doc(v) for v in user_voices]
+    }
+
+@voice_router.post("/clone")
+async def clone_voice(
+    name: str = Form(...),
+    description: str = Form(None),
+    clone_source: str = Form(...),  # e.g., "father", "brother", "custom"
+    files: List[UploadFile] = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Clone a voice from audio samples"""
+    elevenlabs_key = os.environ.get('ELEVENLABS_API_KEY')
+    if not elevenlabs_key:
+        raise HTTPException(status_code=500, detail="Voice cloning service not configured")
+    
+    try:
+        from elevenlabs import ElevenLabs
+        
+        client = ElevenLabs(api_key=elevenlabs_key)
+        
+        # Read audio files
+        audio_files = []
+        for file in files:
+            content = await file.read()
+            audio_files.append(io.BytesIO(content))
+        
+        # Clone voice
+        voice = client.voices.ivc.create(
+            name=f"{name} ({current_user['id'][:8]})",
+            files=audio_files,
+            description=description or f"Cloned voice: {clone_source}"
+        )
+        
+        # Save voice profile
+        voice_profile = VoiceProfile(
+            user_id=current_user['id'],
+            name=name,
+            description=description,
+            voice_id=voice.voice_id,
+            is_cloned=True,
+            clone_source=clone_source
+        )
+        profile_dict = voice_profile.model_dump()
+        profile_dict['created_at'] = profile_dict['created_at'].isoformat()
+        await db.voice_profiles.insert_one(profile_dict)
+        
+        return {
+            "message": "Voice cloned successfully",
+            "voice_id": voice.voice_id,
+            "name": name
+        }
+        
+    except Exception as e:
+        logging.error(f"Voice cloning error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Voice cloning failed: {str(e)}")
+
+# ==================== SYLLABUS INGESTION ROUTES ====================
+
+@content_router.post("/ingest-syllabus")
+async def ingest_syllabus(
+    file: UploadFile = File(...),
+    course_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload and process a syllabus to generate interactive content"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        content = await file.read()
+        
+        # Extract text content
+        if file.filename.endswith('.txt') or file.filename.endswith('.md'):
+            text_content = content.decode('utf-8')
+        else:
+            text_content = content.decode('utf-8', errors='ignore')
+        
+        # Create syllabus upload record
+        upload = SyllabusUpload(
+            user_id=current_user['id'],
+            filename=file.filename,
+            file_url=f"/api/uploads/{str(uuid.uuid4())}",
+            status="processing"
+        )
+        upload_dict = upload.model_dump()
+        upload_dict['created_at'] = upload_dict['created_at'].isoformat()
+        await db.syllabus_uploads.insert_one(upload_dict)
+        
+        # Use AI to extract and structure content
+        system_message = """You are a syllabus analyzer. Extract the following from the syllabus:
+1. Main topics/concepts (as a JSON array)
+2. Prerequisites for each topic
+3. Learning objectives
+4. Suggested time allocation
+
+Return as JSON with keys: concepts, prerequisites, objectives, time_allocation"""
+        
+        chat = LlmChat(api_key=api_key, session_id=f"syllabus-{upload.id}", system_message=system_message)
+        chat.with_model("openai", "gpt-5.2")
+        
+        analysis = await chat.send_message(UserMessage(text=f"Analyze this syllabus:\n\n{text_content[:10000]}"))
+        
+        # Parse and create concepts
+        concept_ids = []
+        try:
+            import json
+            # Try to extract JSON from response
+            json_start = analysis.find('{')
+            json_end = analysis.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                parsed = json.loads(analysis[json_start:json_end])
+                
+                for concept_name in parsed.get('concepts', []):
+                    concept = Concept(
+                        name=concept_name if isinstance(concept_name, str) else concept_name.get('name', 'Unknown'),
+                        description=concept_name.get('description', '') if isinstance(concept_name, dict) else '',
+                        subject="General",
+                        grade_level="All levels"
+                    )
+                    concept_dict = concept.model_dump()
+                    concept_dict['created_at'] = concept_dict['created_at'].isoformat()
+                    await db.concepts.insert_one(concept_dict)
+                    concept_ids.append(concept.id)
+        except:
+            pass
+        
+        # Update syllabus upload record
+        await db.syllabus_uploads.update_one(
+            {"id": upload.id},
+            {"$set": {
+                "status": "completed",
+                "extracted_concepts": concept_ids,
+                "analysis": analysis
+            }}
+        )
+        
+        # Link to course if provided
+        if course_id:
+            await db.courses.update_one(
+                {"id": course_id},
+                {"$set": {
+                    "syllabus_upload_id": upload.id,
+                    "concepts": concept_ids
+                }}
+            )
+        
+        return {
+            "message": "Syllabus processed successfully",
+            "upload_id": upload.id,
+            "concepts_created": len(concept_ids),
+            "analysis": analysis
+        }
+        
+    except Exception as e:
+        logging.error(f"Syllabus ingestion error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== LEARN-BY-TEACHING MODE ====================
+
+@mentor_router.post("/teach-back")
+async def teach_back_session(
+    concept_id: str,
+    explanation: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Submit a teach-back explanation for evaluation"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        concept = await db.concepts.find_one({"id": concept_id}, {"_id": 0})
+        if not concept:
+            raise HTTPException(status_code=404, detail="Concept not found")
+        
+        system_message = """You are an AI student avatar evaluating a teach-back explanation.
+Act as a curious but confused student. 
+1. Ask 2-3 clarifying questions based on gaps in the explanation
+2. Point out any misconceptions
+3. Rate the explanation quality (1-10)
+4. Suggest improvements
+
+Be encouraging but honest. Return JSON with: questions, misconceptions, rating, suggestions"""
+        
+        chat = LlmChat(api_key=api_key, session_id=f"teachback-{current_user['id']}", system_message=system_message)
+        chat.with_model("openai", "gpt-5.2")
+        
+        prompt = f"""Concept: {concept['name']}
+Expected content: {concept['description']}
+
+Student's explanation:
+{explanation}
+
+Evaluate this teach-back attempt."""
+        
+        evaluation = await chat.send_message(UserMessage(text=prompt))
+        
+        # Update concept state based on evaluation
+        try:
+            import json
+            json_start = evaluation.find('{')
+            json_end = evaluation.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                parsed = json.loads(evaluation[json_start:json_end])
+                rating = parsed.get('rating', 5)
+                
+                # Update learning state
+                confidence = rating / 10
+                await db.learner_concept_states.update_one(
+                    {"user_id": current_user['id'], "concept_id": concept_id},
+                    {
+                        "$set": {
+                            "confidence": confidence,
+                            "last_reviewed": datetime.now(timezone.utc).isoformat()
+                        },
+                        "$inc": {"attempts": 1}
+                    },
+                    upsert=True
+                )
+        except:
+            pass
+        
+        return {
+            "concept": concept['name'],
+            "evaluation": evaluation,
+            "submitted_explanation": explanation
+        }
+        
+    except Exception as e:
+        logging.error(f"Teach-back error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== ORIGINAL PHASE 1 ROUTES (PRESERVED) ====================
 
 # Auth Routes
 @auth_router.post("/register", response_model=TokenResponse)
@@ -294,7 +1396,8 @@ async def register(user_data: UserCreate):
     user = User(
         email=user_data.email,
         full_name=user_data.full_name,
-        role=user_data.role
+        role=user_data.role,
+        preferred_language=user_data.preferred_language
     )
     user_dict = user.model_dump()
     user_dict['password_hash'] = hash_password(user_data.password)
@@ -302,7 +1405,6 @@ async def register(user_data: UserCreate):
     
     await db.users.insert_one(user_dict)
     
-    # Create profile based on role
     if user_data.role == UserRole.STUDENT:
         student_profile = StudentProfile(
             user_id=user.id,
@@ -336,7 +1438,7 @@ async def login(credentials: UserLogin):
     if not user or not verify_password(credentials.password, user.get('password_hash', '')):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    token = create_token(user['id'], user['role'])
+    token = create_token(user['id'], user['role'], user.get('organization_id'))
     return TokenResponse(
         access_token=token,
         user={"id": user['id'], "email": user['email'], "full_name": user['full_name'], "role": user['role']}
@@ -346,7 +1448,6 @@ async def login(credentials: UserLogin):
 async def get_me(current_user: dict = Depends(get_current_user)):
     user_data = {k: v for k, v in current_user.items() if k != 'password_hash'}
     
-    # Get profile based on role
     if current_user['role'] == 'student':
         profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
         if profile:
@@ -355,6 +1456,12 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         profile = await db.teacher_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
         if profile:
             user_data['profile'] = serialize_doc(profile)
+    
+    # Get organization info if applicable
+    if current_user.get('organization_id'):
+        org = await db.organizations.find_one({"id": current_user['organization_id']}, {"_id": 0})
+        if org:
+            user_data['organization'] = serialize_doc(org)
     
     return user_data
 
@@ -379,15 +1486,14 @@ async def get_courses(current_user: dict = Depends(get_current_user)):
 
 @courses_router.post("", status_code=201)
 async def create_course(course_data: CourseCreate, current_user: dict = Depends(get_current_user)):
-    if current_user['role'] not in ['admin', 'teacher']:
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
     course = Course(**course_data.model_dump())
+    course.organization_id = current_user.get('organization_id')
     course_dict = course.model_dump()
     course_dict['created_at'] = course_dict['created_at'].isoformat()
     await db.courses.insert_one(course_dict)
-    
-    # Remove MongoDB _id and return the course data
     course_dict.pop('_id', None)
     return serialize_doc(course_dict)
 
@@ -407,12 +1513,10 @@ async def enroll_course(course_id: str, current_user: dict = Depends(get_current
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
-    # Update student profile
     await db.student_profiles.update_one(
         {"user_id": current_user['id']},
         {"$addToSet": {"enrolled_courses": course_id}}
     )
-    # Update course
     await db.courses.update_one(
         {"id": course_id},
         {"$addToSet": {"enrolled_students": current_user['id']}}
@@ -441,7 +1545,7 @@ async def get_attendance(
 
 @attendance_router.post("")
 async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict = Depends(get_current_user)):
-    if current_user['role'] not in ['admin', 'teacher']:
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
     attendance = Attendance(**attendance_data.model_dump(), marked_by=current_user['id'])
@@ -472,7 +1576,7 @@ async def get_grades(
 
 @grades_router.post("")
 async def add_grade(grade_data: GradeCreate, current_user: dict = Depends(get_current_user)):
-    if current_user['role'] not in ['admin', 'teacher']:
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
     grade = Grade(**grade_data.model_dump(), graded_by=current_user['id'])
@@ -480,7 +1584,6 @@ async def add_grade(grade_data: GradeCreate, current_user: dict = Depends(get_cu
     grade_dict['graded_at'] = grade_dict['graded_at'].isoformat()
     await db.grades.insert_one(grade_dict)
     
-    # Update student GPA
     profile = await db.student_profiles.find_one({"id": grade_data.student_id}, {"_id": 0})
     if profile:
         all_grades = await db.grades.find({"student_id": grade_data.student_id}, {"_id": 0}).to_list(1000)
@@ -502,7 +1605,6 @@ async def get_fees(current_user: dict = Depends(get_current_user)):
         else:
             fees = []
     elif current_user['role'] == 'parent':
-        # Get children's fees
         children = await db.student_profiles.find({"parent_id": current_user['id']}, {"_id": 0}).to_list(10)
         child_ids = [c['id'] for c in children]
         fees = await db.fees.find({"student_id": {"$in": child_ids}}, {"_id": 0}).to_list(100)
@@ -512,10 +1614,11 @@ async def get_fees(current_user: dict = Depends(get_current_user)):
 
 @fees_router.post("")
 async def create_fee(fee_data: FeeCreate, current_user: dict = Depends(get_current_user)):
-    if current_user['role'] != 'admin':
+    if current_user['role'] not in ['admin', 'org_admin']:
         raise HTTPException(status_code=403, detail="Only admins can create fees")
     
     fee = Fee(**fee_data.model_dump())
+    fee.organization_id = current_user.get('organization_id')
     fee_dict = fee.model_dump()
     fee_dict['created_at'] = fee_dict['created_at'].isoformat()
     await db.fees.insert_one(fee_dict)
@@ -556,7 +1659,7 @@ async def get_achievements(current_user: dict = Depends(get_current_user)):
 
 @achievements_router.post("")
 async def create_achievement(achievement_data: AchievementCreate, current_user: dict = Depends(get_current_user)):
-    if current_user['role'] not in ['admin', 'teacher']:
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
     achievement = Achievement(**achievement_data.model_dump(), awarded_by=current_user['id'])
@@ -587,15 +1690,19 @@ async def mark_notification_read(notification_id: str, current_user: dict = Depe
 async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     stats = {}
     
-    if current_user['role'] == 'admin':
-        stats['total_students'] = await db.student_profiles.count_documents({})
-        stats['total_teachers'] = await db.teacher_profiles.count_documents({})
-        stats['total_courses'] = await db.courses.count_documents({"is_active": True})
-        stats['pending_fees'] = await db.fees.count_documents({"status": "pending"})
+    if current_user['role'] in ['admin', 'org_admin']:
+        org_filter = {}
+        if current_user.get('organization_id'):
+            org_filter['organization_id'] = current_user['organization_id']
         
-        # Recent enrollments
+        stats['total_students'] = await db.student_profiles.count_documents(org_filter)
+        stats['total_teachers'] = await db.teacher_profiles.count_documents(org_filter)
+        stats['total_courses'] = await db.courses.count_documents({**org_filter, "is_active": True})
+        stats['pending_fees'] = await db.fees.count_documents({**org_filter, "status": "pending"})
+        stats['total_organizations'] = await db.organizations.count_documents({})
+        
         recent_students = await db.users.find(
-            {"role": "student"},
+            {"role": "student", **org_filter},
             {"_id": 0, "password_hash": 0}
         ).sort("created_at", -1).to_list(5)
         stats['recent_students'] = [serialize_doc(s) for s in recent_students]
@@ -616,7 +1723,6 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
             stats['gpa'] = profile.get('gpa', 0)
             stats['enrolled_courses'] = len(profile.get('enrolled_courses', []))
             
-            # Attendance rate
             attendance = await db.attendance.find({"student_id": profile['id']}, {"_id": 0}).to_list(1000)
             if attendance:
                 present = sum(1 for a in attendance if a['status'] == 'present')
@@ -624,23 +1730,18 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
             else:
                 stats['attendance_rate'] = 100
             
-            # Pending fees
             fees = await db.fees.find({"student_id": profile['id'], "status": {"$in": ["pending", "overdue"]}}, {"_id": 0}).to_list(10)
             stats['pending_fees'] = sum(f['amount'] - f.get('paid_amount', 0) for f in fees)
-            
-            # Achievements count
             stats['achievements_count'] = await db.achievements.count_documents({"student_id": profile['id']})
-    
-    elif current_user['role'] == 'parent':
-        children = await db.student_profiles.find({"parent_id": current_user['id']}, {"_id": 0}).to_list(10)
-        stats['children_count'] = len(children)
-        child_ids = [c['id'] for c in children]
-        fees = await db.fees.find({"student_id": {"$in": child_ids}, "status": {"$in": ["pending", "overdue"]}}, {"_id": 0}).to_list(100)
-        stats['pending_fees'] = sum(f['amount'] - f.get('paid_amount', 0) for f in fees)
+            
+            # Knowledge graph progress
+            concept_states = await db.learner_concept_states.find({"user_id": current_user['id']}, {"_id": 0}).to_list(100)
+            stats['concepts_mastered'] = sum(1 for s in concept_states if s.get('status') == 'mastered')
+            stats['concepts_learning'] = sum(1 for s in concept_states if s.get('status') == 'learning')
     
     return stats
 
-# AI Career Guidance Routes
+# AI Routes (Original)
 @ai_router.post("/career-chat")
 async def career_chat(chat_data: ChatMessage, current_user: dict = Depends(get_current_user)):
     try:
@@ -650,39 +1751,39 @@ async def career_chat(chat_data: ChatMessage, current_user: dict = Depends(get_c
         if not api_key:
             raise HTTPException(status_code=500, detail="AI service not configured")
         
-        # Get student profile for context
         context = ""
         if current_user['role'] == 'student':
             profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
             if profile:
                 context = f"Student GPA: {profile.get('gpa', 'N/A')}, Grade Level: {profile.get('grade_level', 'N/A')}"
         
-        system_message = f"""You are EduOS Career Advisor, an AI assistant specialized in educational and career guidance.
-You help students discover their potential, recommend career paths, suggest subject combinations, and provide actionable advice.
-Be encouraging, informative, and personalized in your responses.
-{f'Student Context: {context}' if context else ''}
-{f'Additional Context: {chat_data.context}' if chat_data.context else ''}"""
+        language_map = {'en': 'English', 'sn': 'Shona', 'nd': 'Ndebele', 'sw': 'Swahili', 'zu': 'Zulu'}
+        preferred_lang = language_map.get(chat_data.language, 'English')
         
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=f"career-{current_user['id']}",
-            system_message=system_message
-        )
+        system_message = f"""You are EduOS Career Advisor. Help students discover career paths.
+{f'Student Context: {context}' if context else ''}
+Respond in {preferred_lang}. Be encouraging and personalized."""
+        
+        chat = LlmChat(api_key=api_key, session_id=f"career-{current_user['id']}", system_message=system_message)
         chat.with_model("openai", "gpt-5.2")
         
-        user_message = UserMessage(text=chat_data.message)
-        response = await chat.send_message(user_message)
+        response = await chat.send_message(UserMessage(text=chat_data.message))
         
-        return {"response": response, "context_used": bool(context)}
-    except ImportError:
-        raise HTTPException(status_code=500, detail="AI module not available")
+        result = {"response": response, "context_used": bool(context)}
+        
+        if chat_data.include_audio:
+            audio = await generate_tts_audio(response[:500])
+            if audio:
+                result['audio_url'] = audio
+        
+        return result
     except Exception as e:
         logging.error(f"AI Chat Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
 
 @ai_router.post("/lesson-planner")
 async def ai_lesson_planner(chat_data: ChatMessage, current_user: dict = Depends(get_current_user)):
-    if current_user['role'] not in ['admin', 'teacher']:
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
         raise HTTPException(status_code=403, detail="Only teachers can use lesson planner")
     
     try:
@@ -692,35 +1793,28 @@ async def ai_lesson_planner(chat_data: ChatMessage, current_user: dict = Depends
         if not api_key:
             raise HTTPException(status_code=500, detail="AI service not configured")
         
-        system_message = """You are EduOS Lesson Planner, an AI assistant for teachers.
-Help create engaging lesson plans, generate quiz questions, suggest teaching strategies, and provide educational resources.
-Be practical and provide structured, actionable content."""
+        system_message = """You are EduOS Lesson Planner. Help create engaging lesson plans, quizzes, and teaching materials."""
         
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=f"lesson-{current_user['id']}",
-            system_message=system_message
-        )
+        chat = LlmChat(api_key=api_key, session_id=f"lesson-{current_user['id']}", system_message=system_message)
         chat.with_model("openai", "gpt-5.2")
         
-        user_message = UserMessage(text=chat_data.message)
-        response = await chat.send_message(user_message)
-        
+        response = await chat.send_message(UserMessage(text=chat_data.message))
         return {"response": response}
-    except ImportError:
-        raise HTTPException(status_code=500, detail="AI module not available")
     except Exception as e:
         logging.error(f"AI Lesson Planner Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
 
-# Student Management (Admin)
+# Student & Teacher Management
 @students_router.get("")
 async def get_students(current_user: dict = Depends(get_current_user)):
-    if current_user['role'] not in ['admin', 'teacher']:
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    students = await db.student_profiles.find({}, {"_id": 0}).to_list(1000)
-    # Enrich with user data
+    query = {}
+    if current_user.get('organization_id'):
+        query['organization_id'] = current_user['organization_id']
+    
+    students = await db.student_profiles.find(query, {"_id": 0}).to_list(1000)
     for student in students:
         user = await db.users.find_one({"id": student['user_id']}, {"_id": 0, "password_hash": 0})
         if user:
@@ -738,13 +1832,16 @@ async def get_student(student_id: str, current_user: dict = Depends(get_current_
         student['user'] = serialize_doc(user)
     return serialize_doc(student)
 
-# Teacher Management (Admin)
 @teachers_router.get("")
 async def get_teachers(current_user: dict = Depends(get_current_user)):
-    if current_user['role'] != 'admin':
+    if current_user['role'] not in ['admin', 'org_admin']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    teachers = await db.teacher_profiles.find({}, {"_id": 0}).to_list(100)
+    query = {}
+    if current_user.get('organization_id'):
+        query['organization_id'] = current_user['organization_id']
+    
+    teachers = await db.teacher_profiles.find(query, {"_id": 0}).to_list(100)
     for teacher in teachers:
         user = await db.users.find_one({"id": teacher['user_id']}, {"_id": 0, "password_hash": 0})
         if user:
@@ -754,216 +1851,20 @@ async def get_teachers(current_user: dict = Depends(get_current_user)):
 # Health check
 @api_router.get("/health")
 async def health_check():
-    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {"status": "healthy", "version": "2.0", "timestamp": datetime.now(timezone.utc).isoformat()}
 
-# Seed demo data
-@api_router.post("/seed-demo")
-async def seed_demo_data():
-    """Seed demo data for testing"""
-    try:
-        # Check if demo data already exists
-        existing_user = await db.users.find_one({"email": "demo.student@eduos.edu"})
-        if existing_user:
-            return {"message": "Demo data already exists", "status": "skipped"}
-        
-        # Create demo student
-        demo_student_user = {
-            "id": str(uuid.uuid4()),
-            "email": "demo.student@eduos.edu",
-            "full_name": "Alex Johnson",
-            "role": "student",
-            "password_hash": hash_password("demo123"),
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        await db.users.insert_one(demo_student_user)
-        
-        demo_student_profile = {
-            "id": str(uuid.uuid4()),
-            "user_id": demo_student_user["id"],
-            "student_id": "STU2024001",
-            "grade_level": "Grade 11",
-            "section": "A",
-            "gpa": 3.75,
-            "enrolled_courses": [],
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        await db.student_profiles.insert_one(demo_student_profile)
-        
-        # Create demo teacher
-        demo_teacher_user = {
-            "id": str(uuid.uuid4()),
-            "email": "demo.teacher@eduos.edu",
-            "full_name": "Dr. Sarah Williams",
-            "role": "teacher",
-            "password_hash": hash_password("demo123"),
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        await db.users.insert_one(demo_teacher_user)
-        
-        demo_teacher_profile = {
-            "id": str(uuid.uuid4()),
-            "user_id": demo_teacher_user["id"],
-            "employee_id": "TCH2024001",
-            "department": "Science",
-            "subjects": ["Physics", "Mathematics"],
-            "assigned_courses": [],
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        await db.teacher_profiles.insert_one(demo_teacher_profile)
-        
-        # Create demo admin
-        demo_admin_user = {
-            "id": str(uuid.uuid4()),
-            "email": "demo.admin@eduos.edu",
-            "full_name": "Principal Robert Chen",
-            "role": "admin",
-            "password_hash": hash_password("demo123"),
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        await db.users.insert_one(demo_admin_user)
-        
-        # Create demo courses
-        courses_data = [
-            {"code": "PHY101", "name": "Physics Fundamentals", "description": "Introduction to mechanics, thermodynamics, and waves", "grade_level": "Grade 11", "credits": 4},
-            {"code": "MTH201", "name": "Advanced Mathematics", "description": "Calculus, linear algebra, and statistics", "grade_level": "Grade 11", "credits": 4},
-            {"code": "CHM101", "name": "Chemistry Basics", "description": "Atomic structure, chemical bonds, and reactions", "grade_level": "Grade 11", "credits": 3},
-            {"code": "BIO101", "name": "Biology Essentials", "description": "Cell biology, genetics, and evolution", "grade_level": "Grade 11", "credits": 3},
-            {"code": "ENG201", "name": "English Literature", "description": "Classic and contemporary literature analysis", "grade_level": "Grade 11", "credits": 3},
-            {"code": "CS101", "name": "Computer Science Intro", "description": "Programming fundamentals and algorithms", "grade_level": "Grade 11", "credits": 3},
+# Languages endpoint
+@api_router.get("/languages")
+async def get_supported_languages():
+    return {
+        "supported": [
+            {"code": "en", "name": "English", "native": "English"},
+            {"code": "sn", "name": "Shona", "native": "chiShona"},
+            {"code": "nd", "name": "Ndebele", "native": "isiNdebele"},
+            {"code": "sw", "name": "Swahili", "native": "Kiswahili"},
+            {"code": "zu", "name": "Zulu", "native": "isiZulu"}
         ]
-        
-        course_ids = []
-        for course_data in courses_data:
-            course = {
-                "id": str(uuid.uuid4()),
-                **course_data,
-                "teacher_id": demo_teacher_user["id"],
-                "enrolled_students": [demo_student_user["id"]],
-                "max_students": 30,
-                "is_active": True,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-            await db.courses.insert_one(course)
-            course_ids.append(course["id"])
-        
-        # Update student with enrolled courses
-        await db.student_profiles.update_one(
-            {"id": demo_student_profile["id"]},
-            {"$set": {"enrolled_courses": course_ids[:4]}}
-        )
-        
-        # Update teacher with assigned courses
-        await db.teacher_profiles.update_one(
-            {"id": demo_teacher_profile["id"]},
-            {"$set": {"assigned_courses": course_ids[:2]}}
-        )
-        
-        # Create demo grades
-        grades_data = [
-            {"course_id": course_ids[0], "assessment_type": "Midterm", "assessment_name": "Midterm Exam", "score": 88, "max_score": 100},
-            {"course_id": course_ids[0], "assessment_type": "Quiz", "assessment_name": "Quiz 1", "score": 92, "max_score": 100},
-            {"course_id": course_ids[1], "assessment_type": "Midterm", "assessment_name": "Midterm Exam", "score": 85, "max_score": 100},
-            {"course_id": course_ids[1], "assessment_type": "Assignment", "assessment_name": "Homework 1", "score": 95, "max_score": 100},
-            {"course_id": course_ids[2], "assessment_type": "Lab", "assessment_name": "Lab Report 1", "score": 90, "max_score": 100},
-        ]
-        
-        for grade_data in grades_data:
-            grade = {
-                "id": str(uuid.uuid4()),
-                "student_id": demo_student_profile["id"],
-                **grade_data,
-                "weight": 1.0,
-                "graded_by": demo_teacher_user["id"],
-                "graded_at": datetime.now(timezone.utc).isoformat()
-            }
-            await db.grades.insert_one(grade)
-        
-        # Create demo attendance
-        from datetime import timedelta
-        for i in range(30):
-            date = (datetime.now(timezone.utc) - timedelta(days=i)).strftime("%Y-%m-%d")
-            status = "present" if i % 7 != 0 else "absent"  # Absent on Sundays
-            for course_id in course_ids[:4]:
-                attendance = {
-                    "id": str(uuid.uuid4()),
-                    "student_id": demo_student_profile["id"],
-                    "course_id": course_id,
-                    "date": date,
-                    "status": status,
-                    "marked_by": demo_teacher_user["id"],
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                }
-                await db.attendance.insert_one(attendance)
-        
-        # Create demo fees
-        fees_data = [
-            {"fee_type": "Tuition Fee", "amount": 5000, "due_date": "2026-02-15", "status": "pending", "paid_amount": 2000},
-            {"fee_type": "Library Fee", "amount": 200, "due_date": "2026-01-30", "status": "paid", "paid_amount": 200},
-            {"fee_type": "Lab Fee", "amount": 500, "due_date": "2026-02-28", "status": "pending", "paid_amount": 0},
-            {"fee_type": "Sports Fee", "amount": 300, "due_date": "2026-03-15", "status": "pending", "paid_amount": 0},
-        ]
-        
-        for fee_data in fees_data:
-            fee = {
-                "id": str(uuid.uuid4()),
-                "student_id": demo_student_profile["id"],
-                **fee_data,
-                "description": f"Academic year 2025-2026 {fee_data['fee_type']}",
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-            await db.fees.insert_one(fee)
-        
-        # Create demo achievements
-        achievements_data = [
-            {"title": "Honor Roll", "description": "Achieved GPA above 3.5 for Fall semester", "category": "Academic", "date_awarded": "2025-12-20"},
-            {"title": "Science Fair Winner", "description": "1st place in Regional Science Fair", "category": "Science", "date_awarded": "2025-11-15"},
-            {"title": "Perfect Attendance", "description": "No absences for entire semester", "category": "Academic", "date_awarded": "2025-12-20"},
-            {"title": "Math Olympiad", "description": "Bronze medal in State Math Olympiad", "category": "Academic", "date_awarded": "2025-10-30"},
-        ]
-        
-        for achievement_data in achievements_data:
-            achievement = {
-                "id": str(uuid.uuid4()),
-                "student_id": demo_student_profile["id"],
-                **achievement_data,
-                "awarded_by": demo_teacher_user["id"],
-                "is_verified": True,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-            await db.achievements.insert_one(achievement)
-        
-        # Create notifications
-        notifications_data = [
-            {"title": "Welcome to EduOS!", "message": "Your account has been set up. Explore your dashboard to get started.", "type": "info"},
-            {"title": "New Grade Posted", "message": "Your Physics Midterm grade has been posted. Check your grades page.", "type": "grade"},
-            {"title": "Fee Reminder", "message": "Your tuition fee payment is due on February 15. Please make the payment to avoid late fees.", "type": "fee"},
-        ]
-        
-        for notif_data in notifications_data:
-            notification = {
-                "id": str(uuid.uuid4()),
-                "user_id": demo_student_user["id"],
-                **notif_data,
-                "is_read": False,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-            await db.notifications.insert_one(notification)
-        
-        return {
-            "message": "Demo data created successfully",
-            "status": "success",
-            "credentials": {
-                "student": {"email": "demo.student@eduos.edu", "password": "demo123"},
-                "teacher": {"email": "demo.teacher@eduos.edu", "password": "demo123"},
-                "admin": {"email": "demo.admin@eduos.edu", "password": "demo123"}
-            }
-        }
-    except Exception as e:
-        logging.error(f"Error seeding demo data: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to seed demo data: {str(e)}")
+    }
 
 # Include all routers
 api_router.include_router(auth_router)
@@ -978,6 +1879,11 @@ api_router.include_router(achievements_router)
 api_router.include_router(ai_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(notifications_router)
+api_router.include_router(orgs_router)
+api_router.include_router(knowledge_router)
+api_router.include_router(mentor_router)
+api_router.include_router(content_router)
+api_router.include_router(voice_router)
 
 app.include_router(api_router)
 
@@ -989,7 +1895,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
