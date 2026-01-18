@@ -756,6 +756,215 @@ async def get_teachers(current_user: dict = Depends(get_current_user)):
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
+# Seed demo data
+@api_router.post("/seed-demo")
+async def seed_demo_data():
+    """Seed demo data for testing"""
+    try:
+        # Check if demo data already exists
+        existing_user = await db.users.find_one({"email": "demo.student@eduos.edu"})
+        if existing_user:
+            return {"message": "Demo data already exists", "status": "skipped"}
+        
+        # Create demo student
+        demo_student_user = {
+            "id": str(uuid.uuid4()),
+            "email": "demo.student@eduos.edu",
+            "full_name": "Alex Johnson",
+            "role": "student",
+            "password_hash": hash_password("demo123"),
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(demo_student_user)
+        
+        demo_student_profile = {
+            "id": str(uuid.uuid4()),
+            "user_id": demo_student_user["id"],
+            "student_id": "STU2024001",
+            "grade_level": "Grade 11",
+            "section": "A",
+            "gpa": 3.75,
+            "enrolled_courses": [],
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.student_profiles.insert_one(demo_student_profile)
+        
+        # Create demo teacher
+        demo_teacher_user = {
+            "id": str(uuid.uuid4()),
+            "email": "demo.teacher@eduos.edu",
+            "full_name": "Dr. Sarah Williams",
+            "role": "teacher",
+            "password_hash": hash_password("demo123"),
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(demo_teacher_user)
+        
+        demo_teacher_profile = {
+            "id": str(uuid.uuid4()),
+            "user_id": demo_teacher_user["id"],
+            "employee_id": "TCH2024001",
+            "department": "Science",
+            "subjects": ["Physics", "Mathematics"],
+            "assigned_courses": [],
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.teacher_profiles.insert_one(demo_teacher_profile)
+        
+        # Create demo admin
+        demo_admin_user = {
+            "id": str(uuid.uuid4()),
+            "email": "demo.admin@eduos.edu",
+            "full_name": "Principal Robert Chen",
+            "role": "admin",
+            "password_hash": hash_password("demo123"),
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(demo_admin_user)
+        
+        # Create demo courses
+        courses_data = [
+            {"code": "PHY101", "name": "Physics Fundamentals", "description": "Introduction to mechanics, thermodynamics, and waves", "grade_level": "Grade 11", "credits": 4},
+            {"code": "MTH201", "name": "Advanced Mathematics", "description": "Calculus, linear algebra, and statistics", "grade_level": "Grade 11", "credits": 4},
+            {"code": "CHM101", "name": "Chemistry Basics", "description": "Atomic structure, chemical bonds, and reactions", "grade_level": "Grade 11", "credits": 3},
+            {"code": "BIO101", "name": "Biology Essentials", "description": "Cell biology, genetics, and evolution", "grade_level": "Grade 11", "credits": 3},
+            {"code": "ENG201", "name": "English Literature", "description": "Classic and contemporary literature analysis", "grade_level": "Grade 11", "credits": 3},
+            {"code": "CS101", "name": "Computer Science Intro", "description": "Programming fundamentals and algorithms", "grade_level": "Grade 11", "credits": 3},
+        ]
+        
+        course_ids = []
+        for course_data in courses_data:
+            course = {
+                "id": str(uuid.uuid4()),
+                **course_data,
+                "teacher_id": demo_teacher_user["id"],
+                "enrolled_students": [demo_student_user["id"]],
+                "max_students": 30,
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.courses.insert_one(course)
+            course_ids.append(course["id"])
+        
+        # Update student with enrolled courses
+        await db.student_profiles.update_one(
+            {"id": demo_student_profile["id"]},
+            {"$set": {"enrolled_courses": course_ids[:4]}}
+        )
+        
+        # Update teacher with assigned courses
+        await db.teacher_profiles.update_one(
+            {"id": demo_teacher_profile["id"]},
+            {"$set": {"assigned_courses": course_ids[:2]}}
+        )
+        
+        # Create demo grades
+        grades_data = [
+            {"course_id": course_ids[0], "assessment_type": "Midterm", "assessment_name": "Midterm Exam", "score": 88, "max_score": 100},
+            {"course_id": course_ids[0], "assessment_type": "Quiz", "assessment_name": "Quiz 1", "score": 92, "max_score": 100},
+            {"course_id": course_ids[1], "assessment_type": "Midterm", "assessment_name": "Midterm Exam", "score": 85, "max_score": 100},
+            {"course_id": course_ids[1], "assessment_type": "Assignment", "assessment_name": "Homework 1", "score": 95, "max_score": 100},
+            {"course_id": course_ids[2], "assessment_type": "Lab", "assessment_name": "Lab Report 1", "score": 90, "max_score": 100},
+        ]
+        
+        for grade_data in grades_data:
+            grade = {
+                "id": str(uuid.uuid4()),
+                "student_id": demo_student_profile["id"],
+                **grade_data,
+                "weight": 1.0,
+                "graded_by": demo_teacher_user["id"],
+                "graded_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.grades.insert_one(grade)
+        
+        # Create demo attendance
+        from datetime import timedelta
+        for i in range(30):
+            date = (datetime.now(timezone.utc) - timedelta(days=i)).strftime("%Y-%m-%d")
+            status = "present" if i % 7 != 0 else "absent"  # Absent on Sundays
+            for course_id in course_ids[:4]:
+                attendance = {
+                    "id": str(uuid.uuid4()),
+                    "student_id": demo_student_profile["id"],
+                    "course_id": course_id,
+                    "date": date,
+                    "status": status,
+                    "marked_by": demo_teacher_user["id"],
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }
+                await db.attendance.insert_one(attendance)
+        
+        # Create demo fees
+        fees_data = [
+            {"fee_type": "Tuition Fee", "amount": 5000, "due_date": "2026-02-15", "status": "pending", "paid_amount": 2000},
+            {"fee_type": "Library Fee", "amount": 200, "due_date": "2026-01-30", "status": "paid", "paid_amount": 200},
+            {"fee_type": "Lab Fee", "amount": 500, "due_date": "2026-02-28", "status": "pending", "paid_amount": 0},
+            {"fee_type": "Sports Fee", "amount": 300, "due_date": "2026-03-15", "status": "pending", "paid_amount": 0},
+        ]
+        
+        for fee_data in fees_data:
+            fee = {
+                "id": str(uuid.uuid4()),
+                "student_id": demo_student_profile["id"],
+                **fee_data,
+                "description": f"Academic year 2025-2026 {fee_data['fee_type']}",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.fees.insert_one(fee)
+        
+        # Create demo achievements
+        achievements_data = [
+            {"title": "Honor Roll", "description": "Achieved GPA above 3.5 for Fall semester", "category": "Academic", "date_awarded": "2025-12-20"},
+            {"title": "Science Fair Winner", "description": "1st place in Regional Science Fair", "category": "Science", "date_awarded": "2025-11-15"},
+            {"title": "Perfect Attendance", "description": "No absences for entire semester", "category": "Academic", "date_awarded": "2025-12-20"},
+            {"title": "Math Olympiad", "description": "Bronze medal in State Math Olympiad", "category": "Academic", "date_awarded": "2025-10-30"},
+        ]
+        
+        for achievement_data in achievements_data:
+            achievement = {
+                "id": str(uuid.uuid4()),
+                "student_id": demo_student_profile["id"],
+                **achievement_data,
+                "awarded_by": demo_teacher_user["id"],
+                "is_verified": True,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.achievements.insert_one(achievement)
+        
+        # Create notifications
+        notifications_data = [
+            {"title": "Welcome to EduOS!", "message": "Your account has been set up. Explore your dashboard to get started.", "type": "info"},
+            {"title": "New Grade Posted", "message": "Your Physics Midterm grade has been posted. Check your grades page.", "type": "grade"},
+            {"title": "Fee Reminder", "message": "Your tuition fee payment is due on February 15. Please make the payment to avoid late fees.", "type": "fee"},
+        ]
+        
+        for notif_data in notifications_data:
+            notification = {
+                "id": str(uuid.uuid4()),
+                "user_id": demo_student_user["id"],
+                **notif_data,
+                "is_read": False,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.notifications.insert_one(notification)
+        
+        return {
+            "message": "Demo data created successfully",
+            "status": "success",
+            "credentials": {
+                "student": {"email": "demo.student@eduos.edu", "password": "demo123"},
+                "teacher": {"email": "demo.teacher@eduos.edu", "password": "demo123"},
+                "admin": {"email": "demo.admin@eduos.edu", "password": "demo123"}
+            }
+        }
+    except Exception as e:
+        logging.error(f"Error seeding demo data: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to seed demo data: {str(e)}")
+
 # Include all routers
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
