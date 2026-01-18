@@ -4,7 +4,7 @@ import json
 
 def test_ai_with_timeout():
     """Test AI features with longer timeout"""
-    base_url = "https://eduos-platform-1.preview.emergentagent.com/api"
+    base_url = "https://smartedu-36.preview.emergentagent.com/api"
     
     # First register and login as student
     student_data = {
@@ -60,7 +60,7 @@ def test_ai_with_timeout():
 
 def test_role_based_access():
     """Test role-based access control"""
-    base_url = "https://eduos-platform-1.preview.emergentagent.com/api"
+    base_url = "https://smartedu-36.preview.emergentagent.com/api"
     
     print("\n👥 Testing Role-Based Access Control...")
     
