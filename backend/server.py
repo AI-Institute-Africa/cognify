@@ -1866,6 +1866,569 @@ async def get_supported_languages():
         ]
     }
 
+# ============= PARENT PORTAL ROUTES =============
+parents_router = APIRouter(prefix="/parents", tags=["Parents"])
+
+class LinkChildRequest(BaseModel):
+    child_email: str
+
+@parents_router.get("/children")
+async def get_linked_children(current_user: dict = Depends(get_current_user)):
+    """Get all children linked to parent"""
+    if current_user['role'] != 'parent':
+        raise HTTPException(status_code=403, detail="Only parents can access this")
+    
+    links = await db.parent_child_links.find(
+        {"parent_id": current_user['id'], "status": "approved"},
+        {"_id": 0}
+    ).to_list(10)
+    
+    children = []
+    for link in links:
+        child_user = await db.users.find_one({"id": link['child_id']}, {"_id": 0, "password_hash": 0})
+        if child_user:
+            child_profile = await db.student_profiles.find_one({"user_id": child_user['id']}, {"_id": 0})
+            if child_profile:
+                children.append({
+                    **serialize_doc(child_user),
+                    "grade_level": child_profile.get('grade_level', 'N/A'),
+                    "profile_id": child_profile.get('id')
+                })
+    
+    return children
+
+@parents_router.get("/children/{child_id}/details")
+async def get_child_details(child_id: str, current_user: dict = Depends(get_current_user)):
+    """Get detailed information about a linked child"""
+    if current_user['role'] != 'parent':
+        raise HTTPException(status_code=403, detail="Only parents can access this")
+    
+    # Verify parent-child link
+    link = await db.parent_child_links.find_one({
+        "parent_id": current_user['id'],
+        "child_id": child_id,
+        "status": "approved"
+    }, {"_id": 0})
+    
+    if not link:
+        raise HTTPException(status_code=403, detail="Child not linked to parent")
+    
+    # Get student profile
+    child_user = await db.users.find_one({"id": child_id}, {"_id": 0, "password_hash": 0})
+    profile = await db.student_profiles.find_one({"user_id": child_id}, {"_id": 0})
+    
+    if not profile:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+    
+    # Get enrolled courses with grades
+    courses = []
+    for course_id in profile.get('enrolled_courses', []):
+        course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+        if course:
+            grades = await db.grades.find({"student_id": profile['id'], "course_id": course_id}, {"_id": 0}).to_list(100)
+            avg_grade = 0
+            if grades:
+                avg_grade = sum(g['score']/g['max_score']*100 for g in grades) / len(grades)
+            courses.append({
+                "id": course['id'],
+                "name": course['name'],
+                "code": course['code'],
+                "grade": round(avg_grade, 1)
+            })
+    
+    # Get attendance rate
+    attendance = await db.attendance.find({"student_id": profile['id']}, {"_id": 0}).to_list(1000)
+    attendance_rate = 100
+    if attendance:
+        present = sum(1 for a in attendance if a['status'] == 'present')
+        attendance_rate = round((present / len(attendance)) * 100, 1)
+    
+    # Get pending fees
+    fees = await db.fees.find(
+        {"student_id": profile['id'], "status": {"$in": ["pending", "overdue"]}},
+        {"_id": 0}
+    ).to_list(100)
+    pending_fees = sum(f['amount'] - f.get('paid_amount', 0) for f in fees)
+    
+    # Get recent activity
+    recent_activity = []
+    recent_grades = await db.grades.find({"student_id": profile['id']}, {"_id": 0}).sort("graded_at", -1).to_list(5)
+    for g in recent_grades:
+        recent_activity.append({
+            "type": "grade",
+            "message": f"Scored {g['score']}/{g['max_score']} on {g['assessment_name']}",
+            "date": g['graded_at'].strftime("%b %d, %Y") if isinstance(g['graded_at'], datetime) else g['graded_at']
+        })
+    
+    return {
+        "gpa": profile.get('gpa', 0),
+        "attendance_rate": attendance_rate,
+        "courses": courses,
+        "pending_fees": pending_fees,
+        "recent_activity": recent_activity
+    }
+
+@parents_router.post("/link-child")
+async def link_child(request: LinkChildRequest, current_user: dict = Depends(get_current_user)):
+    """Send a request to link parent to child"""
+    if current_user['role'] != 'parent':
+        raise HTTPException(status_code=403, detail="Only parents can link children")
+    
+    # Find child by email
+    child = await db.users.find_one({"email": request.child_email, "role": "student"}, {"_id": 0})
+    if not child:
+        raise HTTPException(status_code=404, detail="Student not found with that email")
+    
+    # Check if already linked
+    existing = await db.parent_child_links.find_one({
+        "parent_id": current_user['id'],
+        "child_id": child['id']
+    }, {"_id": 0})
+    
+    if existing:
+        raise HTTPException(status_code=400, detail="Already linked or pending")
+    
+    # Create link request
+    link = {
+        "id": str(uuid.uuid4()),
+        "parent_id": current_user['id'],
+        "child_id": child['id'],
+        "status": "approved",  # Auto-approve for demo
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.parent_child_links.insert_one(link)
+    
+    return {"message": "Child linked successfully", "link_id": link['id']}
+
+
+# ============= PDF REPORT CARD ROUTES =============
+reports_router = APIRouter(prefix="/reports", tags=["Reports"])
+
+@reports_router.get("/report-card/{student_id}")
+async def generate_report_card(student_id: str, current_user: dict = Depends(get_current_user)):
+    """Generate PDF report card for a student"""
+    from io import BytesIO
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+    from reportlab.lib.enums import TA_CENTER
+    
+    # Authorization check
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin', 'parent']:
+        # Check if student is requesting their own
+        profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+        if not profile or profile['id'] != student_id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Get student profile
+    profile = await db.student_profiles.find_one({"id": student_id}, {"_id": 0})
+    if not profile:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    user = await db.users.find_one({"id": profile['user_id']}, {"_id": 0, "password_hash": 0})
+    
+    # Get grades
+    grades = await db.grades.find({"student_id": student_id}, {"_id": 0}).to_list(100)
+    
+    # Get courses
+    courses = {}
+    for course_id in profile.get('enrolled_courses', []):
+        course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+        if course:
+            courses[course_id] = course
+    
+    # Create PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=50, leftMargin=50, topMargin=50, bottomMargin=50)
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('Title', parent=styles['Title'], fontSize=24, alignment=TA_CENTER, spaceAfter=20)
+    subtitle_style = ParagraphStyle('Subtitle', parent=styles['Normal'], fontSize=12, alignment=TA_CENTER, spaceAfter=30, textColor=colors.grey)
+    
+    elements = []
+    
+    # Header
+    elements.append(Paragraph("EduOS 2026", title_style))
+    elements.append(Paragraph("Academic Report Card", subtitle_style))
+    elements.append(Spacer(1, 20))
+    
+    # Student Info
+    info_data = [
+        ["Student Name:", user.get('full_name', 'N/A')],
+        ["Student ID:", profile.get('id', 'N/A')[:8]],
+        ["Grade Level:", profile.get('grade_level', 'N/A')],
+        ["GPA:", f"{profile.get('gpa', 0):.2f}"],
+        ["Generated:", datetime.now().strftime("%B %d, %Y")]
+    ]
+    info_table = Table(info_data, colWidths=[2*inch, 4*inch])
+    info_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 30))
+    
+    # Grades Table
+    elements.append(Paragraph("Academic Performance", styles['Heading2']))
+    elements.append(Spacer(1, 10))
+    
+    grade_data = [["Course", "Assessment", "Score", "Percentage", "Grade"]]
+    for grade in grades:
+        course = courses.get(grade.get('course_id'), {})
+        percentage = (grade['score'] / grade['max_score']) * 100
+        letter = 'A' if percentage >= 90 else 'B' if percentage >= 80 else 'C' if percentage >= 70 else 'D' if percentage >= 60 else 'F'
+        grade_data.append([
+            course.get('name', 'N/A')[:20],
+            grade.get('assessment_name', 'N/A')[:20],
+            f"{grade['score']}/{grade['max_score']}",
+            f"{percentage:.1f}%",
+            letter
+        ])
+    
+    if len(grade_data) > 1:
+        grade_table = Table(grade_data, colWidths=[1.5*inch, 1.5*inch, 1*inch, 1*inch, 0.8*inch])
+        grade_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3B82F6')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('TOPPADDING', (0, 0), (-1, 0), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#E5E7EB')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9FAFB')]),
+        ]))
+        elements.append(grade_table)
+    else:
+        elements.append(Paragraph("No grades recorded yet.", styles['Normal']))
+    
+    elements.append(Spacer(1, 30))
+    
+    # Footer
+    elements.append(Paragraph("This is an official document generated by EduOS 2026.", 
+                             ParagraphStyle('Footer', parent=styles['Normal'], fontSize=9, textColor=colors.grey, alignment=TA_CENTER)))
+    
+    doc.build(elements)
+    
+    # Return PDF
+    buffer.seek(0)
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=report_card_{student_id[:8]}.pdf"}
+    )
+
+
+# ============= BLOCKCHAIN CREDENTIALS ROUTES =============
+credentials_router = APIRouter(prefix="/credentials", tags=["Blockchain Credentials"])
+
+class CredentialRequest(BaseModel):
+    student_id: str
+    credential_type: str  # 'diploma', 'certificate', 'transcript'
+    title: str
+    description: str
+    course_id: Optional[str] = None
+
+@credentials_router.post("/issue")
+async def issue_credential(request: CredentialRequest, current_user: dict = Depends(get_current_user)):
+    """Issue a blockchain-verified credential"""
+    if current_user['role'] not in ['admin', 'org_admin', 'teacher']:
+        raise HTTPException(status_code=403, detail="Not authorized to issue credentials")
+    
+    # Get student
+    profile = await db.student_profiles.find_one({"id": request.student_id}, {"_id": 0})
+    if not profile:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    user = await db.users.find_one({"id": profile['user_id']}, {"_id": 0, "password_hash": 0})
+    
+    # Create credential data
+    credential_data = {
+        "student_id": request.student_id,
+        "student_name": user.get('full_name', 'N/A'),
+        "credential_type": request.credential_type,
+        "title": request.title,
+        "description": request.description,
+        "course_id": request.course_id,
+        "issuer_id": current_user['id'],
+        "issuer_name": current_user.get('full_name', 'N/A'),
+        "organization_id": current_user.get('organization_id'),
+        "issued_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Generate hash (simple hash-based verification)
+    import hashlib
+    credential_string = json.dumps(credential_data, sort_keys=True)
+    credential_hash = hashlib.sha256(credential_string.encode()).hexdigest()
+    
+    credential = {
+        "id": str(uuid.uuid4()),
+        **credential_data,
+        "hash": credential_hash,
+        "verification_url": f"/api/credentials/verify/{credential_hash}",
+        "status": "valid",
+        "created_at": datetime.now(timezone.utc)
+    }
+    
+    await db.credentials.insert_one(credential)
+    
+    return {
+        "message": "Credential issued successfully",
+        "credential_id": credential['id'],
+        "hash": credential_hash,
+        "verification_url": credential['verification_url']
+    }
+
+@credentials_router.get("/verify/{credential_hash}")
+async def verify_credential(credential_hash: str):
+    """Verify a credential by its hash"""
+    credential = await db.credentials.find_one({"hash": credential_hash}, {"_id": 0})
+    
+    if not credential:
+        return {"verified": False, "message": "Credential not found"}
+    
+    if credential.get('status') == 'revoked':
+        return {"verified": False, "message": "Credential has been revoked"}
+    
+    return {
+        "verified": True,
+        "credential": {
+            "id": credential['id'],
+            "student_name": credential['student_name'],
+            "credential_type": credential['credential_type'],
+            "title": credential['title'],
+            "description": credential['description'],
+            "issuer_name": credential['issuer_name'],
+            "issued_at": credential['issued_at'],
+            "hash": credential['hash']
+        }
+    }
+
+@credentials_router.get("/student/{student_id}")
+async def get_student_credentials(student_id: str, current_user: dict = Depends(get_current_user)):
+    """Get all credentials for a student"""
+    credentials = await db.credentials.find(
+        {"student_id": student_id, "status": "valid"},
+        {"_id": 0}
+    ).to_list(100)
+    
+    return [serialize_doc(c) for c in credentials]
+
+
+# ============= RFID/NFC ATTENDANCE ROUTES =============
+rfid_router = APIRouter(prefix="/rfid", tags=["RFID Attendance"])
+
+class RFIDScan(BaseModel):
+    rfid_tag: str
+    device_id: str
+    location: str
+
+class RFIDRegister(BaseModel):
+    student_id: str
+    rfid_tag: str
+
+@rfid_router.post("/register")
+async def register_rfid(request: RFIDRegister, current_user: dict = Depends(get_current_user)):
+    """Register RFID card to a student"""
+    if current_user['role'] not in ['admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Check if tag already registered
+    existing = await db.rfid_cards.find_one({"rfid_tag": request.rfid_tag}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="RFID tag already registered")
+    
+    # Get student profile
+    profile = await db.student_profiles.find_one({"id": request.student_id}, {"_id": 0})
+    if not profile:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    rfid_record = {
+        "id": str(uuid.uuid4()),
+        "student_id": request.student_id,
+        "rfid_tag": request.rfid_tag,
+        "registered_at": datetime.now(timezone.utc),
+        "registered_by": current_user['id'],
+        "is_active": True
+    }
+    
+    await db.rfid_cards.insert_one(rfid_record)
+    
+    # Update student profile
+    await db.student_profiles.update_one(
+        {"id": request.student_id},
+        {"$set": {"rfid_tag": request.rfid_tag}}
+    )
+    
+    return {"message": "RFID card registered successfully", "record_id": rfid_record['id']}
+
+@rfid_router.post("/scan")
+async def process_rfid_scan(scan: RFIDScan):
+    """Process an RFID scan for attendance"""
+    # Find student by RFID
+    rfid_record = await db.rfid_cards.find_one({"rfid_tag": scan.rfid_tag, "is_active": True}, {"_id": 0})
+    
+    if not rfid_record:
+        return {"success": False, "message": "Unknown RFID card", "student": None}
+    
+    student_id = rfid_record['student_id']
+    profile = await db.student_profiles.find_one({"id": student_id}, {"_id": 0})
+    user = await db.users.find_one({"id": profile['user_id']}, {"_id": 0, "password_hash": 0}) if profile else None
+    
+    # Record attendance
+    today = datetime.now(timezone.utc).date()
+    existing = await db.attendance.find_one({
+        "student_id": student_id,
+        "date": today.isoformat(),
+        "type": "rfid"
+    }, {"_id": 0})
+    
+    if existing:
+        # Already checked in, this is a check-out
+        await db.attendance.update_one(
+            {"id": existing['id']},
+            {"$set": {"check_out": datetime.now(timezone.utc), "check_out_device": scan.device_id}}
+        )
+        action = "checked_out"
+    else:
+        # New check-in
+        attendance_record = {
+            "id": str(uuid.uuid4()),
+            "student_id": student_id,
+            "course_id": None,  # General attendance
+            "date": today.isoformat(),
+            "status": "present",
+            "type": "rfid",
+            "check_in": datetime.now(timezone.utc),
+            "check_in_device": scan.device_id,
+            "location": scan.location,
+            "recorded_at": datetime.now(timezone.utc)
+        }
+        await db.attendance.insert_one(attendance_record)
+        action = "checked_in"
+    
+    return {
+        "success": True,
+        "action": action,
+        "student": {
+            "id": student_id,
+            "name": user.get('full_name', 'Unknown') if user else 'Unknown',
+            "grade_level": profile.get('grade_level', 'N/A') if profile else 'N/A'
+        },
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "location": scan.location
+    }
+
+@rfid_router.get("/attendance/today")
+async def get_today_rfid_attendance(current_user: dict = Depends(get_current_user)):
+    """Get today's RFID attendance records"""
+    if current_user['role'] not in ['admin', 'org_admin', 'teacher']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    today = datetime.now(timezone.utc).date()
+    records = await db.attendance.find({
+        "date": today.isoformat(),
+        "type": "rfid"
+    }, {"_id": 0}).to_list(1000)
+    
+    # Enrich with student info
+    result = []
+    for record in records:
+        profile = await db.student_profiles.find_one({"id": record['student_id']}, {"_id": 0})
+        user = await db.users.find_one({"id": profile['user_id']}, {"_id": 0, "password_hash": 0}) if profile else None
+        result.append({
+            **serialize_doc(record),
+            "student_name": user.get('full_name', 'Unknown') if user else 'Unknown'
+        })
+    
+    return result
+
+
+# ============= WEBSOCKET NOTIFICATIONS =============
+from fastapi import WebSocket, WebSocketDisconnect
+from typing import Dict
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[str, WebSocket] = {}
+    
+    async def connect(self, websocket: WebSocket, user_id: str):
+        await websocket.accept()
+        self.active_connections[user_id] = websocket
+    
+    def disconnect(self, user_id: str):
+        if user_id in self.active_connections:
+            del self.active_connections[user_id]
+    
+    async def send_personal(self, message: dict, user_id: str):
+        if user_id in self.active_connections:
+            await self.active_connections[user_id].send_json(message)
+    
+    async def broadcast(self, message: dict, user_ids: list = None):
+        if user_ids:
+            for user_id in user_ids:
+                await self.send_personal(message, user_id)
+        else:
+            for connection in self.active_connections.values():
+                await connection.send_json(message)
+
+ws_manager = ConnectionManager()
+
+@app.websocket("/ws/notifications/{token}")
+async def websocket_notifications(websocket: WebSocket, token: str):
+    """WebSocket endpoint for real-time notifications"""
+    try:
+        # Verify token
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            await websocket.close(code=4001)
+            return
+        
+        await ws_manager.connect(websocket, user_id)
+        
+        # Send welcome message
+        await ws_manager.send_personal({
+            "type": "connected",
+            "message": "Connected to notifications"
+        }, user_id)
+        
+        try:
+            while True:
+                # Keep connection alive
+                data = await websocket.receive_text()
+                if data == "ping":
+                    await websocket.send_json({"type": "pong"})
+        except WebSocketDisconnect:
+            ws_manager.disconnect(user_id)
+    except Exception as e:
+        await websocket.close(code=4002)
+
+# Helper function to send notifications
+async def send_notification(user_id: str, notification: dict):
+    """Send a notification to a user"""
+    # Save to database
+    notification_record = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        **notification,
+        "is_read": False,
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.notifications.insert_one(notification_record)
+    
+    # Send via WebSocket if connected
+    await ws_manager.send_personal({
+        "type": "notification",
+        "data": serialize_doc(notification_record)
+    }, user_id)
+
+
 # Include all routers
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
@@ -1884,6 +2447,10 @@ api_router.include_router(knowledge_router)
 api_router.include_router(mentor_router)
 api_router.include_router(content_router)
 api_router.include_router(voice_router)
+api_router.include_router(parents_router)
+api_router.include_router(reports_router)
+api_router.include_router(credentials_router)
+api_router.include_router(rfid_router)
 
 app.include_router(api_router)
 
