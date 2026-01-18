@@ -26,6 +26,8 @@ import OrganizationRegisterPage from './pages/OrganizationRegisterPage';
 import SyllabusIngestionPage from './pages/SyllabusIngestionPage';
 import LearnByTeachingPage from './pages/LearnByTeachingPage';
 import LiveResearchPage from './pages/LiveResearchPage';
+import LearningJourneyPage from './pages/LearningJourneyPage';
+import ParentPortalPage from './pages/ParentPortalPage';
 
 import './App.css';
 
@@ -184,6 +186,18 @@ function AppRoutes() {
       <Route path="/live-research" element={
         <ProtectedRoute>
           <LiveResearchPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/learning-journey" element={
+        <ProtectedRoute>
+          <LearningJourneyPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/parent-portal" element={
+        <ProtectedRoute allowedRoles={['parent']}>
+          <ParentPortalPage />
         </ProtectedRoute>
       } />
       
