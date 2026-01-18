@@ -2,8 +2,9 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { LanguageProvider } from './context/LanguageContext';
 
-// Pages
+// Phase 1 Pages
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
@@ -17,6 +18,14 @@ import StudentsPage from './pages/StudentsPage';
 import TeachersPage from './pages/TeachersPage';
 import LessonPlannerPage from './pages/LessonPlannerPage';
 import SettingsPage from './pages/SettingsPage';
+
+// Phase 2 Pages
+import AIMentorPage from './pages/AIMentorPage';
+import KnowledgeGraphPage from './pages/KnowledgeGraphPage';
+import OrganizationRegisterPage from './pages/OrganizationRegisterPage';
+import SyllabusIngestionPage from './pages/SyllabusIngestionPage';
+import LearnByTeachingPage from './pages/LearnByTeachingPage';
+import LiveResearchPage from './pages/LiveResearchPage';
 
 import './App.css';
 
@@ -147,6 +156,44 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* Phase 2 Routes */}
+      <Route path="/ai-mentor" element={
+        <ProtectedRoute>
+          <AIMentorPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/knowledge-graph" element={
+        <ProtectedRoute>
+          <KnowledgeGraphPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/syllabus-ingestion" element={
+        <ProtectedRoute allowedRoles={['admin', 'teacher', 'org_admin']}>
+          <SyllabusIngestionPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/learn-by-teaching" element={
+        <ProtectedRoute>
+          <LearnByTeachingPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/live-research" element={
+        <ProtectedRoute>
+          <LiveResearchPage />
+        </ProtectedRoute>
+      } />
+      
+      {/* Organization Registration (Public) */}
+      <Route path="/register-organization" element={
+        <PublicRoute>
+          <OrganizationRegisterPage />
+        </PublicRoute>
+      } />
+      
       {/* Redirect root to login or dashboard */}
       <Route path="/" element={<Navigate to="/login" replace />} />
       
@@ -159,19 +206,21 @@ function AppRoutes() {
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-        <Toaster 
-          position="top-right" 
-          toastOptions={{
-            style: {
-              background: '#18181B',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: '#FAFAFA',
-            },
-          }}
-        />
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <AppRoutes />
+          <Toaster 
+            position="top-right" 
+            toastOptions={{
+              style: {
+                background: '#18181B',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: '#FAFAFA',
+              },
+            }}
+          />
+        </AuthProvider>
+      </LanguageProvider>
     </BrowserRouter>
   );
 }
