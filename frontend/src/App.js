@@ -14,7 +14,9 @@ import FeesPage from './pages/FeesPage';
 import AchievementsPage from './pages/AchievementsPage';
 import CareerGuidancePage from './pages/CareerGuidancePage';
 import StudentsPage from './pages/StudentsPage';
+import TeachersPage from './pages/TeachersPage';
 import LessonPlannerPage from './pages/LessonPlannerPage';
+import SettingsPage from './pages/SettingsPage';
 
 import './App.css';
 
