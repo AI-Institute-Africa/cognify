@@ -18,7 +18,11 @@ import {
   Network,
   FileUp,
   Search,
-  Mic
+  Mic,
+  TrendingUp,
+  FileCheck,
+  CreditCard as Card,
+  Wifi
 } from 'lucide-react';
 
 const navItems = {
@@ -33,6 +37,7 @@ const navItems = {
     { path: '/ai-mentor', icon: Brain, label: 'AI Mentor' },
     { path: '/knowledge-graph', icon: Network, label: 'Knowledge Graph' },
     { path: '/learn-by-teaching', icon: Mic, label: 'Learn by Teaching' },
+    { path: '/learning-journey', icon: TrendingUp, label: 'Learning Journey' },
     { path: '/live-research', icon: Search, label: 'Live Research' },
     { path: '/career', icon: Sparkles, label: 'Career Guide' },
   ],
@@ -48,6 +53,8 @@ const navItems = {
     { path: '/ai-mentor', icon: Brain, label: 'AI Mentor' },
     { path: '/knowledge-graph', icon: Network, label: 'Knowledge Graph' },
     { path: '/live-research', icon: Search, label: 'Live Research' },
+    { divider: true, label: 'Credentials' },
+    { path: '/credentials', icon: FileCheck, label: 'Issue Credentials' },
   ],
   admin: [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -60,6 +67,9 @@ const navItems = {
     { path: '/syllabus-ingestion', icon: FileUp, label: 'Syllabus Ingestion' },
     { path: '/ai-mentor', icon: Brain, label: 'AI Mentor' },
     { path: '/knowledge-graph', icon: Network, label: 'Knowledge Graph' },
+    { divider: true, label: 'Smart Campus' },
+    { path: '/rfid-attendance', icon: Wifi, label: 'RFID Attendance' },
+    { path: '/credentials', icon: FileCheck, label: 'Credentials' },
   ],
   org_admin: [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -71,9 +81,12 @@ const navItems = {
     { path: '/syllabus-ingestion', icon: FileUp, label: 'Syllabus Ingestion' },
     { path: '/ai-mentor', icon: Brain, label: 'AI Mentor' },
     { path: '/knowledge-graph', icon: Network, label: 'Knowledge Graph' },
+    { divider: true, label: 'Smart Campus' },
+    { path: '/rfid-attendance', icon: Wifi, label: 'RFID Attendance' },
+    { path: '/credentials', icon: FileCheck, label: 'Credentials' },
   ],
   parent: [
-    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/parent-portal', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/children', icon: Users, label: 'My Children' },
     { path: '/fees', icon: CreditCard, label: 'Fees' },
     { path: '/attendance', icon: Calendar, label: 'Attendance' },
