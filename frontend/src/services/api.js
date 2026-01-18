@@ -123,10 +123,10 @@ export const getTeachers = async () => {
 };
 
 // AI Services
-export const careerChat = async (message, context = null) => {
+export const careerChat = async (message, context = null, language = 'en', includeAudio = false) => {
   const response = await axios.post(
     `${API}/ai/career-chat`,
-    { message, context },
+    { message, context, language, include_audio: includeAudio },
     { headers: getAuthHeaders() }
   );
   return response.data;
@@ -138,5 +138,185 @@ export const lessonPlanner = async (message) => {
     { message },
     { headers: getAuthHeaders() }
   );
+  return response.data;
+};
+
+// ==================== PHASE 2 APIs ====================
+
+// Organizations
+export const registerOrganization = async (orgData) => {
+  const response = await axios.post(`${API}/organizations/register`, orgData);
+  return response.data;
+};
+
+export const getOrganization = async (orgId) => {
+  const response = await axios.get(`${API}/organizations/${orgId}`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const uploadVerificationDocs = async (orgId, files) => {
+  const formData = new FormData();
+  files.forEach(file => formData.append('files', file));
+  const response = await axios.post(
+    `${API}/organizations/${orgId}/upload-verification`,
+    formData,
+    { headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' } }
+  );
+  return response.data;
+};
+
+export const enrollParticipant = async (orgId, userData) => {
+  const response = await axios.post(
+    `${API}/organizations/${orgId}/enroll-participant`,
+    userData,
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+// Knowledge Graph
+export const getConcepts = async (subject, gradeLevel) => {
+  const params = new URLSearchParams();
+  if (subject) params.append('subject', subject);
+  if (gradeLevel) params.append('grade_level', gradeLevel);
+  const response = await axios.get(`${API}/knowledge/concepts?${params}`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getConcept = async (conceptId) => {
+  const response = await axios.get(`${API}/knowledge/concepts/${conceptId}`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getUserKnowledgeProgress = async () => {
+  const response = await axios.get(`${API}/knowledge/user-progress`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const updateConceptState = async (conceptId, confidence, timeSpent, correct) => {
+  const response = await axios.post(
+    `${API}/knowledge/concepts/${conceptId}/update-state?confidence=${confidence}&time_spent=${timeSpent}&correct=${correct}`,
+    {},
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+// AI Mentor
+export const getMentorProfile = async () => {
+  const response = await axios.get(`${API}/mentor/profile`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const updateMentorProfile = async (profileData) => {
+  const params = new URLSearchParams();
+  Object.entries(profileData).forEach(([key, value]) => {
+    if (value) params.append(key, value);
+  });
+  const response = await axios.post(`${API}/mentor/profile/update?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const mentorChat = async (message, context = null, language = 'en', includeAudio = false) => {
+  const response = await axios.post(
+    `${API}/mentor/chat`,
+    { message, context, language, include_audio: includeAudio },
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+export const getConceptHint = async (conceptId) => {
+  const response = await axios.post(
+    `${API}/mentor/hint?concept_id=${conceptId}`,
+    {},
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+export const teachBack = async (conceptId, explanation) => {
+  const response = await axios.post(
+    `${API}/mentor/teach-back?concept_id=${conceptId}`,
+    { explanation },
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+// Multimodal Content
+export const translateContent = async (text, targetLanguage) => {
+  const response = await axios.post(
+    `${API}/content/translate?text=${encodeURIComponent(text)}&target_language=${targetLanguage}`,
+    {},
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+export const generateMultimodalContent = async (conceptId, contentTypes, language = 'en') => {
+  const response = await axios.post(
+    `${API}/content/generate-multimodal?concept_id=${conceptId}&language=${language}`,
+    { content_types: contentTypes },
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+export const analyzeUpload = async (file, question = null) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (question) formData.append('question', question);
+  const response = await axios.post(
+    `${API}/content/analyze-upload`,
+    formData,
+    { headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' } }
+  );
+  return response.data;
+};
+
+export const ingestSyllabus = async (file, courseId = null) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  let url = `${API}/content/ingest-syllabus`;
+  if (courseId) url += `?course_id=${courseId}`;
+  const response = await axios.post(url, formData, {
+    headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' }
+  });
+  return response.data;
+};
+
+// Voice & Avatar
+export const textToSpeech = async (text, voiceId = null, language = 'en') => {
+  const response = await axios.post(
+    `${API}/voice/tts`,
+    { text, voice_id: voiceId, language },
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+export const getAvailableVoices = async () => {
+  const response = await axios.get(`${API}/voice/voices`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const cloneVoice = async (name, description, cloneSource, files) => {
+  const formData = new FormData();
+  formData.append('name', name);
+  formData.append('description', description || '');
+  formData.append('clone_source', cloneSource);
+  files.forEach(file => formData.append('files', file));
+  const response = await axios.post(
+    `${API}/voice/clone`,
+    formData,
+    { headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' } }
+  );
+  return response.data;
+};
+
+// Languages
+export const getSupportedLanguages = async () => {
+  const response = await axios.get(`${API}/languages`);
   return response.data;
 };
