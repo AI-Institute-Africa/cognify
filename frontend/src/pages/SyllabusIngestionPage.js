@@ -102,7 +102,7 @@ export default function SyllabusIngestionPage() {
         setProgress(prev => Math.min(prev + 10, 90));
       }, 500);
 
-      const data = await ingestSyllabus(file, selectedCourse || null);
+      const data = await ingestSyllabus(file, selectedCourse === 'none' ? null : selectedCourse);
       
       clearInterval(progressInterval);
       setProgress(100);
@@ -209,7 +209,7 @@ export default function SyllabusIngestionPage() {
                   <SelectValue placeholder="Select a course to link this syllabus to..." />
                 </SelectTrigger>
                 <SelectContent className="bg-zinc-900 border-white/10">
-                  <SelectItem value="">No course (create new)</SelectItem>
+                  <SelectItem value="none">No course (create new)</SelectItem>
                   {courses.map(course => (
                     <SelectItem key={course.id} value={course.id}>
                       {course.code} - {course.name}
