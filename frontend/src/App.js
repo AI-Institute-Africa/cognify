@@ -222,6 +222,31 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* Phase 3 Routes */}
+      <Route path="/study-groups" element={
+        <ProtectedRoute>
+          <StudyGroupsPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/biometric-attendance" element={
+        <ProtectedRoute allowedRoles={['admin', 'org_admin', 'teacher']}>
+          <BiometricAttendancePage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/virtual-classroom" element={
+        <ProtectedRoute>
+          <VirtualClassroomPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/student-risk" element={
+        <ProtectedRoute allowedRoles={['admin', 'org_admin', 'teacher']}>
+          <StudentRiskPage />
+        </ProtectedRoute>
+      } />
+      
       {/* Organization Registration (Public) */}
       <Route path="/register-organization" element={
         <PublicRoute>
@@ -229,11 +254,11 @@ function AppRoutes() {
         </PublicRoute>
       } />
       
-      {/* Redirect root to login or dashboard */}
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      {/* Home Page (Public) */}
+      <Route path="/" element={<HomePage />} />
       
-      {/* 404 - Redirect to dashboard */}
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      {/* 404 - Redirect to home */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
