@@ -28,6 +28,8 @@ import LearnByTeachingPage from './pages/LearnByTeachingPage';
 import LiveResearchPage from './pages/LiveResearchPage';
 import LearningJourneyPage from './pages/LearningJourneyPage';
 import ParentPortalPage from './pages/ParentPortalPage';
+import RFIDAttendancePage from './pages/RFIDAttendancePage';
+import CredentialsPage from './pages/CredentialsPage';
 
 import './App.css';
 
@@ -198,6 +200,18 @@ function AppRoutes() {
       <Route path="/parent-portal" element={
         <ProtectedRoute allowedRoles={['parent']}>
           <ParentPortalPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/rfid-attendance" element={
+        <ProtectedRoute allowedRoles={['admin', 'org_admin', 'teacher']}>
+          <RFIDAttendancePage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/credentials" element={
+        <ProtectedRoute allowedRoles={['admin', 'org_admin', 'teacher']}>
+          <CredentialsPage />
         </ProtectedRoute>
       } />
       
