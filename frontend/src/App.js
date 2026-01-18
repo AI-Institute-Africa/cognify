@@ -31,6 +31,13 @@ import ParentPortalPage from './pages/ParentPortalPage';
 import RFIDAttendancePage from './pages/RFIDAttendancePage';
 import CredentialsPage from './pages/CredentialsPage';
 
+// Phase 3 Pages
+import HomePage from './pages/HomePage';
+import StudyGroupsPage from './pages/StudyGroupsPage';
+import BiometricAttendancePage from './pages/BiometricAttendancePage';
+import VirtualClassroomPage from './pages/VirtualClassroomPage';
+import StudentRiskPage from './pages/StudentRiskPage';
+
 import './App.css';
 
 // Protected Route Component
