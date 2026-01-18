@@ -13,7 +13,12 @@ import {
   Settings,
   LogOut,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Brain,
+  Network,
+  FileUp,
+  Search,
+  Mic
 } from 'lucide-react';
 
 const navItems = {
@@ -24,6 +29,11 @@ const navItems = {
     { path: '/attendance', icon: Calendar, label: 'Attendance' },
     { path: '/fees', icon: CreditCard, label: 'Fees' },
     { path: '/achievements', icon: Trophy, label: 'Achievements' },
+    { divider: true, label: 'AI Learning' },
+    { path: '/ai-mentor', icon: Brain, label: 'AI Mentor' },
+    { path: '/knowledge-graph', icon: Network, label: 'Knowledge Graph' },
+    { path: '/learn-by-teaching', icon: Mic, label: 'Learn by Teaching' },
+    { path: '/live-research', icon: Search, label: 'Live Research' },
     { path: '/career', icon: Sparkles, label: 'Career Guide' },
   ],
   teacher: [
@@ -32,7 +42,12 @@ const navItems = {
     { path: '/students', icon: Users, label: 'Students' },
     { path: '/grades', icon: GraduationCap, label: 'Grading' },
     { path: '/attendance', icon: Calendar, label: 'Attendance' },
+    { divider: true, label: 'AI Tools' },
     { path: '/lesson-planner', icon: Sparkles, label: 'AI Planner' },
+    { path: '/syllabus-ingestion', icon: FileUp, label: 'Syllabus Ingestion' },
+    { path: '/ai-mentor', icon: Brain, label: 'AI Mentor' },
+    { path: '/knowledge-graph', icon: Network, label: 'Knowledge Graph' },
+    { path: '/live-research', icon: Search, label: 'Live Research' },
   ],
   admin: [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -41,6 +56,21 @@ const navItems = {
     { path: '/courses', icon: BookOpen, label: 'Courses' },
     { path: '/fees', icon: CreditCard, label: 'Finance' },
     { path: '/achievements', icon: Trophy, label: 'Achievements' },
+    { divider: true, label: 'AI Tools' },
+    { path: '/syllabus-ingestion', icon: FileUp, label: 'Syllabus Ingestion' },
+    { path: '/ai-mentor', icon: Brain, label: 'AI Mentor' },
+    { path: '/knowledge-graph', icon: Network, label: 'Knowledge Graph' },
+  ],
+  org_admin: [
+    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/students', icon: Users, label: 'Participants' },
+    { path: '/teachers', icon: GraduationCap, label: 'Staff' },
+    { path: '/courses', icon: BookOpen, label: 'Programs' },
+    { path: '/fees', icon: CreditCard, label: 'Finance' },
+    { divider: true, label: 'AI Tools' },
+    { path: '/syllabus-ingestion', icon: FileUp, label: 'Syllabus Ingestion' },
+    { path: '/ai-mentor', icon: Brain, label: 'AI Mentor' },
+    { path: '/knowledge-graph', icon: Network, label: 'Knowledge Graph' },
   ],
   parent: [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -77,23 +107,31 @@ export const Sidebar = () => {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {items.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            data-testid={`nav-${item.label.toLowerCase().replace(/\s/g, '-')}`}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 group ${
-                isActive
-                  ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
-              }`
-            }
-          >
-            <item.icon className="w-5 h-5" />
-            <span className="flex-1">{item.label}</span>
-            <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-          </NavLink>
+        {items.map((item, index) => (
+          item.divider ? (
+            <div key={`divider-${index}`} className="pt-4 pb-2">
+              <p className="px-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                {item.label}
+              </p>
+            </div>
+          ) : (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              data-testid={`nav-${item.label.toLowerCase().replace(/\s/g, '-')}`}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 group ${
+                  isActive
+                    ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`
+              }
+            >
+              <item.icon className="w-5 h-5" />
+              <span className="flex-1">{item.label}</span>
+              <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </NavLink>
+          )
         ))}
       </nav>
 
