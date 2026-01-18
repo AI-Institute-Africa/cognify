@@ -21,8 +21,11 @@ import {
   Mic,
   TrendingUp,
   FileCheck,
-  CreditCard as Card,
-  Wifi
+  Wifi,
+  Fingerprint,
+  Video,
+  AlertTriangle,
+  UsersRound
 } from 'lucide-react';
 
 const navItems = {
@@ -38,7 +41,10 @@ const navItems = {
     { path: '/knowledge-graph', icon: Network, label: 'Knowledge Graph' },
     { path: '/learn-by-teaching', icon: Mic, label: 'Learn by Teaching' },
     { path: '/learning-journey', icon: TrendingUp, label: 'Learning Journey' },
+    { path: '/study-groups', icon: UsersRound, label: 'AI Study Groups' },
     { path: '/live-research', icon: Search, label: 'Live Research' },
+    { divider: true, label: 'Classes' },
+    { path: '/virtual-classroom', icon: Video, label: 'Virtual Classroom' },
     { path: '/career', icon: Sparkles, label: 'Career Guide' },
   ],
   teacher: [
@@ -50,11 +56,13 @@ const navItems = {
     { divider: true, label: 'AI Tools' },
     { path: '/lesson-planner', icon: Sparkles, label: 'AI Planner' },
     { path: '/syllabus-ingestion', icon: FileUp, label: 'Syllabus Ingestion' },
+    { path: '/student-risk', icon: AlertTriangle, label: 'Risk Prediction' },
     { path: '/ai-mentor', icon: Brain, label: 'AI Mentor' },
-    { path: '/knowledge-graph', icon: Network, label: 'Knowledge Graph' },
-    { path: '/live-research', icon: Search, label: 'Live Research' },
-    { divider: true, label: 'Credentials' },
-    { path: '/credentials', icon: FileCheck, label: 'Issue Credentials' },
+    { divider: true, label: 'Smart Campus' },
+    { path: '/virtual-classroom', icon: Video, label: 'Virtual Classroom' },
+    { path: '/rfid-attendance', icon: Wifi, label: 'RFID Attendance' },
+    { path: '/biometric-attendance', icon: Fingerprint, label: 'Biometric' },
+    { path: '/credentials', icon: FileCheck, label: 'Credentials' },
   ],
   admin: [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -65,10 +73,12 @@ const navItems = {
     { path: '/achievements', icon: Trophy, label: 'Achievements' },
     { divider: true, label: 'AI Tools' },
     { path: '/syllabus-ingestion', icon: FileUp, label: 'Syllabus Ingestion' },
+    { path: '/student-risk', icon: AlertTriangle, label: 'Risk Prediction' },
     { path: '/ai-mentor', icon: Brain, label: 'AI Mentor' },
-    { path: '/knowledge-graph', icon: Network, label: 'Knowledge Graph' },
     { divider: true, label: 'Smart Campus' },
+    { path: '/virtual-classroom', icon: Video, label: 'Virtual Classroom' },
     { path: '/rfid-attendance', icon: Wifi, label: 'RFID Attendance' },
+    { path: '/biometric-attendance', icon: Fingerprint, label: 'Biometric' },
     { path: '/credentials', icon: FileCheck, label: 'Credentials' },
   ],
   org_admin: [
@@ -79,10 +89,12 @@ const navItems = {
     { path: '/fees', icon: CreditCard, label: 'Finance' },
     { divider: true, label: 'AI Tools' },
     { path: '/syllabus-ingestion', icon: FileUp, label: 'Syllabus Ingestion' },
+    { path: '/student-risk', icon: AlertTriangle, label: 'Risk Prediction' },
     { path: '/ai-mentor', icon: Brain, label: 'AI Mentor' },
-    { path: '/knowledge-graph', icon: Network, label: 'Knowledge Graph' },
     { divider: true, label: 'Smart Campus' },
+    { path: '/virtual-classroom', icon: Video, label: 'Virtual Classroom' },
     { path: '/rfid-attendance', icon: Wifi, label: 'RFID Attendance' },
+    { path: '/biometric-attendance', icon: Fingerprint, label: 'Biometric' },
     { path: '/credentials', icon: FileCheck, label: 'Credentials' },
   ],
   parent: [
