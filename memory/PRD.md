@@ -2,38 +2,16 @@
 
 ## Project Overview
 **Name:** EduOS 2026 - AI-Powered School Management, Learning & Career Intelligence Platform  
-**Version:** 2.0.0 (Phase 2 AI Learning Features)  
+**Version:** 3.0.0 (Phase 3 Smart Campus & Blockchain)  
 **Date:** January 18, 2026  
-**Status:** Phase 2 Complete - AI Learning Platform
+**Status:** Phase 3 Complete - Smart Campus Features
 
 ## Vision
-A Unified Digital Education Operating System that manages a learner's full life-cycle: Admission → Learning → Assessment → Achievements → Career Guidance → University → Employment. Enhanced with AI-powered personalized learning, multi-tenancy for organizations, and multi-language support.
+A Unified Digital Education Operating System that manages a learner's full life-cycle: Admission → Learning → Assessment → Achievements → Career Guidance → University → Employment. Enhanced with AI-powered personalized learning, multi-tenancy for organizations, blockchain credentials, and smart campus IoT features.
 
-## User Personas
+## Core Features Implemented
 
-### 1. Student (Primary)
-- **Needs:** View grades, track attendance, pay fees, access courses, get AI-powered learning support
-- **Key Features:** Dashboard with GPA, AI Mentor, Knowledge Graph, Learn by Teaching, Career Guide
-
-### 2. Teacher
-- **Needs:** Manage classes, enter grades, track attendance, plan lessons, create courses from syllabi
-- **Key Features:** AI Lesson Planner, Syllabus Ingestion, Grade entry, Attendance marking
-
-### 3. Administrator (Platform)
-- **Needs:** Manage students/teachers, oversee finances, verify organizations
-- **Key Features:** Student/Teacher management, Finance overview, Organization verification
-
-### 4. Organization Admin (Multi-tenant)
-- **Needs:** Register organization, manage participants, upload programs
-- **Key Features:** Organization registration, Participant enrollment, Program management
-
-### 5. Parent
-- **Needs:** Track child progress, pay fees, receive notifications
-- **Key Features:** Child dashboard view, Fee payments, Attendance alerts
-
-## Core Requirements
-
-### Phase 1 - School Management System (COMPLETE)
+### Phase 1 - School Management System ✅
 - [x] JWT-based authentication
 - [x] Role-based access control (student, teacher, admin, parent, org_admin)
 - [x] Student/Teacher profiles
@@ -45,95 +23,67 @@ A Unified Digital Education Operating System that manages a learner's full life-
 - [x] AI Career Guidance (GPT-5.2)
 - [x] AI Lesson Planner for teachers
 
-### Phase 2 - AI Learning Platform (COMPLETE)
-- [x] **Multi-Tenancy:** Organizations (schools, universities, governments) can register
-- [x] **Organization Types:** School (K-12), University, Government, Institution, Corporate
-- [x] **Organization Verification:** Pending → Verified → Active workflow
-- [x] **Participant Enrollment:** Org admins can enroll students/teachers
-- [x] **Multi-Language UI:** English, Shona, Ndebele, Swahili, Zulu
-- [x] **AI Personal Mentor:** Lifelong learning companion with memory
-- [x] **Knowledge Graph:** Visual concept map with mastery tracking
-- [x] **Syllabus Ingestion:** Upload documents → Generate courses
-- [x] **Learn by Teaching:** Feynman technique with AI student avatar
-- [x] **Live Research Engine:** Real-time industry signals and papers
+### Phase 2 - AI Learning Platform ✅
+- [x] Multi-Tenancy: Organizations (schools, universities, governments) registration
+- [x] Organization Verification workflow
+- [x] Participant Enrollment
+- [x] Multi-Language UI (English, Shona, Ndebele, Swahili, Zulu)
+- [x] AI Personal Mentor with conversation memory
+- [x] Knowledge Graph with react-flow visualization
+- [x] Syllabus Ingestion (document → course)
+- [x] Learn by Teaching (Feynman technique)
+- [x] Live Research Engine
 
-### Phase 2 Features Detail
-
-#### AI Personal Mentor
-- Personalized chat with GPT-5.2 via Emergent LLM Key
-- Multi-language responses (English, Shona, Ndebele, Swahili, Zulu)
-- Learning style adaptation (visual, auditory, kinesthetic, reading)
-- Pace customization (slow, moderate, fast)
-- Conversation memory across sessions
-- Audio output support (when ElevenLabs configured)
-
-#### Knowledge Graph
-- Visual concept tracking with mastery levels
-- Status: Not Started → Learning → Mastered → Needs Review
-- Confidence scores and retention tracking
-- Spaced repetition scheduling
-- 30-second AI hints for concepts
-- Prerequisites and dependency mapping
-
-#### Syllabus Ingestion
-- Drag & drop file upload (PDF, TXT, MD, DOCX)
-- AI-powered content extraction
-- Automatic concept generation
-- Course linking capability
-- Processing status tracking
-
-#### Learn by Teaching
-- Feynman Technique implementation
-- AI student avatar asks clarifying questions
-- Evaluation with rating (1-10)
-- Misconception identification
-- Improvement suggestions
-
-#### Live Research Engine
-- Search across research papers, news, tools, tutorials
-- Category filtering
-- Relevance scoring
-- Mock data (ready for real API integration)
+### Phase 3 - Smart Campus & Blockchain ✅
+- [x] **Interactive Knowledge Graph**: React-flow powered visualization with draggable nodes
+- [x] **Learning Journey Timeline**: Progress tracking with milestones and activity feed
+- [x] **Parent Portal**: Link parent accounts to children, view grades/attendance
+- [x] **PDF Report Cards**: Generate downloadable academic reports
+- [x] **Real-time Notifications**: WebSocket integration for instant updates
+- [x] **Blockchain Credentials**: Hash-based verification for diplomas/certificates
+- [x] **RFID/NFC Attendance**: Smart campus attendance via card scanning
+- [x] **Issue Credentials**: Teachers/admins can issue verifiable credentials
 
 ## Architecture
 
 ### Tech Stack
-- **Frontend:** React 19, Tailwind CSS, Shadcn/UI, Lucide Icons
-- **Backend:** FastAPI, Motor (MongoDB async driver)
+- **Frontend:** React 19, Tailwind CSS, Shadcn/UI, Lucide Icons, React-Flow
+- **Backend:** FastAPI, Motor (MongoDB async driver), python-socketio
 - **Database:** MongoDB
 - **AI:** Emergent LLM Integration (GPT-5.2)
-- **Voice:** ElevenLabs (MOCKED - no API key)
+- **PDF:** ReportLab for PDF generation
 - **Auth:** JWT with bcrypt hashing
 
-### API Structure
+### API Endpoints (New)
 ```
-/api/auth/* - Authentication
-/api/users/* - User management
-/api/students/* - Student profiles
-/api/teachers/* - Teacher profiles
-/api/courses/* - Course management
-/api/attendance/* - Attendance tracking
-/api/grades/* - Grade management
-/api/fees/* - Finance management
-/api/achievements/* - Achievement tracking
-/api/organizations/* - Multi-tenant organization management
-/api/mentor/* - AI Personal Mentor
-/api/knowledge/* - Knowledge Graph
-/api/content/* - Multimodal content & Syllabus Ingestion
-/api/voice/* - Voice & Avatar (mocked)
-/api/ai/* - AI services (Career, Lesson Planner)
-/api/dashboard/* - Dashboard stats
-/api/notifications/* - Notifications
+# Parent Portal
+GET /api/parents/children - Get linked children
+GET /api/parents/children/{child_id}/details - Get child details
+POST /api/parents/link-child - Link parent to child
+
+# PDF Report Cards
+GET /api/reports/report-card/{student_id} - Generate PDF report
+
+# Blockchain Credentials
+POST /api/credentials/issue - Issue new credential
+GET /api/credentials/verify/{hash} - Verify credential
+GET /api/credentials/student/{student_id} - Get student credentials
+
+# RFID Attendance
+POST /api/rfid/register - Register RFID card
+POST /api/rfid/scan - Process RFID scan
+GET /api/rfid/attendance/today - Get today's RFID attendance
+
+# WebSocket
+WS /ws/notifications/{token} - Real-time notifications
 ```
 
-### Frontend Routes (Phase 2)
+### Frontend Routes (New)
 ```
-/ai-mentor - AI Personal Mentor chat
-/knowledge-graph - Visual concept map
-/learn-by-teaching - Feynman technique interface
-/live-research - Research engine
-/syllabus-ingestion - Document to course converter
-/register-organization - Multi-step org registration
+/learning-journey - Progress timeline with milestones
+/parent-portal - Parent dashboard for children
+/rfid-attendance - RFID attendance management
+/credentials - Blockchain credentials management
 ```
 
 ## Demo Accounts
@@ -144,42 +94,30 @@ Admin: demo.admin@eduos.edu / demo123
 Org Admin: dr.moyo@testuniv.edu.zw / secure123
 ```
 
+## MOCKED Components
+- **ElevenLabs Voice Cloning** - No API key (mock responses)
+- **Live Research Engine** - Mock data (ready for real API)
+
 ## Prioritized Backlog
 
-### P0 (Critical) - Completed
+### P0 (Critical) - Completed ✅
 - [x] Phase 1: Core SIS/LMS
 - [x] Phase 2: AI Learning features
-- [x] Multi-tenancy for organizations
+- [x] Phase 3: Smart Campus & Blockchain
 
-### P1 (High Priority) - Next Phase
+### P1 (High Priority) - Next
 - [ ] Real ElevenLabs integration for voice cloning
-- [ ] Parent portal with child linking
-- [ ] Real-time notifications (WebSockets)
-- [ ] Report card PDF generation
-- [ ] Blockchain credential verification
-- [ ] Graph visualization library (react-flow) for Knowledge Graph
-
-### P2 (Medium Priority) - Future
-- [ ] Mobile app (React Native)
-- [ ] Smart campus IoT integration
-- [ ] Biometric attendance
-- [ ] Student risk prediction
-- [ ] AI-powered quiz generation
-- [ ] Real research API integration (arxiv, news APIs)
-
-### P3 (Low Priority) - Later
-- [ ] Third-party LMS integrations (Canvas, Moodle)
+- [ ] Real research API integration (arxiv, news)
+- [ ] Student risk prediction AI
 - [ ] Advanced scheduling system
+
+### P2 (Medium Priority)
+- [ ] Mobile app (React Native/PWA)
+- [ ] Third-party LMS integrations (Canvas, Moodle)
 - [ ] Virtual classroom integration (Zoom, Meet)
+- [ ] AI-powered quiz generation
 
-## Technical Notes
-- Frontend hot reload enabled
-- Backend hot reload enabled
-- MongoDB connection via MONGO_URL environment variable
-- AI features require EMERGENT_LLM_KEY in backend/.env
-- ElevenLabs features require ELEVENLABS_API_KEY (currently mocked)
-
-## Mocked Components
-- **ElevenLabs TTS:** Voice output not functional without API key
-- **ElevenLabs Voice Cloning:** Clone feature returns mock responses
-- **Live Research Engine:** Uses mock data, ready for real API integration
+### P3 (Low Priority)
+- [ ] Biometric attendance (fingerprint, face)
+- [ ] IoT environmental monitoring
+- [ ] Blockchain on Ethereum/Polygon testnet
