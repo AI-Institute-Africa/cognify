@@ -135,6 +135,18 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      <Route path="/teachers" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <TeachersPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/settings" element={
+        <ProtectedRoute>
+          <SettingsPage />
+        </ProtectedRoute>
+      } />
+      
       {/* Redirect root to login or dashboard */}
       <Route path="/" element={<Navigate to="/login" replace />} />
       
