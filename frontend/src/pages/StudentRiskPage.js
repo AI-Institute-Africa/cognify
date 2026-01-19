@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
+import { getAtRiskStudents } from '../services/api';
 import { 
   AlertTriangle, 
   TrendingDown,
@@ -39,88 +40,24 @@ export default function StudentRiskPage() {
   const [selectedStudent, setSelectedStudent] = useState(null);
 
   useEffect(() => {
-    // Mock at-risk students data
-    setStudents([
-      {
-        id: '1',
-        name: 'Tapiwa Zimba',
-        grade: 'Grade 11',
-        risk_score: 78,
-        risk_level: 'high',
-        factors: [
-          { name: 'Attendance Drop', impact: 35, description: 'Missed 8 classes in last 2 weeks' },
-          { name: 'Grade Decline', impact: 28, description: 'GPA dropped from 3.2 to 2.5' },
-          { name: 'Assignment Submissions', impact: 15, description: '3 late submissions' }
-        ],
-        predictions: {
-          dropout_probability: 23,
-          grade_decline_probability: 67,
-          intervention_success: 82
-        },
-        recommendations: [
-          'Schedule one-on-one meeting with counselor',
-          'Assign peer tutor for Mathematics',
-          'Contact parents for family engagement',
-          'Reduce course load if needed'
-        ],
-        trend: 'declining',
-        last_updated: '2026-01-18'
-      },
-      {
-        id: '2',
-        name: 'Chipo Moyo',
-        grade: 'Grade 10',
-        risk_score: 62,
-        risk_level: 'medium',
-        factors: [
-          { name: 'Low Engagement', impact: 25, description: 'Minimal participation in AI Mentor sessions' },
-          { name: 'Test Anxiety', impact: 22, description: 'Pattern of underperformance in exams vs. homework' },
-          { name: 'Social Isolation', impact: 15, description: 'Not part of any study groups' }
-        ],
-        predictions: {
-          dropout_probability: 8,
-          grade_decline_probability: 45,
-          intervention_success: 88
-        },
-        recommendations: [
-          'Introduce to AI Study Groups feature',
-          'Provide test-taking strategies workshop',
-          'Assign study buddy with complementary skills'
-        ],
-        trend: 'stable',
-        last_updated: '2026-01-18'
-      },
-      {
-        id: '3',
-        name: 'Tendai Ndlovu',
-        grade: 'Grade 12',
-        risk_score: 45,
-        risk_level: 'low',
-        factors: [
-          { name: 'Slight Grade Dip', impact: 20, description: 'Small decrease in Chemistry scores' },
-          { name: 'Increased Absences', impact: 15, description: '2 unexcused absences this month' },
-          { name: 'Workload Stress', impact: 10, description: 'Self-reported high stress levels' }
-        ],
-        predictions: {
-          dropout_probability: 2,
-          grade_decline_probability: 25,
-          intervention_success: 95
-        },
-        recommendations: [
-          'Monitor for next 2 weeks',
-          'Share stress management resources',
-          'Encourage use of AI Mentor for Chemistry help'
-        ],
-        trend: 'improving',
-        last_updated: '2026-01-18'
-      }
-    ]);
-    setLoading(false);
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    try {
+      const data = await getAtRiskStudents();
+      setStudents(data);
+    } catch (error) {
+      console.error('Failed to load at-risk students:', error);
+      toast.error('Failed to load at-risk students');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const runAnalysis = async () => {
     setAnalyzing(true);
-    await new Promise(r => setTimeout(r, 2000));
+    await loadData();
     toast.success('AI analysis complete! Risk scores updated.');
     setAnalyzing(false);
   };
