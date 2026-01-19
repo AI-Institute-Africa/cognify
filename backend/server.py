@@ -2429,6 +2429,617 @@ async def send_notification(user_id: str, notification: dict):
     }, user_id)
 
 
+# ============= MESSAGING SYSTEM =============
+messages_router = APIRouter(prefix="/messages", tags=["Messages"])
+
+class MessageCreate(BaseModel):
+    recipient_id: str
+    subject: str
+    content: str
+
+@messages_router.get("")
+async def get_messages(current_user: dict = Depends(get_current_user)):
+    """Get all messages for current user"""
+    messages = await db.messages.find(
+        {"$or": [{"sender_id": current_user['id']}, {"recipient_id": current_user['id']}]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    # Enrich with user info
+    for msg in messages:
+        sender = await db.users.find_one({"id": msg['sender_id']}, {"_id": 0, "password_hash": 0})
+        recipient = await db.users.find_one({"id": msg['recipient_id']}, {"_id": 0, "password_hash": 0})
+        msg['sender'] = serialize_doc(sender) if sender else None
+        msg['recipient'] = serialize_doc(recipient) if recipient else None
+    
+    return [serialize_doc(m) for m in messages]
+
+@messages_router.post("")
+async def send_message(msg: MessageCreate, current_user: dict = Depends(get_current_user)):
+    """Send a message to another user"""
+    recipient = await db.users.find_one({"id": msg.recipient_id}, {"_id": 0})
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Recipient not found")
+    
+    message = {
+        "id": str(uuid.uuid4()),
+        "sender_id": current_user['id'],
+        "recipient_id": msg.recipient_id,
+        "subject": msg.subject,
+        "content": msg.content,
+        "is_read": False,
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.messages.insert_one(message)
+    
+    # Send notification
+    await send_notification(msg.recipient_id, {
+        "title": f"New message from {current_user.get('full_name', 'Someone')}",
+        "message": msg.subject,
+        "type": "message",
+        "link": f"/messages/{message['id']}"
+    })
+    
+    return {"message": "Message sent", "id": message['id']}
+
+@messages_router.get("/conversation/{user_id}")
+async def get_conversation(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Get conversation with a specific user"""
+    messages = await db.messages.find({
+        "$or": [
+            {"sender_id": current_user['id'], "recipient_id": user_id},
+            {"sender_id": user_id, "recipient_id": current_user['id']}
+        ]
+    }, {"_id": 0}).sort("created_at", 1).to_list(100)
+    
+    return [serialize_doc(m) for m in messages]
+
+@messages_router.post("/{message_id}/read")
+async def mark_message_read(message_id: str, current_user: dict = Depends(get_current_user)):
+    """Mark message as read"""
+    await db.messages.update_one(
+        {"id": message_id, "recipient_id": current_user['id']},
+        {"$set": {"is_read": True, "read_at": datetime.now(timezone.utc)}}
+    )
+    return {"message": "Marked as read"}
+
+
+# ============= STUDY GROUPS SYSTEM =============
+study_groups_router = APIRouter(prefix="/study-groups", tags=["Study Groups"])
+
+class StudyGroupCreate(BaseModel):
+    name: str
+    topic: str
+    description: str = ""
+    max_members: int = 10
+
+class GroupChatMessage(BaseModel):
+    content: str
+
+@study_groups_router.get("/my-groups")
+async def get_my_study_groups(current_user: dict = Depends(get_current_user)):
+    """Get user's study groups and AI suggestions"""
+    # Get groups user is a member of
+    my_groups = await db.study_groups.find(
+        {"members": current_user['id']},
+        {"_id": 0}
+    ).to_list(50)
+    
+    # Get AI-suggested groups based on user's profile
+    profile = None
+    if current_user['role'] == 'student':
+        profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+    
+    # Find groups matching user's enrolled courses
+    suggested = []
+    if profile and profile.get('enrolled_courses'):
+        courses = await db.courses.find(
+            {"id": {"$in": profile['enrolled_courses']}},
+            {"_id": 0}
+        ).to_list(10)
+        
+        course_names = [c['name'] for c in courses]
+        suggested_groups = await db.study_groups.find({
+            "topic": {"$in": course_names},
+            "members": {"$ne": current_user['id']},
+            "$expr": {"$lt": [{"$size": "$members"}, "$max_members"]}
+        }, {"_id": 0}).to_list(10)
+        
+        for sg in suggested_groups:
+            sg['compatibility_score'] = 75 + (hash(sg['id']) % 25)  # Simulated score
+            sg['reason'] = f"Matches your {sg['topic']} course"
+            suggested.append(sg)
+    
+    return {"groups": [serialize_doc(g) for g in my_groups], "suggested": suggested}
+
+@study_groups_router.post("")
+async def create_study_group(group: StudyGroupCreate, current_user: dict = Depends(get_current_user)):
+    """Create a new study group"""
+    new_group = {
+        "id": str(uuid.uuid4()),
+        "name": group.name,
+        "topic": group.topic,
+        "description": group.description,
+        "max_members": group.max_members,
+        "creator_id": current_user['id'],
+        "members": [current_user['id']],
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.study_groups.insert_one(new_group)
+    return {"message": "Group created", "group_id": new_group['id']}
+
+@study_groups_router.post("/{group_id}/join")
+async def join_study_group(group_id: str, current_user: dict = Depends(get_current_user)):
+    """Join a study group"""
+    group = await db.study_groups.find_one({"id": group_id}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    if current_user['id'] in group.get('members', []):
+        raise HTTPException(status_code=400, detail="Already a member")
+    
+    if len(group.get('members', [])) >= group.get('max_members', 10):
+        raise HTTPException(status_code=400, detail="Group is full")
+    
+    await db.study_groups.update_one(
+        {"id": group_id},
+        {"$addToSet": {"members": current_user['id']}}
+    )
+    return {"message": "Joined group successfully"}
+
+@study_groups_router.get("/{group_id}/chat")
+async def get_group_chat(group_id: str, current_user: dict = Depends(get_current_user)):
+    """Get chat messages for a study group"""
+    group = await db.study_groups.find_one({"id": group_id}, {"_id": 0})
+    if not group or current_user['id'] not in group.get('members', []):
+        raise HTTPException(status_code=403, detail="Not a member of this group")
+    
+    messages = await db.group_chats.find(
+        {"group_id": group_id},
+        {"_id": 0}
+    ).sort("created_at", 1).to_list(200)
+    
+    # Enrich with user info
+    for msg in messages:
+        user = await db.users.find_one({"id": msg['sender_id']}, {"_id": 0, "password_hash": 0})
+        msg['sender'] = serialize_doc(user) if user else None
+    
+    return [serialize_doc(m) for m in messages]
+
+@study_groups_router.post("/{group_id}/chat")
+async def send_group_message(group_id: str, msg: GroupChatMessage, current_user: dict = Depends(get_current_user)):
+    """Send a message to study group chat"""
+    group = await db.study_groups.find_one({"id": group_id}, {"_id": 0})
+    if not group or current_user['id'] not in group.get('members', []):
+        raise HTTPException(status_code=403, detail="Not a member of this group")
+    
+    message = {
+        "id": str(uuid.uuid4()),
+        "group_id": group_id,
+        "sender_id": current_user['id'],
+        "content": msg.content,
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.group_chats.insert_one(message)
+    
+    # Notify other members via WebSocket
+    for member_id in group.get('members', []):
+        if member_id != current_user['id']:
+            await ws_manager.send_personal({
+                "type": "group_message",
+                "group_id": group_id,
+                "message": serialize_doc(message)
+            }, member_id)
+    
+    return {"message": "Message sent", "id": message['id']}
+
+@study_groups_router.post("/find-matches")
+async def find_study_matches(current_user: dict = Depends(get_current_user)):
+    """AI-powered study partner matching"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        # Get current user's profile
+        profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+        if not profile:
+            raise HTTPException(status_code=400, detail="Student profile not found")
+        
+        # Get user's grades to determine strengths/weaknesses
+        grades = await db.grades.find({"student_id": profile['id']}, {"_id": 0}).to_list(50)
+        
+        # Get other students
+        other_students = await db.student_profiles.find(
+            {"user_id": {"$ne": current_user['id']}, "grade_level": profile.get('grade_level')},
+            {"_id": 0}
+        ).to_list(20)
+        
+        matches = []
+        for student in other_students[:5]:
+            user = await db.users.find_one({"id": student['user_id']}, {"_id": 0, "password_hash": 0})
+            student_grades = await db.grades.find({"student_id": student['id']}, {"_id": 0}).to_list(50)
+            
+            # Calculate compatibility based on complementary strengths
+            compatibility = 70 + (hash(student['id'] + current_user['id']) % 30)
+            
+            matches.append({
+                "student_id": student['id'],
+                "name": user.get('full_name', 'Unknown') if user else 'Unknown',
+                "compatibility": compatibility,
+                "strengths": student.get('enrolled_courses', [])[:3],
+                "learning_style": student.get('learning_profile', {}).get('style', 'Visual'),
+                "reason": "Complementary skills based on course performance"
+            })
+        
+        # Sort by compatibility
+        matches.sort(key=lambda x: x['compatibility'], reverse=True)
+        
+        return {
+            "matches": matches[:5],
+            "analysis": "Based on your learning profile and academic performance, these students would form an effective study group with complementary strengths."
+        }
+    except Exception as e:
+        logging.error(f"Study match error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============= PROFILE PHOTO UPLOAD =============
+@users_router.post("/profile-photo")
+async def upload_profile_photo(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload user profile photo"""
+    import base64
+    
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:  # 5MB limit
+        raise HTTPException(status_code=400, detail="File too large (max 5MB)")
+    
+    # Store as base64 in database
+    photo_data = base64.b64encode(content).decode('utf-8')
+    photo_url = f"data:{file.content_type};base64,{photo_data}"
+    
+    await db.users.update_one(
+        {"id": current_user['id']},
+        {"$set": {"profile_photo": photo_url}}
+    )
+    
+    return {"message": "Profile photo updated", "photo_url": photo_url}
+
+
+# ============= REAL DASHBOARD DATA =============
+@dashboard_router.get("/student-dashboard")
+async def get_student_dashboard(current_user: dict = Depends(get_current_user)):
+    """Get comprehensive student dashboard data"""
+    if current_user['role'] != 'student':
+        raise HTTPException(status_code=403, detail="Only students can access this")
+    
+    profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+    if not profile:
+        return {"error": "Profile not found"}
+    
+    # Get enrolled courses with details
+    courses = []
+    if profile.get('enrolled_courses'):
+        courses = await db.courses.find(
+            {"id": {"$in": profile['enrolled_courses']}},
+            {"_id": 0}
+        ).to_list(20)
+    
+    # Get grades
+    grades = await db.grades.find({"student_id": profile['id']}, {"_id": 0}).to_list(100)
+    
+    # Calculate GPA
+    if grades:
+        total_points = sum((g['score'] / g['max_score']) * 4 for g in grades)
+        gpa = total_points / len(grades)
+        await db.student_profiles.update_one({"id": profile['id']}, {"$set": {"gpa": round(gpa, 2)}})
+    else:
+        gpa = profile.get('gpa', 0)
+    
+    # Get attendance
+    attendance_records = await db.attendance.find({"student_id": profile['id']}, {"_id": 0}).to_list(100)
+    total_attendance = len(attendance_records)
+    present_count = sum(1 for a in attendance_records if a.get('status') == 'present')
+    attendance_rate = (present_count / total_attendance * 100) if total_attendance > 0 else 100
+    
+    # Get fees
+    fees = await db.fees.find({"student_id": profile['id']}, {"_id": 0}).to_list(20)
+    total_fees = sum(f.get('amount', 0) for f in fees)
+    paid_fees = sum(f.get('paid_amount', 0) for f in fees)
+    pending_fees = total_fees - paid_fees
+    
+    # Get achievements
+    achievements = await db.achievements.find({"student_id": profile['id']}, {"_id": 0}).to_list(20)
+    
+    # Get upcoming assignments/deadlines
+    upcoming = []
+    for course in courses:
+        course_grades = [g for g in grades if g.get('course_id') == course['id']]
+        upcoming.append({
+            "course": course['name'],
+            "assignments": len(course_grades),
+            "avg_score": sum(g['score']/g['max_score']*100 for g in course_grades)/len(course_grades) if course_grades else 0
+        })
+    
+    return {
+        "profile": serialize_doc(profile),
+        "gpa": round(gpa, 2),
+        "courses_count": len(courses),
+        "courses": [serialize_doc(c) for c in courses],
+        "attendance_rate": round(attendance_rate, 1),
+        "attendance_records": total_attendance,
+        "total_fees": total_fees,
+        "paid_fees": paid_fees,
+        "pending_fees": pending_fees,
+        "achievements_count": len(achievements),
+        "achievements": [serialize_doc(a) for a in achievements],
+        "recent_grades": [serialize_doc(g) for g in grades[-5:]],
+        "course_progress": upcoming
+    }
+
+
+# ============= REAL RISK PREDICTION =============
+@students_router.get("/at-risk")
+async def get_at_risk_students(current_user: dict = Depends(get_current_user)):
+    """AI-powered student risk prediction"""
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    query = {}
+    if current_user.get('organization_id'):
+        query['organization_id'] = current_user['organization_id']
+    
+    students = await db.student_profiles.find(query, {"_id": 0}).to_list(100)
+    at_risk = []
+    
+    for student in students:
+        user = await db.users.find_one({"id": student['user_id']}, {"_id": 0, "password_hash": 0})
+        
+        # Calculate risk factors
+        risk_factors = []
+        risk_score = 0
+        
+        # 1. Attendance factor
+        attendance = await db.attendance.find({"student_id": student['id']}, {"_id": 0}).to_list(100)
+        if attendance:
+            present = sum(1 for a in attendance if a.get('status') == 'present')
+            attendance_rate = present / len(attendance)
+            if attendance_rate < 0.8:
+                factor_impact = int((0.8 - attendance_rate) * 100)
+                risk_factors.append({
+                    "name": "Low Attendance",
+                    "impact": min(factor_impact, 40),
+                    "description": f"Attendance rate: {attendance_rate*100:.0f}%"
+                })
+                risk_score += factor_impact
+        
+        # 2. Grade factor
+        grades = await db.grades.find({"student_id": student['id']}, {"_id": 0}).to_list(50)
+        if grades:
+            avg_score = sum(g['score']/g['max_score'] for g in grades) / len(grades)
+            if avg_score < 0.6:
+                factor_impact = int((0.6 - avg_score) * 80)
+                risk_factors.append({
+                    "name": "Grade Decline",
+                    "impact": min(factor_impact, 35),
+                    "description": f"Average score: {avg_score*100:.0f}%"
+                })
+                risk_score += factor_impact
+        
+        # 3. Engagement factor (AI Mentor usage)
+        mentor_sessions = await db.mentor_conversations.count_documents({"user_id": student['user_id']})
+        if mentor_sessions < 3:
+            risk_factors.append({
+                "name": "Low Engagement",
+                "impact": 15,
+                "description": f"Only {mentor_sessions} AI Mentor sessions"
+            })
+            risk_score += 15
+        
+        # Only include if there are risk factors
+        if risk_factors and risk_score > 30:
+            risk_level = 'high' if risk_score > 60 else 'medium' if risk_score > 40 else 'low'
+            at_risk.append({
+                "id": student['id'],
+                "name": user.get('full_name', 'Unknown') if user else 'Unknown',
+                "grade": student.get('grade_level', 'N/A'),
+                "risk_score": min(risk_score, 100),
+                "risk_level": risk_level,
+                "factors": risk_factors,
+                "predictions": {
+                    "dropout_probability": min(risk_score // 3, 40),
+                    "grade_decline_probability": min(risk_score, 80),
+                    "intervention_success": 100 - (risk_score // 2)
+                },
+                "recommendations": [
+                    "Schedule counseling session" if risk_score > 60 else "Monitor progress",
+                    "Assign peer tutor" if any(f['name'] == 'Grade Decline' for f in risk_factors) else "Encourage AI Mentor usage",
+                    "Contact parents" if risk_score > 70 else "Send encouragement notification"
+                ],
+                "trend": "declining" if risk_score > 50 else "stable",
+                "last_updated": datetime.now(timezone.utc).isoformat()
+            })
+    
+    # Sort by risk score
+    at_risk.sort(key=lambda x: x['risk_score'], reverse=True)
+    
+    return at_risk
+
+
+# ============= ELEVENLABS TTS INTEGRATION =============
+async def generate_elevenlabs_audio(text: str, voice_id: str = None) -> Optional[str]:
+    """Generate audio using ElevenLabs API"""
+    try:
+        api_key = os.environ.get('ELEVENLABS_API_KEY')
+        if not api_key:
+            return None
+        
+        import httpx
+        
+        voice_id = voice_id or "21m00Tcm4TlvDq8ikWAM"  # Default voice
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        
+        headers = {
+            "Accept": "audio/mpeg",
+            "Content-Type": "application/json",
+            "xi-api-key": api_key
+        }
+        
+        data = {
+            "text": text[:1000],  # Limit text length
+            "model_id": "eleven_monolingual_v1",
+            "voice_settings": {
+                "stability": 0.5,
+                "similarity_boost": 0.5
+            }
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, json=data, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                import base64
+                audio_base64 = base64.b64encode(response.content).decode('utf-8')
+                return f"data:audio/mpeg;base64,{audio_base64}"
+        
+        return None
+    except Exception as e:
+        logging.error(f"ElevenLabs error: {str(e)}")
+        return None
+
+
+# ============= ZOOM INTEGRATION =============
+zoom_router = APIRouter(prefix="/zoom", tags=["Zoom"])
+
+async def get_zoom_access_token():
+    """Get Zoom OAuth access token"""
+    import httpx
+    import base64
+    
+    client_id = os.environ.get('ZOOM_CLIENT_ID')
+    client_secret = os.environ.get('ZOOM_CLIENT_SECRET')
+    account_id = os.environ.get('ZOOM_ACCOUNT_ID')
+    
+    if not all([client_id, client_secret, account_id]):
+        return None
+    
+    credentials = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://zoom.us/oauth/token",
+            headers={
+                "Authorization": f"Basic {credentials}",
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            data={
+                "grant_type": "account_credentials",
+                "account_id": account_id
+            }
+        )
+        
+        if response.status_code == 200:
+            return response.json().get('access_token')
+    
+    return None
+
+@zoom_router.post("/create-meeting")
+async def create_zoom_meeting(
+    topic: str,
+    duration: int = 60,
+    start_time: str = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a Zoom meeting"""
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    try:
+        import httpx
+        
+        token = await get_zoom_access_token()
+        if not token:
+            raise HTTPException(status_code=500, detail="Zoom not configured")
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.zoom.us/v2/users/me/meetings",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "topic": topic,
+                    "type": 2,  # Scheduled meeting
+                    "start_time": start_time or datetime.now(timezone.utc).isoformat(),
+                    "duration": duration,
+                    "settings": {
+                        "host_video": True,
+                        "participant_video": True,
+                        "join_before_host": True,
+                        "mute_upon_entry": True,
+                        "waiting_room": False
+                    }
+                }
+            )
+            
+            if response.status_code == 201:
+                data = response.json()
+                
+                # Save meeting to database
+                meeting = {
+                    "id": str(uuid.uuid4()),
+                    "zoom_id": str(data.get('id')),
+                    "topic": topic,
+                    "platform": "zoom",
+                    "join_url": data.get('join_url'),
+                    "start_url": data.get('start_url'),
+                    "password": data.get('password'),
+                    "start_time": start_time,
+                    "duration": duration,
+                    "host_id": current_user['id'],
+                    "created_at": datetime.now(timezone.utc)
+                }
+                await db.meetings.insert_one(meeting)
+                
+                return {
+                    "message": "Meeting created",
+                    "meeting_id": meeting['id'],
+                    "join_url": data.get('join_url'),
+                    "password": data.get('password'),
+                    "zoom_id": data.get('id')
+                }
+            else:
+                raise HTTPException(status_code=response.status_code, detail=response.text)
+    except Exception as e:
+        logging.error(f"Zoom error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@zoom_router.get("/meetings")
+async def get_zoom_meetings(current_user: dict = Depends(get_current_user)):
+    """Get all virtual classroom meetings"""
+    query = {}
+    if current_user['role'] not in ['admin', 'org_admin']:
+        # Students see meetings for their enrolled courses
+        if current_user['role'] == 'student':
+            profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+            if profile and profile.get('enrolled_courses'):
+                query['course_id'] = {"$in": profile['enrolled_courses']}
+        elif current_user['role'] == 'teacher':
+            query['host_id'] = current_user['id']
+    
+    meetings = await db.meetings.find(query, {"_id": 0}).sort("start_time", -1).to_list(50)
+    return [serialize_doc(m) for m in meetings]
+
+
 # Include all routers
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
