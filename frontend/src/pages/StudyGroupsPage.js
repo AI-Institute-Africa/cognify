@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
+import { getStudyGroups, createStudyGroup, joinStudyGroup, getGroupChat, sendGroupMessage, findStudyMatches } from '../services/api';
 import { 
   Users, 
   UserPlus,
@@ -13,7 +14,8 @@ import {
   BookOpen,
   CheckCircle,
   RefreshCw,
-  Send
+  Send,
+  X
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -29,14 +31,6 @@ import {
   DialogTrigger,
 } from '../components/ui/dialog';
 import { toast } from 'sonner';
-import axios from 'axios';
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('eduos_token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
 
 export default function StudyGroupsPage() {
   const { user } = useAuth();
@@ -45,6 +39,10 @@ export default function StudyGroupsPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showMatchDialog, setShowMatchDialog] = useState(false);
+  const [showChatDialog, setShowChatDialog] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
   const [matchLoading, setMatchLoading] = useState(false);
   const [matchResults, setMatchResults] = useState(null);
   const [newGroup, setNewGroup] = useState({ name: '', topic: '', description: '' });
@@ -55,51 +53,12 @@ export default function StudyGroupsPage() {
 
   const loadData = async () => {
     try {
-      const response = await axios.get(`${API}/study-groups/my-groups`, { headers: getAuthHeaders() });
-      setGroups(response.data.groups || []);
-      setSuggestedGroups(response.data.suggested || []);
+      const response = await getStudyGroups();
+      setGroups(response.groups || []);
+      setSuggestedGroups(response.suggested || []);
     } catch (error) {
-      // Mock data for demo
-      setGroups([
-        {
-          id: '1',
-          name: 'Calculus Study Circle',
-          topic: 'Mathematics',
-          members: 5,
-          max_members: 8,
-          next_session: '2026-01-20T14:00:00Z',
-          compatibility_score: 92
-        },
-        {
-          id: '2', 
-          name: 'Physics Problem Solvers',
-          topic: 'Physics',
-          members: 4,
-          max_members: 6,
-          next_session: '2026-01-19T16:00:00Z',
-          compatibility_score: 87
-        }
-      ]);
-      setSuggestedGroups([
-        {
-          id: '3',
-          name: 'AI & Machine Learning',
-          topic: 'Computer Science',
-          members: 6,
-          max_members: 10,
-          compatibility_score: 95,
-          reason: 'Based on your strong Python skills and interest in AI'
-        },
-        {
-          id: '4',
-          name: 'Academic Writing Workshop',
-          topic: 'English',
-          members: 3,
-          max_members: 8,
-          compatibility_score: 78,
-          reason: 'Complements your technical skills with communication'
-        }
-      ]);
+      console.error('Failed to load study groups:', error);
+      toast.error('Failed to load study groups');
     } finally {
       setLoading(false);
     }
@@ -108,39 +67,10 @@ export default function StudyGroupsPage() {
   const handleFindMatches = async () => {
     setMatchLoading(true);
     try {
-      const response = await axios.post(`${API}/study-groups/find-matches`, {}, { headers: getAuthHeaders() });
-      setMatchResults(response.data);
+      const response = await findStudyMatches();
+      setMatchResults(response);
     } catch (error) {
-      // Mock AI matching results
-      setMatchResults({
-        matches: [
-          {
-            student_id: 's1',
-            name: 'Tendai Moyo',
-            compatibility: 94,
-            strengths: ['Mathematics', 'Physics'],
-            learning_style: 'Visual',
-            reason: 'Complementary skills - strong where you need help'
-          },
-          {
-            student_id: 's2',
-            name: 'Chipo Ndlovu',
-            compatibility: 89,
-            strengths: ['Chemistry', 'Biology'],
-            learning_style: 'Kinesthetic',
-            reason: 'Similar learning pace and goals'
-          },
-          {
-            student_id: 's3',
-            name: 'Tapiwa Zimba',
-            compatibility: 85,
-            strengths: ['Computer Science', 'Mathematics'],
-            learning_style: 'Reading/Writing',
-            reason: 'Can help with programming concepts'
-          }
-        ],
-        analysis: 'Based on your learning profile, knowledge gaps, and study preferences, these students would form an effective study group. The group has diverse strengths that cover your areas needing improvement.'
-      });
+      toast.error('Failed to find matches');
     } finally {
       setMatchLoading(false);
     }
@@ -153,24 +83,47 @@ export default function StudyGroupsPage() {
     }
     
     try {
-      await axios.post(`${API}/study-groups`, newGroup, { headers: getAuthHeaders() });
+      await createStudyGroup(newGroup);
       toast.success('Study group created!');
       setShowCreateDialog(false);
       setNewGroup({ name: '', topic: '', description: '' });
       loadData();
     } catch (error) {
-      toast.success('Study group created!'); // Mock success
-      setShowCreateDialog(false);
+      toast.error('Failed to create group');
     }
   };
 
   const handleJoinGroup = async (groupId) => {
     try {
-      await axios.post(`${API}/study-groups/${groupId}/join`, {}, { headers: getAuthHeaders() });
+      await joinStudyGroup(groupId);
       toast.success('Joined group successfully!');
       loadData();
     } catch (error) {
-      toast.success('Joined group successfully!'); // Mock success
+      toast.error(error.response?.data?.detail || 'Failed to join group');
+    }
+  };
+
+  const openChat = async (group) => {
+    setSelectedGroup(group);
+    setShowChatDialog(true);
+    try {
+      const messages = await getGroupChat(group.id);
+      setChatMessages(messages);
+    } catch (error) {
+      toast.error('Failed to load chat');
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedGroup) return;
+    
+    try {
+      await sendGroupMessage(selectedGroup.id, newMessage.trim());
+      setNewMessage('');
+      const messages = await getGroupChat(selectedGroup.id);
+      setChatMessages(messages);
+    } catch (error) {
+      toast.error('Failed to send message');
     }
   };
 
