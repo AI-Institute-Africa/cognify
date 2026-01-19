@@ -3062,6 +3062,9 @@ api_router.include_router(parents_router)
 api_router.include_router(reports_router)
 api_router.include_router(credentials_router)
 api_router.include_router(rfid_router)
+api_router.include_router(messages_router)
+api_router.include_router(study_groups_router)
+api_router.include_router(zoom_router)
 
 app.include_router(api_router)
 
