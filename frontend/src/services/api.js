@@ -320,3 +320,146 @@ export const getSupportedLanguages = async () => {
   const response = await axios.get(`${API}/languages`);
   return response.data;
 };
+
+// ==================== PHASE 3 & 4 APIs ====================
+
+// Real Student Dashboard
+export const getStudentDashboard = async () => {
+  const response = await axios.get(`${API}/dashboard/student-dashboard`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Messaging
+export const getMessages = async () => {
+  const response = await axios.get(`${API}/messages`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const sendMessage = async (recipientId, subject, content) => {
+  const response = await axios.post(
+    `${API}/messages`,
+    { recipient_id: recipientId, subject, content },
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+export const getConversation = async (userId) => {
+  const response = await axios.get(`${API}/messages/conversation/${userId}`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Study Groups
+export const getStudyGroups = async () => {
+  const response = await axios.get(`${API}/study-groups/my-groups`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const createStudyGroup = async (groupData) => {
+  const response = await axios.post(`${API}/study-groups`, groupData, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const joinStudyGroup = async (groupId) => {
+  const response = await axios.post(`${API}/study-groups/${groupId}/join`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getGroupChat = async (groupId) => {
+  const response = await axios.get(`${API}/study-groups/${groupId}/chat`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const sendGroupMessage = async (groupId, content) => {
+  const response = await axios.post(
+    `${API}/study-groups/${groupId}/chat`,
+    { content },
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+export const findStudyMatches = async () => {
+  const response = await axios.post(`${API}/study-groups/find-matches`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// At-Risk Students
+export const getAtRiskStudents = async () => {
+  const response = await axios.get(`${API}/students/at-risk`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Zoom Integration
+export const createZoomMeeting = async (topic, duration = 60, startTime = null) => {
+  const params = new URLSearchParams({ topic, duration });
+  if (startTime) params.append('start_time', startTime);
+  const response = await axios.post(`${API}/zoom/create-meeting?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getZoomMeetings = async () => {
+  const response = await axios.get(`${API}/zoom/meetings`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Profile Photo
+export const uploadProfilePhoto = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await axios.post(
+    `${API}/users/profile-photo`,
+    formData,
+    { headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' } }
+  );
+  return response.data;
+};
+
+// RFID Attendance
+export const registerRFID = async (studentId, rfidTag) => {
+  const response = await axios.post(
+    `${API}/rfid/register`,
+    { student_id: studentId, rfid_tag: rfidTag },
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+export const scanRFID = async (rfidTag, deviceId, location) => {
+  const response = await axios.post(
+    `${API}/rfid/scan`,
+    { rfid_tag: rfidTag, device_id: deviceId, location },
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+export const getTodayRFIDAttendance = async () => {
+  const response = await axios.get(`${API}/rfid/attendance/today`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Credentials
+export const issueCredential = async (credentialData) => {
+  const response = await axios.post(`${API}/credentials/issue`, credentialData, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const verifyCredential = async (hash) => {
+  const response = await axios.get(`${API}/credentials/verify/${hash}`);
+  return response.data;
+};
+
+export const getStudentCredentials = async (studentId) => {
+  const response = await axios.get(`${API}/credentials/student/${studentId}`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Report Cards
+export const getReportCard = async (studentId) => {
+  const response = await axios.get(`${API}/reports/report-card/${studentId}`, { 
+    headers: getAuthHeaders(),
+    responseType: 'blob'
+  });
+  return response.data;
+};
