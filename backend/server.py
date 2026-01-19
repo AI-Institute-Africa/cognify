@@ -1084,13 +1084,13 @@ Be helpful and educational."""
 
 # ==================== VOICE & AVATAR ROUTES ====================
 
-async def generate_tts_audio(text: str, voice_id: str = None) -> Optional[str]:
-    """Generate TTS audio using ElevenLabs"""
+async def generate_tts_audio(text: str, voice_id: str = None) -> tuple[Optional[str], Optional[str]]:
+    """Generate TTS audio using ElevenLabs. Returns (audio_url, error_message)"""
+    elevenlabs_key = os.environ.get('ELEVENLABS_API_KEY')
+    if not elevenlabs_key:
+        return None, "ElevenLabs API key not configured"
+    
     try:
-        elevenlabs_key = os.environ.get('ELEVENLABS_API_KEY')
-        if not elevenlabs_key:
-            return None
-        
         from elevenlabs import ElevenLabs
         from elevenlabs.types import VoiceSettings
         
@@ -1111,21 +1111,39 @@ async def generate_tts_audio(text: str, voice_id: str = None) -> Optional[str]:
             audio_data += chunk
         
         audio_b64 = base64.b64encode(audio_data).decode()
-        return f"data:audio/mpeg;base64,{audio_b64}"
+        return f"data:audio/mpeg;base64,{audio_b64}", None
         
     except Exception as e:
-        logging.error(f"TTS Error: {str(e)}")
-        return None
+        error_str = str(e)
+        logging.error(f"TTS Error: {error_str}")
+        
+        # Check for common ElevenLabs errors
+        if "401" in error_str or "Unauthorized" in error_str:
+            if "unusual_activity" in error_str.lower() or "free tier" in error_str.lower():
+                return None, "ElevenLabs free tier blocked - requires paid subscription for this environment"
+            return None, "ElevenLabs API key is invalid"
+        elif "quota" in error_str.lower() or "limit" in error_str.lower():
+            return None, "ElevenLabs quota exceeded"
+        
+        return None, f"TTS generation failed: {error_str[:100]}"
 
 @voice_router.post("/tts")
 async def text_to_speech(
     request: TTSRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Convert text to speech"""
-    audio_url = await generate_tts_audio(request.text, request.voice_id)
+    """Convert text to speech using ElevenLabs"""
+    audio_url, error = await generate_tts_audio(request.text, request.voice_id)
+    
     if not audio_url:
-        raise HTTPException(status_code=500, detail="TTS service unavailable")
+        raise HTTPException(
+            status_code=503, 
+            detail={
+                "message": "TTS service unavailable",
+                "error": error,
+                "suggestion": "ElevenLabs requires a paid subscription when accessed from cloud environments"
+            }
+        )
     
     return {"audio_url": audio_url, "text": request.text}
 
