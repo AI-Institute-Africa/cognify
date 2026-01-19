@@ -3,12 +3,18 @@
 ## Project Overview
 **Name:** EduOS 2026 - AI-Powered School Management, Learning & Career Intelligence Platform  
 **Owner:** AI Institute Africa  
-**Version:** 4.0.0 (Complete Platform)  
-**Date:** January 18, 2026  
-**Status:** All Phases Complete
+**Version:** 4.1.0  
+**Date:** January 19, 2026  
+**Status:** Core Platform Stable - All Critical Bugs Fixed
 
 ## Vision
 A Unified Digital Education Operating System for Africa, managing a learner's full life-cycle: Admission → Learning → Assessment → Achievements → Career Guidance → University → Employment. Features AI-powered personalized learning, blockchain credentials, smart campus IoT, and multi-language support.
+
+## Recent Changes (January 19, 2026)
+- ✅ Fixed at-risk students API routing bug (route correctly ordered before dynamic /{student_id})
+- ✅ Verified teacher course creation functionality (working end-to-end)
+- ✅ Added comprehensive test suite (18 API tests - 100% pass rate)
+- ✅ Confirmed role-based access control working correctly
 
 ## All Features Implemented
 
@@ -48,8 +54,8 @@ A Unified Digital Education Operating System for Africa, managing a learner's fu
 ### Phase 4 - Advanced Features ✅
 - [x] **Public Home Page** - AI Institute Africa landing page
 - [x] **AI Study Groups** - AI-powered student matching
-- [x] **Biometric Attendance** - Fingerprint & facial recognition
-- [x] **Virtual Classroom** - Zoom & Google Meet integration
+- [x] **Biometric Attendance** - Fingerprint & facial recognition (MOCKED)
+- [x] **Virtual Classroom** - Zoom & Google Meet integration (MOCKED)
 - [x] **Student Risk Prediction** - AI early warning system
 
 ## Architecture
@@ -108,6 +114,7 @@ All teacher routes plus organization management
 /api/auth/* - Authentication
 /api/users/* - User management
 /api/students/* - Student profiles
+/api/students/at-risk - AI risk prediction
 /api/teachers/* - Teacher profiles
 /api/courses/* - Course management
 /api/attendance/* - Attendance
@@ -118,12 +125,13 @@ All teacher routes plus organization management
 /api/mentor/* - AI Mentor
 /api/knowledge/* - Knowledge Graph
 /api/content/* - Syllabus Ingestion
-/api/voice/* - Voice (mocked)
+/api/voice/* - Voice (MOCKED)
 /api/parents/* - Parent portal
 /api/reports/* - PDF reports
 /api/credentials/* - Blockchain credentials
 /api/rfid/* - RFID attendance
 /api/study-groups/* - AI Study Groups
+/api/zoom/* - Zoom integration (MOCKED)
 /ws/notifications/* - WebSocket
 ```
 
@@ -135,11 +143,11 @@ Admin: demo.admin@eduos.edu / demo123
 Org Admin: dr.moyo@testuniv.edu.zw / secure123
 ```
 
-## MOCKED Components
-- **ElevenLabs Voice Cloning** - No API key
+## MOCKED Components (Require API Keys/Hardware)
+- **ElevenLabs Voice Cloning** - API key configured but not tested
 - **Live Research Engine** - Mock data
 - **Biometric Hardware** - Simulated scanning
-- **Zoom/Meet API** - Mock meeting creation
+- **Zoom/Meet API** - API credentials configured but not tested
 - **Ethereum Blockchain** - Hash-based verification (not on-chain)
 
 ## What's NOT Mocked (Fully Functional)
@@ -150,6 +158,14 @@ Org Admin: dr.moyo@testuniv.edu.zw / secure123
 - ✅ Blockchain Credential Verification (hash-based)
 - ✅ WebSocket Notifications
 - ✅ Knowledge Graph Visualization
+- ✅ Student Risk Prediction (AI-powered analysis)
+- ✅ Course Creation by Teachers
+
+## Test Coverage
+- **Test File:** `/app/tests/test_eduos_api.py`
+- **Test Report:** `/app/test_reports/iteration_3.json`
+- **Tests:** 18 API tests
+- **Pass Rate:** 100%
 
 ## Key Differentiators
 1. **African Languages** - First platform with Shona, Ndebele, Swahili, Zulu support
@@ -158,10 +174,23 @@ Org Admin: dr.moyo@testuniv.edu.zw / secure123
 4. **Blockchain Credentials** - Tamper-proof verification
 5. **Risk Prediction** - Proactive student support
 
-## Remaining Backlog (Future)
-- [ ] Real ElevenLabs voice integration
+## Remaining Backlog (P0-P2)
+
+### P0 - Critical (Backend Refactoring)
+- [ ] **Refactor server.py monolith** - Break 3000+ line file into modular structure
+  - `/app/backend/routers/` - Route handlers
+  - `/app/backend/models/` - Pydantic models
+  - `/app/backend/services/` - Business logic
+  - `/app/backend/main.py` - Entry point
+
+### P1 - High Priority
+- [ ] Real ElevenLabs voice integration testing
+- [ ] Real Zoom/Meet API integration testing
+- [ ] Profile photo upload implementation
+- [ ] Real biometric hardware integration
+
+### P2 - Medium Priority
 - [ ] Ethereum testnet deployment for credentials
 - [ ] Mobile app (React Native/PWA)
-- [ ] Real Zoom/Meet API integration
-- [ ] Real biometric hardware integration
 - [ ] Canvas/Moodle LMS integration
+- [ ] Performance optimization for large organizations
