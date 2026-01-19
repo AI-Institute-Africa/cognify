@@ -3,18 +3,72 @@
 ## Project Overview
 **Name:** EduOS 2026 - AI-Powered School Management, Learning & Career Intelligence Platform  
 **Owner:** AI Institute Africa  
-**Version:** 4.1.0  
+**Version:** 4.2.0  
 **Date:** January 19, 2026  
-**Status:** Core Platform Stable - All Critical Bugs Fixed
+**Status:** Core Platform Stable - Backend Modularization Started
 
 ## Vision
-A Unified Digital Education Operating System for Africa, managing a learner's full life-cycle: Admission → Learning → Assessment → Achievements → Career Guidance → University → Employment. Features AI-powered personalized learning, blockchain credentials, smart campus IoT, and multi-language support.
+A Unified Digital Education Operating System for Africa, managing a learner's full life-cycle: Admission → Learning → Assessment → Achievements → Career Guidance → University → Employment.
 
 ## Recent Changes (January 19, 2026)
-- ✅ Fixed at-risk students API routing bug (route correctly ordered before dynamic /{student_id})
-- ✅ Verified teacher course creation functionality (working end-to-end)
+- ✅ Verified at-risk students API working correctly
+- ✅ Verified teacher course creation functionality
 - ✅ Added comprehensive test suite (18 API tests - 100% pass rate)
-- ✅ Confirmed role-based access control working correctly
+- ✅ **Backend Modularization Started:**
+  - Created `/backend/models/` - All Pydantic models extracted
+  - Created `/backend/routers/` - Core routers (auth, courses, students, dashboard)
+  - Created `/backend/services/` - AI/LLM services
+  - Created `/backend/config.py`, `database.py`, `auth.py` utilities
+
+## Backend Architecture (New Modular Structure)
+
+```
+/app/backend/
+├── server.py              # Current entry point (legacy, 3000+ lines)
+├── main.py                # New modular entry point (ready for migration)
+├── config.py              # Configuration & environment variables
+├── database.py            # MongoDB connection
+├── auth.py                # Authentication utilities
+├── models/
+│   ├── __init__.py        # Model exports
+│   ├── enums.py           # UserRole, OrgType, FeeStatus, etc.
+│   ├── user.py            # User, StudentProfile, TeacherProfile
+│   ├── organization.py    # Organization models
+│   ├── course.py          # Course, Grade, Fee, Achievement
+│   ├── knowledge.py       # Concept, MentorProfile, ContentModule
+│   └── communication.py   # Notification, Message, StudyGroup
+├── routers/
+│   ├── __init__.py        # Router exports
+│   ├── auth.py            # /auth routes
+│   ├── courses.py         # /courses routes
+│   ├── students.py        # /students routes (including /at-risk)
+│   └── dashboard.py       # /dashboard routes
+├── services/
+│   ├── __init__.py        # Service exports
+│   └── ai_service.py      # LLM, ElevenLabs, Zoom services
+└── requirements.txt
+```
+
+## Migration Status
+
+### ✅ Extracted (New Modules)
+- All Pydantic models → `/models/`
+- Auth utilities → `/auth.py`
+- Config → `/config.py`
+- Database → `/database.py`
+- Core routers: auth, courses, students, dashboard
+
+### ⏳ Still in Legacy server.py
+- users, teachers, attendance, grades, fees, achievements
+- organizations, knowledge, mentor, content, voice
+- parents, reports, credentials, rfid, messages
+- study_groups, zoom, notifications
+
+### 🎯 Next Steps for Full Migration
+1. Update supervisor to use `main:app` instead of `server:app`
+2. Move remaining routers to `/routers/`
+3. Delete duplicate code from `server.py`
+4. Retire `server.py` completely
 
 ## All Features Implemented
 
@@ -32,134 +86,27 @@ A Unified Digital Education Operating System for Africa, managing a learner's fu
 
 ### Phase 2 - AI Learning Platform ✅
 - [x] Multi-Tenancy for Organizations
-- [x] Organization Registration (Schools, Universities, Governments, Institutions, Corporations)
-- [x] Organization Verification workflow
-- [x] Participant/Staff Enrollment
+- [x] Organization Registration & Verification
 - [x] Multi-Language UI (English, Shona, Ndebele, Swahili, Zulu)
 - [x] AI Personal Mentor with conversation memory
 - [x] Interactive Knowledge Graph (react-flow)
-- [x] Syllabus Ingestion (document → course)
+- [x] Syllabus Ingestion
 - [x] Learn by Teaching (Feynman technique)
-- [x] Live Research Engine
 
 ### Phase 3 - Smart Campus & Blockchain ✅
-- [x] Learning Journey Timeline with milestones
-- [x] Parent Portal (link to children, view progress)
+- [x] Learning Journey Timeline
+- [x] Parent Portal
 - [x] PDF Report Cards (ReportLab)
 - [x] Real-time Notifications (WebSocket)
-- [x] Blockchain Credentials (SHA-256 hash verification)
+- [x] Blockchain Credentials (SHA-256)
 - [x] RFID/NFC Attendance
-- [x] Credential Issuance & Verification
 
 ### Phase 4 - Advanced Features ✅
-- [x] **Public Home Page** - AI Institute Africa landing page
-- [x] **AI Study Groups** - AI-powered student matching
-- [x] **Biometric Attendance** - Fingerprint & facial recognition (MOCKED)
-- [x] **Virtual Classroom** - Zoom & Google Meet integration (MOCKED)
-- [x] **Student Risk Prediction** - AI early warning system
-
-## Architecture
-
-### Tech Stack
-- **Frontend:** React 19, Tailwind CSS, Shadcn/UI, Lucide Icons, React-Flow
-- **Backend:** FastAPI, Motor (MongoDB async), python-socketio
-- **Database:** MongoDB
-- **AI:** Emergent LLM Integration (GPT-5.2)
-- **PDF:** ReportLab
-- **Auth:** JWT with bcrypt
-
-### All Frontend Routes
-```
-# Public
-/ - Home Page (AI Institute Africa)
-/login - User login
-/register - Individual registration
-/register-organization - Organization registration
-
-# Student
-/dashboard - Student dashboard
-/courses - My courses
-/grades - View grades
-/attendance - Attendance records
-/fees - Fee management
-/achievements - Awards & achievements
-/ai-mentor - AI Personal Mentor
-/knowledge-graph - Interactive concept map
-/learn-by-teaching - Feynman technique
-/learning-journey - Progress timeline
-/study-groups - AI Study Groups
-/live-research - Research engine
-/virtual-classroom - Zoom/Meet classes
-/career - Career guidance
-
-# Teacher
-/students - Student management
-/lesson-planner - AI lesson planning
-/syllabus-ingestion - Upload syllabi
-/student-risk - At-risk students
-/rfid-attendance - RFID attendance
-/biometric-attendance - Fingerprint/face
-/credentials - Issue credentials
-
-# Admin/Org Admin
-All teacher routes plus organization management
-
-# Parent
-/parent-portal - Children overview
-/children - Linked children
-```
-
-### API Endpoints (Complete)
-```
-/api/auth/* - Authentication
-/api/users/* - User management
-/api/students/* - Student profiles
-/api/students/at-risk - AI risk prediction
-/api/teachers/* - Teacher profiles
-/api/courses/* - Course management
-/api/attendance/* - Attendance
-/api/grades/* - Grades
-/api/fees/* - Finance
-/api/achievements/* - Achievements
-/api/organizations/* - Multi-tenant orgs
-/api/mentor/* - AI Mentor
-/api/knowledge/* - Knowledge Graph
-/api/content/* - Syllabus Ingestion
-/api/voice/* - Voice (MOCKED)
-/api/parents/* - Parent portal
-/api/reports/* - PDF reports
-/api/credentials/* - Blockchain credentials
-/api/rfid/* - RFID attendance
-/api/study-groups/* - AI Study Groups
-/api/zoom/* - Zoom integration (MOCKED)
-/ws/notifications/* - WebSocket
-```
-
-## Demo Accounts
-```
-Student: demo.student@eduos.edu / demo123
-Teacher: demo.teacher@eduos.edu / demo123
-Admin: demo.admin@eduos.edu / demo123
-Org Admin: dr.moyo@testuniv.edu.zw / secure123
-```
-
-## MOCKED Components (Require API Keys/Hardware)
-- **ElevenLabs Voice Cloning** - API key configured but not tested
-- **Live Research Engine** - Mock data
-- **Biometric Hardware** - Simulated scanning
-- **Zoom/Meet API** - API credentials configured but not tested
-- **Ethereum Blockchain** - Hash-based verification (not on-chain)
-
-## What's NOT Mocked (Fully Functional)
-- ✅ AI Mentor (GPT-5.2 via Emergent LLM Key)
-- ✅ Organization Registration & Enrollment
-- ✅ All CRUD operations
-- ✅ PDF Report Generation
-- ✅ Blockchain Credential Verification (hash-based)
-- ✅ WebSocket Notifications
-- ✅ Knowledge Graph Visualization
-- ✅ Student Risk Prediction (AI-powered analysis)
-- ✅ Course Creation by Teachers
+- [x] Public Home Page
+- [x] AI Study Groups
+- [x] Biometric Attendance (MOCKED)
+- [x] Virtual Classroom - Zoom/Meet (MOCKED)
+- [x] Student Risk Prediction AI
 
 ## Test Coverage
 - **Test File:** `/app/tests/test_eduos_api.py`
@@ -167,30 +114,31 @@ Org Admin: dr.moyo@testuniv.edu.zw / secure123
 - **Tests:** 18 API tests
 - **Pass Rate:** 100%
 
-## Key Differentiators
-1. **African Languages** - First platform with Shona, Ndebele, Swahili, Zulu support
-2. **AI Study Groups** - Unique AI-powered student matching
-3. **Unified Platform** - From K-12 to University to Employment
-4. **Blockchain Credentials** - Tamper-proof verification
-5. **Risk Prediction** - Proactive student support
+## Demo Accounts
+```
+Student: demo.student@eduos.edu / demo123
+Teacher: demo.teacher@eduos.edu / demo123
+Admin: demo.admin@eduos.edu / demo123
+```
 
-## Remaining Backlog (P0-P2)
+## MOCKED Components
+- ElevenLabs Voice Cloning (API key configured)
+- Zoom/Meet API (credentials configured)
+- Biometric Hardware
+- Ethereum Blockchain (hash-based verification only)
 
-### P0 - Critical (Backend Refactoring)
-- [ ] **Refactor server.py monolith** - Break 3000+ line file into modular structure
-  - `/app/backend/routers/` - Route handlers
-  - `/app/backend/models/` - Pydantic models
-  - `/app/backend/services/` - Business logic
-  - `/app/backend/main.py` - Entry point
+## Remaining Backlog
+
+### P0 - Critical
+- [ ] Complete backend migration to modular structure
+- [ ] Switch supervisor to use `main:app`
 
 ### P1 - High Priority
-- [ ] Real ElevenLabs voice integration testing
-- [ ] Real Zoom/Meet API integration testing
+- [ ] Test ElevenLabs/Zoom integrations
 - [ ] Profile photo upload implementation
 - [ ] Real biometric hardware integration
 
 ### P2 - Medium Priority
-- [ ] Ethereum testnet deployment for credentials
+- [ ] Ethereum testnet deployment
 - [ ] Mobile app (React Native/PWA)
 - [ ] Canvas/Moodle LMS integration
-- [ ] Performance optimization for large organizations
