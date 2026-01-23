@@ -299,8 +299,129 @@ export default function CourseViewPage() {
                 </div>
               </div>
               
-              {/* Language Selector */}
+              {/* Language Selector and Teacher Upload */}
               <div className="flex items-center gap-3">
+                {isTeacher && (
+                  <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+                    <DialogTrigger asChild>
+                      <Button className="bg-blue-500 hover:bg-blue-600" data-testid="upload-content-btn">
+                        <Upload className="w-4 h-4 mr-2" />
+                        Add Content
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="bg-zinc-900 border-white/10 max-w-lg">
+                      <DialogHeader>
+                        <DialogTitle>Upload Course Content</DialogTitle>
+                        <DialogDescription className="text-zinc-500">
+                          Add new content to this course for students to learn from
+                        </DialogDescription>
+                      </DialogHeader>
+                      <form onSubmit={handleUploadContent} className="space-y-4 mt-4">
+                        <div className="space-y-2">
+                          <Label>Content Type</Label>
+                          <Select
+                            value={newContent.type}
+                            onValueChange={(value) => setNewContent({...newContent, type: value})}
+                          >
+                            <SelectTrigger className="bg-zinc-800 border-white/10">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-zinc-800 border-white/10">
+                              <SelectItem value="text">
+                                <span className="flex items-center gap-2">
+                                  <FileText className="w-4 h-4" /> Text Content
+                                </span>
+                              </SelectItem>
+                              <SelectItem value="video">
+                                <span className="flex items-center gap-2">
+                                  <Video className="w-4 h-4" /> Video
+                                </span>
+                              </SelectItem>
+                              <SelectItem value="audio">
+                                <span className="flex items-center gap-2">
+                                  <Headphones className="w-4 h-4" /> Audio
+                                </span>
+                              </SelectItem>
+                              <SelectItem value="image">
+                                <span className="flex items-center gap-2">
+                                  <Image className="w-4 h-4" /> Image/Slides
+                                </span>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Title</Label>
+                          <Input
+                            placeholder="Lesson title..."
+                            value={newContent.title}
+                            onChange={(e) => setNewContent({...newContent, title: e.target.value})}
+                            className="bg-zinc-800 border-white/10"
+                            data-testid="content-title-input"
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Description</Label>
+                          <Textarea
+                            placeholder="Brief description..."
+                            value={newContent.description}
+                            onChange={(e) => setNewContent({...newContent, description: e.target.value})}
+                            className="bg-zinc-800 border-white/10 min-h-[80px]"
+                          />
+                        </div>
+                        
+                        {newContent.type === 'text' ? (
+                          <div className="space-y-2">
+                            <Label>Content Text</Label>
+                            <Textarea
+                              placeholder="Enter your lesson content here... Use # for headings, - for bullet points"
+                              value={newContent.content_text}
+                              onChange={(e) => setNewContent({...newContent, content_text: e.target.value})}
+                              className="bg-zinc-800 border-white/10 min-h-[150px] font-mono text-sm"
+                              data-testid="content-text-input"
+                            />
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <Label>Content URL</Label>
+                            <Input
+                              placeholder={`Enter ${newContent.type} URL...`}
+                              value={newContent.content_url}
+                              onChange={(e) => setNewContent({...newContent, content_url: e.target.value})}
+                              className="bg-zinc-800 border-white/10"
+                              data-testid="content-url-input"
+                            />
+                            <p className="text-xs text-zinc-500">
+                              Paste a link to your {newContent.type} content (YouTube, Vimeo, cloud storage, etc.)
+                            </p>
+                          </div>
+                        )}
+                        
+                        <div className="flex justify-end gap-3 pt-4">
+                          <Button type="button" variant="ghost" onClick={() => setShowUploadDialog(false)}>
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={uploading} data-testid="submit-content-btn">
+                            {uploading ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-4 h-4 mr-2" />
+                                Add Content
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                )}
+                
                 <Globe className="w-5 h-5 text-zinc-500" />
                 <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
                   <SelectTrigger className="w-[180px] bg-zinc-900/50 border-white/10" data-testid="language-selector">
