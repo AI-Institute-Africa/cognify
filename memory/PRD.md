@@ -142,19 +142,48 @@ Admin: demo.admin@eduos.edu / demo123
 - **Biometric Hardware**: Simulated
 - **Ethereum Blockchain**: Hash-based verification only
 
+## Recent Implementation (January 23, 2026 - Update 2)
+
+### ✅ Course View Page with Learning Modes
+- **New CourseViewPage** (`/app/frontend/src/pages/CourseViewPage.js`)
+- 4 Learning Modes: Text, Video, Audio, Picture Slides
+- Students can choose their preferred learning style
+- Lesson navigation with numbered sidebar
+- Route: `/course/:courseId`
+
+### ✅ Multilingual Course Content
+- Language selector in course view (10 languages)
+- Supports: English, Swahili, Shona, Ndebele, Zulu, Xhosa, French, Portuguese, Arabic, Spanish
+- Translation API integration ready
+
+### ✅ Student Enrollment Flow
+- Students see "Enroll Now" for unenrolled courses
+- Students see "View Course" for enrolled courses (green button)
+- Course view displays lesson content with multimodal options
+
+### ✅ Teacher Content Upload
+- Teachers see "Add Content" button in course view
+- Upload dialog with content type selector (Text, Video, Audio, Image/Slides)
+- Teachers can add titles, descriptions, and content text/URLs
+- Teachers see "Manage Course" button on courses page
+- Create Course dialog fully functional
+
 ## Remaining Backlog
 
 ### P0 - Critical
-- [ ] Complete backend modularization (migrate remaining routes)
-- [ ] Test all frontend pages with new APIs
+- [ ] Complete backend modularization (migrate remaining routes from server.py)
+- [x] ~~Test all frontend pages with new APIs~~ (CourseViewPage tested and working)
 
 ### P1 - High Priority
 - [ ] Profile photo upload implementation
 - [ ] WhatsApp integration for question sharing
 - [ ] Real biometric hardware integration
+- [ ] Google Meet integration (API key exists, not implemented)
 
 ### P2 - Medium Priority
 - [ ] Ethereum testnet deployment
 - [ ] Mobile app (React Native/PWA)
 - [ ] Canvas/Moodle LMS integration
 - [ ] Gamification features
+- [ ] Remove dead ElevenLabs code
+
