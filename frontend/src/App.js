@@ -44,6 +44,8 @@ import OutcomeLearningPage from './pages/OutcomeLearningPage';
 import MultidisciplinaryPage from './pages/MultidisciplinaryPage';
 import AssignmentGeneratorPage from './pages/AssignmentGeneratorPage';
 import CourseViewPage from './pages/CourseViewPage';
+import AvatarSettingsPage from './pages/AvatarSettingsPage';
+import ExamPage from './pages/ExamPage';
 
 import './App.css';
 
