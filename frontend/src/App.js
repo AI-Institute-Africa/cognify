@@ -120,6 +120,12 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      <Route path="/course/:courseId" element={
+        <ProtectedRoute>
+          <CourseViewPage />
+        </ProtectedRoute>
+      } />
+      
       <Route path="/grades" element={
         <ProtectedRoute>
           <GradesPage />
