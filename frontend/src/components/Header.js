@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { getNotifications, markNotificationRead } from '../services/api';
-import { Bell, Search, User, ChevronDown } from 'lucide-react';
+import { Bell, Search, User, ChevronDown, Globe, Volume2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,8 +16,10 @@ import { Badge } from '../components/ui/badge';
 
 export const Header = ({ title, subtitle }) => {
   const { user, logout } = useAuth();
+  const { language, currentLanguage, languages, changeLanguage, t } = useLanguage();
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showLanguages, setShowLanguages] = useState(false);
 
   useEffect(() => {
     loadNotifications();
@@ -59,6 +62,14 @@ export const Header = ({ title, subtitle }) => {
     return colors[role] || colors.student;
   };
 
+  // Group languages for display
+  const africanLanguages = languages.filter(l => 
+    ['sn', 'nd', 'zu', 'sw', 'xh', 'st', 'tn', 'af', 'yo', 'ig', 'ha', 'am', 'om', 'so', 'rw', 'lg', 'ny'].includes(l.code)
+  );
+  const globalLanguages = languages.filter(l => 
+    ['en', 'fr', 'pt', 'ar', 'es', 'zh', 'hi'].includes(l.code)
+  );
+
   return (
     <header className="sticky top-0 z-40 bg-[#09090B]/80 backdrop-blur-xl border-b border-white/5">
       <div className="flex items-center justify-between px-8 py-4">
@@ -75,11 +86,61 @@ export const Header = ({ title, subtitle }) => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
             <input
               type="text"
-              placeholder="Search..."
+              placeholder={t('search') + '...'}
               data-testid="header-search"
               className="w-64 pl-10 pr-4 py-2 bg-zinc-900/50 border border-white/10 rounded-lg text-sm placeholder:text-zinc-500 focus:outline-none focus:border-blue-500/50 transition-colors"
             />
           </div>
+
+          {/* Language Selector */}
+          <DropdownMenu open={showLanguages} onOpenChange={setShowLanguages}>
+            <DropdownMenuTrigger asChild>
+              <button
+                data-testid="language-selector-btn"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors border border-white/10"
+              >
+                <Globe className="w-4 h-4 text-zinc-400" />
+                <span className="text-sm hidden sm:inline">{currentLanguage?.flag} {currentLanguage?.code?.toUpperCase()}</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64 bg-zinc-900 border-white/10 max-h-[400px] overflow-y-auto">
+              <DropdownMenuLabel className="text-zinc-400 flex items-center gap-2">
+                <Globe className="w-4 h-4" />
+                Select Language
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-white/10" />
+              
+              {/* African Languages */}
+              <DropdownMenuLabel className="text-xs text-emerald-400 mt-2">African Languages</DropdownMenuLabel>
+              {africanLanguages.map((lang) => (
+                <DropdownMenuItem
+                  key={lang.code}
+                  onClick={() => changeLanguage(lang.code)}
+                  className={`cursor-pointer ${language === lang.code ? 'bg-emerald-500/10' : ''}`}
+                >
+                  <span className="mr-2">{lang.flag}</span>
+                  <span className="flex-1">{lang.native}</span>
+                  {language === lang.code && <span className="text-emerald-400">✓</span>}
+                </DropdownMenuItem>
+              ))}
+              
+              <DropdownMenuSeparator className="bg-white/10" />
+              
+              {/* Global Languages */}
+              <DropdownMenuLabel className="text-xs text-blue-400">Global Languages</DropdownMenuLabel>
+              {globalLanguages.map((lang) => (
+                <DropdownMenuItem
+                  key={lang.code}
+                  onClick={() => changeLanguage(lang.code)}
+                  className={`cursor-pointer ${language === lang.code ? 'bg-blue-500/10' : ''}`}
+                >
+                  <span className="mr-2">{lang.flag}</span>
+                  <span className="flex-1">{lang.native}</span>
+                  {language === lang.code && <span className="text-blue-400">✓</span>}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Notifications */}
           <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications}>
@@ -150,7 +211,7 @@ export const Header = ({ title, subtitle }) => {
                 Profile
               </DropdownMenuItem>
               <DropdownMenuItem className="cursor-pointer text-red-400" onClick={logout}>
-                Logout
+                {t('logout')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
