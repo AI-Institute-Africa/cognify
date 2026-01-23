@@ -3024,6 +3024,464 @@ async def get_zoom_meetings(current_user: dict = Depends(get_current_user)):
     return [serialize_doc(m) for m in meetings]
 
 
+# ============= ADVANCED AI FEATURES =============
+from services.advanced_ai import (
+    generate_tts_audio as advanced_tts,
+    generate_avatar_image,
+    generate_educational_visual,
+    generate_micro_hint,
+    generate_analogy,
+    generate_comprehension_questions,
+    analyze_syllabus_content,
+    generate_interactive_lesson,
+    simulate_student_interaction,
+    evaluate_teaching_quality,
+    analyze_user_question,
+    evaluate_user_answer,
+    generate_assignment,
+    evaluate_assignment_submission,
+    generate_multidisciplinary_lesson,
+    analyze_learner_identity,
+    personalize_content_for_identity,
+    decompose_outcome
+)
+from services.multilingual import (
+    get_supported_languages,
+    get_all_translations,
+    translate_text,
+    detect_language
+)
+
+# Advanced AI Router
+advanced_router = APIRouter(prefix="/advanced", tags=["Advanced AI"])
+
+# Multilingual Router
+language_router = APIRouter(prefix="/language", tags=["Multilingual"])
+
+@language_router.get("/supported")
+async def get_languages():
+    """Get all supported languages"""
+    return get_supported_languages()
+
+@language_router.get("/translations/{language_code}")
+async def get_translations(language_code: str):
+    """Get UI translations for a language"""
+    return get_all_translations(language_code)
+
+@language_router.post("/translate")
+async def translate_content(
+    text: str,
+    target_language: str,
+    source_language: str = "en",
+    current_user: dict = Depends(get_current_user)
+):
+    """Translate text to target language"""
+    translated, error = await translate_text(text, target_language, source_language)
+    if error:
+        raise HTTPException(status_code=500, detail=error)
+    return {"original": text, "translated": translated, "target_language": target_language}
+
+@language_router.post("/detect")
+async def detect_text_language(text: str):
+    """Detect language of text"""
+    code, error = await detect_language(text)
+    if error:
+        raise HTTPException(status_code=500, detail=error)
+    return {"language_code": code}
+
+# TTS with Emergent LLM Key
+@advanced_router.post("/tts")
+async def text_to_speech_advanced(
+    text: str,
+    voice: str = "nova",
+    speed: float = 1.0,
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate TTS audio using Emergent LLM Key"""
+    audio, error = await advanced_tts(text, voice=voice, speed=speed)
+    if error:
+        raise HTTPException(status_code=503, detail={"message": "TTS failed", "error": error})
+    return {"audio_url": audio, "text": text, "voice": voice}
+
+# Avatar Generation
+@advanced_router.post("/avatar/generate")
+async def generate_avatar(
+    prompt: str,
+    style: str = "professional educator",
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate AI tutor avatar image"""
+    image, error = await generate_avatar_image(prompt, style)
+    if error:
+        raise HTTPException(status_code=500, detail=error)
+    return {"image_url": image, "prompt": prompt, "style": style}
+
+# Educational Visual Generation
+@advanced_router.post("/visual/generate")
+async def generate_visual(
+    concept: str,
+    visual_type: str = "diagram",
+    subject: str = "general",
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate educational visuals"""
+    image, error = await generate_educational_visual(concept, visual_type, subject)
+    if error:
+        raise HTTPException(status_code=500, detail=error)
+    return {"image_url": image, "concept": concept, "type": visual_type}
+
+# Micro-hints
+@advanced_router.post("/hint")
+async def get_hint(
+    concept: str,
+    learner_background: str = "general",
+    previous_mistakes: list = None,
+    hint_type: str = "perspective_shift",
+    current_user: dict = Depends(get_current_user)
+):
+    """Get intelligent micro-hint for a concept"""
+    result = await generate_micro_hint(concept, learner_background, previous_mistakes, hint_type)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    return result
+
+# Analogies
+@advanced_router.post("/analogy")
+async def get_analogy(
+    concept: str,
+    learner_background: str = "general",
+    interests: list = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get personalized analogy for a concept"""
+    result = await generate_analogy(concept, learner_background, interests)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    return result
+
+# Comprehension Questions
+@advanced_router.post("/comprehension-questions")
+async def get_comprehension_questions(
+    concept: str,
+    difficulty: str = "medium",
+    count: int = 3,
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate comprehension questions for a concept"""
+    result = await generate_comprehension_questions(concept, difficulty, count)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    return result
+
+# Syllabus Ingestion
+@advanced_router.post("/syllabus/analyze")
+async def analyze_syllabus(
+    content: str,
+    content_type: str = "syllabus",
+    current_user: dict = Depends(get_current_user)
+):
+    """Analyze syllabus and extract structured content"""
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    result = await analyze_syllabus_content(content, content_type)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    return result
+
+# Interactive Lesson Generation
+@advanced_router.post("/lesson/generate")
+async def generate_lesson(
+    topic: str,
+    learning_objectives: list,
+    duration_minutes: int = 30,
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate interactive lesson from topic"""
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    result = await generate_interactive_lesson(topic, learning_objectives, duration_minutes)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    return result
+
+# Learn by Teaching - AI Student
+@advanced_router.post("/teach/interact")
+async def teach_ai_student(
+    explanation: str,
+    concept: str,
+    student_personality: str = "curious",
+    current_user: dict = Depends(get_current_user)
+):
+    """Interact with AI student avatar"""
+    # Get user's mastery level for this concept
+    mastery = 0.5  # Default
+    state = await db.learner_concept_states.find_one(
+        {"user_id": current_user['id'], "concept_id": concept},
+        {"_id": 0}
+    )
+    if state:
+        mastery = state.get('mastery_level', 0.5)
+    
+    result = await simulate_student_interaction(explanation, concept, student_personality, mastery)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    
+    # Save interaction
+    await db.teaching_sessions.insert_one({
+        "user_id": current_user['id'],
+        "concept": concept,
+        "explanation": explanation,
+        "ai_response": result,
+        "created_at": datetime.now(timezone.utc)
+    })
+    
+    return result
+
+# Teaching Quality Evaluation
+@advanced_router.post("/teach/evaluate")
+async def evaluate_teaching(
+    explanation: str,
+    concept: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Evaluate teaching quality and get score"""
+    # Get previous student responses
+    sessions = await db.teaching_sessions.find(
+        {"user_id": current_user['id'], "concept": concept},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(5)
+    
+    student_responses = [s.get('ai_response', {}) for s in sessions]
+    
+    result = await evaluate_teaching_quality(explanation, concept, student_responses)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    
+    # Update concept mastery
+    if 'mastery_level' in result:
+        await db.learner_concept_states.update_one(
+            {"user_id": current_user['id'], "concept_id": concept},
+            {"$set": {"mastery_level": result['mastery_level'], "last_accessed": datetime.now(timezone.utc)}},
+            upsert=True
+        )
+    
+    return result
+
+# Question Analysis
+@advanced_router.post("/question/analyze")
+async def analyze_question(
+    question: str,
+    subject: str = "general",
+    current_user: dict = Depends(get_current_user)
+):
+    """Analyze user-created question for depth and gaps"""
+    result = await analyze_user_question(question, subject)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    return result
+
+# Answer Evaluation
+@advanced_router.post("/question/evaluate-answer")
+async def evaluate_answer(
+    question: str,
+    answer: str,
+    subject: str = "general",
+    current_user: dict = Depends(get_current_user)
+):
+    """Evaluate user's answer to their own question"""
+    result = await evaluate_user_answer(question, answer, subject)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    
+    # Update knowledge graph based on evaluation
+    if 'knowledge_graph_updates' in result:
+        for update in result.get('knowledge_graph_updates', []):
+            await db.learner_concept_states.update_one(
+                {"user_id": current_user['id'], "concept_id": update.get('concept')},
+                {"$set": {"status": update.get('status'), "last_accessed": datetime.now(timezone.utc)}},
+                upsert=True
+            )
+    
+    return result
+
+# Assignment Generation
+@advanced_router.post("/assignment/generate")
+async def create_assignment(
+    lesson_topic: str,
+    learning_objectives: list,
+    assignment_type: str = "reflection",
+    difficulty: str = "medium",
+    current_user: dict = Depends(get_current_user)
+):
+    """Auto-generate assignment for a lesson"""
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    result = await generate_assignment(lesson_topic, learning_objectives, assignment_type, difficulty)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    
+    # Save assignment to database
+    assignment = {
+        "id": str(uuid.uuid4()),
+        "teacher_id": current_user['id'],
+        "topic": lesson_topic,
+        "objectives": learning_objectives,
+        "type": assignment_type,
+        "difficulty": difficulty,
+        "content": result,
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.assignments.insert_one(assignment)
+    
+    return {"assignment_id": assignment['id'], **result}
+
+# Assignment Submission Evaluation
+@advanced_router.post("/assignment/{assignment_id}/evaluate")
+async def evaluate_submission(
+    assignment_id: str,
+    submission: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """AI evaluation of assignment submission"""
+    assignment = await db.assignments.find_one({"id": assignment_id}, {"_id": 0})
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    result = await evaluate_assignment_submission(assignment.get('content', {}), submission)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    
+    # Save submission and result
+    await db.assignment_submissions.insert_one({
+        "id": str(uuid.uuid4()),
+        "assignment_id": assignment_id,
+        "student_id": current_user['id'],
+        "submission": submission,
+        "evaluation": result,
+        "created_at": datetime.now(timezone.utc)
+    })
+    
+    return result
+
+# Multi-disciplinary Course Generation
+@advanced_router.post("/multidisciplinary/generate")
+async def generate_multidisciplinary(
+    topic: str,
+    subjects: list,
+    duration_minutes: int = 45,
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate multi-disciplinary lesson combining subjects"""
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    result = await generate_multidisciplinary_lesson(topic, subjects, duration_minutes)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    return result
+
+# AIBL - Learner Identity Analysis
+@advanced_router.get("/identity/analyze")
+async def analyze_identity(current_user: dict = Depends(get_current_user)):
+    """Analyze learner's cognitive identity"""
+    # Get interaction history
+    interactions = await db.mentor_conversations.find(
+        {"user_id": current_user['id']},
+        {"_id": 0}
+    ).sort("started_at", -1).to_list(20)
+    
+    # Get assessment results
+    assessments = await db.grades.find(
+        {"student_id": current_user['id']},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(10)
+    
+    result = await analyze_learner_identity(current_user['id'], interactions, assessments)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    
+    # Save/update identity profile
+    await db.learner_identities.update_one(
+        {"user_id": current_user['id']},
+        {"$set": {"profile": result, "updated_at": datetime.now(timezone.utc)}},
+        upsert=True
+    )
+    
+    return result
+
+# OFL - Outcome Decomposition (MVP)
+@advanced_router.post("/outcome/decompose")
+async def decompose_learning_outcome(
+    outcome: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Decompose outcome into skills, habits, and proofs (MVP)"""
+    result = decompose_outcome(outcome)
+    
+    # Save outcome pathway
+    pathway = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user['id'],
+        "outcome": outcome,
+        "decomposition": result,
+        "status": "active",
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.outcome_pathways.insert_one(pathway)
+    
+    return {"pathway_id": pathway['id'], **result}
+
+# Multimodal Content Upload
+multimodal_router = APIRouter(prefix="/multimodal", tags=["Multimodal Content"])
+
+@multimodal_router.post("/course/{course_id}/content")
+async def upload_course_content(
+    course_id: str,
+    content_type: str,  # video, audio, image, text
+    title: str,
+    description: str = None,
+    content_url: str = None,
+    content_text: str = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload multimodal content to a course"""
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    content = {
+        "id": str(uuid.uuid4()),
+        "course_id": course_id,
+        "type": content_type,
+        "title": title,
+        "description": description,
+        "url": content_url,
+        "text": content_text,
+        "uploaded_by": current_user['id'],
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.course_contents.insert_one(content)
+    
+    return serialize_doc(content)
+
+@multimodal_router.get("/course/{course_id}/content")
+async def get_course_content(
+    course_id: str,
+    content_type: str = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get multimodal content for a course"""
+    query = {"course_id": course_id}
+    if content_type:
+        query["type"] = content_type
+    
+    contents = await db.course_contents.find(query, {"_id": 0}).to_list(100)
+    return [serialize_doc(c) for c in contents]
+
 # Include all routers
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
