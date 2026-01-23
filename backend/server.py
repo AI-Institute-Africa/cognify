@@ -3507,6 +3507,9 @@ api_router.include_router(rfid_router)
 api_router.include_router(messages_router)
 api_router.include_router(study_groups_router)
 api_router.include_router(zoom_router)
+api_router.include_router(advanced_router)
+api_router.include_router(language_router)
+api_router.include_router(multimodal_router)
 
 app.include_router(api_router)
 
