@@ -64,6 +64,8 @@ const navItems = {
     { divider: true, label: 'AI Tools' },
     { path: '/lesson-planner', icon: Sparkles, label: 'AI Planner' },
     { path: '/syllabus-ingestion', icon: FileUp, label: 'Syllabus Ingestion' },
+    { path: '/assignment-generator', icon: FileCheck, label: 'Assignment Gen' },
+    { path: '/multidisciplinary', icon: Layers, label: 'Multi-Subject' },
     { path: '/student-risk', icon: AlertTriangle, label: 'Risk Prediction' },
     { path: '/ai-mentor', icon: Brain, label: 'AI Mentor' },
     { divider: true, label: 'Smart Campus' },
