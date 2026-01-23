@@ -1509,8 +1509,12 @@ async def create_course(course_data: CourseCreate, current_user: dict = Depends(
     
     course = Course(**course_data.model_dump())
     course.organization_id = current_user.get('organization_id')
+    # Set the teacher_id to the current user if they are a teacher
+    if current_user['role'] == 'teacher':
+        course.teacher_id = current_user['id']
     course_dict = course.model_dump()
     course_dict['created_at'] = course_dict['created_at'].isoformat()
+    course_dict['is_active'] = True  # Make course visible to students
     await db.courses.insert_one(course_dict)
     course_dict.pop('_id', None)
     return serialize_doc(course_dict)
