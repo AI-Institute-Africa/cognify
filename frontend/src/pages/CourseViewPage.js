@@ -71,6 +71,19 @@ export default function CourseViewPage() {
   const [audioUrl, setAudioUrl] = useState(null);
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
+  
+  // Teacher content upload state
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [newContent, setNewContent] = useState({
+    title: '',
+    description: '',
+    type: 'text',
+    content_text: '',
+    content_url: ''
+  });
+  
+  const isTeacher = user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'org_admin';
 
   useEffect(() => {
     loadCourseData();
