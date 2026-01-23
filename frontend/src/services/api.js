@@ -463,3 +463,177 @@ export const getReportCard = async (studentId) => {
   });
   return response.data;
 };
+
+// ==================== MULTILINGUAL API ====================
+
+export const getSupportedLanguages = async () => {
+  const response = await axios.get(`${API}/language/supported`);
+  return response.data;
+};
+
+export const getUITranslations = async (languageCode) => {
+  const response = await axios.get(`${API}/language/translations/${languageCode}`);
+  return response.data;
+};
+
+export const translateText = async (text, targetLanguage, sourceLanguage = 'en') => {
+  const params = new URLSearchParams({ text, target_language: targetLanguage, source_language: sourceLanguage });
+  const response = await axios.post(`${API}/language/translate?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const detectLanguage = async (text) => {
+  const response = await axios.post(`${API}/language/detect?text=${encodeURIComponent(text)}`, {});
+  return response.data;
+};
+
+// ==================== ADVANCED AI API ====================
+
+// TTS with Emergent LLM Key
+export const generateTTS = async (text, voice = 'nova', speed = 1.0) => {
+  const params = new URLSearchParams({ text, voice, speed: speed.toString() });
+  const response = await axios.post(`${API}/advanced/tts?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Avatar Generation
+export const generateAvatar = async (prompt, style = 'professional educator') => {
+  const params = new URLSearchParams({ prompt, style });
+  const response = await axios.post(`${API}/advanced/avatar/generate?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Educational Visual Generation
+export const generateVisual = async (concept, visualType = 'diagram', subject = 'general') => {
+  const params = new URLSearchParams({ concept, visual_type: visualType, subject });
+  const response = await axios.post(`${API}/advanced/visual/generate?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Micro-hints
+export const getMicroHint = async (concept, learnerBackground = 'general', previousMistakes = [], hintType = 'perspective_shift') => {
+  const params = new URLSearchParams({ 
+    concept, 
+    learner_background: learnerBackground, 
+    hint_type: hintType 
+  });
+  const response = await axios.post(`${API}/advanced/hint?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Analogies
+export const getAnalogy = async (concept, learnerBackground = 'general', interests = []) => {
+  const params = new URLSearchParams({ concept, learner_background: learnerBackground });
+  const response = await axios.post(`${API}/advanced/analogy?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Comprehension Questions
+export const getComprehensionQuestions = async (concept, difficulty = 'medium', count = 3) => {
+  const params = new URLSearchParams({ concept, difficulty, count: count.toString() });
+  const response = await axios.post(`${API}/advanced/comprehension-questions?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Syllabus Ingestion
+export const analyzeSyllabus = async (content, contentType = 'syllabus') => {
+  const params = new URLSearchParams({ content, content_type: contentType });
+  const response = await axios.post(`${API}/advanced/syllabus/analyze?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Interactive Lesson Generation
+export const generateLesson = async (topic, learningObjectives, durationMinutes = 30) => {
+  const params = new URLSearchParams({ topic, duration_minutes: durationMinutes.toString() });
+  learningObjectives.forEach(obj => params.append('learning_objectives', obj));
+  const response = await axios.post(`${API}/advanced/lesson/generate?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Learn by Teaching - AI Student Interaction
+export const teachAIStudent = async (explanation, concept, studentPersonality = 'curious') => {
+  const params = new URLSearchParams({ explanation, concept, student_personality: studentPersonality });
+  const response = await axios.post(`${API}/advanced/teach/interact?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Teaching Quality Evaluation
+export const evaluateTeaching = async (explanation, concept) => {
+  const params = new URLSearchParams({ explanation, concept });
+  const response = await axios.post(`${API}/advanced/teach/evaluate?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Question Analysis
+export const analyzeQuestion = async (question, subject = 'general') => {
+  const params = new URLSearchParams({ question, subject });
+  const response = await axios.post(`${API}/advanced/question/analyze?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Answer Evaluation
+export const evaluateAnswer = async (question, answer, subject = 'general') => {
+  const params = new URLSearchParams({ question, answer, subject });
+  const response = await axios.post(`${API}/advanced/question/evaluate-answer?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Assignment Generation
+export const generateAssignment = async (lessonTopic, learningObjectives, assignmentType = 'reflection', difficulty = 'medium') => {
+  const params = new URLSearchParams({ 
+    lesson_topic: lessonTopic, 
+    assignment_type: assignmentType, 
+    difficulty 
+  });
+  learningObjectives.forEach(obj => params.append('learning_objectives', obj));
+  const response = await axios.post(`${API}/advanced/assignment/generate?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Assignment Submission Evaluation
+export const evaluateAssignmentSubmission = async (assignmentId, submission) => {
+  const params = new URLSearchParams({ submission });
+  const response = await axios.post(`${API}/advanced/assignment/${assignmentId}/evaluate?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// Multi-disciplinary Course Generation
+export const generateMultidisciplinaryLesson = async (topic, subjects, durationMinutes = 45) => {
+  const params = new URLSearchParams({ topic, duration_minutes: durationMinutes.toString() });
+  subjects.forEach(sub => params.append('subjects', sub));
+  const response = await axios.post(`${API}/advanced/multidisciplinary/generate?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// AIBL - Learner Identity Analysis
+export const analyzeIdentity = async () => {
+  const response = await axios.get(`${API}/advanced/identity/analyze`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// OFL - Outcome Decomposition
+export const decomposeOutcome = async (outcome) => {
+  const params = new URLSearchParams({ outcome });
+  const response = await axios.post(`${API}/advanced/outcome/decompose?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== MULTIMODAL CONTENT API ====================
+
+export const uploadCourseContent = async (courseId, contentType, title, description = '', contentUrl = '', contentText = '') => {
+  const params = new URLSearchParams({ 
+    content_type: contentType, 
+    title,
+    description,
+    content_url: contentUrl,
+    content_text: contentText
+  });
+  const response = await axios.post(`${API}/multimodal/course/${courseId}/content?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getCourseContent = async (courseId, contentType = null) => {
+  const params = contentType ? `?content_type=${contentType}` : '';
+  const response = await axios.get(`${API}/multimodal/course/${courseId}/content${params}`, { headers: getAuthHeaders() });
+  return response.data;
+};
