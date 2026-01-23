@@ -31,19 +31,23 @@ import {
   Target,
   Layers,
   Volume2,
-  Globe
+  Globe,
+  User,
+  ClipboardList
 } from 'lucide-react';
 
 const navItems = {
   student: [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/courses', icon: BookOpen, label: 'My Courses' },
+    { path: '/exams', icon: ClipboardList, label: 'Exams' },
     { path: '/grades', icon: GraduationCap, label: 'Grades' },
     { path: '/attendance', icon: Calendar, label: 'Attendance' },
     { path: '/fees', icon: CreditCard, label: 'Fees' },
     { path: '/achievements', icon: Trophy, label: 'Achievements' },
     { divider: true, label: 'AI Learning' },
     { path: '/ai-mentor', icon: Brain, label: 'AI Mentor' },
+    { path: '/avatar-settings', icon: User, label: 'My Avatar' },
     { path: '/knowledge-graph', icon: Network, label: 'Knowledge Graph' },
     { path: '/learn-by-teaching', icon: Mic, label: 'Learn by Teaching' },
     { path: '/question-analysis', icon: HelpCircle, label: 'Question Analysis' },
@@ -58,6 +62,7 @@ const navItems = {
   teacher: [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/courses', icon: BookOpen, label: 'My Classes' },
+    { path: '/exams', icon: ClipboardList, label: 'Exams' },
     { path: '/students', icon: Users, label: 'Students' },
     { path: '/grades', icon: GraduationCap, label: 'Grading' },
     { path: '/attendance', icon: Calendar, label: 'Attendance' },
