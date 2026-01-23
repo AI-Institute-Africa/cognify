@@ -1487,17 +1487,28 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 @courses_router.get("")
 async def get_courses(current_user: dict = Depends(get_current_user)):
     if current_user['role'] == 'student':
+        # Show ALL active courses so students can discover and enroll
+        courses = await db.courses.find({"is_active": True}, {"_id": 0}).to_list(100)
+        # Also include any courses they're enrolled in (even if marked inactive)
         profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
         if profile and profile.get('enrolled_courses'):
-            courses = await db.courses.find({"id": {"$in": profile['enrolled_courses']}}, {"_id": 0}).to_list(100)
-        else:
-            courses = await db.courses.find({"is_active": True}, {"_id": 0}).to_list(100)
+            enrolled = await db.courses.find({"id": {"$in": profile['enrolled_courses']}}, {"_id": 0}).to_list(100)
+            # Merge without duplicates
+            existing_ids = {c['id'] for c in courses}
+            for c in enrolled:
+                if c['id'] not in existing_ids:
+                    courses.append(c)
     elif current_user['role'] == 'teacher':
+        # Teachers see courses they created
+        courses = await db.courses.find({"teacher_id": current_user['id']}, {"_id": 0}).to_list(100)
+        # Also check assigned_courses in profile
         profile = await db.teacher_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
         if profile and profile.get('assigned_courses'):
-            courses = await db.courses.find({"id": {"$in": profile['assigned_courses']}}, {"_id": 0}).to_list(100)
-        else:
-            courses = await db.courses.find({"teacher_id": current_user['id']}, {"_id": 0}).to_list(100)
+            assigned = await db.courses.find({"id": {"$in": profile['assigned_courses']}}, {"_id": 0}).to_list(100)
+            existing_ids = {c['id'] for c in courses}
+            for c in assigned:
+                if c['id'] not in existing_ids:
+                    courses.append(c)
     else:
         courses = await db.courses.find({}, {"_id": 0}).to_list(100)
     return [serialize_doc(c) for c in courses]
