@@ -53,6 +53,13 @@ export default function CoursesPage() {
     try {
       const data = await getCourses();
       setCourses(data);
+      // Track enrolled courses for current student
+      if (user?.role === 'student') {
+        const enrolled = data.filter(c => 
+          c.enrolled_students?.includes(user.id)
+        ).map(c => c.id);
+        setEnrolledCourseIds(enrolled);
+      }
     } catch (error) {
       console.error('Failed to load courses:', error);
       toast.error('Failed to load courses');
