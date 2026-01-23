@@ -25,7 +25,13 @@ import {
   Fingerprint,
   Video,
   AlertTriangle,
-  UsersRound
+  UsersRound,
+  Languages,
+  HelpCircle,
+  Target,
+  Layers,
+  Volume2,
+  Globe
 } from 'lucide-react';
 
 const navItems = {
