@@ -1837,6 +1837,55 @@ async def ai_lesson_planner(chat_data: ChatMessage, current_user: dict = Depends
         logging.error(f"AI Lesson Planner Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
 
+# Landing Page AI Assistant (No auth required)
+class LandingAssistantRequest(BaseModel):
+    message: str
+    language: str = "en"
+    has_file: bool = False
+
+@ai_router.post("/landing-assistant")
+async def landing_ai_assistant(request: LandingAssistantRequest):
+    """Public AI assistant for the landing page - no authentication required"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            # Return a helpful fallback response
+            return {"response": "Welcome to EduOS! I'm your AI assistant. EduOS is Africa's leading AI-powered education platform featuring personalized AI tutoring, blockchain credentials, smart campus features, and support for 5 African languages. How can I help you today?"}
+        
+        lang_context = {
+            'en': 'Respond in English.',
+            'sw': 'Jibu kwa Kiswahili.',
+            'sn': 'Pindura nechiShona.',
+            'zu': 'Phendula ngesiZulu.',
+            'fr': 'Répondez en français.'
+        }
+        
+        system_message = f"""You are EduOS AI Assistant on the landing page. Help visitors learn about the platform.
+        
+        Key features of EduOS 2026:
+        - AI Personal Mentor: GPT-5.2 powered tutoring in 5 African languages (English, Swahili, Shona, Zulu, Ndebele)
+        - Knowledge Graph: Visual concept mapping with mastery tracking
+        - Blockchain Credentials: Ethereum-verified digital certificates
+        - Smart Campus: RFID/NFC attendance, biometric verification
+        - Virtual Classrooms: Zoom & Google Meet integration
+        - Risk Prediction: AI early warning for at-risk students
+        - Multi-language support for Africa
+        
+        {lang_context.get(request.language, 'Respond in English.')}
+        Be helpful, concise, and friendly. Encourage visitors to sign up."""
+        
+        import uuid
+        chat = LlmChat(api_key=api_key, session_id=f"landing-{uuid.uuid4()}", system_message=system_message)
+        chat.with_model("openai", "gpt-5.2")
+        
+        response = await chat.send_message(UserMessage(text=request.message))
+        return {"response": response}
+    except Exception as e:
+        logging.error(f"Landing Assistant Error: {str(e)}")
+        return {"response": "Welcome to EduOS! I'm here to help you learn about our AI-powered education platform. We offer personalized AI tutoring, blockchain credentials, smart campus features, and support for African languages. Would you like to know more about any specific feature?"}
+
 # Student & Teacher Management
 @students_router.get("")
 async def get_students(current_user: dict = Depends(get_current_user)):
