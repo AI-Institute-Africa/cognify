@@ -170,7 +170,7 @@ async def get_ai_response(
     Returns (response_text, error_message)
     """
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage, SystemMessage
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
         
         api_key = os.getenv("EMERGENT_LLM_KEY")
         if not api_key:
@@ -184,7 +184,7 @@ async def get_ai_response(
             system_message=system_prompt or "You are a helpful AI educational assistant."
         )
         
-        # Process messages
+        # Process messages - only user messages
         response = None
         for msg in messages:
             if msg.get('role') == 'user':
