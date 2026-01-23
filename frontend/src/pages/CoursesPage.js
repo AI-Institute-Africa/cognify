@@ -29,11 +29,13 @@ import { toast } from 'sonner';
 
 export default function CoursesPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState([]);
   const [newCourse, setNewCourse] = useState({
     code: '',
     name: '',
