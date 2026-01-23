@@ -38,6 +38,12 @@ import BiometricAttendancePage from './pages/BiometricAttendancePage';
 import VirtualClassroomPage from './pages/VirtualClassroomPage';
 import StudentRiskPage from './pages/StudentRiskPage';
 
+// Phase 4 - Advanced AI Pages
+import QuestionAnalysisPage from './pages/QuestionAnalysisPage';
+import OutcomeLearningPage from './pages/OutcomeLearningPage';
+import MultidisciplinaryPage from './pages/MultidisciplinaryPage';
+import AssignmentGeneratorPage from './pages/AssignmentGeneratorPage';
+
 import './App.css';
 
 // Protected Route Component
