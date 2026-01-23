@@ -260,6 +260,31 @@ function AppRoutes() {
         </PublicRoute>
       } />
       
+      {/* Phase 4 - Advanced AI Features */}
+      <Route path="/question-analysis" element={
+        <ProtectedRoute>
+          <QuestionAnalysisPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/outcome-learning" element={
+        <ProtectedRoute>
+          <OutcomeLearningPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/multidisciplinary" element={
+        <ProtectedRoute allowedRoles={['admin', 'teacher', 'org_admin']}>
+          <MultidisciplinaryPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/assignment-generator" element={
+        <ProtectedRoute allowedRoles={['admin', 'teacher', 'org_admin']}>
+          <AssignmentGeneratorPage />
+        </ProtectedRoute>
+      } />
+      
       {/* Home Page (Public) */}
       <Route path="/" element={<HomePage />} />
       
