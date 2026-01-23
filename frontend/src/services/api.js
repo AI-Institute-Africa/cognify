@@ -315,12 +315,6 @@ export const cloneVoice = async (name, description, cloneSource, files) => {
   return response.data;
 };
 
-// Languages
-export const getSupportedLanguages = async () => {
-  const response = await axios.get(`${API}/languages`);
-  return response.data;
-};
-
 // ==================== PHASE 3 & 4 APIs ====================
 
 // Real Student Dashboard
