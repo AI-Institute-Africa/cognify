@@ -184,6 +184,41 @@ export default function CourseViewPage() {
     }
   };
 
+  const handleUploadContent = async (e) => {
+    e.preventDefault();
+    if (!newContent.title) {
+      toast.error('Please enter a title');
+      return;
+    }
+    
+    setUploading(true);
+    try {
+      await uploadCourseContent(
+        courseId,
+        newContent.type,
+        newContent.title,
+        newContent.description,
+        newContent.content_url,
+        newContent.content_text
+      );
+      toast.success('Content uploaded successfully!');
+      setShowUploadDialog(false);
+      setNewContent({
+        title: '',
+        description: '',
+        type: 'text',
+        content_text: '',
+        content_url: ''
+      });
+      loadCourseData(); // Refresh content
+    } catch (error) {
+      console.error('Upload failed:', error);
+      toast.error('Failed to upload content');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const currentLesson = content[currentLessonIndex];
   const displayText = translatedContent[currentLessonIndex] || currentLesson?.text || currentLesson?.description || '';
 
