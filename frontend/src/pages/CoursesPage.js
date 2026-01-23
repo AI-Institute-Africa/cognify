@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
 import { getCourses, enrollCourse, createCourse } from '../services/api';
-import { BookOpen, Users, Clock, Plus, Search, Filter, ArrowRight } from 'lucide-react';
+import { BookOpen, Users, Clock, Plus, Search, Filter, ArrowRight, Eye, CheckCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
