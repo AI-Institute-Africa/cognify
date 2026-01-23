@@ -1,318 +1,448 @@
 import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
-import { ingestSyllabus, getCourses } from '../services/api';
+import { analyzeSyllabus, generateLesson, createCourse } from '../services/api';
 import { 
-  FileUp, 
-  FileText, 
-  CheckCircle2, 
-  AlertCircle,
-  Loader2,
+  FileText,
+  Upload,
   BookOpen,
+  Target,
+  Layers,
+  CheckCircle,
+  Clock,
   Sparkles,
   ArrowRight,
-  Upload,
-  File
+  RefreshCw,
+  Brain,
+  Lightbulb,
+  GraduationCap,
+  Plus
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { Progress } from '../components/ui/progress';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
+import { Textarea } from '../components/ui/textarea';
+import { Input } from '../components/ui/input';
+import { Badge } from '../components/ui/badge';
 import { Label } from '../components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
 
 export default function SyllabusIngestionPage() {
-  const [file, setFile] = useState(null);
-  const [courses, setCourses] = useState([]);
-  const [selectedCourse, setSelectedCourse] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [result, setResult] = useState(null);
-  const [dragActive, setDragActive] = useState(false);
+  const { user } = useAuth();
+  const { t } = useLanguage();
+  const [content, setContent] = useState('');
+  const [contentType, setContentType] = useState('syllabus');
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState(null);
+  const [generatingLesson, setGeneratingLesson] = useState(false);
+  const [generatedLesson, setGeneratedLesson] = useState(null);
+  const [selectedTopic, setSelectedTopic] = useState(null);
+  const [creatingCourse, setCreatingCourse] = useState(false);
 
-  React.useEffect(() => {
-    loadCourses();
-  }, []);
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-  const loadCourses = async () => {
-    try {
-      const data = await getCourses();
-      setCourses(data);
-    } catch (error) {
-      console.error('Failed to load courses:', error);
+    if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setContent(e.target.result);
+        toast.success('File loaded successfully');
+      };
+      reader.readAsText(file);
+    } else {
+      toast.error('Please upload a text file (.txt or .md)');
     }
   };
 
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleFile = (selectedFile) => {
-    const allowedTypes = ['.pdf', '.txt', '.md', '.docx'];
-    const ext = selectedFile.name.substring(selectedFile.name.lastIndexOf('.'));
-    
-    if (!allowedTypes.includes(ext.toLowerCase())) {
-      toast.error('Please upload a PDF, TXT, MD, or DOCX file');
-      return;
-    }
-    
-    setFile(selectedFile);
-    setResult(null);
-  };
-
-  const handleFileInput = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFile(e.target.files[0]);
-    }
-  };
-
-  const handleIngest = async () => {
-    if (!file) {
-      toast.error('Please select a file');
+  const handleAnalyze = async () => {
+    if (!content.trim()) {
+      toast.error('Please enter or upload syllabus content');
       return;
     }
 
-    setLoading(true);
-    setProgress(10);
-
+    setAnalyzing(true);
     try {
-      // Simulate progress updates
-      const progressInterval = setInterval(() => {
-        setProgress(prev => Math.min(prev + 10, 90));
-      }, 500);
-
-      const data = await ingestSyllabus(file, selectedCourse === 'none' ? null : selectedCourse);
-      
-      clearInterval(progressInterval);
-      setProgress(100);
-      setResult(data);
-      toast.success('Syllabus processed successfully!');
+      const result = await analyzeSyllabus(content, contentType);
+      setAnalysis(result);
+      toast.success('Analysis complete!');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to process syllabus');
+      console.error('Analysis failed:', error);
+      toast.error('Failed to analyze content');
     } finally {
-      setLoading(false);
+      setAnalyzing(false);
+    }
+  };
+
+  const handleGenerateLesson = async (topic) => {
+    setSelectedTopic(topic);
+    setGeneratingLesson(true);
+    try {
+      const objectives = analysis?.objectives?.slice(0, 3) || [
+        `Understand ${topic.name}`,
+        `Apply ${topic.name} concepts`,
+        `Analyze ${topic.name} examples`
+      ];
+      
+      const result = await generateLesson(
+        topic.name,
+        objectives,
+        topic.hours ? topic.hours * 60 : 30
+      );
+      setGeneratedLesson(result);
+      toast.success('Lesson generated!');
+    } catch (error) {
+      console.error('Lesson generation failed:', error);
+      toast.error('Failed to generate lesson');
+    } finally {
+      setGeneratingLesson(false);
+    }
+  };
+
+  const handleCreateCourse = async () => {
+    if (!analysis?.title) {
+      toast.error('Please analyze syllabus first');
+      return;
+    }
+
+    setCreatingCourse(true);
+    try {
+      const courseData = {
+        code: `COURSE-${Date.now().toString(36).toUpperCase()}`,
+        name: analysis.title,
+        description: `Auto-generated course from syllabus analysis. Topics: ${analysis.topics?.map(t => t.name).join(', ')}`,
+        grade_level: 'All Levels',
+        credits: 3,
+        max_students: 50
+      };
+      
+      await createCourse(courseData);
+      toast.success('Course created successfully!');
+    } catch (error) {
+      console.error('Course creation failed:', error);
+      toast.error('Failed to create course');
+    } finally {
+      setCreatingCourse(false);
     }
   };
 
   return (
     <DashboardLayout>
       <Header 
-        title="Syllabus Ingestion"
-        subtitle="Convert documents into interactive courses"
+        title="Syllabus Ingestion Engine"
+        subtitle="Transform any curriculum into AI-powered interactive learning"
       />
       
       <div className="p-8">
-        <div className="max-w-4xl mx-auto">
-          {/* Info Card */}
-          <div className="glass-card p-6 mb-8 border-blue-500/20">
+        <div className="max-w-6xl mx-auto">
+          {/* Info Banner */}
+          <div className="glass-card p-6 mb-8 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-500/20">
             <div className="flex items-start gap-4">
-              <div className="p-3 rounded-xl bg-blue-500/20">
+              <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
                 <Sparkles className="w-6 h-6 text-blue-400" />
               </div>
               <div>
-                <h3 className="font-semibold text-lg mb-2">AI-Powered Course Generation</h3>
+                <h3 className="font-semibold text-lg mb-1">World's First Curriculum Transformer</h3>
                 <p className="text-zinc-400 text-sm">
-                  Upload your syllabus, curriculum, or course outline. Our AI will analyze it and 
-                  automatically generate structured learning concepts, prerequisites, and interactive content modules.
+                  Upload a syllabus, PDF, textbook chapter, or slide deck and the AI will automatically 
+                  convert it into interactive lessons, concept maps, adaptive sequences, quizzes, and challenges.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Upload Section */}
-          <div className="glass-card p-8">
-            <h2 className="text-xl font-semibold mb-6">Upload Syllabus</h2>
-            
-            {/* Drop Zone */}
-            <div
-              className={`relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ${
-                dragActive 
-                  ? 'border-blue-500 bg-blue-500/10' 
-                  : file 
-                    ? 'border-emerald-500/50 bg-emerald-500/5'
-                    : 'border-white/10 hover:border-white/20 bg-zinc-900/30'
-              }`}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-            >
-              <input
-                type="file"
-                onChange={handleFileInput}
-                accept=".pdf,.txt,.md,.docx"
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                data-testid="syllabus-file-input"
-              />
-              
-              {file ? (
-                <div className="space-y-4">
-                  <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 flex items-center justify-center mx-auto">
-                    <FileText className="w-8 h-8 text-emerald-400" />
+          <Tabs defaultValue="upload" className="space-y-6">
+            <TabsList className="bg-zinc-800/50">
+              <TabsTrigger value="upload">1. Upload Content</TabsTrigger>
+              <TabsTrigger value="analysis" disabled={!analysis}>2. Analysis</TabsTrigger>
+              <TabsTrigger value="lessons" disabled={!analysis}>3. Generate Lessons</TabsTrigger>
+            </TabsList>
+
+            {/* Upload Tab */}
+            <TabsContent value="upload">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="glass-card p-6 space-y-6">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <Upload className="w-5 h-5 text-blue-400" />
+                    Upload or Paste Content
+                  </h3>
+
+                  <div className="space-y-2">
+                    <Label>Content Type</Label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {['syllabus', 'textbook', 'slides', 'outline'].map((type) => (
+                        <button
+                          key={type}
+                          onClick={() => setContentType(type)}
+                          className={`p-3 rounded-lg border text-center transition-all ${
+                            contentType === type
+                              ? 'bg-blue-500/20 border-blue-500'
+                              : 'bg-zinc-800/50 border-white/5 hover:border-white/10'
+                          }`}
+                        >
+                          <span className="text-sm capitalize">{type}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium text-lg">{file.name}</p>
-                    <p className="text-sm text-zinc-500">{(file.size / 1024).toFixed(1)} KB</p>
+
+                  <div className="space-y-2">
+                    <Label>Upload File (Optional)</Label>
+                    <Input
+                      type="file"
+                      accept=".txt,.md"
+                      onChange={handleFileUpload}
+                      className="bg-zinc-800 border-white/10"
+                    />
+                    <p className="text-xs text-zinc-500">Supports .txt and .md files</p>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label>Or Paste Content</Label>
+                    <Textarea
+                      placeholder="Paste your syllabus, course outline, or textbook content here..."
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      className="min-h-[300px] bg-zinc-800 border-white/10"
+                      data-testid="syllabus-input"
+                    />
+                  </div>
+
                   <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => { e.stopPropagation(); setFile(null); setResult(null); }}
-                    className="border-white/10"
+                    onClick={handleAnalyze}
+                    disabled={!content.trim() || analyzing}
+                    data-testid="analyze-btn"
+                    className="w-full bg-blue-500 hover:bg-blue-600"
                   >
-                    Change File
+                    {analyzing ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="w-4 h-4 mr-2" />
+                        Analyze & Transform
+                      </>
+                    )}
                   </Button>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center mx-auto">
-                    <Upload className="w-8 h-8 text-zinc-500" />
+
+                <div className="glass-card p-6">
+                  <h3 className="font-semibold flex items-center gap-2 mb-4">
+                    <FileText className="w-5 h-5 text-blue-400" />
+                    What Will Be Generated
+                  </h3>
+
+                  <div className="space-y-4">
+                    {[
+                      { icon: BookOpen, title: 'Interactive Lessons', desc: 'Engaging step-by-step learning modules' },
+                      { icon: Layers, title: 'Concept Graph', desc: 'Visual map of interconnected concepts' },
+                      { icon: Target, title: 'Learning Objectives', desc: 'Clear goals for each topic' },
+                      { icon: GraduationCap, title: 'Assessments', desc: 'Quizzes, assignments, and challenges' },
+                      { icon: Lightbulb, title: 'Real-World Applications', desc: 'Practical examples and use cases' },
+                    ].map((item, index) => (
+                      <div key={index} className="flex items-start gap-3 p-3 rounded-lg bg-zinc-800/50">
+                        <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                          <item.icon className="w-5 h-5 text-blue-400" />
+                        </div>
+                        <div>
+                          <div className="font-medium">{item.title}</div>
+                          <div className="text-sm text-zinc-500">{item.desc}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div>
-                    <p className="font-medium text-lg">Drop your syllabus here</p>
-                    <p className="text-sm text-zinc-500">or click to browse</p>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Analysis Tab */}
+            <TabsContent value="analysis">
+              {analysis && (
+                <div className="space-y-6">
+                  <div className="glass-card p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-2xl font-bold">{analysis.title || 'Analyzed Course'}</h2>
+                        <p className="text-zinc-500 mt-1">
+                          {analysis.topics?.length || 0} topics • 
+                          {analysis.concepts?.length || 0} concepts identified
+                        </p>
+                      </div>
+                      <Button
+                        onClick={handleCreateCourse}
+                        disabled={creatingCourse}
+                        className="bg-emerald-500 hover:bg-emerald-600"
+                      >
+                        {creatingCourse ? (
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Plus className="w-4 h-4 mr-2" />
+                        )}
+                        Create Course
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-center gap-2 text-xs text-zinc-600">
-                    <File className="w-4 h-4" />
-                    PDF, TXT, MD, DOCX supported
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="glass-card p-6">
+                      <h3 className="font-semibold flex items-center gap-2 mb-4">
+                        <BookOpen className="w-5 h-5 text-blue-400" />
+                        Topics Identified
+                      </h3>
+                      <div className="space-y-3">
+                        {analysis.topics?.map((topic, index) => (
+                          <div key={index} className="p-3 rounded-lg bg-zinc-800/50 border border-white/5">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">{topic.name}</span>
+                              {topic.hours && (
+                                <Badge className="bg-blue-500/20 text-blue-400">
+                                  <Clock className="w-3 h-3 mr-1" />
+                                  {topic.hours}h
+                                </Badge>
+                              )}
+                            </div>
+                            {topic.subtopics && (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {topic.subtopics.map((sub, i) => (
+                                  <Badge key={i} variant="outline" className="text-xs border-white/10">
+                                    {sub}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )) || <p className="text-zinc-500">No topics extracted</p>}
+                      </div>
+                    </div>
+
+                    <div className="glass-card p-6">
+                      <h3 className="font-semibold flex items-center gap-2 mb-4">
+                        <Target className="w-5 h-5 text-emerald-400" />
+                        Learning Objectives
+                      </h3>
+                      <div className="space-y-2">
+                        {analysis.objectives?.map((obj, index) => (
+                          <div key={index} className="flex items-start gap-2 p-2">
+                            <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                            <span className="text-sm">{obj}</span>
+                          </div>
+                        )) || <p className="text-zinc-500">No objectives extracted</p>}
+                      </div>
+                    </div>
+
+                    <div className="glass-card p-6">
+                      <h3 className="font-semibold flex items-center gap-2 mb-4">
+                        <Brain className="w-5 h-5 text-violet-400" />
+                        Key Concepts
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {analysis.concepts?.map((concept, index) => (
+                          <Badge key={index} className="bg-violet-500/20 text-violet-300">
+                            {concept.name || concept}
+                          </Badge>
+                        )) || <p className="text-zinc-500">No concepts extracted</p>}
+                      </div>
+                    </div>
+
+                    <div className="glass-card p-6">
+                      <h3 className="font-semibold flex items-center gap-2 mb-4">
+                        <Lightbulb className="w-5 h-5 text-amber-400" />
+                        Real-World Applications
+                      </h3>
+                      <div className="space-y-2">
+                        {analysis.applications?.map((app, index) => (
+                          <div key={index} className="flex items-start gap-2 p-2">
+                            <ArrowRight className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                            <span className="text-sm">{app}</span>
+                          </div>
+                        )) || <p className="text-zinc-500">No applications identified</p>}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
-            </div>
+            </TabsContent>
 
-            {/* Course Selection (Optional) */}
-            <div className="mt-6 space-y-2">
-              <Label>Link to Course (Optional)</Label>
-              <Select value={selectedCourse} onValueChange={setSelectedCourse}>
-                <SelectTrigger className="bg-zinc-900/50 border-white/10" data-testid="course-select">
-                  <SelectValue placeholder="Select a course to link this syllabus to..." />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-white/10">
-                  <SelectItem value="none">No course (create new)</SelectItem>
-                  {courses.map(course => (
-                    <SelectItem key={course.id} value={course.id}>
-                      {course.code} - {course.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-zinc-500">
-                Optionally link the generated concepts to an existing course
-              </p>
-            </div>
+            {/* Lessons Tab */}
+            <TabsContent value="lessons">
+              {analysis && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="glass-card p-6">
+                    <h3 className="font-semibold flex items-center gap-2 mb-4">
+                      <BookOpen className="w-5 h-5 text-blue-400" />
+                      Select Topic
+                    </h3>
+                    <div className="space-y-2">
+                      {analysis.topics?.map((topic, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleGenerateLesson(topic)}
+                          disabled={generatingLesson}
+                          className={`w-full p-3 rounded-lg border text-left transition-all ${
+                            selectedTopic?.name === topic.name
+                              ? 'bg-blue-500/20 border-blue-500'
+                              : 'bg-zinc-800/50 border-white/5 hover:border-white/10'
+                          }`}
+                        >
+                          <div className="font-medium">{topic.name}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-            {/* Progress Bar */}
-            {loading && (
-              <div className="mt-6 space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-zinc-400">Processing syllabus...</span>
-                  <span className="text-blue-400">{progress}%</span>
-                </div>
-                <Progress value={progress} className="h-2 bg-zinc-800" />
-                <div className="flex items-center gap-2 text-xs text-zinc-500">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Analyzing content with AI...
-                </div>
-              </div>
-            )}
+                  <div className="lg:col-span-2 glass-card p-6">
+                    <h3 className="font-semibold flex items-center gap-2 mb-4">
+                      <Sparkles className="w-5 h-5 text-violet-400" />
+                      Generated Lesson
+                    </h3>
 
-            {/* Action Button */}
-            <Button
-              onClick={handleIngest}
-              disabled={!file || loading}
-              data-testid="ingest-btn"
-              className="w-full mt-6 h-12 bg-blue-500 hover:bg-blue-600"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Analyze & Generate Course
-                </>
-              )}
-            </Button>
-          </div>
+                    {generatingLesson ? (
+                      <div className="flex items-center justify-center py-12">
+                        <RefreshCw className="w-8 h-8 text-blue-400 animate-spin" />
+                        <span className="ml-3 text-zinc-400">Generating lesson...</span>
+                      </div>
+                    ) : generatedLesson ? (
+                      <div className="space-y-4">
+                        <h4 className="text-xl font-semibold">{generatedLesson.title}</h4>
+                        
+                        {generatedLesson.sections?.map((section, index) => (
+                          <div key={index} className="p-4 rounded-lg bg-zinc-800/50 border border-white/5">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-medium">{section.title}</span>
+                              <Badge className="text-xs">{section.type}</Badge>
+                            </div>
+                            <p className="text-sm text-zinc-400">{section.content?.substring(0, 200)}...</p>
+                          </div>
+                        ))}
 
-          {/* Results Section */}
-          {result && (
-            <div className="glass-card p-8 mt-8 animate-fadeIn">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-lg bg-emerald-500/20">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                </div>
-                <h2 className="text-xl font-semibold">Processing Complete</h2>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="p-4 rounded-xl bg-zinc-800/50 text-center">
-                  <p className="text-3xl font-bold text-blue-400">{result.concepts_created || 0}</p>
-                  <p className="text-sm text-zinc-500">Concepts Created</p>
-                </div>
-                <div className="p-4 rounded-xl bg-zinc-800/50 text-center">
-                  <p className="text-3xl font-bold text-violet-400">AI</p>
-                  <p className="text-sm text-zinc-500">Analysis Complete</p>
-                </div>
-                <div className="p-4 rounded-xl bg-zinc-800/50 text-center">
-                  <p className="text-3xl font-bold text-emerald-400">Ready</p>
-                  <p className="text-sm text-zinc-500">For Learning</p>
-                </div>
-              </div>
-
-              {/* Analysis Preview */}
-              {result.analysis && (
-                <div className="p-4 rounded-xl bg-zinc-900/50 border border-white/5">
-                  <h3 className="text-sm font-medium text-zinc-400 mb-3">AI Analysis</h3>
-                  <p className="text-sm text-zinc-300 whitespace-pre-wrap line-clamp-10">
-                    {result.analysis}
-                  </p>
+                        {generatedLesson.key_takeaways && (
+                          <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                            <h5 className="font-medium text-emerald-400 mb-2">Key Takeaways</h5>
+                            <ul className="space-y-1">
+                              {generatedLesson.key_takeaways.map((takeaway, i) => (
+                                <li key={i} className="text-sm flex items-start gap-2">
+                                  <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5" />
+                                  {takeaway}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 text-zinc-500">
+                        <BookOpen className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                        <p>Select a topic to generate an interactive lesson</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-
-              {/* Next Steps */}
-              <div className="mt-6 flex gap-4">
-                <Button
-                  variant="outline"
-                  onClick={() => { setFile(null); setResult(null); }}
-                  className="flex-1 border-white/10"
-                >
-                  Upload Another
-                </Button>
-                <Button
-                  onClick={() => window.location.href = '/knowledge-graph'}
-                  className="flex-1 bg-violet-500 hover:bg-violet-600"
-                >
-                  View Knowledge Graph
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </div>
-            </div>
-          )}
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </DashboardLayout>
