@@ -294,6 +294,18 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      <Route path="/avatar-settings" element={
+        <ProtectedRoute>
+          <AvatarSettingsPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/exams" element={
+        <ProtectedRoute>
+          <ExamPage />
+        </ProtectedRoute>
+      } />
+      
       {/* Home Page (Public) */}
       <Route path="/" element={<HomePage />} />
       
