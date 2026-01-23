@@ -4,16 +4,27 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
-import { getCourse, getCourseContent, translateText, generateTTS } from '../services/api';
+import { getCourse, getCourseContent, translateText, generateTTS, uploadCourseContent } from '../services/api';
 import { 
   BookOpen, Video, FileText, Headphones, Image, 
   ArrowLeft, Play, Pause, Volume2, Globe, 
   ChevronRight, Download, Share2, CheckCircle,
-  Clock, Users, GraduationCap, Loader2
+  Clock, Users, GraduationCap, Loader2, Plus, Upload
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '../components/ui/dialog';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
 import {
   Select,
   SelectContent,
