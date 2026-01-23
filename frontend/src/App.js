@@ -43,6 +43,7 @@ import QuestionAnalysisPage from './pages/QuestionAnalysisPage';
 import OutcomeLearningPage from './pages/OutcomeLearningPage';
 import MultidisciplinaryPage from './pages/MultidisciplinaryPage';
 import AssignmentGeneratorPage from './pages/AssignmentGeneratorPage';
+import CourseViewPage from './pages/CourseViewPage';
 
 import './App.css';
 
