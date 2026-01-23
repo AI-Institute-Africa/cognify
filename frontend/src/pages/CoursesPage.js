@@ -296,13 +296,36 @@ export default function CoursesPage() {
                 </Badge>
                 
                 {user?.role === 'student' && (
+                  enrolledCourseIds.includes(course.id) ? (
+                    <Button
+                      onClick={() => navigate(`/course/${course.id}`)}
+                      data-testid={`view-course-btn-${course.id}`}
+                      className="w-full mt-4 bg-green-500/10 text-green-400 hover:bg-green-500 hover:text-white border border-green-500/30 transition-all"
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      View Course
+                      <CheckCircle className="w-4 h-4 ml-2" />
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => handleEnroll(course.id)}
+                      data-testid={`enroll-btn-${course.id}`}
+                      className="w-full mt-4 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/30 transition-all"
+                    >
+                      Enroll Now
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  )
+                )}
+                
+                {(user?.role === 'teacher' || user?.role === 'admin') && (
                   <Button
-                    onClick={() => handleEnroll(course.id)}
-                    data-testid={`enroll-btn-${course.id}`}
-                    className="w-full mt-4 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/30 transition-all"
+                    onClick={() => navigate(`/course/${course.id}`)}
+                    data-testid={`manage-course-btn-${course.id}`}
+                    className="w-full mt-4 bg-violet-500/10 text-violet-400 hover:bg-violet-500 hover:text-white border border-violet-500/30 transition-all"
                   >
-                    Enroll Now
-                    <ArrowRight className="w-4 h-4 ml-2" />
+                    <Eye className="w-4 h-4 mr-2" />
+                    Manage Course
                   </Button>
                 )}
               </div>
