@@ -9,7 +9,8 @@ import {
   BookOpen, Video, FileText, Headphones, Image, 
   ArrowLeft, Play, Pause, Volume2, Globe, 
   ChevronRight, Download, Share2, CheckCircle,
-  Clock, Users, GraduationCap, Loader2, Plus, Upload
+  Clock, Users, GraduationCap, Loader2, Plus, Upload,
+  Lightbulb, X, ExternalLink, FileSearch
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
