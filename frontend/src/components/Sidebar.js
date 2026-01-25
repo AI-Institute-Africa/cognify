@@ -33,7 +33,8 @@ import {
   Volume2,
   Globe,
   User,
-  ClipboardList
+  ClipboardList,
+  Glasses
 } from 'lucide-react';
 
 const navItems = {
