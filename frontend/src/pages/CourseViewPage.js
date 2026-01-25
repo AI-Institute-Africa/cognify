@@ -822,9 +822,76 @@ export default function CourseViewPage() {
                   </Button>
                 </div>
               </div>
+              
+              {/* Research Papers Section */}
+              {researchPapers.length > 0 && (
+                <div className="glass-card p-6 mt-6">
+                  <h3 className="font-semibold mb-4 flex items-center gap-2">
+                    <FileSearch className="w-5 h-5 text-violet-400" />
+                    Related Research Publications
+                  </h3>
+                  <div className="space-y-3">
+                    {researchPapers.map((paper, idx) => (
+                      <a 
+                        key={idx} 
+                        href={paper.url}
+                        className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 transition-colors group"
+                      >
+                        <div>
+                          <p className="font-medium text-sm group-hover:text-blue-400 transition-colors">{paper.title}</p>
+                          <p className="text-xs text-zinc-500">{paper.journal} • {paper.year}</p>
+                        </div>
+                        <ExternalLink className="w-4 h-4 text-zinc-500 group-hover:text-blue-400" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
+        
+        {/* Micro-Hint Popup */}
+        {showHint && (
+          <div className="fixed bottom-6 right-6 z-50 max-w-md animate-in slide-in-from-bottom-5">
+            <div className="glass-card p-4 border-yellow-500/30 bg-gradient-to-r from-yellow-500/10 to-amber-500/10">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+                  <Lightbulb className="w-5 h-5 text-yellow-400" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold text-yellow-400">Learning Hint</h4>
+                    <button 
+                      onClick={() => setShowHint(false)}
+                      className="text-zinc-500 hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p className="text-sm text-zinc-300">{currentHint}</p>
+                  <div className="flex gap-2 mt-3">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => setShowHint(false)}
+                      className="border-white/10 text-xs"
+                    >
+                      Got it!
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      onClick={() => { setShowHint(false); generateMicroHint(); }}
+                      className="bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 text-xs"
+                    >
+                      Another hint
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
