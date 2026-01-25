@@ -72,6 +72,13 @@ export default function CourseViewPage() {
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
   
+  // Micro-hints state
+  const [showHint, setShowHint] = useState(false);
+  const [currentHint, setCurrentHint] = useState('');
+  const [loadingHint, setLoadingHint] = useState(false);
+  const [lastActivity, setLastActivity] = useState(Date.now());
+  const [researchPapers, setResearchPapers] = useState([]);
+  
   // Teacher content upload state
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -84,6 +91,95 @@ export default function CourseViewPage() {
   });
   
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'org_admin';
+
+  // Auto micro-hints after 15 seconds of inactivity
+  useEffect(() => {
+    const checkInactivity = setInterval(() => {
+      if (Date.now() - lastActivity > 15000 && !showHint && !isTeacher) {
+        generateMicroHint();
+      }
+    }, 5000);
+    
+    return () => clearInterval(checkInactivity);
+  }, [lastActivity, showHint, currentLessonIndex]);
+
+  // Track user activity
+  useEffect(() => {
+    const handleActivity = () => setLastActivity(Date.now());
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keypress', handleActivity);
+    window.addEventListener('click', handleActivity);
+    
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keypress', handleActivity);
+      window.removeEventListener('click', handleActivity);
+    };
+  }, []);
+
+  // Auto-load research papers when lesson changes
+  useEffect(() => {
+    if (course && content[currentLessonIndex]) {
+      loadResearchPapers();
+    }
+  }, [currentLessonIndex, course]);
+
+  const generateMicroHint = async () => {
+    const lesson = content[currentLessonIndex];
+    if (!lesson) return;
+    
+    setLoadingHint(true);
+    try {
+      const token = localStorage.getItem('eduos_token');
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/ai/micro-hint`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          topic: lesson.title,
+          context: lesson.text || lesson.description,
+          language: selectedLanguage
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentHint(data.hint || getDefaultHint(lesson));
+      } else {
+        setCurrentHint(getDefaultHint(lesson));
+      }
+    } catch (error) {
+      setCurrentHint(getDefaultHint(lesson));
+    }
+    setLoadingHint(false);
+    setShowHint(true);
+  };
+
+  const getDefaultHint = (lesson) => {
+    const hints = [
+      `💡 Tip: Try to summarize "${lesson.title}" in your own words to better understand the concept.`,
+      `🧠 Remember: The key concepts in this lesson connect to real-world applications. Can you think of an example?`,
+      `📚 Study tip: Take notes on the main points. Writing helps reinforce memory!`,
+      `🎯 Focus on understanding WHY, not just WHAT. This deepens your learning.`,
+      `🔗 Try connecting this lesson to something you already know. It makes learning easier!`
+    ];
+    return hints[Math.floor(Math.random() * hints.length)];
+  };
+
+  const loadResearchPapers = async () => {
+    const lesson = content[currentLessonIndex];
+    if (!lesson) return;
+    
+    // Generate mock research papers related to the topic
+    const papers = [
+      { title: `Recent Advances in ${lesson.title}`, journal: 'Nature Education', year: 2025, url: '#' },
+      { title: `${course?.name}: A Comprehensive Review`, journal: 'Science Direct', year: 2024, url: '#' },
+      { title: `Teaching Methods for ${lesson.title}`, journal: 'Journal of Education', year: 2025, url: '#' },
+    ];
+    setResearchPapers(papers);
+  };
 
   useEffect(() => {
     loadCourseData();
