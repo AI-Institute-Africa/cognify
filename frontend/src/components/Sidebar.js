@@ -48,6 +48,7 @@ const navItems = {
     { divider: true, label: 'AI Learning' },
     { path: '/ai-mentor', icon: Brain, label: 'AI Mentor' },
     { path: '/avatar-settings', icon: User, label: 'My Avatar' },
+    { path: '/vr-learning', icon: Glasses, label: 'VR Learning' },
     { path: '/knowledge-graph', icon: Network, label: 'Knowledge Graph' },
     { path: '/learn-by-teaching', icon: Mic, label: 'Learn by Teaching' },
     { path: '/question-analysis', icon: HelpCircle, label: 'Question Analysis' },
