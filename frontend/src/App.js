@@ -307,6 +307,12 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      <Route path="/vr-learning" element={
+        <ProtectedRoute>
+          <VRLearningPage />
+        </ProtectedRoute>
+      } />
+      
       {/* Home Page (Public) */}
       <Route path="/" element={<HomePage />} />
       
