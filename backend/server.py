@@ -3435,7 +3435,7 @@ async def evaluate_answer(
 @advanced_router.post("/assignment/generate")
 async def create_assignment(
     lesson_topic: str,
-    learning_objectives: list,
+    learning_objectives: List[str] = Query([]),
     assignment_type: str = "reflection",
     difficulty: str = "medium",
     current_user: dict = Depends(get_current_user)
@@ -3443,6 +3443,9 @@ async def create_assignment(
     """Auto-generate assignment for a lesson"""
     if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
         raise HTTPException(status_code=403, detail="Not authorized")
+    
+    if not learning_objectives:
+        learning_objectives = [f"Understand key concepts of {lesson_topic}"]
     
     result = await generate_assignment(lesson_topic, learning_objectives, assignment_type, difficulty)
     if "error" in result:
