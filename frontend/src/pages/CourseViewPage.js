@@ -246,8 +246,9 @@ export default function CourseViewPage() {
       const result = await translateText(text, selectedLanguage);
       setTranslatedContent(prev => ({
         ...prev,
-        [index]: result.translated_text || text
+        [index]: result.translated || result.translated_text || text
       }));
+      toast.success('Content translated!');
     } catch (error) {
       console.error('Translation failed:', error);
       toast.error('Translation failed. Please try again.');
