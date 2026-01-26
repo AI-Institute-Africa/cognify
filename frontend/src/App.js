@@ -47,6 +47,7 @@ import CourseViewPage from './pages/CourseViewPage';
 import AvatarSettingsPage from './pages/AvatarSettingsPage';
 import ExamPage from './pages/ExamPage';
 import VRLearningPage from './pages/VRLearningPage';
+import PaymentPage from './pages/PaymentPage';
 
 import './App.css';
 
