@@ -291,7 +291,9 @@ export default function CoursesPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCourses.map((course, index) => (
+            {filteredCourses.map((course, index) => {
+              const categoryInfo = getCategoryInfo(course.category);
+              return (
               <div
                 key={course.id}
                 className={`glass-card p-6 hover:border-white/20 transition-all duration-300 group animate-fadeIn stagger-${(index % 5) + 1}`}
@@ -301,9 +303,14 @@ export default function CoursesPage() {
                   <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500/20 to-violet-500/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                     <BookOpen className="w-7 h-7 text-blue-400" />
                   </div>
-                  <Badge variant="outline" className="text-zinc-400 border-zinc-700">
-                    {course.credits} Credits
-                  </Badge>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge className={`bg-${categoryInfo.color}-500/20 text-${categoryInfo.color}-400 border-${categoryInfo.color}-500/30`}>
+                      {categoryInfo.name}
+                    </Badge>
+                    {course.is_paid && course.price > 0 && (
+                      <span className="text-lg font-bold text-emerald-400">${course.price}</span>
+                    )}
+                  </div>
                 </div>
                 
                 <h3 className="text-lg font-semibold mb-2">{course.name}</h3>
@@ -312,7 +319,7 @@ export default function CoursesPage() {
                 <div className="flex items-center gap-4 text-sm text-zinc-500 mb-4">
                   <span className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
-                    {course.code}
+                    {course.duration_weeks || 4} weeks
                   </span>
                   <span className="flex items-center gap-1">
                     <Users className="w-4 h-4" />
@@ -337,7 +344,7 @@ export default function CoursesPage() {
                     </Button>
                   ) : (
                     <Button
-                      onClick={() => handleEnroll(course.id)}
+                      onClick={() => handleEnroll(course)}
                       data-testid={`enroll-btn-${course.id}`}
                       className="w-full mt-4 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/30 transition-all"
                     >
