@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
-import { getConcepts, getUserKnowledgeProgress, getConceptHint, updateConceptState } from '../services/api';
+import { getConcepts, getUserKnowledgeProgress, getConceptHint, updateConceptState, generateConceptsFromCourses } from '../services/api';
 import ReactFlow, {
   Controls,
   Background,
@@ -103,10 +103,22 @@ export default function KnowledgeGraphPage() {
 
   const loadData = async () => {
     try {
-      const [conceptsData, progressData] = await Promise.all([
-        getConcepts(),
-        getUserKnowledgeProgress()
-      ]);
+      let conceptsData = await getConcepts();
+      
+      // If no concepts exist, generate them from enrolled courses
+      if (!conceptsData || conceptsData.length === 0) {
+        toast.info('Generating knowledge graph from your courses...');
+        try {
+          const result = await generateConceptsFromCourses();
+          conceptsData = result.concepts || [];
+          toast.success(`Generated ${conceptsData.length} concepts from your courses`);
+        } catch (genError) {
+          console.error('Failed to generate concepts:', genError);
+          toast.error('Could not generate concepts. Enroll in courses first.');
+        }
+      }
+      
+      const progressData = await getUserKnowledgeProgress();
       setConcepts(conceptsData);
       setProgress(progressData);
       
@@ -114,6 +126,7 @@ export default function KnowledgeGraphPage() {
       generateGraph(conceptsData, progressData);
     } catch (error) {
       console.error('Failed to load knowledge graph:', error);
+      toast.error('Failed to load knowledge graph');
     } finally {
       setLoading(false);
     }
