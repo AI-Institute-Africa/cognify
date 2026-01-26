@@ -627,9 +627,6 @@ export const getCourseContent = async (courseId, contentType = null) => {
   const response = await axios.get(`${API}/content/course/${courseId}/content${params}`, { headers: getAuthHeaders() });
   return response.data;
 };
-  const response = await axios.get(`${API}/multimodal/course/${courseId}/content${params}`, { headers: getAuthHeaders() });
-  return response.data;
-};
 
 // ==================== EXAMS API ====================
 export const getExams = async () => {
@@ -683,4 +680,21 @@ export const createAssignment = async (assignmentData) => {
 export const shareViaWhatsApp = (text, url = '') => {
   const message = encodeURIComponent(`${text}\n${url}`);
   window.open(`https://wa.me/?text=${message}`, '_blank');
+};
+
+// ==================== KNOWLEDGE GRAPH API ====================
+export const generateConceptsFromCourses = async () => {
+  const response = await axios.post(`${API}/knowledge/generate-from-courses`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== OUTCOME LEARNING API ====================
+export const startOutcomeLearning = async (pathwayId) => {
+  const response = await axios.post(`${API}/advanced/outcome/start-learning/${pathwayId}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getOutcomePathways = async () => {
+  const response = await axios.get(`${API}/advanced/outcome/pathways`, { headers: getAuthHeaders() });
+  return response.data;
 };
