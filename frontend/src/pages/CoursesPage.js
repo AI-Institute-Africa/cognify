@@ -348,8 +348,17 @@ export default function CoursesPage() {
                       data-testid={`enroll-btn-${course.id}`}
                       className="w-full mt-4 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/30 transition-all"
                     >
-                      Enroll Now
-                      <ArrowRight className="w-4 h-4 ml-2" />
+                      {course.is_paid && course.price > 0 ? (
+                        <>
+                          <DollarSign className="w-4 h-4 mr-2" />
+                          Enroll - ${course.price}
+                        </>
+                      ) : (
+                        <>
+                          Enroll Now
+                          <ArrowRight className="w-4 h-4 ml-2" />
+                        </>
+                      )}
                     </Button>
                   )
                 )}
@@ -365,7 +374,7 @@ export default function CoursesPage() {
                   </Button>
                 )}
               </div>
-            ))}
+            )})}
           </div>
         )}
       </div>
