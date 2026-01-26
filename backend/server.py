@@ -4023,6 +4023,25 @@ async def submit_exam(exam_id: str, submission: ExamSubmission, current_user: di
         {"$push": {"exam_results": {"exam_id": exam_id, "score": score, "grade": grade}}}
     )
     
+    # Get student profile to record the grade
+    profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+    
+    # Record grade in grades collection (for report cards)
+    grade_record = {
+        "id": str(uuid.uuid4()),
+        "student_id": profile['id'] if profile else current_user['id'],
+        "course_id": exam.get('course_id'),
+        "assessment_type": "exam",
+        "assessment_name": exam.get('title', 'Exam'),
+        "score": earned_points,
+        "max_score": total_points,
+        "grade_letter": grade,
+        "percentage": score,
+        "submitted_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.grades.insert_one(grade_record)
+    
     # Update knowledge graph
     await db.knowledge_graphs.update_one(
         {"user_id": current_user['id']},
