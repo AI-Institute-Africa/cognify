@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
-import { decomposeOutcome } from '../services/api';
+import { decomposeOutcome, startOutcomeLearning, getOutcomePathways } from '../services/api';
 import { 
   Target,
   Rocket,
@@ -36,7 +36,23 @@ export default function OutcomeLearningPage() {
   const { user } = useAuth();
   const [outcome, setOutcome] = useState('');
   const [loading, setLoading] = useState(false);
+  const [startingLearning, setStartingLearning] = useState(false);
   const [pathway, setPathway] = useState(null);
+  const [learningPlan, setLearningPlan] = useState(null);
+  const [existingPathways, setExistingPathways] = useState([]);
+
+  useEffect(() => {
+    loadExistingPathways();
+  }, []);
+
+  const loadExistingPathways = async () => {
+    try {
+      const pathways = await getOutcomePathways();
+      setExistingPathways(pathways);
+    } catch (error) {
+      console.error('Failed to load pathways:', error);
+    }
+  };
 
   const handleDecompose = async () => {
     if (!outcome.trim()) {
@@ -49,11 +65,31 @@ export default function OutcomeLearningPage() {
       const result = await decomposeOutcome(outcome);
       setPathway(result);
       toast.success('Outcome pathway created!');
+      loadExistingPathways();
     } catch (error) {
       console.error('Decomposition failed:', error);
       toast.error('Failed to create pathway');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStartLearning = async () => {
+    if (!pathway?.pathway_id) {
+      toast.error('No pathway selected');
+      return;
+    }
+
+    setStartingLearning(true);
+    try {
+      const result = await startOutcomeLearning(pathway.pathway_id);
+      setLearningPlan(result.learning_plan);
+      toast.success('Learning journey started! Your personalized plan is ready.');
+    } catch (error) {
+      console.error('Failed to start learning:', error);
+      toast.error('Failed to start learning journey');
+    } finally {
+      setStartingLearning(false);
     }
   };
 
@@ -290,12 +326,69 @@ export default function OutcomeLearningPage() {
                       Pay only when you achieve your outcome. {pathway.success_fee_percentage}% success fee on completion.
                     </p>
                   </div>
-                  <Button className="bg-amber-500 hover:bg-amber-600">
-                    <Rocket className="w-4 h-4 mr-2" />
-                    Start Learning
+                  <Button 
+                    className="bg-amber-500 hover:bg-amber-600"
+                    onClick={handleStartLearning}
+                    disabled={startingLearning}
+                    data-testid="start-learning-btn"
+                  >
+                    {startingLearning ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Starting...
+                      </>
+                    ) : (
+                      <>
+                        <Rocket className="w-4 h-4 mr-2" />
+                        Start Learning
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
+
+              {/* Learning Plan (shows after clicking Start Learning) */}
+              {learningPlan && (
+                <div className="glass-card p-6 border-emerald-500/20">
+                  <h3 className="font-semibold flex items-center gap-2 mb-4 text-emerald-400">
+                    <CheckCircle className="w-5 h-5" />
+                    Your Personalized Learning Plan
+                  </h3>
+                  <p className="text-zinc-400 mb-4">{learningPlan.description}</p>
+                  <p className="text-sm text-zinc-500 mb-4">Estimated Duration: {learningPlan.estimated_duration}</p>
+                  
+                  <div className="space-y-4">
+                    {learningPlan.modules?.map((module, idx) => (
+                      <div key={module.id || idx} className="p-4 rounded-lg bg-zinc-800/50 border border-white/5">
+                        <h4 className="font-semibold mb-2">Module {idx + 1}: {module.title}</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {module.lessons?.map((lesson, lessonIdx) => (
+                            <div key={lesson.id || lessonIdx} className="flex items-center gap-2 text-sm text-zinc-400">
+                              <BookOpen className="w-4 h-4" />
+                              <span>{lesson.title}</span>
+                              <Badge className="text-xs bg-zinc-700">{lesson.duration}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {learningPlan.milestones && (
+                    <div className="mt-4 pt-4 border-t border-white/10">
+                      <h4 className="font-semibold mb-2 flex items-center gap-2">
+                        <Target className="w-4 h-4 text-amber-400" />
+                        Milestones
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {learningPlan.milestones.map((milestone, idx) => (
+                          <Badge key={idx} className="bg-amber-500/20 text-amber-400">{milestone}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
