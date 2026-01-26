@@ -689,19 +689,36 @@ export default function CourseViewPage() {
                   </TabsContent>
 
                   <TabsContent value="video" className="mt-0">
-                    <div className="aspect-video bg-zinc-900 rounded-xl flex items-center justify-center border border-white/10">
-                      <div className="text-center">
-                        <Video className="w-16 h-16 text-zinc-600 mx-auto mb-4" />
-                        <p className="text-zinc-500 mb-4">Video content for this lesson</p>
-                        <Button className="bg-blue-500 hover:bg-blue-600">
-                          <Play className="w-4 h-4 mr-2" />
-                          Play Video
-                        </Button>
-                        <p className="text-sm text-zinc-600 mt-4">
-                          Video lessons can be uploaded by your teacher
-                        </p>
+                    {currentLesson?.video_url ? (
+                      <div className="aspect-video bg-zinc-900 rounded-xl overflow-hidden border border-white/10">
+                        <iframe
+                          src={currentLesson.video_url}
+                          className="w-full h-full"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
                       </div>
-                    </div>
+                    ) : (
+                      <div className="aspect-video bg-zinc-900 rounded-xl flex items-center justify-center border border-white/10">
+                        <div className="text-center">
+                          <Video className="w-16 h-16 text-zinc-600 mx-auto mb-4" />
+                          <p className="text-zinc-500 mb-4">No video uploaded for this lesson</p>
+                          {isTeacher ? (
+                            <Button 
+                              onClick={() => setShowUploadDialog(true)}
+                              className="bg-blue-500 hover:bg-blue-600"
+                            >
+                              <Upload className="w-4 h-4 mr-2" />
+                              Upload Video
+                            </Button>
+                          ) : (
+                            <p className="text-sm text-zinc-600">
+                              Video will be available once uploaded by teacher
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     <div className="mt-4 p-4 bg-zinc-900/50 rounded-lg border border-white/5">
                       <h4 className="font-medium mb-2">Lesson Notes</h4>
                       <div className="text-sm text-zinc-400">
