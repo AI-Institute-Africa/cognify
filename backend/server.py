@@ -691,7 +691,104 @@ async def get_concepts(
         query['grade_level'] = grade_level
     
     concepts = await db.concepts.find(query, {"_id": 0}).to_list(1000)
+    
+    # If no concepts exist, generate from enrolled courses
+    if not concepts and current_user['role'] == 'student':
+        profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+        if profile and profile.get('enrolled_courses'):
+            courses = await db.courses.find({"id": {"$in": profile['enrolled_courses']}}, {"_id": 0}).to_list(100)
+            generated_concepts = []
+            for course in courses:
+                concept = {
+                    "id": f"concept-{course['id']}",
+                    "name": course['name'],
+                    "description": course['description'],
+                    "subject": course.get('code', 'General'),
+                    "grade_level": course.get('grade_level', 'All'),
+                    "difficulty": 0.5,
+                    "prerequisites": [],
+                    "related_concepts": [],
+                    "course_id": course['id']
+                }
+                generated_concepts.append(concept)
+                # Save to database
+                await db.concepts.update_one({"id": concept['id']}, {"$set": concept}, upsert=True)
+            concepts = generated_concepts
+    
     return [serialize_doc(c) for c in concepts]
+
+@knowledge_router.post("/generate-from-courses")
+async def generate_concepts_from_courses(current_user: dict = Depends(get_current_user)):
+    """Generate knowledge graph concepts from user's enrolled courses"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+        if not profile or not profile.get('enrolled_courses'):
+            return {"concepts": [], "message": "No enrolled courses found"}
+        
+        courses = await db.courses.find({"id": {"$in": profile['enrolled_courses']}}, {"_id": 0}).to_list(100)
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        all_concepts = []
+        
+        for course in courses:
+            # Generate concepts for each course
+            if api_key:
+                try:
+                    chat = LlmChat(api_key=api_key, session_id=f"kg-{course['id']}")
+                    chat.with_model("openai", "gpt-5.2")
+                    
+                    prompt = f"""Generate 5 key concepts for this course: "{course['name']}"
+                    Description: {course['description']}
+                    
+                    Return as JSON array:
+                    [{{"name": "Concept Name", "description": "Brief description", "difficulty": 0.5}}]"""
+                    
+                    response = await chat.send_message(UserMessage(text=prompt))
+                    
+                    import json
+                    json_start = response.find('[')
+                    json_end = response.rfind(']') + 1
+                    if json_start != -1 and json_end > json_start:
+                        concepts_data = json.loads(response[json_start:json_end])
+                        for i, c in enumerate(concepts_data):
+                            concept = {
+                                "id": f"concept-{course['id']}-{i}",
+                                "name": c.get('name', f"Concept {i+1}"),
+                                "description": c.get('description', ''),
+                                "subject": course.get('code', 'General'),
+                                "grade_level": course.get('grade_level', 'All'),
+                                "difficulty": c.get('difficulty', 0.5),
+                                "course_id": course['id'],
+                                "prerequisites": [],
+                                "related_concepts": []
+                            }
+                            await db.concepts.update_one({"id": concept['id']}, {"$set": concept}, upsert=True)
+                            all_concepts.append(concept)
+                except Exception as e:
+                    logging.error(f"AI concept generation error: {e}")
+            
+            # Fallback: create basic concept
+            if not any(c['course_id'] == course['id'] for c in all_concepts):
+                concept = {
+                    "id": f"concept-{course['id']}",
+                    "name": course['name'],
+                    "description": course['description'],
+                    "subject": course.get('code', 'General'),
+                    "grade_level": course.get('grade_level', 'All'),
+                    "difficulty": 0.5,
+                    "course_id": course['id'],
+                    "prerequisites": [],
+                    "related_concepts": []
+                }
+                await db.concepts.update_one({"id": concept['id']}, {"$set": concept}, upsert=True)
+                all_concepts.append(concept)
+        
+        return {"concepts": all_concepts, "count": len(all_concepts)}
+    except Exception as e:
+        logging.error(f"Generate concepts error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @knowledge_router.get("/concepts/{concept_id}")
 async def get_concept(concept_id: str, current_user: dict = Depends(get_current_user)):
