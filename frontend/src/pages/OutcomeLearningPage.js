@@ -16,7 +16,8 @@ import {
   ArrowRight,
   Star,
   Lightbulb,
-  Repeat
+  Repeat,
+  BookOpen
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
