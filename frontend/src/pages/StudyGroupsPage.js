@@ -330,7 +330,13 @@ export default function StudyGroupsPage() {
                           Next: {new Date(group.next_session).toLocaleDateString()}
                         </span>
                       </div>
-                      <Button size="sm" variant="outline" className="w-full mt-3 border-white/10">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="w-full mt-3 border-white/10"
+                        onClick={() => openChat(group)}
+                        data-testid={`open-chat-${group.id}`}
+                      >
                         <MessageSquare className="w-4 h-4 mr-2" />
                         Open Chat
                       </Button>
