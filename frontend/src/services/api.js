@@ -282,6 +282,13 @@ export const ingestSyllabus = async (file, courseId = null) => {
   return response.data;
 };
 
+export const ingestSyllabusText = async (text, courseId = null) => {
+  const params = new URLSearchParams({ text });
+  if (courseId) params.append('course_id', courseId);
+  const response = await axios.post(`${API}/content/ingest-syllabus-text?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
 // Voice & Avatar
 export const textToSpeech = async (text, voiceId = null, language = 'en') => {
   const response = await axios.post(
