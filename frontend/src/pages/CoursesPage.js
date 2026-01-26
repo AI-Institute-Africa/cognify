@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
 import { getCourses, enrollCourse, createCourse } from '../services/api';
-import { BookOpen, Users, Clock, Plus, Search, Filter, ArrowRight, Eye, CheckCircle } from 'lucide-react';
+import { BookOpen, Users, Clock, Plus, Search, Filter, ArrowRight, Eye, CheckCircle, DollarSign, Award, GraduationCap, Calendar } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
@@ -27,12 +27,20 @@ import {
 } from '../components/ui/select';
 import { toast } from 'sonner';
 
+const COURSE_CATEGORIES = [
+  { id: '3day', name: '3-Day Course', icon: Calendar, color: 'emerald', description: 'Quick intensive training' },
+  { id: 'certification', name: 'Certification', icon: Award, color: 'blue', description: 'Professional certification' },
+  { id: 'certificate', name: 'Certificate', icon: CheckCircle, color: 'violet', description: 'Completion certificate' },
+  { id: 'diploma', name: 'Diploma', icon: GraduationCap, color: 'amber', description: 'Full diploma program' },
+];
+
 export default function CoursesPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [creating, setCreating] = useState(false);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState([]);
@@ -42,7 +50,11 @@ export default function CoursesPage() {
     description: '',
     grade_level: 'Grade 10',
     credits: 3,
-    max_students: 30
+    max_students: 30,
+    category: 'certificate',
+    price: 0,
+    is_paid: false,
+    duration_weeks: 4
   });
 
   useEffect(() => {
