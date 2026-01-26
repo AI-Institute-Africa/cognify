@@ -622,12 +622,15 @@ export const uploadCourseContent = async (courseId, contentType, title, descript
     content_url: contentUrl,
     content_text: contentText
   });
-  const response = await axios.post(`${API}/multimodal/course/${courseId}/content?${params}`, {}, { headers: getAuthHeaders() });
+  const response = await axios.post(`${API}/content/course/${courseId}/content?${params}`, {}, { headers: getAuthHeaders() });
   return response.data;
 };
 
 export const getCourseContent = async (courseId, contentType = null) => {
   const params = contentType ? `?content_type=${contentType}` : '';
+  const response = await axios.get(`${API}/content/course/${courseId}/content${params}`, { headers: getAuthHeaders() });
+  return response.data;
+};
   const response = await axios.get(`${API}/multimodal/course/${courseId}/content${params}`, { headers: getAuthHeaders() });
   return response.data;
 };
