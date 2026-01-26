@@ -3498,13 +3498,16 @@ async def evaluate_submission(
 @advanced_router.post("/multidisciplinary/generate")
 async def generate_multidisciplinary(
     topic: str,
-    subjects: list,
+    subjects: List[str] = Query([]),
     duration_minutes: int = 45,
     current_user: dict = Depends(get_current_user)
 ):
     """Generate multi-disciplinary lesson combining subjects"""
     if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
         raise HTTPException(status_code=403, detail="Not authorized")
+    
+    if not subjects:
+        subjects = ["General Studies"]
     
     result = await generate_multidisciplinary_lesson(topic, subjects, duration_minutes)
     if "error" in result:
