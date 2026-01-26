@@ -324,6 +324,12 @@ class Course(BaseModel):
     concepts: List[str] = []  # Knowledge graph concept IDs
     enrolled_students: List[str] = []
     max_students: int = 30
+    # New fields for course categories and pricing
+    category: str = "certificate"  # 3day, certification, certificate, diploma
+    price: float = 0.0
+    is_paid: bool = False
+    duration_weeks: int = 4
+    preview_content: List[str] = []  # IDs of content available for preview
     is_active: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -335,6 +341,10 @@ class CourseCreate(BaseModel):
     grade_level: str
     credits: int = 3
     max_students: int = 30
+    category: str = "certificate"
+    price: float = 0.0
+    is_paid: bool = False
+    duration_weeks: int = 4
 
 class Attendance(BaseModel):
     model_config = ConfigDict(extra="ignore")
