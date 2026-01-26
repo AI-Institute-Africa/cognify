@@ -116,7 +116,7 @@ export default function OutcomeLearningPage() {
               <div>
                 <h3 className="font-semibold text-lg mb-1">Learn by Outcomes, Not Courses</h3>
                 <p className="text-zinc-400 text-sm">
-                  Tell us what you want to achieve, and we'll break it down into the exact skills, 
+                  Tell us what you want to achieve, and we&apos;ll break it down into the exact skills, 
                   habits, and proofs you need. Education becomes results-driven, not content-driven.
                 </p>
               </div>
