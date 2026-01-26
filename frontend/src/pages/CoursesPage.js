@@ -80,9 +80,16 @@ export default function CoursesPage() {
     }
   };
 
-  const handleEnroll = async (courseId) => {
+  const handleEnroll = async (course) => {
+    // If course is paid, redirect to payment page
+    if (course.is_paid && course.price > 0) {
+      navigate(`/payment/${course.id}`);
+      return;
+    }
+    
+    // Free enrollment
     try {
-      await enrollCourse(courseId);
+      await enrollCourse(course.id);
       toast.success('Enrolled successfully!');
       loadCourses();
     } catch (error) {
@@ -108,7 +115,11 @@ export default function CoursesPage() {
         description: '',
         grade_level: 'Grade 10',
         credits: 3,
-        max_students: 30
+        max_students: 30,
+        category: 'certificate',
+        price: 0,
+        is_paid: false,
+        duration_weeks: 4
       });
       loadCourses();
     } catch (error) {
@@ -118,10 +129,16 @@ export default function CoursesPage() {
     }
   };
 
-  const filteredCourses = courses.filter(course =>
-    course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    course.code.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredCourses = courses.filter(course => {
+    const matchesSearch = course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      course.code.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = categoryFilter === 'all' || course.category === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  const getCategoryInfo = (categoryId) => {
+    return COURSE_CATEGORIES.find(c => c.id === categoryId) || COURSE_CATEGORIES[2];
+  };
 
   if (loading) {
     return (
