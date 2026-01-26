@@ -1234,6 +1234,56 @@ async def clone_voice(
         logging.error(f"Voice cloning error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Voice cloning failed: {str(e)}")
 
+# ==================== COURSE CONTENT UPLOAD ====================
+
+@content_router.post("/course/{course_id}/content")
+async def upload_course_content(
+    course_id: str,
+    content_type: str,
+    title: str,
+    description: str = "",
+    content_url: str = "",
+    content_text: str = "",
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload content to a course"""
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    content = {
+        "id": str(uuid.uuid4()),
+        "course_id": course_id,
+        "type": content_type,
+        "title": title,
+        "description": description,
+        "url": content_url,
+        "text": content_text,
+        "uploaded_by": current_user['id'],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.course_contents.insert_one(content)
+    content.pop('_id', None)
+    
+    return serialize_doc(content)
+
+@content_router.get("/course/{course_id}/content")
+async def get_course_content_list(
+    course_id: str,
+    content_type: str = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get course contents"""
+    query = {"course_id": course_id}
+    if content_type:
+        query["type"] = content_type
+    
+    contents = await db.course_contents.find(query, {"_id": 0}).to_list(100)
+    return [serialize_doc(c) for c in contents]
+
 # ==================== SYLLABUS INGESTION ROUTES ====================
 
 @content_router.post("/ingest-syllabus")
