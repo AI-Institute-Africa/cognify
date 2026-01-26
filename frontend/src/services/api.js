@@ -209,11 +209,7 @@ export const getMentorProfile = async () => {
 };
 
 export const updateMentorProfile = async (profileData) => {
-  const params = new URLSearchParams();
-  Object.entries(profileData).forEach(([key, value]) => {
-    if (value) params.append(key, value);
-  });
-  const response = await axios.post(`${API}/mentor/profile/update?${params}`, {}, { headers: getAuthHeaders() });
+  const response = await axios.put(`${API}/mentor/profile`, profileData, { headers: getAuthHeaders() });
   return response.data;
 };
 
