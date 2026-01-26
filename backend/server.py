@@ -1485,6 +1485,103 @@ Return as JSON with keys: concepts, prerequisites, objectives, time_allocation""
         logging.error(f"Syllabus ingestion error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@content_router.post("/ingest-syllabus-text")
+async def ingest_syllabus_text(
+    text: str,
+    course_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Process pasted syllabus text to generate interactive content"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        if not text or len(text.strip()) < 50:
+            raise HTTPException(status_code=400, detail="Please provide syllabus text (minimum 50 characters)")
+        
+        # Create syllabus upload record
+        upload_id = str(uuid.uuid4())
+        upload_record = {
+            "id": upload_id,
+            "user_id": current_user['id'],
+            "filename": "pasted_text",
+            "file_url": None,
+            "status": "processing",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.syllabus_uploads.insert_one(upload_record)
+        
+        # Use AI to extract and structure content
+        system_message = """You are a syllabus analyzer. Extract the following from the syllabus:
+1. Main topics/concepts (as a JSON array)
+2. Prerequisites for each topic
+3. Learning objectives
+4. Suggested time allocation
+
+Return as JSON with keys: concepts, prerequisites, objectives, time_allocation"""
+        
+        chat = LlmChat(api_key=api_key, session_id=f"syllabus-text-{upload_id}", system_message=system_message)
+        chat.with_model("openai", "gpt-5.2")
+        
+        analysis = await chat.send_message(UserMessage(text=f"Analyze this syllabus:\n\n{text[:10000]}"))
+        
+        # Parse and create concepts
+        concept_ids = []
+        try:
+            import json
+            json_start = analysis.find('{')
+            json_end = analysis.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                parsed = json.loads(analysis[json_start:json_end])
+                
+                for concept_name in parsed.get('concepts', []):
+                    concept = Concept(
+                        name=concept_name if isinstance(concept_name, str) else concept_name.get('name', 'Unknown'),
+                        description=concept_name.get('description', '') if isinstance(concept_name, dict) else '',
+                        subject="General",
+                        grade_level="All levels"
+                    )
+                    concept_dict = concept.model_dump()
+                    concept_dict['created_at'] = concept_dict['created_at'].isoformat()
+                    await db.concepts.insert_one(concept_dict)
+                    concept_ids.append(concept.id)
+        except:
+            pass
+        
+        # Update syllabus upload record
+        await db.syllabus_uploads.update_one(
+            {"id": upload_id},
+            {"$set": {
+                "status": "completed",
+                "extracted_concepts": concept_ids,
+                "analysis": analysis
+            }}
+        )
+        
+        # Link to course if provided
+        if course_id:
+            await db.courses.update_one(
+                {"id": course_id},
+                {"$set": {
+                    "syllabus_upload_id": upload_id,
+                    "concepts": concept_ids
+                }}
+            )
+        
+        return {
+            "message": "Syllabus processed successfully",
+            "upload_id": upload_id,
+            "concepts_created": len(concept_ids),
+            "analysis": analysis
+        }
+        
+    except Exception as e:
+        logging.error(f"Syllabus text ingestion error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ==================== LEARN-BY-TEACHING MODE ====================
 
 @mentor_router.post("/teach-back")
