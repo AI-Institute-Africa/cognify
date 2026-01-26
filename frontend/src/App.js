@@ -130,6 +130,12 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      <Route path="/payment/:courseId" element={
+        <ProtectedRoute>
+          <PaymentPage />
+        </ProtectedRoute>
+      } />
+      
       <Route path="/grades" element={
         <ProtectedRoute>
           <GradesPage />
