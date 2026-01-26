@@ -3565,6 +3565,99 @@ async def decompose_learning_outcome(
     
     return {"pathway_id": pathway['id'], **result}
 
+@advanced_router.post("/outcome/start-learning/{pathway_id}")
+async def start_outcome_learning(pathway_id: str, current_user: dict = Depends(get_current_user)):
+    """Start learning from an outcome pathway - AI generates the learning content"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        # Get the pathway
+        pathway = await db.outcome_pathways.find_one({"id": pathway_id, "user_id": current_user['id']}, {"_id": 0})
+        if not pathway:
+            raise HTTPException(status_code=404, detail="Pathway not found")
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        outcome = pathway.get('outcome', 'General learning')
+        
+        # Generate learning plan
+        chat = LlmChat(api_key=api_key, session_id=f"outcome-{pathway_id}")
+        chat.with_model("openai", "gpt-5.2")
+        
+        prompt = f"""Create a comprehensive learning plan for this outcome: "{outcome}"
+        
+        Return a JSON object with:
+        {{
+            "title": "Learning Path Title",
+            "description": "Brief description",
+            "estimated_duration": "X weeks",
+            "modules": [
+                {{
+                    "id": "mod-1",
+                    "title": "Module Title",
+                    "lessons": [
+                        {{"id": "les-1", "title": "Lesson", "duration": "30 mins", "type": "theory"}},
+                        {{"id": "les-2", "title": "Practice", "duration": "45 mins", "type": "practice"}}
+                    ]
+                }}
+            ],
+            "milestones": ["Milestone 1", "Milestone 2"],
+            "assessment_criteria": ["Criteria 1", "Criteria 2"]
+        }}"""
+        
+        response = await chat.send_message(UserMessage(text=prompt))
+        
+        # Parse response
+        import json
+        try:
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            if json_start != -1 and json_end > json_start:
+                learning_plan = json.loads(response[json_start:json_end])
+            else:
+                learning_plan = {
+                    "title": f"Learning Path: {outcome}",
+                    "description": f"AI-generated learning path for: {outcome}",
+                    "estimated_duration": "4 weeks",
+                    "modules": [
+                        {
+                            "id": "mod-1",
+                            "title": "Getting Started",
+                            "lessons": [
+                                {"id": "les-1", "title": "Introduction", "duration": "30 mins", "type": "theory"},
+                                {"id": "les-2", "title": "Core Concepts", "duration": "45 mins", "type": "practice"}
+                            ]
+                        }
+                    ],
+                    "milestones": ["Complete introduction", "Master core concepts"],
+                    "assessment_criteria": ["Understanding", "Application"]
+                }
+        except:
+            learning_plan = {"title": outcome, "description": "Learning path", "modules": []}
+        
+        # Update pathway with learning plan
+        await db.outcome_pathways.update_one(
+            {"id": pathway_id},
+            {"$set": {
+                "learning_plan": learning_plan,
+                "status": "in_progress",
+                "started_at": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+        
+        return {"pathway_id": pathway_id, "learning_plan": learning_plan, "status": "started"}
+    except Exception as e:
+        logging.error(f"Start outcome learning error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@advanced_router.get("/outcome/pathways")
+async def get_user_pathways(current_user: dict = Depends(get_current_user)):
+    """Get all learning pathways for current user"""
+    pathways = await db.outcome_pathways.find({"user_id": current_user['id']}, {"_id": 0}).to_list(100)
+    return [serialize_doc(p) for p in pathways]
+
 # Multimodal Content Upload
 multimodal_router = APIRouter(prefix="/multimodal", tags=["Multimodal Content"])
 
