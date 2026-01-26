@@ -631,3 +631,57 @@ export const getCourseContent = async (courseId, contentType = null) => {
   const response = await axios.get(`${API}/multimodal/course/${courseId}/content${params}`, { headers: getAuthHeaders() });
   return response.data;
 };
+
+// ==================== EXAMS API ====================
+export const getExams = async () => {
+  const response = await axios.get(`${API}/exams`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const createExam = async (examData) => {
+  const response = await axios.post(`${API}/exams`, examData, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getExamById = async (examId) => {
+  const response = await axios.get(`${API}/exams/${examId}`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const submitExam = async (examId, submission) => {
+  const response = await axios.post(`${API}/exams/${examId}/submit`, submission, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== PAYMENTS API ====================
+export const initiatePayment = async (paymentData) => {
+  const response = await axios.post(`${API}/payments/initiate`, paymentData, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const confirmPayment = async (paymentId) => {
+  const response = await axios.post(`${API}/payments/confirm/${paymentId}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getPaymentHistory = async () => {
+  const response = await axios.get(`${API}/payments/history`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== ASSIGNMENTS API ====================
+export const getAssignments = async () => {
+  const response = await axios.get(`${API}/assignments`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const createAssignment = async (assignmentData) => {
+  const response = await axios.post(`${API}/assignments`, assignmentData, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== WHATSAPP SHARING ====================
+export const shareViaWhatsApp = (text, url = '') => {
+  const message = encodeURIComponent(`${text}\n${url}`);
+  window.open(`https://wa.me/?text=${message}`, '_blank');
+};
