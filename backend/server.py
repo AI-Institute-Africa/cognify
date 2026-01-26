@@ -4067,6 +4067,65 @@ async def update_learner_profile(updates: Dict[str, Any], current_user: dict = D
     )
     return {"status": "updated"}
 
+@mentor_router.post("/upload-document")
+async def mentor_upload_document(
+    file: UploadFile = File(...),
+    question: str = "",
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload a document for the AI mentor to analyze and answer questions"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        # Read file content
+        content = await file.read()
+        text_content = ""
+        
+        # Handle different file types
+        if file.content_type == "application/pdf":
+            # For PDF, extract text (simplified - in production use a PDF library)
+            text_content = content.decode('utf-8', errors='ignore')[:5000]
+        elif file.content_type in ["text/plain", "text/markdown", "application/json"]:
+            text_content = content.decode('utf-8')[:5000]
+        elif file.content_type.startswith("image/"):
+            # For images, describe that we received an image
+            text_content = f"[Image file: {file.filename}]"
+        else:
+            text_content = content.decode('utf-8', errors='ignore')[:5000]
+        
+        system_message = f"""You are analyzing a document uploaded by a learner.
+        
+        Document content:
+        {text_content}
+        
+        Answer the learner's question about this document clearly and helpfully.
+        If no specific question is asked, provide a summary of the key points."""
+        
+        chat = LlmChat(api_key=api_key, session_id=f"mentor-doc-{current_user['id']}", system_message=system_message)
+        chat.with_model("openai", "gpt-5.2")
+        
+        user_question = question if question else "Please summarize the key points of this document."
+        response = await chat.send_message(UserMessage(text=user_question))
+        
+        # Store in conversation history
+        await db.mentor_conversations.insert_one({
+            "user_id": current_user['id'],
+            "user_message": f"[Uploaded: {file.filename}] {user_question}",
+            "mentor_response": response,
+            "has_file": True,
+            "filename": file.filename,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        
+        return {"response": response, "filename": file.filename}
+    except Exception as e:
+        logging.error(f"Mentor document upload error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Include all routers
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
