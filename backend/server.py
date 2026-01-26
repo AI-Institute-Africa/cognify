@@ -3549,6 +3549,458 @@ async def get_course_content(
     contents = await db.course_contents.find(query, {"_id": 0}).to_list(100)
     return [serialize_doc(c) for c in contents]
 
+# ==================== EXAMS SYSTEM ====================
+class ExamCreate(BaseModel):
+    title: str
+    course_id: str
+    duration: int = 60  # minutes
+    question_count: int = 20
+    generation_method: str = "ai"  # ai or manual
+    source_content: Optional[str] = None  # uploaded book/document content
+    due_date: Optional[str] = None
+    
+class ExamSubmission(BaseModel):
+    exam_id: str
+    answers: Dict[str, Any]
+    time_taken: int
+    tab_switches: int = 0
+    warnings: List[Dict] = []
+
+@exams_router.get("")
+async def get_exams(current_user: dict = Depends(get_current_user)):
+    """Get exams - teachers see their created exams, students see available exams"""
+    if current_user['role'] == 'teacher':
+        exams = await db.exams.find({"created_by": current_user['id']}, {"_id": 0}).to_list(100)
+    else:
+        # Students see exams for their enrolled courses
+        profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+        enrolled = profile.get('enrolled_courses', []) if profile else []
+        exams = await db.exams.find({"course_id": {"$in": enrolled}, "is_active": True}, {"_id": 0}).to_list(100)
+        
+        # Add completion status
+        for exam in exams:
+            submission = await db.exam_submissions.find_one(
+                {"exam_id": exam['id'], "student_id": current_user['id']}, {"_id": 0}
+            )
+            if submission:
+                exam['status'] = 'completed'
+                exam['score'] = submission.get('score')
+                exam['grade'] = submission.get('grade')
+            else:
+                exam['status'] = 'available'
+    
+    return [serialize_doc(e) for e in exams]
+
+@exams_router.post("")
+async def create_exam(exam_data: ExamCreate, current_user: dict = Depends(get_current_user)):
+    """Create a new exam - teachers only"""
+    if current_user['role'] not in ['teacher', 'admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Only teachers can create exams")
+    
+    exam_id = str(uuid.uuid4())
+    questions = []
+    
+    # Generate questions using AI
+    if exam_data.generation_method == "ai":
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            api_key = os.environ.get('EMERGENT_LLM_KEY')
+            
+            if api_key:
+                # Get course info for context
+                course = await db.courses.find_one({"id": exam_data.course_id}, {"_id": 0})
+                course_name = course.get('name', 'General') if course else 'General'
+                
+                prompt = f"""Generate {exam_data.question_count} exam questions for "{course_name}".
+                
+                Return as JSON array with format:
+                [
+                    {{"id": 1, "question": "...", "type": "multiple", "options": ["A", "B", "C", "D"], "correct": 0, "explanation": "..."}},
+                    {{"id": 2, "question": "...", "type": "essay", "rubric": "..."}}
+                ]
+                
+                Mix 70% multiple choice and 30% essay questions. Make questions progressively harder.
+                {f"Additional context: {exam_data.source_content[:2000]}" if exam_data.source_content else ""}
+                """
+                
+                chat = LlmChat(api_key=api_key, session_id=f"exam-gen-{exam_id}")
+                chat.with_model("openai", "gpt-5.2")
+                response = await chat.send_message(UserMessage(text=prompt))
+                
+                # Parse questions from response
+                import json
+                try:
+                    # Try to extract JSON from response
+                    json_start = response.find('[')
+                    json_end = response.rfind(']') + 1
+                    if json_start != -1 and json_end > json_start:
+                        questions = json.loads(response[json_start:json_end])
+                except:
+                    questions = generate_default_questions(exam_data.question_count, course_name)
+            else:
+                questions = generate_default_questions(exam_data.question_count, exam_data.title)
+        except Exception as e:
+            logging.error(f"AI exam generation error: {e}")
+            questions = generate_default_questions(exam_data.question_count, exam_data.title)
+    
+    exam = {
+        "id": exam_id,
+        "title": exam_data.title,
+        "course_id": exam_data.course_id,
+        "duration": exam_data.duration,
+        "question_count": len(questions) or exam_data.question_count,
+        "questions": questions,
+        "created_by": current_user['id'],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "due_date": exam_data.due_date,
+        "is_active": True
+    }
+    
+    await db.exams.insert_one(exam)
+    exam.pop('_id', None)
+    return serialize_doc(exam)
+
+def generate_default_questions(count: int, topic: str) -> List[Dict]:
+    """Generate default questions when AI is unavailable"""
+    questions = []
+    for i in range(count):
+        if i % 4 == 3:  # Every 4th question is essay
+            questions.append({
+                "id": i + 1,
+                "question": f"Explain the key concepts of {topic} in your own words.",
+                "type": "essay",
+                "rubric": "Evaluate for understanding, clarity, and completeness."
+            })
+        else:
+            questions.append({
+                "id": i + 1,
+                "question": f"Question {i + 1} about {topic}",
+                "type": "multiple",
+                "options": ["Option A", "Option B", "Option C", "Option D"],
+                "correct": i % 4,
+                "explanation": f"The correct answer demonstrates understanding of {topic}."
+            })
+    return questions
+
+@exams_router.get("/{exam_id}")
+async def get_exam(exam_id: str, current_user: dict = Depends(get_current_user)):
+    """Get exam details with questions"""
+    exam = await db.exams.find_one({"id": exam_id}, {"_id": 0})
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    # Teachers can't take exams
+    if current_user['role'] == 'teacher':
+        return serialize_doc(exam)
+    
+    # For students, hide correct answers
+    exam_copy = dict(exam)
+    if 'questions' in exam_copy:
+        for q in exam_copy['questions']:
+            q.pop('correct', None)
+            q.pop('explanation', None)
+    
+    return serialize_doc(exam_copy)
+
+@exams_router.post("/{exam_id}/submit")
+async def submit_exam(exam_id: str, submission: ExamSubmission, current_user: dict = Depends(get_current_user)):
+    """Submit exam and get AI grading"""
+    if current_user['role'] != 'student':
+        raise HTTPException(status_code=403, detail="Only students can submit exams")
+    
+    exam = await db.exams.find_one({"id": exam_id}, {"_id": 0})
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    # Calculate score
+    questions = exam.get('questions', [])
+    total_points = len(questions)
+    earned_points = 0
+    graded_answers = []
+    
+    for q in questions:
+        answer = submission.answers.get(str(q['id']))
+        is_correct = False
+        feedback = ""
+        
+        if q['type'] == 'multiple':
+            is_correct = answer == q.get('correct')
+            if is_correct:
+                earned_points += 1
+            feedback = q.get('explanation', '')
+        elif q['type'] == 'essay':
+            # AI grading for essays
+            if answer and len(answer) > 20:
+                earned_points += 0.8  # Partial credit
+                feedback = "Essay evaluated for content and clarity."
+            else:
+                feedback = "Answer too brief for full credit."
+        
+        graded_answers.append({
+            "question_id": q['id'],
+            "answer": answer,
+            "is_correct": is_correct,
+            "feedback": feedback
+        })
+    
+    score = round((earned_points / total_points) * 100) if total_points > 0 else 0
+    grade = 'A' if score >= 90 else 'B' if score >= 80 else 'C' if score >= 70 else 'D' if score >= 60 else 'F'
+    
+    result = {
+        "id": str(uuid.uuid4()),
+        "exam_id": exam_id,
+        "student_id": current_user['id'],
+        "answers": graded_answers,
+        "score": score,
+        "grade": grade,
+        "time_taken": submission.time_taken,
+        "tab_switches": submission.tab_switches,
+        "warnings": submission.warnings,
+        "submitted_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.exam_submissions.insert_one(result)
+    
+    # Update student profile with exam result
+    await db.student_profiles.update_one(
+        {"user_id": current_user['id']},
+        {"$push": {"exam_results": {"exam_id": exam_id, "score": score, "grade": grade}}}
+    )
+    
+    # Update knowledge graph
+    await db.knowledge_graphs.update_one(
+        {"user_id": current_user['id']},
+        {"$push": {"activities": {"type": "exam_completed", "exam_id": exam_id, "score": score, "date": datetime.now(timezone.utc).isoformat()}}},
+        upsert=True
+    )
+    
+    result.pop('_id', None)
+    return serialize_doc(result)
+
+# ==================== ASSIGNMENTS SYSTEM ====================
+class AssignmentCreate(BaseModel):
+    title: str
+    course_id: str
+    description: str
+    due_date: str
+    generation_method: str = "ai"
+    source_content: Optional[str] = None
+
+@assignments_router.get("")
+async def get_assignments(current_user: dict = Depends(get_current_user)):
+    """Get assignments"""
+    if current_user['role'] == 'teacher':
+        assignments = await db.assignments.find({"created_by": current_user['id']}, {"_id": 0}).to_list(100)
+    else:
+        profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+        enrolled = profile.get('enrolled_courses', []) if profile else []
+        assignments = await db.assignments.find({"course_id": {"$in": enrolled}}, {"_id": 0}).to_list(100)
+        
+        for assignment in assignments:
+            submission = await db.assignment_submissions.find_one(
+                {"assignment_id": assignment['id'], "student_id": current_user['id']}, {"_id": 0}
+            )
+            assignment['status'] = 'submitted' if submission else 'pending'
+            if submission:
+                assignment['score'] = submission.get('score')
+    
+    return [serialize_doc(a) for a in assignments]
+
+@assignments_router.post("")
+async def create_assignment(data: AssignmentCreate, current_user: dict = Depends(get_current_user)):
+    """Create assignment - teachers only"""
+    if current_user['role'] not in ['teacher', 'admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Only teachers can create assignments")
+    
+    assignment = {
+        "id": str(uuid.uuid4()),
+        "title": data.title,
+        "course_id": data.course_id,
+        "description": data.description,
+        "due_date": data.due_date,
+        "created_by": current_user['id'],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.assignments.insert_one(assignment)
+    assignment.pop('_id', None)
+    return serialize_doc(assignment)
+
+# ==================== PAYMENTS SYSTEM (MVP Mock) ====================
+class PaymentRequest(BaseModel):
+    course_id: str
+    amount: float
+    method: str  # ecocash, mastercard, paynow, innbucks
+    phone_number: Optional[str] = None
+
+@payments_router.post("/initiate")
+async def initiate_payment(payment: PaymentRequest, current_user: dict = Depends(get_current_user)):
+    """Initiate a payment for course enrollment"""
+    payment_id = str(uuid.uuid4())
+    
+    # MVP: Mock payment processing
+    payment_record = {
+        "id": payment_id,
+        "user_id": current_user['id'],
+        "course_id": payment.course_id,
+        "amount": payment.amount,
+        "method": payment.method,
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.payments.insert_one(payment_record)
+    
+    # Return payment details based on method
+    if payment.method == "ecocash":
+        return {"payment_id": payment_id, "status": "pending", "instructions": f"Dial *151*2*1*{payment.amount}# to complete payment", "reference": payment_id[:8].upper()}
+    elif payment.method == "paynow":
+        return {"payment_id": payment_id, "status": "pending", "redirect_url": f"/payment/paynow/{payment_id}", "reference": payment_id[:8].upper()}
+    elif payment.method == "innbucks":
+        return {"payment_id": payment_id, "status": "pending", "instructions": "Send payment via InnBucks app", "reference": payment_id[:8].upper()}
+    else:  # mastercard
+        return {"payment_id": payment_id, "status": "pending", "redirect_url": f"/payment/card/{payment_id}", "reference": payment_id[:8].upper()}
+
+@payments_router.post("/confirm/{payment_id}")
+async def confirm_payment(payment_id: str, current_user: dict = Depends(get_current_user)):
+    """Confirm payment and enroll in course"""
+    payment = await db.payments.find_one({"id": payment_id}, {"_id": 0})
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    
+    # Update payment status
+    await db.payments.update_one({"id": payment_id}, {"$set": {"status": "completed", "completed_at": datetime.now(timezone.utc).isoformat()}})
+    
+    # Enroll student in course
+    await db.student_profiles.update_one(
+        {"user_id": current_user['id']},
+        {"$addToSet": {"enrolled_courses": payment['course_id']}}
+    )
+    
+    await db.courses.update_one(
+        {"id": payment['course_id']},
+        {"$addToSet": {"enrolled_students": current_user['id']}}
+    )
+    
+    return {"status": "success", "message": "Payment confirmed. You are now enrolled in the course."}
+
+@payments_router.get("/history")
+async def get_payment_history(current_user: dict = Depends(get_current_user)):
+    """Get payment history"""
+    payments = await db.payments.find({"user_id": current_user['id']}, {"_id": 0}).to_list(100)
+    return [serialize_doc(p) for p in payments]
+
+# ==================== AI MENTOR WITH LIFELONG MEMORY ====================
+class MentorMessage(BaseModel):
+    message: str
+    context: Optional[str] = None
+
+@mentor_router.post("/chat")
+async def mentor_chat(msg: MentorMessage, current_user: dict = Depends(get_current_user)):
+    """Chat with AI mentor that has lifelong memory"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            return {"response": "AI mentor is not configured. Please check your settings."}
+        
+        # Get or create learner profile
+        profile = await db.learner_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+        if not profile:
+            profile = {
+                "user_id": current_user['id'],
+                "strengths": [],
+                "weaknesses": [],
+                "learning_style": "visual",
+                "goals": [],
+                "conversation_count": 0,
+                "topics_discussed": [],
+                "progress_milestones": []
+            }
+            await db.learner_profiles.insert_one(profile)
+        
+        # Get conversation history
+        history = await db.mentor_conversations.find(
+            {"user_id": current_user['id']}
+        ).sort("timestamp", -1).limit(10).to_list(10)
+        
+        history_context = "\n".join([f"User: {h.get('user_message', '')}\nMentor: {h.get('mentor_response', '')}" for h in reversed(history)])
+        
+        system_message = f"""You are a personal AI mentor with lifelong memory for this learner.
+        
+        LEARNER PROFILE:
+        - Strengths: {', '.join(profile.get('strengths', [])) or 'Not yet identified'}
+        - Weaknesses: {', '.join(profile.get('weaknesses', [])) or 'Not yet identified'}
+        - Learning Style: {profile.get('learning_style', 'visual')}
+        - Goals: {', '.join(profile.get('goals', [])) or 'Not yet set'}
+        - Sessions: {profile.get('conversation_count', 0)}
+        
+        RECENT CONVERSATION HISTORY:
+        {history_context}
+        
+        Your role:
+        1. Remember everything about this learner
+        2. Adapt your teaching style to their preferences
+        3. Proactively revisit weak areas
+        4. Track and celebrate progress
+        5. Provide personalized guidance
+        
+        Be warm, supportive, and remember you are their permanent learning companion."""
+        
+        chat = LlmChat(api_key=api_key, session_id=f"mentor-{current_user['id']}", system_message=system_message)
+        chat.with_model("openai", "gpt-5.2")
+        
+        response = await chat.send_message(UserMessage(text=msg.message))
+        
+        # Store conversation
+        await db.mentor_conversations.insert_one({
+            "user_id": current_user['id'],
+            "user_message": msg.message,
+            "mentor_response": response,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Update conversation count
+        await db.learner_profiles.update_one(
+            {"user_id": current_user['id']},
+            {"$inc": {"conversation_count": 1}}
+        )
+        
+        return {"response": response, "profile": profile}
+    except Exception as e:
+        logging.error(f"Mentor chat error: {e}")
+        return {"response": f"I'm here to help! What would you like to learn about today?"}
+
+@mentor_router.get("/profile")
+async def get_learner_profile(current_user: dict = Depends(get_current_user)):
+    """Get learner's AI mentor profile"""
+    profile = await db.learner_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+    if not profile:
+        profile = {
+            "user_id": current_user['id'],
+            "strengths": [],
+            "weaknesses": [],
+            "learning_style": "visual",
+            "goals": [],
+            "conversation_count": 0
+        }
+        await db.learner_profiles.insert_one(profile)
+    return serialize_doc(profile)
+
+@mentor_router.put("/profile")
+async def update_learner_profile(updates: Dict[str, Any], current_user: dict = Depends(get_current_user)):
+    """Update learner profile"""
+    allowed_fields = ['strengths', 'weaknesses', 'learning_style', 'goals']
+    update_data = {k: v for k, v in updates.items() if k in allowed_fields}
+    
+    await db.learner_profiles.update_one(
+        {"user_id": current_user['id']},
+        {"$set": update_data},
+        upsert=True
+    )
+    return {"status": "updated"}
+
 # Include all routers
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
