@@ -381,6 +381,66 @@ export default function StudyGroupsPage() {
           </div>
         </div>
       </div>
+
+      {/* Chat Dialog */}
+      <Dialog open={showChatDialog} onOpenChange={setShowChatDialog}>
+        <DialogContent className="bg-zinc-900 border-white/10 max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-blue-400" />
+              {selectedGroup?.name} - Group Chat
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500">
+              {selectedGroup?.members?.length || 1} members • {selectedGroup?.topic}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto min-h-[300px] max-h-[400px] p-4 bg-zinc-800/50 rounded-lg space-y-3">
+            {chatMessages.length === 0 ? (
+              <div className="text-center py-8">
+                <MessageSquare className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+                <p className="text-zinc-500">No messages yet</p>
+                <p className="text-zinc-600 text-sm">Start the conversation!</p>
+              </div>
+            ) : (
+              chatMessages.map((msg, index) => (
+                <div 
+                  key={msg.id || index} 
+                  className={`flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`max-w-[70%] p-3 rounded-xl ${
+                    msg.sender_id === user?.id 
+                      ? 'bg-blue-500/20 text-blue-100' 
+                      : 'bg-zinc-700/50'
+                  }`}>
+                    {msg.sender_id !== user?.id && (
+                      <p className="text-xs text-zinc-400 mb-1">{msg.sender?.full_name || 'Member'}</p>
+                    )}
+                    <p className="text-sm">{msg.content}</p>
+                    <p className="text-xs text-zinc-500 mt-1">
+                      {new Date(msg.created_at).toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="flex gap-2 mt-4">
+            <Input
+              placeholder="Type a message..."
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              className="bg-zinc-800 border-white/10 flex-1"
+              data-testid="chat-input"
+            />
+            <Button onClick={handleSendMessage} className="bg-blue-500 hover:bg-blue-600" data-testid="send-message-btn">
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
