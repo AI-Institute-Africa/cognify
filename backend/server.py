@@ -3577,6 +3577,9 @@ api_router.include_router(zoom_router)
 api_router.include_router(advanced_router)
 api_router.include_router(language_router)
 api_router.include_router(multimodal_router)
+api_router.include_router(exams_router)
+api_router.include_router(assignments_router)
+api_router.include_router(payments_router)
 
 app.include_router(api_router)
 
