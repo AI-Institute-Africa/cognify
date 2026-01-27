@@ -797,13 +797,27 @@ export default function CourseViewPage() {
                           <Video className="w-16 h-16 text-zinc-600 mx-auto mb-4" />
                           <p className="text-zinc-500 mb-4">No video uploaded for this lesson</p>
                           {isTeacher ? (
-                            <Button 
-                              onClick={() => setShowUploadDialog(true)}
-                              className="bg-blue-500 hover:bg-blue-600"
-                            >
-                              <Upload className="w-4 h-4 mr-2" />
-                              Upload Video
-                            </Button>
+                            <div className="flex gap-3 justify-center">
+                              <Button 
+                                onClick={() => setShowUploadDialog(true)}
+                                className="bg-blue-500 hover:bg-blue-600"
+                              >
+                                <Upload className="w-4 h-4 mr-2" />
+                                Upload Video
+                              </Button>
+                              <Button 
+                                onClick={() => {
+                                  setGenerateType('video');
+                                  setShowGenerateDialog(true);
+                                }}
+                                variant="outline"
+                                className="border-violet-500/30 text-violet-400"
+                                data-testid="generate-video-btn"
+                              >
+                                <Wand2 className="w-4 h-4 mr-2" />
+                                AI Generate Video
+                              </Button>
+                            </div>
                           ) : (
                             <p className="text-sm text-zinc-600">
                               Video will be available once uploaded by teacher
