@@ -321,6 +321,12 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      <Route path="/org-admin" element={
+        <ProtectedRoute allowedRoles={['org_admin', 'admin']}>
+          <OrgAdminDashboardPage />
+        </ProtectedRoute>
+      } />
+      
       {/* Home Page (Public) */}
       <Route path="/" element={<HomePage />} />
       
