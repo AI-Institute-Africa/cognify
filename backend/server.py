@@ -5322,7 +5322,7 @@ async def change_password(
 
 # ==================== FORGOT PASSWORD ====================
 
-@auth_router.post("/forgot-password")
+@api_router.post("/auth/forgot-password")
 async def forgot_password(email: str):
     """Send password reset email (mocked - returns reset code)"""
     user = await db.users.find_one({"email": email}, {"_id": 0})
@@ -5347,7 +5347,7 @@ async def forgot_password(email: str):
         "note": "Email sending is mocked. Use this code to reset password."
     }
 
-@auth_router.post("/reset-password")
+@api_router.post("/auth/reset-password")
 async def reset_password(email: str, reset_code: str, new_password: str):
     """Reset password using reset code"""
     reset = await db.password_resets.find_one({"email": email, "code": reset_code, "used": False}, {"_id": 0})
