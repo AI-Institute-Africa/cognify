@@ -22,6 +22,17 @@ ADMIN_EMAIL = "demo.admin@eduos.edu"
 ADMIN_PASSWORD = "demo123"
 
 
+def get_token(email, password):
+    """Helper to get auth token"""
+    response = requests.post(f"{BASE_URL}/api/auth/login", json={
+        "email": email,
+        "password": password
+    })
+    data = response.json()
+    # API returns access_token, not token
+    return data.get("access_token") or data.get("token")
+
+
 class TestHealthAndAuth:
     """Basic health and authentication tests"""
     
@@ -41,10 +52,9 @@ class TestHealthAndAuth:
         })
         assert response.status_code == 200
         data = response.json()
-        assert "token" in data
+        assert "access_token" in data or "token" in data
         assert data.get("user", {}).get("role") == "student"
         print(f"✓ Student login successful: {data.get('user', {}).get('email')}")
-        return data.get("token")
     
     def test_teacher_login(self):
         """Test teacher login"""
@@ -54,10 +64,9 @@ class TestHealthAndAuth:
         })
         assert response.status_code == 200
         data = response.json()
-        assert "token" in data
+        assert "access_token" in data or "token" in data
         assert data.get("user", {}).get("role") == "teacher"
         print(f"✓ Teacher login successful: {data.get('user', {}).get('email')}")
-        return data.get("token")
     
     def test_admin_login(self):
         """Test admin login"""
@@ -67,9 +76,8 @@ class TestHealthAndAuth:
         })
         assert response.status_code == 200
         data = response.json()
-        assert "token" in data
+        assert "access_token" in data or "token" in data
         print(f"✓ Admin login successful: {data.get('user', {}).get('email')}")
-        return data.get("token")
 
 
 class TestAvatarSettings:
@@ -77,11 +85,7 @@ class TestAvatarSettings:
     
     @pytest.fixture
     def student_token(self):
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": STUDENT_EMAIL,
-            "password": STUDENT_PASSWORD
-        })
-        return response.json().get("token")
+        return get_token(STUDENT_EMAIL, STUDENT_PASSWORD)
     
     def test_get_preset_voices(self, student_token):
         """Test GET /api/voice/preset-voices - should return 6 voices"""
@@ -157,11 +161,7 @@ class TestStudentMeetings:
     
     @pytest.fixture
     def student_token(self):
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": STUDENT_EMAIL,
-            "password": STUDENT_PASSWORD
-        })
-        return response.json().get("token")
+        return get_token(STUDENT_EMAIL, STUDENT_PASSWORD)
     
     def test_get_student_meetings(self, student_token):
         """Test GET /api/zoom/student-meetings"""
@@ -186,11 +186,7 @@ class TestOrgAdminDashboard:
     
     @pytest.fixture
     def admin_token(self):
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": ADMIN_EMAIL,
-            "password": ADMIN_PASSWORD
-        })
-        return response.json().get("token")
+        return get_token(ADMIN_EMAIL, ADMIN_PASSWORD)
     
     def test_get_org_admin_dashboard(self, admin_token):
         """Test GET /api/org-admin/dashboard"""
@@ -252,11 +248,7 @@ class TestVideoSlidesGeneration:
     
     @pytest.fixture
     def teacher_token(self):
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEACHER_EMAIL,
-            "password": TEACHER_PASSWORD
-        })
-        return response.json().get("token")
+        return get_token(TEACHER_EMAIL, TEACHER_PASSWORD)
     
     def test_generate_video_endpoint_exists(self, teacher_token):
         """Test POST /api/content/generate-video endpoint exists"""
@@ -290,19 +282,11 @@ class TestCourseViewFeatures:
     
     @pytest.fixture
     def student_token(self):
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": STUDENT_EMAIL,
-            "password": STUDENT_PASSWORD
-        })
-        return response.json().get("token")
+        return get_token(STUDENT_EMAIL, STUDENT_PASSWORD)
     
     @pytest.fixture
     def teacher_token(self):
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEACHER_EMAIL,
-            "password": TEACHER_PASSWORD
-        })
-        return response.json().get("token")
+        return get_token(TEACHER_EMAIL, TEACHER_PASSWORD)
     
     def test_get_courses(self, student_token):
         """Test GET /api/courses"""
@@ -323,7 +307,7 @@ class TestCourseViewFeatures:
         courses_response = requests.get(f"{BASE_URL}/api/courses", headers=headers)
         courses = courses_response.json()
         
-        if len(courses) == 0:
+        if not isinstance(courses, list) or len(courses) == 0:
             pytest.skip("No courses available")
         
         course_id = courses[0].get('id')
@@ -345,7 +329,7 @@ class TestCourseViewFeatures:
         courses_response = requests.get(f"{BASE_URL}/api/courses", headers=headers)
         courses = courses_response.json()
         
-        if len(courses) == 0:
+        if not isinstance(courses, list) or len(courses) == 0:
             pytest.skip("No courses available")
         
         course_id = courses[0].get('id')
@@ -357,7 +341,7 @@ class TestCourseViewFeatures:
         )
         content = content_response.json()
         
-        if len(content) == 0:
+        if not isinstance(content, list) or len(content) == 0:
             pytest.skip("No course content available")
         
         lesson_id = content[0].get('id')
@@ -379,11 +363,7 @@ class TestDashboardStats:
     
     @pytest.fixture
     def student_token(self):
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": STUDENT_EMAIL,
-            "password": STUDENT_PASSWORD
-        })
-        return response.json().get("token")
+        return get_token(STUDENT_EMAIL, STUDENT_PASSWORD)
     
     def test_dashboard_stats(self, student_token):
         """Test GET /api/dashboard/stats"""
