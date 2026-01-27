@@ -400,18 +400,6 @@ export const getZoomMeetings = async () => {
   return response.data;
 };
 
-// Profile Photo
-export const uploadProfilePhoto = async (file) => {
-  const formData = new FormData();
-  formData.append('file', file);
-  const response = await axios.post(
-    `${API}/users/profile-photo`,
-    formData,
-    { headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' } }
-  );
-  return response.data;
-};
-
 // RFID Attendance
 export const registerRFID = async (studentId, rfidTag) => {
   const response = await axios.post(
