@@ -4435,6 +4435,691 @@ async def mentor_upload_document(
         logging.error(f"Mentor document upload error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# ==================== VIDEO/SLIDES GENERATION ====================
+
+@content_router.post("/generate-video")
+async def generate_video_content(
+    topic: str,
+    course_id: Optional[str] = None,
+    duration: int = 4,
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate educational video using Sora 2"""
+    try:
+        from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="Video generation service not configured")
+        
+        # Generate a descriptive prompt for educational video
+        prompt = f"Educational explainer video about {topic}. Professional, engaging visuals with clear diagrams and animations. Suitable for students learning this concept."
+        
+        video_gen = OpenAIVideoGeneration(api_key=api_key)
+        
+        # Generate video (this is synchronous but we're in async context)
+        import asyncio
+        video_bytes = await asyncio.to_thread(
+            video_gen.text_to_video,
+            prompt=prompt,
+            model="sora-2",
+            size="1280x720",
+            duration=duration,
+            max_wait_time=600
+        )
+        
+        if video_bytes:
+            # Save video to a file
+            video_id = str(uuid.uuid4())
+            video_path = f"/app/generated_videos/{video_id}.mp4"
+            os.makedirs("/app/generated_videos", exist_ok=True)
+            video_gen.save_video(video_bytes, video_path)
+            
+            # Store record in database
+            video_record = {
+                "id": video_id,
+                "topic": topic,
+                "course_id": course_id,
+                "user_id": current_user['id'],
+                "video_path": video_path,
+                "video_url": f"/api/content/video/{video_id}",
+                "duration": duration,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.generated_videos.insert_one(video_record)
+            
+            return {
+                "message": "Video generated successfully",
+                "video_id": video_id,
+                "video_url": f"/api/content/video/{video_id}"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Video generation failed")
+            
+    except Exception as e:
+        logging.error(f"Video generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@content_router.get("/video/{video_id}")
+async def get_generated_video(video_id: str):
+    """Serve generated video file"""
+    from fastapi.responses import FileResponse
+    
+    video_record = await db.generated_videos.find_one({"id": video_id}, {"_id": 0})
+    if not video_record:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    video_path = video_record.get('video_path')
+    if not video_path or not os.path.exists(video_path):
+        raise HTTPException(status_code=404, detail="Video file not found")
+    
+    return FileResponse(video_path, media_type="video/mp4")
+
+@content_router.post("/generate-slides")
+async def generate_slides_content(
+    topic: str,
+    course_id: Optional[str] = None,
+    slide_count: int = 5,
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate educational slides/images using Gemini Nano Banana"""
+    try:
+        import base64
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="Slide generation service not configured")
+        
+        slides = []
+        
+        for i in range(slide_count):
+            slide_prompts = [
+                f"Educational slide titled 'Introduction to {topic}' with professional design, clean layout, key points visualized",
+                f"Educational infographic explaining the main concepts of {topic} with clear icons and diagrams",
+                f"Visual representation of {topic} key principles with modern educational design",
+                f"Summary slide about {topic} with bullet points and visual elements",
+                f"Conclusion slide for {topic} with key takeaways highlighted"
+            ]
+            
+            prompt = slide_prompts[min(i, len(slide_prompts)-1)]
+            
+            system_msg = "You are an educational content designer creating professional slides and infographics."
+            chat = LlmChat(api_key=api_key, session_id=f"slides-{uuid.uuid4()}", system_message=system_msg)
+            chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+            
+            msg = UserMessage(text=prompt)
+            text, images = await chat.send_message_multimodal_response(msg)
+            
+            if images:
+                for img in images:
+                    slide_id = str(uuid.uuid4())
+                    # Save image
+                    os.makedirs("/app/generated_slides", exist_ok=True)
+                    img_path = f"/app/generated_slides/{slide_id}.png"
+                    image_bytes = base64.b64decode(img['data'])
+                    with open(img_path, "wb") as f:
+                        f.write(image_bytes)
+                    
+                    slides.append({
+                        "id": slide_id,
+                        "title": f"Slide {i+1}: {topic}",
+                        "image_url": f"/api/content/slide/{slide_id}",
+                        "description": text[:200] if text else ""
+                    })
+                    break  # Only need one image per slide
+        
+        # Store in database
+        slideshow_id = str(uuid.uuid4())
+        slideshow_record = {
+            "id": slideshow_id,
+            "topic": topic,
+            "course_id": course_id,
+            "user_id": current_user['id'],
+            "slides": slides,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.generated_slideshows.insert_one(slideshow_record)
+        
+        return {
+            "message": "Slides generated successfully",
+            "slideshow_id": slideshow_id,
+            "slides": slides
+        }
+        
+    except Exception as e:
+        logging.error(f"Slides generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@content_router.get("/slide/{slide_id}")
+async def get_generated_slide(slide_id: str):
+    """Serve generated slide image"""
+    from fastapi.responses import FileResponse
+    
+    img_path = f"/app/generated_slides/{slide_id}.png"
+    if not os.path.exists(img_path):
+        raise HTTPException(status_code=404, detail="Slide not found")
+    
+    return FileResponse(img_path, media_type="image/png")
+
+# ==================== AVATAR SETTINGS & VOICE CLONING ====================
+
+@voice_router.post("/clone-simple")
+async def clone_voice_simple(
+    name: str,
+    voice_sample_url: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Simple voice cloning with URL or demo mode"""
+    try:
+        # For demo/MVP, create a mock cloned voice profile
+        voice_id = f"cloned_{str(uuid.uuid4())[:8]}"
+        
+        voice_profile = {
+            "id": str(uuid.uuid4()),
+            "user_id": current_user['id'],
+            "name": name,
+            "voice_id": voice_id,
+            "is_cloned": True,
+            "clone_source": voice_sample_url or "recorded",
+            "status": "ready",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.voice_profiles.insert_one(voice_profile)
+        
+        return {
+            "message": "Voice profile created",
+            "voice_id": voice_id,
+            "name": name,
+            "status": "ready"
+        }
+    except Exception as e:
+        logging.error(f"Voice clone error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@voice_router.get("/preset-voices")
+async def get_preset_voices():
+    """Get list of preset avatar voices"""
+    return [
+        {"id": "nova", "name": "Nova", "gender": "female", "style": "professional", "preview_text": "Hello, I'm Nova, your professional learning guide."},
+        {"id": "onyx", "name": "Onyx", "gender": "male", "style": "confident", "preview_text": "Hi there! I'm Onyx, ready to help you succeed."},
+        {"id": "shimmer", "name": "Shimmer", "gender": "female", "style": "friendly", "preview_text": "Hey! I'm Shimmer, let's learn together!"},
+        {"id": "echo", "name": "Echo", "gender": "male", "style": "calm", "preview_text": "Welcome. I'm Echo, here to guide your journey."},
+        {"id": "fable", "name": "Fable", "gender": "neutral", "style": "storytelling", "preview_text": "Greetings! I'm Fable, and I love teaching through stories."},
+        {"id": "alloy", "name": "Alloy", "gender": "neutral", "style": "energetic", "preview_text": "Hey! I'm Alloy, let's make learning exciting!"}
+    ]
+
+@voice_router.post("/save-avatar-settings")
+async def save_avatar_settings(
+    avatar_image: Optional[str] = None,
+    avatar_name: str = "My Tutor",
+    voice_id: str = "nova",
+    teaching_style: str = "friendly",
+    is_custom_voice: bool = False,
+    current_user: dict = Depends(get_current_user)
+):
+    """Save user's avatar settings"""
+    try:
+        settings = {
+            "user_id": current_user['id'],
+            "avatar_image": avatar_image,
+            "avatar_name": avatar_name,
+            "voice_id": voice_id,
+            "teaching_style": teaching_style,
+            "is_custom_voice": is_custom_voice,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await db.avatar_settings.update_one(
+            {"user_id": current_user['id']},
+            {"$set": settings},
+            upsert=True
+        )
+        
+        return {"message": "Avatar settings saved", "settings": settings}
+    except Exception as e:
+        logging.error(f"Save avatar settings error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@voice_router.get("/avatar-settings")
+async def get_avatar_settings(current_user: dict = Depends(get_current_user)):
+    """Get user's avatar settings"""
+    settings = await db.avatar_settings.find_one({"user_id": current_user['id']}, {"_id": 0})
+    if not settings:
+        # Return default settings
+        return {
+            "avatar_image": None,
+            "avatar_name": "AI Tutor",
+            "voice_id": "nova",
+            "teaching_style": "friendly",
+            "is_custom_voice": False
+        }
+    return settings
+
+# ==================== AVATAR LESSON TEACHING ====================
+
+@content_router.post("/lesson/{lesson_id}/avatar-teach")
+async def avatar_teach_lesson(
+    lesson_id: str,
+    voice_id: str = "nova",
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate avatar teaching for a specific lesson"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        # Get lesson content
+        lesson = await db.course_content.find_one({"id": lesson_id}, {"_id": 0})
+        if not lesson:
+            raise HTTPException(status_code=404, detail="Lesson not found")
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        # Generate teaching script
+        system_msg = """You are an engaging AI tutor. Convert the lesson content into a conversational teaching script.
+        Make it engaging, use examples, ask rhetorical questions, and break down complex concepts.
+        Keep it natural as if speaking to a student."""
+        
+        chat = LlmChat(api_key=api_key, session_id=f"avatar-teach-{lesson_id}", system_message=system_msg)
+        chat.with_model("openai", "gpt-5.2")
+        
+        content_text = lesson.get('content_text', lesson.get('description', 'No content available'))
+        prompt = f"""Convert this lesson into an engaging teaching script:
+
+Title: {lesson.get('title', 'Lesson')}
+Content: {content_text[:3000]}
+
+Create a natural, conversational teaching script that an AI avatar would speak."""
+        
+        teaching_script = await chat.send_message(UserMessage(text=prompt))
+        
+        # Try to generate TTS audio
+        audio_url = None
+        try:
+            tts_response = await db.tts_cache.find_one({"text_hash": hash(teaching_script[:500])}, {"_id": 0})
+            if not tts_response:
+                # Generate TTS (simplified for MVP)
+                from emergentintegrations.llm.openai.tts import OpenAITextToSpeech
+                tts = OpenAITextToSpeech(api_key=api_key)
+                audio_bytes = await asyncio.to_thread(
+                    tts.text_to_speech,
+                    text=teaching_script[:4000],
+                    voice=voice_id
+                )
+                if audio_bytes:
+                    audio_id = str(uuid.uuid4())
+                    os.makedirs("/app/generated_audio", exist_ok=True)
+                    audio_path = f"/app/generated_audio/{audio_id}.mp3"
+                    with open(audio_path, "wb") as f:
+                        f.write(audio_bytes)
+                    audio_url = f"/api/content/audio/{audio_id}"
+        except Exception as tts_error:
+            logging.warning(f"TTS generation failed: {tts_error}")
+        
+        return {
+            "lesson_id": lesson_id,
+            "teaching_script": teaching_script,
+            "audio_url": audio_url,
+            "voice_id": voice_id
+        }
+        
+    except Exception as e:
+        logging.error(f"Avatar teaching error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@content_router.get("/audio/{audio_id}")
+async def get_generated_audio(audio_id: str):
+    """Serve generated audio file"""
+    from fastapi.responses import FileResponse
+    
+    audio_path = f"/app/generated_audio/{audio_id}.mp3"
+    if not os.path.exists(audio_path):
+        raise HTTPException(status_code=404, detail="Audio not found")
+    
+    return FileResponse(audio_path, media_type="audio/mpeg")
+
+# ==================== VIRTUAL CLASSROOM FOR STUDENTS ====================
+
+@zoom_router.get("/student-meetings")
+async def get_student_meetings(current_user: dict = Depends(get_current_user)):
+    """Get all virtual classroom meetings for enrolled courses"""
+    try:
+        # Get student's enrolled courses
+        profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+        enrolled_course_ids = profile.get('enrolled_courses', []) if profile else []
+        
+        # Get meetings for those courses
+        all_meetings = []
+        
+        # Get all meetings
+        meetings_cursor = db.zoom_meetings.find({}, {"_id": 0})
+        all_zoom_meetings = await meetings_cursor.to_list(length=100)
+        
+        # Also get course-specific meetings
+        for course_id in enrolled_course_ids:
+            course_meetings = await db.zoom_meetings.find({"course_id": course_id}, {"_id": 0}).to_list(length=50)
+            all_meetings.extend(course_meetings)
+        
+        # Add all general meetings too
+        all_meetings.extend(all_zoom_meetings)
+        
+        # Deduplicate by id
+        seen_ids = set()
+        unique_meetings = []
+        for m in all_meetings:
+            if m.get('id') not in seen_ids:
+                seen_ids.add(m.get('id'))
+                # Add status
+                start_time = datetime.fromisoformat(m.get('start_time', m.get('created_at', datetime.now(timezone.utc).isoformat())).replace('Z', '+00:00'))
+                duration = m.get('duration', 60)
+                end_time = start_time + timedelta(minutes=duration)
+                now = datetime.now(timezone.utc)
+                
+                if now < start_time:
+                    m['status'] = 'scheduled'
+                elif start_time <= now <= end_time:
+                    m['status'] = 'live'
+                else:
+                    m['status'] = 'completed'
+                    m['recording_url'] = m.get('recording_url', None)
+                
+                unique_meetings.append(m)
+        
+        # Sort by start time
+        unique_meetings.sort(key=lambda x: x.get('start_time', x.get('created_at', '')), reverse=True)
+        
+        return unique_meetings
+        
+    except Exception as e:
+        logging.error(f"Get student meetings error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@zoom_router.post("/meeting/{meeting_id}/add-recording")
+async def add_meeting_recording(
+    meeting_id: str,
+    recording_url: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Add recording URL to a completed meeting (teacher only)"""
+    if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Only teachers can add recordings")
+    
+    result = await db.zoom_meetings.update_one(
+        {"id": meeting_id},
+        {"$set": {"recording_url": recording_url, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    
+    return {"message": "Recording added successfully"}
+
+# ==================== ORGANIZATION ADMIN DASHBOARD ====================
+
+org_admin_router = APIRouter(prefix="/org-admin", tags=["Organization Admin"])
+
+@org_admin_router.get("/dashboard")
+async def get_org_admin_dashboard(current_user: dict = Depends(get_current_user)):
+    """Get organization admin dashboard data"""
+    if current_user.get('role') not in ['org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Organization admin access required")
+    
+    org_id = current_user.get('organization_id')
+    
+    # Get organization details
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    
+    # Get statistics
+    teachers_count = await db.users.count_documents({"organization_id": org_id, "role": "teacher"})
+    students_count = await db.users.count_documents({"organization_id": org_id, "role": "student"})
+    courses_count = await db.courses.count_documents({"organization_id": org_id})
+    
+    # Get recent enrollments
+    recent_enrollments = await db.course_enrollments.find(
+        {"organization_id": org_id}
+    ).sort("created_at", -1).limit(10).to_list(length=10)
+    
+    # Get revenue data (from payments)
+    payments = await db.payments.find({"organization_id": org_id, "status": "completed"}).to_list(length=1000)
+    total_revenue = sum(p.get('amount', 0) for p in payments)
+    
+    return {
+        "organization": serialize_doc(org) if org else None,
+        "statistics": {
+            "teachers": teachers_count,
+            "students": students_count,
+            "courses": courses_count,
+            "total_revenue": total_revenue
+        },
+        "recent_enrollments": [serialize_doc(e) for e in recent_enrollments]
+    }
+
+@org_admin_router.get("/teachers")
+async def get_org_teachers(current_user: dict = Depends(get_current_user)):
+    """Get all teachers in the organization"""
+    if current_user.get('role') not in ['org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Organization admin access required")
+    
+    org_id = current_user.get('organization_id')
+    teachers = await db.users.find(
+        {"organization_id": org_id, "role": "teacher"},
+        {"_id": 0, "password_hash": 0}
+    ).to_list(length=500)
+    
+    return teachers
+
+@org_admin_router.get("/students")
+async def get_org_students(current_user: dict = Depends(get_current_user)):
+    """Get all students in the organization"""
+    if current_user.get('role') not in ['org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Organization admin access required")
+    
+    org_id = current_user.get('organization_id')
+    students = await db.users.find(
+        {"organization_id": org_id, "role": "student"},
+        {"_id": 0, "password_hash": 0}
+    ).to_list(length=1000)
+    
+    # Enrich with profile data
+    for student in students:
+        profile = await db.student_profiles.find_one({"user_id": student['id']}, {"_id": 0})
+        if profile:
+            student['gpa'] = profile.get('gpa', 0)
+            student['enrolled_courses'] = len(profile.get('enrolled_courses', []))
+    
+    return students
+
+@org_admin_router.post("/create-course-from-pdf")
+async def create_course_from_pdf(
+    file: UploadFile = File(...),
+    title: str = Form(...),
+    category: str = Form("certificate"),
+    price: float = Form(0),
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a course by uploading PDF syllabus/content"""
+    if current_user.get('role') not in ['org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Organization admin access required")
+    
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        import fitz  # PyMuPDF
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        
+        # Read PDF content
+        content = await file.read()
+        pdf_doc = fitz.open(stream=content, filetype="pdf")
+        
+        text_content = ""
+        for page in pdf_doc:
+            text_content += page.get_text()
+        pdf_doc.close()
+        
+        # Use AI to structure the course
+        course_id = str(uuid.uuid4())
+        lessons = []
+        
+        if api_key:
+            system_msg = """You are a curriculum designer. Analyze the document and create a structured course outline.
+            Return JSON with: {
+                "description": "course description",
+                "lessons": [{"title": "...", "content": "..."}],
+                "learning_objectives": ["..."]
+            }"""
+            
+            chat = LlmChat(api_key=api_key, session_id=f"pdf-course-{course_id}", system_message=system_msg)
+            chat.with_model("openai", "gpt-5.2")
+            
+            response = await chat.send_message(UserMessage(text=f"Create a course structure from this content:\n\n{text_content[:8000]}"))
+            
+            try:
+                import json
+                json_start = response.find('{')
+                json_end = response.rfind('}') + 1
+                if json_start >= 0:
+                    parsed = json.loads(response[json_start:json_end])
+                    
+                    # Create lessons
+                    for idx, lesson in enumerate(parsed.get('lessons', [])):
+                        lesson_id = str(uuid.uuid4())
+                        lesson_record = {
+                            "id": lesson_id,
+                            "course_id": course_id,
+                            "content_type": "text",
+                            "title": lesson.get('title', f'Lesson {idx+1}'),
+                            "description": lesson.get('content', '')[:500],
+                            "content_text": lesson.get('content', ''),
+                            "order": idx,
+                            "created_at": datetime.now(timezone.utc).isoformat()
+                        }
+                        await db.course_content.insert_one(lesson_record)
+                        lessons.append(lesson_id)
+            except:
+                pass
+        
+        # Create the course
+        course = {
+            "id": course_id,
+            "name": title,
+            "code": f"ORG-{course_id[:6].upper()}",
+            "description": f"Course created from PDF: {file.filename}",
+            "organization_id": current_user.get('organization_id'),
+            "teacher_id": current_user['id'],
+            "category": category,
+            "price": price,
+            "fee_type": "paid" if price > 0 else "free",
+            "content_ids": lessons,
+            "status": "active",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.courses.insert_one(course)
+        
+        return {
+            "message": "Course created successfully",
+            "course_id": course_id,
+            "lessons_created": len(lessons)
+        }
+        
+    except Exception as e:
+        logging.error(f"PDF course creation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@org_admin_router.post("/bulk-enroll")
+async def bulk_enroll_students(
+    course_id: str,
+    student_emails: List[str],
+    current_user: dict = Depends(get_current_user)
+):
+    """Bulk enroll students in a course"""
+    if current_user.get('role') not in ['org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Organization admin access required")
+    
+    org_id = current_user.get('organization_id')
+    enrolled_count = 0
+    failed_emails = []
+    
+    for email in student_emails:
+        try:
+            # Find student
+            student = await db.users.find_one({"email": email, "role": "student"}, {"_id": 0})
+            if not student:
+                failed_emails.append(email)
+                continue
+            
+            # Enroll student
+            await db.student_profiles.update_one(
+                {"user_id": student['id']},
+                {"$addToSet": {"enrolled_courses": course_id}},
+                upsert=True
+            )
+            
+            # Update course enrolled_students
+            await db.courses.update_one(
+                {"id": course_id},
+                {"$addToSet": {"enrolled_students": student['id']}}
+            )
+            
+            enrolled_count += 1
+            
+        except Exception as e:
+            logging.error(f"Bulk enroll error for {email}: {e}")
+            failed_emails.append(email)
+    
+    return {
+        "message": f"Enrolled {enrolled_count} students",
+        "enrolled_count": enrolled_count,
+        "failed_emails": failed_emails
+    }
+
+@org_admin_router.get("/analytics")
+async def get_org_analytics(current_user: dict = Depends(get_current_user)):
+    """Get organization-wide analytics"""
+    if current_user.get('role') not in ['org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Organization admin access required")
+    
+    org_id = current_user.get('organization_id')
+    
+    # Course completion rates
+    courses = await db.courses.find({"organization_id": org_id}, {"_id": 0}).to_list(length=100)
+    
+    course_analytics = []
+    for course in courses:
+        enrolled = len(course.get('enrolled_students', []))
+        # Get completion data
+        completions = await db.course_completions.count_documents({"course_id": course['id']})
+        
+        course_analytics.append({
+            "course_id": course['id'],
+            "course_name": course.get('name', 'Unknown'),
+            "enrolled": enrolled,
+            "completed": completions,
+            "completion_rate": (completions / enrolled * 100) if enrolled > 0 else 0
+        })
+    
+    # Attendance analytics
+    attendance_records = await db.attendance.find({"organization_id": org_id}).to_list(length=10000)
+    total_attendance = len(attendance_records)
+    present_count = sum(1 for a in attendance_records if a.get('status') == 'present')
+    attendance_rate = (present_count / total_attendance * 100) if total_attendance > 0 else 0
+    
+    # Revenue by month
+    payments = await db.payments.find({"organization_id": org_id, "status": "completed"}).to_list(length=1000)
+    monthly_revenue = {}
+    for p in payments:
+        month = p.get('created_at', '')[:7]  # YYYY-MM
+        if month:
+            monthly_revenue[month] = monthly_revenue.get(month, 0) + p.get('amount', 0)
+    
+    return {
+        "course_analytics": course_analytics,
+        "attendance_rate": attendance_rate,
+        "monthly_revenue": monthly_revenue,
+        "total_payments": len(payments)
+    }
+
 # Include all routers
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
