@@ -49,6 +49,7 @@ import ExamPage from './pages/ExamPage';
 import VRLearningPage from './pages/VRLearningPage';
 import PaymentPage from './pages/PaymentPage';
 import OrgAdminDashboardPage from './pages/OrgAdminDashboardPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 
 import './App.css';
 
