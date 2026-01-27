@@ -903,34 +903,6 @@ export const uploadVideoFile = async (courseId, title, file, description = '') =
   return response.data;
 };
 
-// ==================== ASSIGNMENTS ====================
-export const createAssignment = async (title, courseId, description = '', dueDate = null, maxScore = 100) => {
-  const params = new URLSearchParams({ title, course_id: courseId, max_score: maxScore.toString() });
-  if (description) params.append('description', description);
-  if (dueDate) params.append('due_date', dueDate);
-  const response = await axios.post(`${API}/assignments/create?${params}`, {}, { headers: getAuthHeaders() });
-  return response.data;
-};
-
-export const getCourseAssignments = async (courseId) => {
-  const response = await axios.get(`${API}/assignments/course/${courseId}`, { headers: getAuthHeaders() });
-  return response.data;
-};
-
-export const submitAssignment = async (assignmentId, content) => {
-  const response = await axios.post(
-    `${API}/assignments/${assignmentId}/submit?content=${encodeURIComponent(content)}`,
-    {},
-    { headers: getAuthHeaders() }
-  );
-  return response.data;
-};
-
-export const getAssignmentSubmissions = async (assignmentId) => {
-  const response = await axios.get(`${API}/assignments/${assignmentId}/submissions`, { headers: getAuthHeaders() });
-  return response.data;
-};
-
 // ==================== REAL GRADES & ATTENDANCE ====================
 export const getStudentGrades = async (studentId) => {
   const response = await axios.get(`${API}/grades/student/${studentId}`, { headers: getAuthHeaders() });
