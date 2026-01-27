@@ -5155,7 +5155,7 @@ api_router.include_router(assignments_router)
 api_router.include_router(payments_router)
 api_router.include_router(org_admin_router)
 
-app.include_router(api_router)
+# NOTE: app.include_router is moved to end of file after all route definitions
 
 app.add_middleware(
     CORSMiddleware,
