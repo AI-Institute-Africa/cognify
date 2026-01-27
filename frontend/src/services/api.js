@@ -705,3 +705,104 @@ export const getOutcomePathways = async () => {
   const response = await axios.get(`${API}/advanced/outcome/pathways`, { headers: getAuthHeaders() });
   return response.data;
 };
+
+// ==================== VIDEO & SLIDES GENERATION ====================
+export const generateVideoContent = async (topic, courseId = null, duration = 4) => {
+  const params = new URLSearchParams({ topic, duration: duration.toString() });
+  if (courseId) params.append('course_id', courseId);
+  const response = await axios.post(`${API}/content/generate-video?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const generateSlidesContent = async (topic, courseId = null, slideCount = 5) => {
+  const params = new URLSearchParams({ topic, slide_count: slideCount.toString() });
+  if (courseId) params.append('course_id', courseId);
+  const response = await axios.post(`${API}/content/generate-slides?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== AVATAR & VOICE SETTINGS ====================
+export const getPresetVoices = async () => {
+  const response = await axios.get(`${API}/voice/preset-voices`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const cloneVoiceSimple = async (name, voiceSampleUrl = null) => {
+  const params = new URLSearchParams({ name });
+  if (voiceSampleUrl) params.append('voice_sample_url', voiceSampleUrl);
+  const response = await axios.post(`${API}/voice/clone-simple?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const saveAvatarSettings = async (settings) => {
+  const params = new URLSearchParams();
+  Object.entries(settings).forEach(([key, value]) => {
+    if (value !== null && value !== undefined) {
+      params.append(key, value.toString());
+    }
+  });
+  const response = await axios.post(`${API}/voice/save-avatar-settings?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getAvatarSettings = async () => {
+  const response = await axios.get(`${API}/voice/avatar-settings`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const avatarTeachLesson = async (lessonId, voiceId = 'nova') => {
+  const response = await axios.post(`${API}/content/lesson/${lessonId}/avatar-teach?voice_id=${voiceId}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== STUDENT VIRTUAL CLASSROOM ====================
+export const getStudentMeetings = async () => {
+  const response = await axios.get(`${API}/zoom/student-meetings`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const addMeetingRecording = async (meetingId, recordingUrl) => {
+  const response = await axios.post(`${API}/zoom/meeting/${meetingId}/add-recording?recording_url=${encodeURIComponent(recordingUrl)}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== ORGANIZATION ADMIN ====================
+export const getOrgAdminDashboard = async () => {
+  const response = await axios.get(`${API}/org-admin/dashboard`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getOrgTeachers = async () => {
+  const response = await axios.get(`${API}/org-admin/teachers`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getOrgStudents = async () => {
+  const response = await axios.get(`${API}/org-admin/students`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const createCourseFromPDF = async (file, title, category = 'certificate', price = 0) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('title', title);
+  formData.append('category', category);
+  formData.append('price', price.toString());
+  const response = await axios.post(`${API}/org-admin/create-course-from-pdf`, formData, {
+    headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' }
+  });
+  return response.data;
+};
+
+export const bulkEnrollStudents = async (courseId, studentEmails) => {
+  const response = await axios.post(`${API}/org-admin/bulk-enroll`, {
+    course_id: courseId,
+    student_emails: studentEmails
+  }, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getOrgAnalytics = async () => {
+  const response = await axios.get(`${API}/org-admin/analytics`, { headers: getAuthHeaders() });
+  return response.data;
+};
