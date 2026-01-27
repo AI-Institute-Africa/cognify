@@ -36,6 +36,7 @@ export default function StudyGroupsPage() {
   const { user } = useAuth();
   const [groups, setGroups] = useState([]);
   const [suggestedGroups, setSuggestedGroups] = useState([]);
+  const [allGroups, setAllGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showMatchDialog, setShowMatchDialog] = useState(false);
@@ -46,6 +47,8 @@ export default function StudyGroupsPage() {
   const [matchLoading, setMatchLoading] = useState(false);
   const [matchResults, setMatchResults] = useState(null);
   const [newGroup, setNewGroup] = useState({ name: '', topic: '', description: '' });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('my-groups');
 
   useEffect(() => {
     loadData();
@@ -53,14 +56,31 @@ export default function StudyGroupsPage() {
 
   const loadData = async () => {
     try {
-      const response = await getStudyGroups();
-      setGroups(response.groups || []);
-      setSuggestedGroups(response.suggested || []);
+      const [myGroupsResponse, allGroupsResponse] = await Promise.all([
+        getStudyGroups(),
+        getAllStudyGroups()
+      ]);
+      setGroups(myGroupsResponse.groups || []);
+      setSuggestedGroups(myGroupsResponse.suggested || []);
+      setAllGroups(allGroupsResponse || []);
     } catch (error) {
       console.error('Failed to load study groups:', error);
       toast.error('Failed to load study groups');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      loadData();
+      return;
+    }
+    try {
+      const results = await getAllStudyGroups(searchQuery);
+      setAllGroups(results || []);
+    } catch (error) {
+      toast.error('Search failed');
     }
   };
 
