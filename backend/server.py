@@ -736,7 +736,8 @@ async def generate_concepts_from_courses(current_user: dict = Depends(get_curren
             # Generate concepts for each course
             if api_key:
                 try:
-                    chat = LlmChat(api_key=api_key, session_id=f"kg-{course['id']}")
+                    system_msg = "You are an AI that generates educational concepts from course descriptions. Return structured JSON data."
+                    chat = LlmChat(api_key=api_key, session_id=f"kg-{course['id']}", system_message=system_msg)
                     chat.with_model("openai", "gpt-5.2")
                     
                     prompt = f"""Generate 5 key concepts for this course: "{course['name']}"
