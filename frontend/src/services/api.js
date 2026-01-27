@@ -666,8 +666,11 @@ export const getAssignments = async () => {
   return response.data;
 };
 
-export const createAssignment = async (assignmentData) => {
-  const response = await axios.post(`${API}/assignments`, assignmentData, { headers: getAuthHeaders() });
+export const createAssignment = async (title, courseId, description = '', dueDate = null, maxScore = 100) => {
+  const params = new URLSearchParams({ title, course_id: courseId, max_score: maxScore.toString() });
+  if (description) params.append('description', description);
+  if (dueDate) params.append('due_date', dueDate);
+  const response = await axios.post(`${API}/assignments/create?${params}`, {}, { headers: getAuthHeaders() });
   return response.data;
 };
 
