@@ -5376,7 +5376,7 @@ async def reset_password(email: str, reset_code: str, new_password: str):
 
 # ==================== GOOGLE AUTH ====================
 
-@auth_router.post("/google/session")
+@api_router.post("/auth/google/session")
 async def process_google_session(session_id: str):
     """Process Google OAuth session from Emergent Auth"""
     import httpx
@@ -5454,7 +5454,7 @@ async def process_google_session(session_id: str):
 
 # ==================== ALL STUDY GROUPS (FOR DISCOVERY) ====================
 
-@study_groups_router.get("/all")
+@api_router.get("/study-groups/all")
 async def get_all_study_groups(
     search: Optional[str] = None,
     topic: Optional[str] = None,
@@ -5484,7 +5484,7 @@ async def get_all_study_groups(
 
 # ==================== TEACHER COURSE MANAGEMENT ====================
 
-@courses_router.get("/teacher/my-courses")
+@api_router.get("/courses/teacher/my-courses")
 async def get_teacher_courses(current_user: dict = Depends(get_current_user)):
     """Get all courses created by teacher"""
     if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
@@ -5504,7 +5504,7 @@ async def get_teacher_courses(current_user: dict = Depends(get_current_user)):
     
     return courses
 
-@courses_router.delete("/{course_id}")
+@api_router.delete("/courses/{course_id}")
 async def delete_course(course_id: str, current_user: dict = Depends(get_current_user)):
     """Delete a course (teacher only)"""
     if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
@@ -5523,7 +5523,7 @@ async def delete_course(course_id: str, current_user: dict = Depends(get_current
     
     return {"message": "Course deleted successfully"}
 
-@courses_router.put("/{course_id}")
+@api_router.put("/courses/{course_id}")
 async def update_course(
     course_id: str,
     name: Optional[str] = None,
