@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
-import { getStudyGroups, createStudyGroup, joinStudyGroup, getGroupChat, sendGroupMessage, findStudyMatches } from '../services/api';
+import { getStudyGroups, createStudyGroup, joinStudyGroup, getGroupChat, sendGroupMessage, findStudyMatches, getAllStudyGroups } from '../services/api';
 import { 
   Users, 
   UserPlus,
