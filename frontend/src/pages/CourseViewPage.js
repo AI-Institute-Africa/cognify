@@ -4,13 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
-import { getCourse, getCourseContent, translateText, generateTTS, uploadCourseContent } from '../services/api';
+import { getCourse, getCourseContent, translateText, generateTTS, uploadCourseContent, avatarTeachLesson, generateVideoContent, generateSlidesContent, getAvatarSettings } from '../services/api';
 import { 
   BookOpen, Video, FileText, Headphones, Image, 
   ArrowLeft, Play, Pause, Volume2, Globe, 
   ChevronRight, Download, Share2, CheckCircle,
   Clock, Users, GraduationCap, Loader2, Plus, Upload,
-  Lightbulb, X, ExternalLink, FileSearch
+  Lightbulb, X, ExternalLink, FileSearch, User, Sparkles, Wand2
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -40,6 +40,7 @@ const LEARNING_MODES = [
   { id: 'video', icon: Video, label: 'Video', description: 'Watch video lessons' },
   { id: 'audio', icon: Headphones, label: 'Audio', description: 'Listen while multitasking' },
   { id: 'slides', icon: Image, label: 'Slides', description: 'Visual picture slides' },
+  { id: 'avatar', icon: User, label: 'Avatar Tutor', description: 'AI tutor teaches you' },
 ];
 
 const SUPPORTED_LANGUAGES = [
