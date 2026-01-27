@@ -56,7 +56,14 @@ export default function VirtualClassroomPage() {
   const loadMeetings = async () => {
     try {
       setLoading(true);
-      const data = await getZoomMeetings();
+      // Students see meetings from their enrolled courses
+      // Teachers/Admins see all meetings they created
+      let data;
+      if (user?.role === 'student') {
+        data = await getStudentMeetings();
+      } else {
+        data = await getZoomMeetings();
+      }
       setMeetings(data || []);
     } catch (error) {
       console.error('Failed to load meetings:', error);
