@@ -3778,7 +3778,8 @@ async def start_outcome_learning(pathway_id: str, current_user: dict = Depends(g
         outcome = pathway.get('outcome', 'General learning')
         
         # Generate learning plan
-        chat = LlmChat(api_key=api_key, session_id=f"outcome-{pathway_id}")
+        system_msg = "You are an AI learning path designer. Create comprehensive, structured learning plans in JSON format."
+        chat = LlmChat(api_key=api_key, session_id=f"outcome-{pathway_id}", system_message=system_msg)
         chat.with_model("openai", "gpt-5.2")
         
         prompt = f"""Create a comprehensive learning plan for this outcome: "{outcome}"
