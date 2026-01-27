@@ -329,23 +329,39 @@ export default function VirtualClassroomPage() {
                       )}
                       
                       <div className="flex gap-3">
-                        <Button 
-                          onClick={() => window.open(meeting.join_url, '_blank')}
-                          data-testid={`join-meeting-${meeting.id}`}
-                          className={`flex-1 ${status === 'live' ? 'bg-red-500 hover:bg-red-600' : ''}`}
-                        >
-                          {status === 'live' ? (
-                            <>
-                              <Play className="w-4 h-4 mr-2" />
-                              Join Now
-                            </>
-                          ) : (
-                            <>
-                              <ExternalLink className="w-4 h-4 mr-2" />
-                              Open Meeting
-                            </>
-                          )}
-                        </Button>
+                        {status === 'completed' && meeting.recording_url ? (
+                          <Button 
+                            onClick={() => window.open(meeting.recording_url, '_blank')}
+                            data-testid={`recording-${meeting.id}`}
+                            className="flex-1 bg-violet-500 hover:bg-violet-600"
+                          >
+                            <Play className="w-4 h-4 mr-2" />
+                            Watch Recording
+                          </Button>
+                        ) : (
+                          <Button 
+                            onClick={() => window.open(meeting.join_url, '_blank')}
+                            data-testid={`join-meeting-${meeting.id}`}
+                            className={`flex-1 ${status === 'live' ? 'bg-red-500 hover:bg-red-600' : ''}`}
+                          >
+                            {status === 'live' ? (
+                              <>
+                                <Play className="w-4 h-4 mr-2" />
+                                Join Now
+                              </>
+                            ) : status === 'completed' ? (
+                              <>
+                                <ExternalLink className="w-4 h-4 mr-2" />
+                                View Meeting
+                              </>
+                            ) : (
+                              <>
+                                <ExternalLink className="w-4 h-4 mr-2" />
+                                Open Meeting
+                              </>
+                            )}
+                          </Button>
+                        )}
                         <Button 
                           variant="outline" 
                           onClick={() => copyToClipboard(meeting.join_url)}
