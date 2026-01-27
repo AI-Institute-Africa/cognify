@@ -674,6 +674,25 @@ export const createAssignment = async (title, courseId, description = '', dueDat
   return response.data;
 };
 
+export const getCourseAssignments = async (courseId) => {
+  const response = await axios.get(`${API}/assignments/course/${courseId}`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const submitAssignment = async (assignmentId, content) => {
+  const response = await axios.post(
+    `${API}/assignments/${assignmentId}/submit?content=${encodeURIComponent(content)}`,
+    {},
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+export const getAssignmentSubmissions = async (assignmentId) => {
+  const response = await axios.get(`${API}/assignments/${assignmentId}/submissions`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
 // ==================== WHATSAPP SHARING ====================
 export const shareViaWhatsApp = (text, url = '') => {
   const message = encodeURIComponent(`${text}\n${url}`);
