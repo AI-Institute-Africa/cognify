@@ -1132,6 +1132,84 @@ export default function CourseViewPage() {
             </div>
           </div>
         )}
+
+        {/* AI Content Generation Dialog */}
+        <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
+          <DialogContent className="bg-zinc-900 border-white/10">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Wand2 className="w-5 h-5 text-violet-400" />
+                AI Content Generation
+              </DialogTitle>
+              <DialogDescription className="text-zinc-500">
+                Generate educational content using AI for this lesson
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <div>
+                <Label>Content Type</Label>
+                <div className="grid grid-cols-2 gap-3 mt-2">
+                  <button
+                    onClick={() => setGenerateType('video')}
+                    className={`p-4 rounded-xl border-2 text-center transition-all ${
+                      generateType === 'video'
+                        ? 'border-violet-500 bg-violet-500/10'
+                        : 'border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <Video className="w-8 h-8 mx-auto mb-2 text-violet-400" />
+                    <p className="font-medium">Video</p>
+                    <p className="text-xs text-zinc-500">4-12 second explainer</p>
+                  </button>
+                  <button
+                    onClick={() => setGenerateType('slides')}
+                    className={`p-4 rounded-xl border-2 text-center transition-all ${
+                      generateType === 'slides'
+                        ? 'border-blue-500 bg-blue-500/10'
+                        : 'border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <Image className="w-8 h-8 mx-auto mb-2 text-blue-400" />
+                    <p className="font-medium">Slides</p>
+                    <p className="text-xs text-zinc-500">5 visual slides</p>
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <p className="text-sm text-amber-300 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  {generateType === 'video' 
+                    ? 'Video generation uses Sora 2 and may take 2-5 minutes'
+                    : 'Slides use Gemini Nano Banana for educational visuals'}
+                </p>
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4">
+                <Button variant="ghost" onClick={() => setShowGenerateDialog(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleGenerateContent}
+                  disabled={generatingContent}
+                  className="bg-violet-500 hover:bg-violet-600"
+                >
+                  {generatingContent ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-4 h-4 mr-2" />
+                      Generate {generateType === 'video' ? 'Video' : 'Slides'}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
