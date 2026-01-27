@@ -314,9 +314,6 @@ export default function LiveResearchPage() {
                   </div>
                 </div>
               )}
-                  </p>
-                </div>
-              )}
             </div>
           )}
 
