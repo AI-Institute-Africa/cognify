@@ -841,7 +841,7 @@ export default function CourseViewPage() {
                           <Headphones className="w-12 h-12 text-violet-400" />
                         </div>
                         <h3 className="text-xl font-bold mb-2">Audio Learning Mode</h3>
-                        <p className="text-zinc-400">Listen to this lesson while you're on the go</p>
+                        <p className="text-zinc-400">Listen to this lesson while you&apos;re on the go</p>
                       </div>
                       
                       {audioUrl ? (
