@@ -5151,6 +5151,7 @@ api_router.include_router(multimodal_router)
 api_router.include_router(exams_router)
 api_router.include_router(assignments_router)
 api_router.include_router(payments_router)
+api_router.include_router(org_admin_router)
 
 app.include_router(api_router)
 
