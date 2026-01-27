@@ -5954,6 +5954,9 @@ async def live_research_search(
         logging.error(f"Research search error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Include all routes in the app - MUST be after all route definitions
+app.include_router(api_router)
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
