@@ -2557,7 +2557,8 @@ async def issue_credential(request: CredentialRequest, current_user: dict = Depe
     
     # Generate hash (simple hash-based verification)
     import hashlib
-    credential_string = json.dumps(credential_data, sort_keys=True)
+    import json as json_lib
+    credential_string = json_lib.dumps(credential_data, sort_keys=True)
     credential_hash = hashlib.sha256(credential_string.encode()).hexdigest()
     
     credential = {
