@@ -2779,7 +2779,7 @@ async def websocket_notifications(websocket: WebSocket, token: str):
     """WebSocket endpoint for real-time notifications"""
     try:
         # Verify token
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id = payload.get("sub")
         
         if not user_id:
