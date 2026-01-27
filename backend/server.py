@@ -5171,6 +5171,789 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ==================== USER SETTINGS ENDPOINTS ====================
+
+@api_router.put("/user/profile")
+async def update_user_profile(
+    full_name: Optional[str] = None,
+    phone: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update user profile information"""
+    try:
+        update_data = {}
+        if full_name:
+            update_data['full_name'] = full_name
+        if phone:
+            update_data['phone'] = phone
+        
+        if update_data:
+            update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
+            await db.users.update_one(
+                {"id": current_user['id']},
+                {"$set": update_data}
+            )
+        
+        # Return updated user
+        user = await db.users.find_one({"id": current_user['id']}, {"_id": 0, "password_hash": 0})
+        return user
+    except Exception as e:
+        logging.error(f"Profile update error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/user/profile-photo")
+async def upload_profile_photo(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload profile photo"""
+    try:
+        # Save file
+        photo_id = str(uuid.uuid4())
+        os.makedirs("/app/profile_photos", exist_ok=True)
+        file_ext = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
+        photo_path = f"/app/profile_photos/{photo_id}.{file_ext}"
+        
+        content = await file.read()
+        with open(photo_path, "wb") as f:
+            f.write(content)
+        
+        photo_url = f"/api/user/photo/{photo_id}.{file_ext}"
+        
+        # Update user
+        await db.users.update_one(
+            {"id": current_user['id']},
+            {"$set": {"profile_image": photo_url}}
+        )
+        
+        return {"message": "Photo uploaded", "photo_url": photo_url}
+    except Exception as e:
+        logging.error(f"Photo upload error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/user/photo/{filename}")
+async def get_profile_photo(filename: str):
+    """Serve profile photo"""
+    from fastapi.responses import FileResponse
+    photo_path = f"/app/profile_photos/{filename}"
+    if not os.path.exists(photo_path):
+        raise HTTPException(status_code=404, detail="Photo not found")
+    return FileResponse(photo_path)
+
+@api_router.put("/user/notifications")
+async def update_notification_settings(
+    email_notifications: bool = True,
+    push_notifications: bool = True,
+    grade_notifications: bool = True,
+    attendance_alerts: bool = True,
+    fee_reminders: bool = True,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update notification preferences"""
+    settings = {
+        "email_notifications": email_notifications,
+        "push_notifications": push_notifications,
+        "grade_notifications": grade_notifications,
+        "attendance_alerts": attendance_alerts,
+        "fee_reminders": fee_reminders,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.user_settings.update_one(
+        {"user_id": current_user['id']},
+        {"$set": settings},
+        upsert=True
+    )
+    
+    return {"message": "Notification settings updated", "settings": settings}
+
+@api_router.get("/user/settings")
+async def get_user_settings(current_user: dict = Depends(get_current_user)):
+    """Get user settings"""
+    settings = await db.user_settings.find_one({"user_id": current_user['id']}, {"_id": 0})
+    if not settings:
+        settings = {
+            "email_notifications": True,
+            "push_notifications": True,
+            "grade_notifications": True,
+            "attendance_alerts": True,
+            "fee_reminders": True,
+            "appearance": "dark"
+        }
+    return settings
+
+@api_router.put("/user/appearance")
+async def update_appearance(
+    theme: str = "dark",
+    current_user: dict = Depends(get_current_user)
+):
+    """Update appearance settings"""
+    await db.user_settings.update_one(
+        {"user_id": current_user['id']},
+        {"$set": {"appearance": theme}},
+        upsert=True
+    )
+    return {"message": "Appearance updated", "theme": theme}
+
+@api_router.put("/user/password")
+async def change_password(
+    current_password: str,
+    new_password: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Change user password"""
+    user = await db.users.find_one({"id": current_user['id']})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verify current password
+    if not bcrypt.checkpw(current_password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    
+    # Hash new password
+    new_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    
+    await db.users.update_one(
+        {"id": current_user['id']},
+        {"$set": {"password_hash": new_hash, "password_changed_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"message": "Password changed successfully"}
+
+# ==================== FORGOT PASSWORD ====================
+
+@auth_router.post("/forgot-password")
+async def forgot_password(email: str):
+    """Send password reset email (mocked - returns reset code)"""
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        # Don't reveal if email exists
+        return {"message": "If the email exists, a reset code has been sent"}
+    
+    # Generate reset code
+    reset_code = str(uuid.uuid4())[:8].upper()
+    expires = datetime.now(timezone.utc) + timedelta(hours=1)
+    
+    await db.password_resets.update_one(
+        {"email": email},
+        {"$set": {"code": reset_code, "expires_at": expires.isoformat(), "used": False}},
+        upsert=True
+    )
+    
+    # In production, send email. For now, return code (MOCKED)
+    return {
+        "message": "Reset code sent to email",
+        "reset_code": reset_code,  # MOCKED - remove in production
+        "note": "Email sending is mocked. Use this code to reset password."
+    }
+
+@auth_router.post("/reset-password")
+async def reset_password(email: str, reset_code: str, new_password: str):
+    """Reset password using reset code"""
+    reset = await db.password_resets.find_one({"email": email, "code": reset_code, "used": False}, {"_id": 0})
+    if not reset:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset code")
+    
+    expires = datetime.fromisoformat(reset['expires_at'].replace('Z', '+00:00'))
+    if expires < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Reset code has expired")
+    
+    # Hash new password
+    new_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    
+    await db.users.update_one(
+        {"email": email},
+        {"$set": {"password_hash": new_hash}}
+    )
+    
+    # Mark code as used
+    await db.password_resets.update_one(
+        {"email": email, "code": reset_code},
+        {"$set": {"used": True}}
+    )
+    
+    return {"message": "Password reset successfully"}
+
+# ==================== GOOGLE AUTH ====================
+
+@auth_router.post("/google/session")
+async def process_google_session(session_id: str):
+    """Process Google OAuth session from Emergent Auth"""
+    import httpx
+    
+    try:
+        # Call Emergent auth API to get session data
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+                headers={"X-Session-ID": session_id}
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=401, detail="Invalid session")
+            
+            session_data = response.json()
+        
+        email = session_data.get('email')
+        name = session_data.get('name', '')
+        picture = session_data.get('picture', '')
+        google_session_token = session_data.get('session_token')
+        
+        # Check if user exists
+        user = await db.users.find_one({"email": email}, {"_id": 0, "password_hash": 0})
+        
+        if not user:
+            # Create new user
+            user_id = str(uuid.uuid4())
+            new_user = {
+                "id": user_id,
+                "email": email,
+                "full_name": name,
+                "profile_image": picture,
+                "role": "student",  # Default role
+                "auth_provider": "google",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.users.insert_one(new_user)
+            user = {k: v for k, v in new_user.items() if k != 'password_hash'}
+            
+            # Create student profile
+            await db.student_profiles.insert_one({
+                "id": str(uuid.uuid4()),
+                "user_id": user_id,
+                "enrolled_courses": [],
+                "gpa": 0.0,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+        
+        # Generate JWT token
+        token_data = {"sub": user['id'], "email": user['email'], "role": user.get('role', 'student')}
+        token = jwt.encode(token_data, JWT_SECRET, algorithm=JWT_ALGORITHM)
+        
+        # Store session
+        await db.user_sessions.update_one(
+            {"user_id": user['id']},
+            {"$set": {
+                "session_token": google_session_token,
+                "jwt_token": token,
+                "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }},
+            upsert=True
+        )
+        
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user": user
+        }
+        
+    except Exception as e:
+        logging.error(f"Google auth error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== ALL STUDY GROUPS (FOR DISCOVERY) ====================
+
+@study_groups_router.get("/all")
+async def get_all_study_groups(
+    search: Optional[str] = None,
+    topic: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all study groups for discovery"""
+    query = {"is_public": {"$ne": False}}  # Public or not specified
+    
+    if search:
+        query["$or"] = [
+            {"name": {"$regex": search, "$options": "i"}},
+            {"topic": {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}}
+        ]
+    
+    if topic:
+        query["topic"] = {"$regex": topic, "$options": "i"}
+    
+    groups = await db.study_groups.find(query, {"_id": 0}).to_list(length=100)
+    
+    # Add member count and check if user is member
+    for group in groups:
+        group['member_count'] = len(group.get('members', []))
+        group['is_member'] = current_user['id'] in group.get('members', [])
+    
+    return groups
+
+# ==================== TEACHER COURSE MANAGEMENT ====================
+
+@courses_router.get("/teacher/my-courses")
+async def get_teacher_courses(current_user: dict = Depends(get_current_user)):
+    """Get all courses created by teacher"""
+    if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    courses = await db.courses.find(
+        {"teacher_id": current_user['id']},
+        {"_id": 0}
+    ).to_list(length=100)
+    
+    # Enrich with student count
+    for course in courses:
+        course['student_count'] = len(course.get('enrolled_students', []))
+        # Get total students registered
+        profiles = await db.student_profiles.count_documents({"enrolled_courses": course['id']})
+        course['registered_students'] = profiles
+    
+    return courses
+
+@courses_router.delete("/{course_id}")
+async def delete_course(course_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a course (teacher only)"""
+    if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    if course.get('teacher_id') != current_user['id'] and current_user.get('role') != 'admin':
+        raise HTTPException(status_code=403, detail="You can only delete your own courses")
+    
+    # Delete course and related content
+    await db.courses.delete_one({"id": course_id})
+    await db.course_content.delete_many({"course_id": course_id})
+    
+    return {"message": "Course deleted successfully"}
+
+@courses_router.put("/{course_id}")
+async def update_course(
+    course_id: str,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    status: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update course details"""
+    if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    update_data = {}
+    if name:
+        update_data['name'] = name
+    if description:
+        update_data['description'] = description
+    if status:
+        update_data['status'] = status
+    
+    if update_data:
+        update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
+        await db.courses.update_one({"id": course_id}, {"$set": update_data})
+    
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    return course
+
+# ==================== TEACHER VIDEO UPLOAD ====================
+
+@content_router.post("/upload-video")
+async def upload_video_file(
+    course_id: str,
+    title: str,
+    file: UploadFile = File(...),
+    description: str = "",
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload video file from device"""
+    if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    try:
+        video_id = str(uuid.uuid4())
+        os.makedirs("/app/uploaded_videos", exist_ok=True)
+        file_ext = file.filename.split('.')[-1] if '.' in file.filename else 'mp4'
+        video_path = f"/app/uploaded_videos/{video_id}.{file_ext}"
+        
+        content = await file.read()
+        with open(video_path, "wb") as f:
+            f.write(content)
+        
+        video_url = f"/api/content/uploaded-video/{video_id}.{file_ext}"
+        
+        # Create content record
+        content_record = {
+            "id": video_id,
+            "course_id": course_id,
+            "content_type": "video",
+            "title": title,
+            "description": description,
+            "video_url": video_url,
+            "file_path": video_path,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.course_content.insert_one(content_record)
+        
+        return {"message": "Video uploaded", "video_url": video_url, "content_id": video_id}
+    except Exception as e:
+        logging.error(f"Video upload error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@content_router.get("/uploaded-video/{filename}")
+async def get_uploaded_video(filename: str):
+    """Serve uploaded video file"""
+    from fastapi.responses import FileResponse
+    video_path = f"/app/uploaded_videos/{filename}"
+    if not os.path.exists(video_path):
+        raise HTTPException(status_code=404, detail="Video not found")
+    return FileResponse(video_path, media_type="video/mp4")
+
+# ==================== REAL GRADES AND ATTENDANCE ====================
+
+@grades_router.get("/student/{student_id}")
+async def get_student_grades(student_id: str, current_user: dict = Depends(get_current_user)):
+    """Get real grades for a student"""
+    grades = await db.grades.find({"student_id": student_id}, {"_id": 0}).to_list(length=100)
+    
+    if not grades:
+        # Get from exam submissions
+        submissions = await db.exam_submissions.find({"student_id": student_id}, {"_id": 0}).to_list(length=100)
+        for sub in submissions:
+            grades.append({
+                "id": sub.get('id', str(uuid.uuid4())),
+                "student_id": student_id,
+                "assessment_type": "exam",
+                "assessment_name": sub.get('exam_title', 'Exam'),
+                "score": sub.get('earned_points', 0),
+                "max_score": sub.get('total_points', 100),
+                "percentage": sub.get('score', 0),
+                "grade_letter": sub.get('grade', 'N/A'),
+                "submitted_at": sub.get('submitted_at')
+            })
+    
+    return grades
+
+@attendance_router.get("/student/{student_id}")
+async def get_student_attendance(student_id: str, current_user: dict = Depends(get_current_user)):
+    """Get real attendance for a student"""
+    attendance = await db.attendance.find({"student_id": student_id}, {"_id": 0}).to_list(length=500)
+    
+    # Calculate statistics
+    total = len(attendance)
+    present = sum(1 for a in attendance if a.get('status') == 'present')
+    absent = sum(1 for a in attendance if a.get('status') == 'absent')
+    late = sum(1 for a in attendance if a.get('status') == 'late')
+    
+    return {
+        "records": attendance,
+        "statistics": {
+            "total": total,
+            "present": present,
+            "absent": absent,
+            "late": late,
+            "attendance_rate": (present / total * 100) if total > 0 else 0
+        }
+    }
+
+# ==================== ASSIGNMENT MANAGEMENT ====================
+
+@assignments_router.post("/create")
+async def create_assignment(
+    title: str,
+    course_id: str,
+    description: str = "",
+    due_date: Optional[str] = None,
+    max_score: int = 100,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create assignment for a specific course"""
+    if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    assignment_id = str(uuid.uuid4())
+    assignment = {
+        "id": assignment_id,
+        "title": title,
+        "course_id": course_id,
+        "description": description,
+        "due_date": due_date,
+        "max_score": max_score,
+        "teacher_id": current_user['id'],
+        "status": "active",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.assignments.insert_one(assignment)
+    
+    return assignment
+
+@assignments_router.get("/course/{course_id}")
+async def get_course_assignments(course_id: str, current_user: dict = Depends(get_current_user)):
+    """Get assignments for a course"""
+    assignments = await db.assignments.find({"course_id": course_id, "status": "active"}, {"_id": 0}).to_list(length=100)
+    return assignments
+
+@assignments_router.post("/{assignment_id}/submit")
+async def submit_assignment(
+    assignment_id: str,
+    content: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Submit assignment and auto-grade"""
+    assignment = await db.assignments.find_one({"id": assignment_id}, {"_id": 0})
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    # Auto-grade using AI
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    score = 0
+    feedback = ""
+    suggested_answer = ""
+    
+    if api_key:
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            
+            system_msg = """You are an assignment grader. Grade the submission and provide:
+            1. Score out of 100
+            2. Detailed feedback
+            3. Suggested correct answer
+            Return as JSON: {"score": 85, "feedback": "...", "suggested_answer": "..."}"""
+            
+            chat = LlmChat(api_key=api_key, session_id=f"grade-{assignment_id}", system_message=system_msg)
+            chat.with_model("openai", "gpt-5.2")
+            
+            response = await chat.send_message(UserMessage(
+                text=f"Assignment: {assignment.get('title')}\nDescription: {assignment.get('description')}\n\nStudent Submission:\n{content}"
+            ))
+            
+            import json
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            if json_start >= 0:
+                parsed = json.loads(response[json_start:json_end])
+                score = parsed.get('score', 70)
+                feedback = parsed.get('feedback', 'Good effort!')
+                suggested_answer = parsed.get('suggested_answer', '')
+        except Exception as e:
+            logging.error(f"Auto-grade error: {e}")
+            score = 70
+            feedback = "Submission received. Manual review pending."
+    
+    # Calculate grade letter
+    if score >= 90: grade = 'A'
+    elif score >= 80: grade = 'B'
+    elif score >= 70: grade = 'C'
+    elif score >= 60: grade = 'D'
+    else: grade = 'F'
+    
+    # Save submission
+    submission = {
+        "id": str(uuid.uuid4()),
+        "assignment_id": assignment_id,
+        "student_id": current_user['id'],
+        "content": content,
+        "score": score,
+        "grade": grade,
+        "feedback": feedback,
+        "suggested_answer": suggested_answer,
+        "submitted_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.assignment_submissions.insert_one(submission)
+    
+    # Record grade
+    await db.grades.insert_one({
+        "id": str(uuid.uuid4()),
+        "student_id": current_user['id'],
+        "course_id": assignment.get('course_id'),
+        "assessment_type": "assignment",
+        "assessment_name": assignment.get('title'),
+        "score": score,
+        "max_score": assignment.get('max_score', 100),
+        "grade_letter": grade,
+        "percentage": score,
+        "submitted_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {
+        "message": "Assignment submitted and graded",
+        "score": score,
+        "grade": grade,
+        "feedback": feedback
+    }
+
+@assignments_router.get("/{assignment_id}/submissions")
+async def get_assignment_submissions(assignment_id: str, current_user: dict = Depends(get_current_user)):
+    """Get all submissions for an assignment (teacher view)"""
+    if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    submissions = await db.assignment_submissions.find({"assignment_id": assignment_id}, {"_id": 0}).to_list(length=500)
+    
+    # Enrich with student info
+    for sub in submissions:
+        student = await db.users.find_one({"id": sub['student_id']}, {"_id": 0, "password_hash": 0})
+        sub['student'] = student
+    
+    return submissions
+
+# ==================== PARENT PORTAL FIXES ====================
+
+@api_router.get("/parents/children")
+async def get_parent_children(current_user: dict = Depends(get_current_user)):
+    """Get parent's linked children"""
+    if current_user.get('role') != 'parent':
+        raise HTTPException(status_code=403, detail="Parent access required")
+    
+    # Get linked children
+    links = await db.parent_child_links.find(
+        {"parent_id": current_user['id'], "status": "approved"},
+        {"_id": 0}
+    ).to_list(length=10)
+    
+    children = []
+    for link in links:
+        child = await db.users.find_one({"id": link['child_id']}, {"_id": 0, "password_hash": 0})
+        if child:
+            # Get profile data
+            profile = await db.student_profiles.find_one({"user_id": child['id']}, {"_id": 0})
+            child['gpa'] = profile.get('gpa', 0) if profile else 0
+            child['enrolled_courses'] = len(profile.get('enrolled_courses', [])) if profile else 0
+            children.append(child)
+    
+    return children
+
+@api_router.get("/parents/children/{child_id}/details")
+async def get_child_details(child_id: str, current_user: dict = Depends(get_current_user)):
+    """Get detailed information about a child"""
+    if current_user.get('role') != 'parent':
+        raise HTTPException(status_code=403, detail="Parent access required")
+    
+    # Verify parent has access to this child
+    link = await db.parent_child_links.find_one({
+        "parent_id": current_user['id'],
+        "child_id": child_id,
+        "status": "approved"
+    }, {"_id": 0})
+    
+    if not link:
+        raise HTTPException(status_code=403, detail="Not authorized to view this child")
+    
+    # Get child data
+    child = await db.users.find_one({"id": child_id}, {"_id": 0, "password_hash": 0})
+    profile = await db.student_profiles.find_one({"user_id": child_id}, {"_id": 0})
+    
+    # Get grades
+    grades = await db.grades.find({"student_id": child_id}, {"_id": 0}).to_list(length=100)
+    
+    # Get attendance
+    attendance = await db.attendance.find({"student_id": child_id}, {"_id": 0}).to_list(length=100)
+    
+    # Get enrolled courses
+    courses = []
+    if profile and profile.get('enrolled_courses'):
+        for course_id in profile['enrolled_courses']:
+            course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+            if course:
+                courses.append(course)
+    
+    return {
+        "child": child,
+        "profile": profile,
+        "grades": grades,
+        "attendance": attendance,
+        "courses": courses
+    }
+
+@api_router.post("/parents/link-child")
+async def link_child(child_email: str, current_user: dict = Depends(get_current_user)):
+    """Request to link a child"""
+    if current_user.get('role') != 'parent':
+        raise HTTPException(status_code=403, detail="Parent access required")
+    
+    # Find child
+    child = await db.users.find_one({"email": child_email, "role": "student"}, {"_id": 0})
+    if not child:
+        raise HTTPException(status_code=404, detail="Student not found with this email")
+    
+    # Check if already linked
+    existing = await db.parent_child_links.find_one({
+        "parent_id": current_user['id'],
+        "child_id": child['id']
+    }, {"_id": 0})
+    
+    if existing:
+        raise HTTPException(status_code=400, detail="Already linked or pending")
+    
+    # Create link request
+    await db.parent_child_links.insert_one({
+        "id": str(uuid.uuid4()),
+        "parent_id": current_user['id'],
+        "child_id": child['id'],
+        "status": "approved",  # Auto-approve for demo
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {"message": "Child linked successfully"}
+
+# ==================== LIVE RESEARCH WITH REAL LINKS ====================
+
+@api_router.post("/research/search")
+async def live_research_search(
+    query: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Search for real academic publications"""
+    try:
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="Search service not configured")
+        
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        system_msg = """You are an academic research assistant. When given a search query, provide real academic resources.
+        Return JSON array of results with: title, authors, year, abstract, url (use real URLs to Google Scholar, ResearchGate, arXiv, etc.)
+        Example URL formats:
+        - Google Scholar: https://scholar.google.com/scholar?q={encoded_query}
+        - arXiv: https://arxiv.org/search/?query={query}
+        - ResearchGate: https://www.researchgate.net/search/publication?q={query}
+        - PubMed: https://pubmed.ncbi.nlm.nih.gov/?term={query}
+        """
+        
+        chat = LlmChat(api_key=api_key, session_id=f"research-{uuid.uuid4()}", system_message=system_msg)
+        chat.with_model("openai", "gpt-5.2")
+        
+        response = await chat.send_message(UserMessage(
+            text=f"Find academic papers and resources about: {query}\nProvide 5-10 results with real URLs."
+        ))
+        
+        import json
+        from urllib.parse import quote
+        
+        # Try to parse JSON response
+        results = []
+        try:
+            json_start = response.find('[')
+            json_end = response.rfind(']') + 1
+            if json_start >= 0:
+                results = json.loads(response[json_start:json_end])
+        except:
+            pass
+        
+        # Always add real search links
+        encoded_query = quote(query)
+        real_links = [
+            {"title": f"Search '{query}' on Google Scholar", "url": f"https://scholar.google.com/scholar?q={encoded_query}", "source": "Google Scholar"},
+            {"title": f"Search '{query}' on arXiv", "url": f"https://arxiv.org/search/?query={encoded_query}&searchtype=all", "source": "arXiv"},
+            {"title": f"Search '{query}' on ResearchGate", "url": f"https://www.researchgate.net/search/publication?q={encoded_query}", "source": "ResearchGate"},
+            {"title": f"Search '{query}' on PubMed", "url": f"https://pubmed.ncbi.nlm.nih.gov/?term={encoded_query}", "source": "PubMed"},
+            {"title": f"Search '{query}' on Semantic Scholar", "url": f"https://www.semanticscholar.org/search?q={encoded_query}", "source": "Semantic Scholar"},
+        ]
+        
+        return {
+            "query": query,
+            "ai_results": results,
+            "direct_search_links": real_links
+        }
+        
+    except Exception as e:
+        logging.error(f"Research search error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
