@@ -344,6 +344,72 @@ export default function CourseViewPage() {
     }
   };
 
+  // Avatar Teaching Function
+  const handleAvatarTeach = async () => {
+    const lesson = content[currentLessonIndex];
+    if (!lesson?.id) {
+      toast.error('No lesson selected');
+      return;
+    }
+    
+    setAvatarTeaching(true);
+    setAvatarScript('');
+    setAvatarAudioUrl(null);
+    
+    try {
+      const voiceId = avatarSettings?.voice_id || 'nova';
+      const result = await avatarTeachLesson(lesson.id, voiceId);
+      
+      setAvatarScript(result.teaching_script);
+      if (result.audio_url) {
+        setAvatarAudioUrl(result.audio_url);
+      }
+      toast.success('Avatar lesson ready!');
+    } catch (error) {
+      console.error('Avatar teaching failed:', error);
+      toast.error('Failed to generate avatar teaching. Please try again.');
+    } finally {
+      setAvatarTeaching(false);
+    }
+  };
+
+  const playAvatarAudio = () => {
+    if (avatarAudioUrl) {
+      const audio = new Audio(avatarAudioUrl);
+      audio.play();
+      setAvatarPlaying(true);
+      audio.onended = () => setAvatarPlaying(false);
+    }
+  };
+
+  // Generate Video/Slides Content
+  const handleGenerateContent = async () => {
+    const lesson = content[currentLessonIndex];
+    const topic = lesson?.title || course?.name || 'Educational content';
+    
+    setGeneratingContent(true);
+    try {
+      if (generateType === 'video') {
+        toast.info('Generating video... This may take a few minutes.');
+        const result = await generateVideoContent(topic, courseId, 4);
+        toast.success('Video generated successfully!');
+        // Refresh content to show new video
+        loadCourseData();
+      } else {
+        toast.info('Generating slides...');
+        const result = await generateSlidesContent(topic, courseId, 5);
+        toast.success(`Generated ${result.slides?.length || 0} slides!`);
+        loadCourseData();
+      }
+      setShowGenerateDialog(false);
+    } catch (error) {
+      console.error('Content generation failed:', error);
+      toast.error(`Failed to generate ${generateType}. Please try again.`);
+    } finally {
+      setGeneratingContent(false);
+    }
+  };
+
   const currentLesson = content[currentLessonIndex];
   const displayText = translatedContent[currentLessonIndex] || currentLesson?.text || currentLesson?.description || '';
 
