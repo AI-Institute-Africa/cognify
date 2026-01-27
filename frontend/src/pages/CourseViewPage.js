@@ -908,6 +908,121 @@ export default function CourseViewPage() {
                       </div>
                     </div>
                   </TabsContent>
+
+                  <TabsContent value="avatar" className="mt-0">
+                    <div className="space-y-6">
+                      {/* Avatar Teaching Section */}
+                      <div className="p-8 bg-gradient-to-br from-violet-500/10 via-blue-500/10 to-cyan-500/10 rounded-xl border border-white/10">
+                        <div className="flex items-start gap-6 mb-6">
+                          {/* Avatar Display */}
+                          <div className="flex-shrink-0">
+                            <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-violet-500/30 bg-zinc-800">
+                              {avatarSettings?.avatar_image ? (
+                                <img 
+                                  src={avatarSettings.avatar_image} 
+                                  alt="AI Tutor"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-violet-500/20 to-blue-500/20">
+                                  <User className="w-12 h-12 text-violet-400" />
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-center mt-2 font-medium text-sm">
+                              {avatarSettings?.avatar_name || 'AI Tutor'}
+                            </p>
+                          </div>
+                          
+                          {/* Avatar Info */}
+                          <div className="flex-1">
+                            <h3 className="text-xl font-bold mb-2">Avatar-Guided Learning</h3>
+                            <p className="text-zinc-400 mb-4">
+                              Let your personal AI tutor explain this lesson to you in an engaging, conversational way.
+                            </p>
+                            <div className="flex items-center gap-2 text-sm text-zinc-500">
+                              <Badge className="bg-violet-500/20 text-violet-400">
+                                {avatarSettings?.teaching_style || 'Friendly'} Style
+                              </Badge>
+                              <Badge className="bg-blue-500/20 text-blue-400">
+                                Voice: {avatarSettings?.voice_id || 'Nova'}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Generate / Play Buttons */}
+                        <div className="flex gap-3">
+                          <Button
+                            onClick={handleAvatarTeach}
+                            disabled={avatarTeaching}
+                            className="flex-1 bg-violet-500 hover:bg-violet-600"
+                            data-testid="avatar-teach-btn"
+                          >
+                            {avatarTeaching ? (
+                              <>
+                                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                Generating Lesson...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-5 h-5 mr-2" />
+                                {avatarScript ? 'Regenerate Lesson' : 'Start Avatar Teaching'}
+                              </>
+                            )}
+                          </Button>
+                          
+                          {avatarAudioUrl && (
+                            <Button
+                              onClick={playAvatarAudio}
+                              variant="outline"
+                              className="border-violet-500/30 text-violet-400"
+                              data-testid="avatar-audio-btn"
+                            >
+                              {avatarPlaying ? <Pause className="w-5 h-5 mr-2" /> : <Play className="w-5 h-5 mr-2" />}
+                              {avatarPlaying ? 'Pause' : 'Play Audio'}
+                            </Button>
+                          )}
+                          
+                          <Button
+                            variant="outline"
+                            onClick={() => navigate('/avatar-settings')}
+                            className="border-white/10"
+                          >
+                            <User className="w-4 h-4 mr-2" />
+                            Customize
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      {/* Avatar Teaching Script */}
+                      {avatarScript && (
+                        <div className="glass-card p-6">
+                          <h4 className="font-semibold mb-4 flex items-center gap-2">
+                            <BookOpen className="w-5 h-5 text-violet-400" />
+                            Avatar&apos;s Teaching Script
+                          </h4>
+                          <div className="prose prose-invert max-w-none">
+                            <div className="text-zinc-300 leading-relaxed whitespace-pre-wrap bg-zinc-900/50 p-4 rounded-lg max-h-96 overflow-y-auto">
+                              {avatarScript.split('\n').map((line, i) => (
+                                <p key={i} className="my-2">{line}</p>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* No Avatar Script Yet */}
+                      {!avatarScript && !avatarTeaching && (
+                        <div className="text-center py-8">
+                          <User className="w-16 h-16 text-zinc-600 mx-auto mb-4" />
+                          <p className="text-zinc-500">
+                            Click &quot;Start Avatar Teaching&quot; to have your AI tutor explain this lesson
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
                 </Tabs>
 
                 {/* Navigation buttons */}
