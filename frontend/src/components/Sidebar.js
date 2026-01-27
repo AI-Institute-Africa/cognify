@@ -115,8 +115,8 @@ const navItems = {
     { path: '/credentials', icon: FileCheck, label: 'Credentials' },
   ],
   parent: [
-    { path: '/parent-portal', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/children', icon: Users, label: 'My Children' },
+    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/parent-portal', icon: Users, label: 'My Children' },
     { path: '/fees', icon: CreditCard, label: 'Fees' },
     { path: '/attendance', icon: Calendar, label: 'Attendance' },
   ],
