@@ -92,7 +92,33 @@ export default function CourseViewPage() {
     content_url: ''
   });
   
+  // Avatar teaching state
+  const [avatarSettings, setAvatarSettings] = useState(null);
+  const [avatarTeaching, setAvatarTeaching] = useState(false);
+  const [avatarScript, setAvatarScript] = useState('');
+  const [avatarAudioUrl, setAvatarAudioUrl] = useState(null);
+  const [avatarPlaying, setAvatarPlaying] = useState(false);
+  
+  // Content generation state
+  const [generatingContent, setGeneratingContent] = useState(false);
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [generateType, setGenerateType] = useState('video');
+  
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'org_admin';
+
+  // Load avatar settings on mount
+  useEffect(() => {
+    loadAvatarSettings();
+  }, []);
+
+  const loadAvatarSettings = async () => {
+    try {
+      const settings = await getAvatarSettings();
+      setAvatarSettings(settings);
+    } catch (error) {
+      console.error('Failed to load avatar settings:', error);
+    }
+  };
 
   // Auto micro-hints after 15 seconds of inactivity
   useEffect(() => {
