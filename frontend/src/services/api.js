@@ -806,3 +806,169 @@ export const getOrgAnalytics = async () => {
   const response = await axios.get(`${API}/org-admin/analytics`, { headers: getAuthHeaders() });
   return response.data;
 };
+
+// ==================== USER SETTINGS ====================
+export const updateUserProfile = async (fullName, phone = null) => {
+  const params = new URLSearchParams();
+  if (fullName) params.append('full_name', fullName);
+  if (phone) params.append('phone', phone);
+  const response = await axios.put(`${API}/user/profile?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const uploadProfilePhoto = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await axios.post(`${API}/user/profile-photo`, formData, {
+    headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' }
+  });
+  return response.data;
+};
+
+export const updateNotificationSettings = async (settings) => {
+  const params = new URLSearchParams();
+  Object.entries(settings).forEach(([key, value]) => {
+    params.append(key, value.toString());
+  });
+  const response = await axios.put(`${API}/user/notifications?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getUserSettings = async () => {
+  const response = await axios.get(`${API}/user/settings`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const updateAppearance = async (theme) => {
+  const response = await axios.put(`${API}/user/appearance?theme=${theme}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const changePassword = async (currentPassword, newPassword) => {
+  const response = await axios.put(
+    `${API}/user/password?current_password=${encodeURIComponent(currentPassword)}&new_password=${encodeURIComponent(newPassword)}`,
+    {},
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+// ==================== PASSWORD RESET ====================
+export const forgotPassword = async (email) => {
+  const response = await axios.post(`${API}/auth/forgot-password?email=${encodeURIComponent(email)}`);
+  return response.data;
+};
+
+export const resetPassword = async (email, resetCode, newPassword) => {
+  const response = await axios.post(
+    `${API}/auth/reset-password?email=${encodeURIComponent(email)}&reset_code=${resetCode}&new_password=${encodeURIComponent(newPassword)}`
+  );
+  return response.data;
+};
+
+// ==================== GOOGLE AUTH ====================
+export const processGoogleSession = async (sessionId) => {
+  const response = await axios.post(`${API}/auth/google/session?session_id=${sessionId}`);
+  return response.data;
+};
+
+// ==================== STUDY GROUPS ====================
+export const getAllStudyGroups = async (search = '', topic = '') => {
+  const params = new URLSearchParams();
+  if (search) params.append('search', search);
+  if (topic) params.append('topic', topic);
+  const response = await axios.get(`${API}/study-groups/all?${params}`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== TEACHER COURSES ====================
+export const getTeacherCourses = async () => {
+  const response = await axios.get(`${API}/courses/teacher/my-courses`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const deleteCourse = async (courseId) => {
+  const response = await axios.delete(`${API}/courses/${courseId}`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const updateCourse = async (courseId, data) => {
+  const params = new URLSearchParams();
+  Object.entries(data).forEach(([key, value]) => {
+    if (value !== null && value !== undefined) params.append(key, value);
+  });
+  const response = await axios.put(`${API}/courses/${courseId}?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const uploadVideoFile = async (courseId, title, file, description = '') => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await axios.post(
+    `${API}/content/upload-video?course_id=${courseId}&title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}`,
+    formData,
+    { headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' } }
+  );
+  return response.data;
+};
+
+// ==================== ASSIGNMENTS ====================
+export const createAssignment = async (title, courseId, description = '', dueDate = null, maxScore = 100) => {
+  const params = new URLSearchParams({ title, course_id: courseId, max_score: maxScore.toString() });
+  if (description) params.append('description', description);
+  if (dueDate) params.append('due_date', dueDate);
+  const response = await axios.post(`${API}/assignments/create?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getCourseAssignments = async (courseId) => {
+  const response = await axios.get(`${API}/assignments/course/${courseId}`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const submitAssignment = async (assignmentId, content) => {
+  const response = await axios.post(
+    `${API}/assignments/${assignmentId}/submit?content=${encodeURIComponent(content)}`,
+    {},
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+export const getAssignmentSubmissions = async (assignmentId) => {
+  const response = await axios.get(`${API}/assignments/${assignmentId}/submissions`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== REAL GRADES & ATTENDANCE ====================
+export const getStudentGrades = async (studentId) => {
+  const response = await axios.get(`${API}/grades/student/${studentId}`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getStudentAttendance = async (studentId) => {
+  const response = await axios.get(`${API}/attendance/student/${studentId}`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== LIVE RESEARCH ====================
+export const searchResearch = async (query) => {
+  const response = await axios.post(`${API}/research/search?query=${encodeURIComponent(query)}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== PARENT PORTAL ====================
+export const getParentChildren = async () => {
+  const response = await axios.get(`${API}/parents/children`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getChildDetails = async (childId) => {
+  const response = await axios.get(`${API}/parents/children/${childId}/details`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const linkChild = async (childEmail) => {
+  const response = await axios.post(`${API}/parents/link-child?child_email=${encodeURIComponent(childEmail)}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
