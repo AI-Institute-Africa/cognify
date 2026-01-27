@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
-import { createZoomMeeting, getZoomMeetings } from '../services/api';
+import { createZoomMeeting, getZoomMeetings, getStudentMeetings, addMeetingRecording } from '../services/api';
 import { 
   Video, 
   Monitor,
