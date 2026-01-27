@@ -112,6 +112,11 @@ function AppRoutes() {
           <RegisterPage />
         </PublicRoute>
       } />
+      <Route path="/forgot-password" element={
+        <PublicRoute>
+          <ForgotPasswordPage />
+        </PublicRoute>
+      } />
       
       {/* Protected Routes */}
       <Route path="/dashboard" element={
