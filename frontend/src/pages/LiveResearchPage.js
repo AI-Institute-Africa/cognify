@@ -275,9 +275,45 @@ export default function LiveResearchPage() {
               {!loading && results.length === 0 && (
                 <div className="glass-card p-12 text-center">
                   <Search className="w-16 h-16 text-zinc-600 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold mb-2">No results found</h3>
-                  <p className="text-zinc-500">
-                    Try adjusting your search terms or selecting a different category
+                  <h3 className="text-xl font-semibold mb-2">No AI-generated results</h3>
+                  <p className="text-zinc-500 mb-4">
+                    Try the direct search links below to find publications
+                  </p>
+                </div>
+              )}
+
+              {/* Direct Search Links */}
+              {!loading && directLinks.length > 0 && (
+                <div className="glass-card p-6 mt-6">
+                  <h3 className="font-semibold mb-4 flex items-center gap-2">
+                    <Link2 className="w-5 h-5 text-emerald-400" />
+                    Direct Search Links (Real Publications)
+                  </h3>
+                  <p className="text-sm text-zinc-500 mb-4">
+                    Click these links to search directly on academic databases:
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {directLinks.map((link, idx) => (
+                      <a
+                        key={idx}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-4 rounded-xl bg-zinc-800/50 hover:bg-zinc-700/50 border border-white/5 hover:border-emerald-500/30 transition-all"
+                        data-testid={`direct-link-${idx}`}
+                      >
+                        <div className="p-2 rounded-lg bg-emerald-500/20">
+                          <ExternalLink className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{link.source}</p>
+                          <p className="text-xs text-zinc-500">Search &quot;{query}&quot;</p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
                   </p>
                 </div>
               )}
