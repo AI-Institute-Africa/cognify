@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
+import { searchResearch } from '../services/api';
 import { 
   Search, 
   Globe, 
@@ -13,7 +14,8 @@ import {
   Loader2,
   Sparkles,
   Filter,
-  Clock
+  Clock,
+  Link2
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -26,9 +28,6 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { toast } from 'sonner';
-import axios from 'axios';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
 const categories = [
   { value: 'all', label: 'All Sources', icon: Globe },
@@ -38,54 +37,12 @@ const categories = [
   { value: 'tutorials', label: 'Tutorials', icon: BookOpen },
 ];
 
-const mockResults = [
-  {
-    id: '1',
-    title: 'Latest Advances in Machine Learning for Education',
-    source: 'arXiv',
-    category: 'research',
-    snippet: 'This paper explores the application of transformer models in adaptive learning systems, showing a 40% improvement in student engagement metrics...',
-    url: 'https://arxiv.org/example',
-    date: '2025-12-01',
-    relevance: 95
-  },
-  {
-    id: '2',
-    title: 'EdTech Industry Report Q4 2025',
-    source: 'TechCrunch',
-    category: 'news',
-    snippet: 'The education technology sector continues to grow with AI-powered platforms leading the charge. Investment in personalized learning has increased by 60%...',
-    url: 'https://techcrunch.com/example',
-    date: '2025-12-10',
-    relevance: 88
-  },
-  {
-    id: '3',
-    title: 'Building Knowledge Graphs for Educational Content',
-    source: 'Medium',
-    category: 'tutorials',
-    snippet: 'A comprehensive guide to implementing knowledge graphs in learning management systems using Neo4j and Python...',
-    url: 'https://medium.com/example',
-    date: '2025-11-28',
-    relevance: 82
-  },
-  {
-    id: '4',
-    title: 'Top AI Tools for Content Creation in 2025',
-    source: 'Product Hunt',
-    category: 'tools',
-    snippet: 'A curated list of the best AI-powered tools for creating educational content, including video generators, quiz makers, and adaptive assessment platforms...',
-    url: 'https://producthunt.com/example',
-    date: '2025-12-05',
-    relevance: 76
-  }
-];
-
 export default function LiveResearchPage() {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
+  const [directLinks, setDirectLinks] = useState([]);
   const [searched, setSearched] = useState(false);
 
   const handleSearch = async () => {
@@ -98,25 +55,22 @@ export default function LiveResearchPage() {
     setSearched(true);
 
     try {
-      // Simulate API call - In production, this would call a real research API
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Filter mock results based on category
-      let filteredResults = mockResults;
-      if (category !== 'all') {
-        filteredResults = mockResults.filter(r => r.category === category);
-      }
-      
-      // Add query-based filtering simulation
-      filteredResults = filteredResults.map(r => ({
-        ...r,
-        relevance: Math.max(50, r.relevance - Math.floor(Math.random() * 20))
-      }));
-      
-      setResults(filteredResults);
-      toast.success(`Found ${filteredResults.length} results`);
+      const response = await searchResearch(query);
+      setResults(response.ai_results || []);
+      setDirectLinks(response.direct_search_links || []);
+      toast.success(`Found results for "${query}"`);
     } catch (error) {
-      toast.error('Search failed');
+      console.error('Search failed:', error);
+      toast.error('Search failed. Please try again.');
+      // Still show direct links
+      const encoded = encodeURIComponent(query);
+      setDirectLinks([
+        { title: `Search "${query}" on Google Scholar`, url: `https://scholar.google.com/scholar?q=${encoded}`, source: 'Google Scholar' },
+        { title: `Search "${query}" on arXiv`, url: `https://arxiv.org/search/?query=${encoded}&searchtype=all`, source: 'arXiv' },
+        { title: `Search "${query}" on ResearchGate`, url: `https://www.researchgate.net/search/publication?q=${encoded}`, source: 'ResearchGate' },
+        { title: `Search "${query}" on PubMed`, url: `https://pubmed.ncbi.nlm.nih.gov/?term=${encoded}`, source: 'PubMed' },
+        { title: `Search "${query}" on Semantic Scholar`, url: `https://www.semanticscholar.org/search?q=${encoded}`, source: 'Semantic Scholar' },
+      ]);
     } finally {
       setLoading(false);
     }
@@ -126,11 +80,6 @@ export default function LiveResearchPage() {
     if (e.key === 'Enter') {
       handleSearch();
     }
-  };
-
-  const getCategoryIcon = (cat) => {
-    const found = categories.find(c => c.value === cat);
-    return found ? found.icon : Globe;
   };
 
   const getCategoryColor = (cat) => {
