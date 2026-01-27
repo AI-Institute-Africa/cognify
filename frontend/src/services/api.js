@@ -954,4 +954,3 @@ export const linkChild = async (childEmail) => {
   const response = await axios.post(`${API}/parents/link-child?child_email=${encodeURIComponent(childEmail)}`, {}, { headers: getAuthHeaders() });
   return response.data;
 };
-};
