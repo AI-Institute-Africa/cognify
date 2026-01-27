@@ -3978,7 +3978,8 @@ async def create_exam(exam_data: ExamCreate, current_user: dict = Depends(get_cu
                 {f"Additional context: {exam_data.source_content[:2000]}" if exam_data.source_content else ""}
                 """
                 
-                chat = LlmChat(api_key=api_key, session_id=f"exam-gen-{exam_id}")
+                system_msg = "You are an exam question generator. Create educational assessment questions in JSON format."
+                chat = LlmChat(api_key=api_key, session_id=f"exam-gen-{exam_id}", system_message=system_msg)
                 chat.with_model("openai", "gpt-5.2")
                 response = await chat.send_message(UserMessage(text=prompt))
                 
