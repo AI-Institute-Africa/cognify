@@ -5605,7 +5605,7 @@ async def get_uploaded_video(filename: str):
 
 # ==================== REAL GRADES AND ATTENDANCE ====================
 
-@grades_router.get("/student/{student_id}")
+@api_router.get("/grades/student/{student_id}")
 async def get_student_grades(student_id: str, current_user: dict = Depends(get_current_user)):
     """Get real grades for a student"""
     grades = await db.grades.find({"student_id": student_id}, {"_id": 0}).to_list(length=100)
@@ -5628,7 +5628,7 @@ async def get_student_grades(student_id: str, current_user: dict = Depends(get_c
     
     return grades
 
-@attendance_router.get("/student/{student_id}")
+@api_router.get("/attendance/student/{student_id}")
 async def get_student_attendance(student_id: str, current_user: dict = Depends(get_current_user)):
     """Get real attendance for a student"""
     attendance = await db.attendance.find({"student_id": student_id}, {"_id": 0}).to_list(length=500)
@@ -5652,7 +5652,7 @@ async def get_student_attendance(student_id: str, current_user: dict = Depends(g
 
 # ==================== ASSIGNMENT MANAGEMENT ====================
 
-@assignments_router.post("/create")
+@api_router.post("/assignments/create")
 async def create_assignment(
     title: str,
     course_id: str,
@@ -5681,13 +5681,13 @@ async def create_assignment(
     
     return assignment
 
-@assignments_router.get("/course/{course_id}")
+@api_router.get("/assignments/course/{course_id}")
 async def get_course_assignments(course_id: str, current_user: dict = Depends(get_current_user)):
     """Get assignments for a course"""
     assignments = await db.assignments.find({"course_id": course_id, "status": "active"}, {"_id": 0}).to_list(length=100)
     return assignments
 
-@assignments_router.post("/{assignment_id}/submit")
+@api_router.post("/assignments/{assignment_id}/submit")
 async def submit_assignment(
     assignment_id: str,
     content: str,
@@ -5776,7 +5776,7 @@ async def submit_assignment(
         "feedback": feedback
     }
 
-@assignments_router.get("/{assignment_id}/submissions")
+@api_router.get("/assignments/{assignment_id}/submissions")
 async def get_assignment_submissions(assignment_id: str, current_user: dict = Depends(get_current_user)):
     """Get all submissions for an assignment (teacher view)"""
     if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
