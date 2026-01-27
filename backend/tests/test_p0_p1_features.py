@@ -15,6 +15,16 @@ PARENT_CREDS = {"email": "demo.parent@eduos.edu", "password": "demo123"}
 ADMIN_CREDS = {"email": "demo.admin@eduos.edu", "password": "demo123"}
 
 
+def get_token(creds):
+    """Helper to get auth token from login response"""
+    response = requests.post(f"{BASE_URL}/api/auth/login", json=creds)
+    if response.status_code == 200:
+        data = response.json()
+        # API returns access_token, not token
+        return data.get("access_token") or data.get("token")
+    return None
+
+
 class TestHealthAndBasics:
     """Basic health and connectivity tests"""
     
@@ -35,21 +45,18 @@ class TestStudentLogin:
         response = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
         assert response.status_code == 200
         data = response.json()
-        assert "token" in data
+        assert "access_token" in data or "token" in data
         assert "user" in data
         assert data["user"]["role"] == "student"
         assert data["user"]["email"] == STUDENT_CREDS["email"]
         print(f"✓ Student login successful: {data['user']['full_name']}")
-        return data["token"]
     
     def test_student_dashboard_stats(self):
         """Test student can access dashboard stats"""
-        # Login first
-        login_resp = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        token = login_resp.json()["token"]
+        token = get_token(STUDENT_CREDS)
+        assert token is not None, "Failed to get student token"
         headers = {"Authorization": f"Bearer {token}"}
         
-        # Get dashboard stats
         response = requests.get(f"{BASE_URL}/api/dashboard/stats", headers=headers)
         assert response.status_code == 200
         data = response.json()
@@ -57,8 +64,8 @@ class TestStudentLogin:
     
     def test_student_courses(self):
         """Test student can view courses"""
-        login_resp = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        token = login_resp.json()["token"]
+        token = get_token(STUDENT_CREDS)
+        assert token is not None
         headers = {"Authorization": f"Bearer {token}"}
         
         response = requests.get(f"{BASE_URL}/api/courses", headers=headers)
@@ -76,14 +83,14 @@ class TestTeacherLogin:
         response = requests.post(f"{BASE_URL}/api/auth/login", json=TEACHER_CREDS)
         assert response.status_code == 200
         data = response.json()
-        assert "token" in data
+        assert "access_token" in data or "token" in data
         assert data["user"]["role"] == "teacher"
         print(f"✓ Teacher login successful: {data['user']['full_name']}")
     
     def test_teacher_dashboard_stats(self):
         """Test teacher can access dashboard stats"""
-        login_resp = requests.post(f"{BASE_URL}/api/auth/login", json=TEACHER_CREDS)
-        token = login_resp.json()["token"]
+        token = get_token(TEACHER_CREDS)
+        assert token is not None
         headers = {"Authorization": f"Bearer {token}"}
         
         response = requests.get(f"{BASE_URL}/api/dashboard/stats", headers=headers)
@@ -99,14 +106,14 @@ class TestParentLogin:
         response = requests.post(f"{BASE_URL}/api/auth/login", json=PARENT_CREDS)
         assert response.status_code == 200
         data = response.json()
-        assert "token" in data
+        assert "access_token" in data or "token" in data
         assert data["user"]["role"] == "parent"
         print(f"✓ Parent login successful: {data['user']['full_name']}")
     
     def test_parent_children_endpoint(self):
         """Test parent can access /api/parents/children endpoint"""
-        login_resp = requests.post(f"{BASE_URL}/api/auth/login", json=PARENT_CREDS)
-        token = login_resp.json()["token"]
+        token = get_token(PARENT_CREDS)
+        assert token is not None
         headers = {"Authorization": f"Bearer {token}"}
         
         response = requests.get(f"{BASE_URL}/api/parents/children", headers=headers)
@@ -122,8 +129,8 @@ class TestUserSettings:
     
     def test_get_user_settings(self):
         """Test user can get their settings"""
-        login_resp = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        token = login_resp.json()["token"]
+        token = get_token(STUDENT_CREDS)
+        assert token is not None
         headers = {"Authorization": f"Bearer {token}"}
         
         response = requests.get(f"{BASE_URL}/api/user/settings", headers=headers)
@@ -133,8 +140,8 @@ class TestUserSettings:
     
     def test_update_user_profile(self):
         """Test user can update their profile"""
-        login_resp = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        token = login_resp.json()["token"]
+        token = get_token(STUDENT_CREDS)
+        assert token is not None
         headers = {"Authorization": f"Bearer {token}"}
         
         # Update profile
@@ -154,8 +161,8 @@ class TestUserSettings:
     
     def test_update_notification_settings(self):
         """Test user can update notification settings"""
-        login_resp = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        token = login_resp.json()["token"]
+        token = get_token(STUDENT_CREDS)
+        assert token is not None
         headers = {"Authorization": f"Bearer {token}"}
         
         response = requests.put(
@@ -167,8 +174,8 @@ class TestUserSettings:
     
     def test_change_password(self):
         """Test password change functionality"""
-        login_resp = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        token = login_resp.json()["token"]
+        token = get_token(STUDENT_CREDS)
+        assert token is not None
         headers = {"Authorization": f"Bearer {token}"}
         
         # Try to change password (should work with correct current password)
@@ -186,8 +193,8 @@ class TestVirtualClassroom:
     
     def test_student_meetings_endpoint(self):
         """Test student can access their meetings"""
-        login_resp = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        token = login_resp.json()["token"]
+        token = get_token(STUDENT_CREDS)
+        assert token is not None
         headers = {"Authorization": f"Bearer {token}"}
         
         response = requests.get(f"{BASE_URL}/api/zoom/student-meetings", headers=headers)
@@ -198,8 +205,8 @@ class TestVirtualClassroom:
     
     def test_teacher_zoom_meetings(self):
         """Test teacher can access zoom meetings"""
-        login_resp = requests.post(f"{BASE_URL}/api/auth/login", json=TEACHER_CREDS)
-        token = login_resp.json()["token"]
+        token = get_token(TEACHER_CREDS)
+        assert token is not None
         headers = {"Authorization": f"Bearer {token}"}
         
         response = requests.get(f"{BASE_URL}/api/zoom/meetings", headers=headers)
@@ -213,8 +220,8 @@ class TestStudyGroups:
     
     def test_get_all_study_groups(self):
         """Test student can see all public study groups"""
-        login_resp = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        token = login_resp.json()["token"]
+        token = get_token(STUDENT_CREDS)
+        assert token is not None
         headers = {"Authorization": f"Bearer {token}"}
         
         response = requests.get(f"{BASE_URL}/api/study-groups/all", headers=headers)
@@ -225,8 +232,8 @@ class TestStudyGroups:
     
     def test_get_my_study_groups(self):
         """Test student can see their study groups"""
-        login_resp = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        token = login_resp.json()["token"]
+        token = get_token(STUDENT_CREDS)
+        assert token is not None
         headers = {"Authorization": f"Bearer {token}"}
         
         response = requests.get(f"{BASE_URL}/api/study-groups/my-groups", headers=headers)
@@ -240,8 +247,8 @@ class TestCourseView:
     
     def test_get_courses(self):
         """Test getting list of courses"""
-        login_resp = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        token = login_resp.json()["token"]
+        token = get_token(STUDENT_CREDS)
+        assert token is not None
         headers = {"Authorization": f"Bearer {token}"}
         
         response = requests.get(f"{BASE_URL}/api/courses", headers=headers)
@@ -254,8 +261,8 @@ class TestCourseView:
     
     def test_get_single_course(self):
         """Test getting a single course"""
-        login_resp = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        token = login_resp.json()["token"]
+        token = get_token(STUDENT_CREDS)
+        assert token is not None
         headers = {"Authorization": f"Bearer {token}"}
         
         # Get courses first
@@ -271,8 +278,8 @@ class TestCourseView:
     
     def test_get_course_content(self):
         """Test getting course content (video/slides)"""
-        login_resp = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        token = login_resp.json()["token"]
+        token = get_token(STUDENT_CREDS)
+        assert token is not None
         headers = {"Authorization": f"Bearer {token}"}
         
         # Get courses first
