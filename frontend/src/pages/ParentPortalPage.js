@@ -85,8 +85,8 @@ export default function ParentPortalPage() {
     
     setLinking(true);
     try {
-      await axios.post(`${API}/parents/link-child`, { child_email: linkEmail }, { headers: getAuthHeaders() });
-      toast.success('Link request sent! Child will need to approve.');
+      await axios.post(`${API}/parents/link-child?child_email=${encodeURIComponent(linkEmail)}`, {}, { headers: getAuthHeaders() });
+      toast.success('Child linked successfully!');
       setShowLinkDialog(false);
       setLinkEmail('');
       loadChildren();
