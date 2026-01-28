@@ -58,11 +58,9 @@ export default function LoginPage() {
   };
 
   const handleGoogleSignIn = () => {
-    // Redirect to Emergent Google OAuth
-    const clientId = 'emergent-eduos-client';
+    // Redirect to Emergent Google OAuth - DO NOT HARDCODE THE URL
     const redirectUri = encodeURIComponent(`${window.location.origin}/login`);
-    const authUrl = `https://demobackend.emergentagent.com/auth/v1/env/oauth/google?client_id=${clientId}&redirect_uri=${redirectUri}`;
-    window.location.href = authUrl;
+    window.location.href = `https://auth.emergentagent.com/?redirect=${redirectUri}`;
   };
 
   const handleSubmit = async (e) => {
