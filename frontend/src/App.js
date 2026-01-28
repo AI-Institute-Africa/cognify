@@ -50,6 +50,7 @@ import VRLearningPage from './pages/VRLearningPage';
 import PaymentPage from './pages/PaymentPage';
 import OrgAdminDashboardPage from './pages/OrgAdminDashboardPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import StudentAssignmentsPage from './pages/StudentAssignmentsPage';
 
 import './App.css';
 
