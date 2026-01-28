@@ -5459,8 +5459,8 @@ async def get_all_study_groups(
     topic: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get all study groups for discovery"""
-    query = {"is_public": {"$ne": False}}  # Public or not specified
+    """Get all study groups for discovery - ALL groups visible to all students"""
+    query = {}  # Show ALL groups, no filtering by is_public
     
     if search:
         query["$or"] = [
