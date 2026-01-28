@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   LayoutDashboard, 
   BookOpen, 
@@ -34,7 +35,8 @@ import {
   Globe,
   User,
   ClipboardList,
-  Glasses
+  Glasses,
+  FileText
 } from 'lucide-react';
 
 const navItems = {
