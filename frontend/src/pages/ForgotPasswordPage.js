@@ -3,18 +3,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { GraduationCap, Mail, ArrowLeft, Key, Check, Loader2 } from 'lucide-react';
+import { GraduationCap, Mail, ArrowLeft, Key, Check, Loader2, Lock } from 'lucide-react';
 import { toast } from 'sonner';
-import { forgotPassword, resetPassword } from '../services/api';
+import { forgotPasswordV2, resetPasswordV2 } from '../services/api';
 
 export default function ForgotPasswordPage() {
-  const [step, setStep] = useState(1); // 1: email, 2: code, 3: new password
+  const [step, setStep] = useState(1); // 1: email, 2: code + new password
   const [email, setEmail] = useState('');
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sentCode, setSentCode] = useState('');
   const navigate = useNavigate();
 
   const handleSendCode = async (e) => {
@@ -26,13 +25,8 @@ export default function ForgotPasswordPage() {
     
     setLoading(true);
     try {
-      const result = await forgotPassword(email);
-      // For demo, the API returns the reset code (remove in production)
-      if (result.reset_code) {
-        setSentCode(result.reset_code);
-        toast.info(`Demo: Your reset code is ${result.reset_code}`);
-      }
-      toast.success('Reset code sent to your email!');
+      await forgotPasswordV2(email);
+      toast.success('If this email exists, a reset code has been sent!');
       setStep(2);
     } catch (error) {
       toast.error('Failed to send reset code');
@@ -44,8 +38,8 @@ export default function ForgotPasswordPage() {
   const handleResetPassword = async (e) => {
     e.preventDefault();
     
-    if (!resetCode) {
-      toast.error('Please enter the reset code');
+    if (!resetCode || resetCode.length !== 6) {
+      toast.error('Please enter the 6-digit reset code');
       return;
     }
     
