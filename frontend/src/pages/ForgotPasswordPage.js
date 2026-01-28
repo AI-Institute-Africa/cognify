@@ -26,7 +26,11 @@ export default function ForgotPasswordPage() {
     
     setLoading(true);
     try {
-      await forgotPasswordV2(email);
+      const result = await forgotPasswordV2(email);
+      // Store the code for demo mode display (only shown if returned by API)
+      if (result.reset_code) {
+        setSentCode(result.reset_code);
+      }
       toast.success('If this email exists, a reset code has been sent!');
       setStep(2);
     } catch (error) {
