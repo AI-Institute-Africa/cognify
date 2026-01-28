@@ -5953,6 +5953,1172 @@ async def live_research_search(
         logging.error(f"Research search error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# ==================== EMAIL VERIFICATION & AUTH ENHANCEMENTS ====================
+
+from services.email_service import (
+    send_verification_email,
+    send_password_reset_email,
+    send_enrollment_confirmation_email,
+    send_notification_email,
+    generate_verification_code,
+    generate_reset_token
+)
+
+@auth_router.post("/register-with-verification")
+async def register_with_email_verification(
+    email: str,
+    password: str,
+    full_name: str,
+    role: str = "student"
+):
+    """Register new user with email verification required"""
+    # Check if user exists
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Validate role
+    valid_roles = ["student", "teacher", "parent", "org_admin"]
+    if role not in valid_roles:
+        raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {valid_roles}")
+    
+    # Generate verification code
+    verification_code = generate_verification_code()
+    
+    # Store pending registration
+    pending_reg = {
+        "id": str(uuid.uuid4()),
+        "email": email,
+        "password_hash": bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
+        "full_name": full_name,
+        "role": role,
+        "verification_code": verification_code,
+        "created_at": datetime.now(timezone.utc),
+        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=15)
+    }
+    
+    # Remove any existing pending registration for this email
+    await db.pending_registrations.delete_many({"email": email})
+    await db.pending_registrations.insert_one(pending_reg)
+    
+    # Send verification email
+    result = await send_verification_email(email, verification_code, full_name)
+    
+    return {
+        "message": "Verification code sent to your email",
+        "email_sent": result["success"],
+        "expires_in_minutes": 15
+    }
+
+
+@auth_router.post("/verify-email")
+async def verify_email_and_complete_registration(email: str, verification_code: str):
+    """Verify email and complete registration"""
+    # Find pending registration
+    pending = await db.pending_registrations.find_one({
+        "email": email,
+        "verification_code": verification_code
+    }, {"_id": 0})
+    
+    if not pending:
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+    
+    # Check expiry
+    expires_at = pending.get("expires_at")
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="Verification code expired")
+    
+    # Create actual user
+    user_id = str(uuid.uuid4())
+    new_user = {
+        "id": user_id,
+        "email": pending["email"],
+        "password_hash": pending["password_hash"],
+        "full_name": pending["full_name"],
+        "role": pending["role"],
+        "is_active": True,
+        "email_verified": True,
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
+    }
+    
+    await db.users.insert_one(new_user)
+    
+    # Create profile based on role
+    if pending["role"] == "student":
+        await db.student_profiles.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "grade_level": "Unspecified",
+            "enrolled_courses": [],
+            "gpa": 0.0,
+            "created_at": datetime.now(timezone.utc)
+        })
+    
+    # Remove pending registration
+    await db.pending_registrations.delete_many({"email": email})
+    
+    # Generate token
+    token = jwt.encode({
+        "sub": user_id,
+        "role": pending["role"],
+        "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
+    }, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    
+    return {
+        "message": "Email verified successfully",
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": user_id,
+            "email": pending["email"],
+            "full_name": pending["full_name"],
+            "role": pending["role"]
+        }
+    }
+
+
+@auth_router.post("/resend-verification")
+async def resend_verification_code(email: str):
+    """Resend verification code"""
+    pending = await db.pending_registrations.find_one({"email": email}, {"_id": 0})
+    if not pending:
+        raise HTTPException(status_code=404, detail="No pending registration found")
+    
+    # Generate new code
+    new_code = generate_verification_code()
+    
+    # Update pending registration
+    await db.pending_registrations.update_one(
+        {"email": email},
+        {
+            "$set": {
+                "verification_code": new_code,
+                "expires_at": datetime.now(timezone.utc) + timedelta(minutes=15)
+            }
+        }
+    )
+    
+    # Send new email
+    result = await send_verification_email(email, new_code, pending.get("full_name", "User"))
+    
+    return {"message": "New verification code sent", "email_sent": result["success"]}
+
+
+@auth_router.post("/forgot-password-v2")
+async def forgot_password_with_email(email: str):
+    """Send password reset code via email"""
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        # Don't reveal if email exists
+        return {"message": "If this email exists, a reset code will be sent"}
+    
+    reset_code = generate_verification_code()
+    
+    # Store reset code
+    await db.password_resets.delete_many({"email": email})
+    await db.password_resets.insert_one({
+        "id": str(uuid.uuid4()),
+        "email": email,
+        "reset_code": reset_code,
+        "created_at": datetime.now(timezone.utc),
+        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=30)
+    })
+    
+    # Send email
+    result = await send_password_reset_email(email, reset_code, user.get("full_name", "User"))
+    
+    return {"message": "If this email exists, a reset code will be sent", "email_sent": result["success"]}
+
+
+@auth_router.post("/reset-password-v2")
+async def reset_password_with_code(email: str, reset_code: str, new_password: str):
+    """Reset password using email code"""
+    reset = await db.password_resets.find_one({
+        "email": email,
+        "reset_code": reset_code
+    }, {"_id": 0})
+    
+    if not reset:
+        raise HTTPException(status_code=400, detail="Invalid reset code")
+    
+    # Check expiry
+    expires_at = reset.get("expires_at")
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="Reset code expired")
+    
+    # Update password
+    password_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+    await db.users.update_one(
+        {"email": email},
+        {"$set": {"password_hash": password_hash, "updated_at": datetime.now(timezone.utc)}}
+    )
+    
+    # Remove reset code
+    await db.password_resets.delete_many({"email": email})
+    
+    return {"message": "Password reset successfully"}
+
+
+# ==================== EMERGENT GOOGLE AUTH ====================
+
+@auth_router.post("/google/session")
+async def process_google_session(session_id: str):
+    """Process Emergent Google OAuth session"""
+    import httpx
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+                headers={"X-Session-ID": session_id}
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=401, detail="Invalid session")
+            
+            google_data = response.json()
+            email = google_data.get("email")
+            name = google_data.get("name")
+            picture = google_data.get("picture")
+            
+            if not email:
+                raise HTTPException(status_code=400, detail="Email not provided by Google")
+            
+            # Check if user exists
+            user = await db.users.find_one({"email": email}, {"_id": 0, "password_hash": 0})
+            
+            if user:
+                # Update existing user
+                await db.users.update_one(
+                    {"email": email},
+                    {"$set": {
+                        "full_name": name or user.get("full_name"),
+                        "profile_picture": picture,
+                        "google_auth": True,
+                        "updated_at": datetime.now(timezone.utc)
+                    }}
+                )
+                user_id = user["id"]
+                role = user["role"]
+            else:
+                # Create new user
+                user_id = str(uuid.uuid4())
+                role = "student"  # Default role for Google sign-up
+                
+                new_user = {
+                    "id": user_id,
+                    "email": email,
+                    "full_name": name or email.split("@")[0],
+                    "role": role,
+                    "profile_picture": picture,
+                    "google_auth": True,
+                    "email_verified": True,
+                    "is_active": True,
+                    "created_at": datetime.now(timezone.utc),
+                    "updated_at": datetime.now(timezone.utc)
+                }
+                await db.users.insert_one(new_user)
+                
+                # Create student profile
+                await db.student_profiles.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "user_id": user_id,
+                    "grade_level": "Unspecified",
+                    "enrolled_courses": [],
+                    "gpa": 0.0,
+                    "created_at": datetime.now(timezone.utc)
+                })
+            
+            # Generate JWT token
+            token = jwt.encode({
+                "sub": user_id,
+                "role": role,
+                "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
+            }, JWT_SECRET, algorithm=JWT_ALGORITHM)
+            
+            return {
+                "access_token": token,
+                "token_type": "bearer",
+                "user": {
+                    "id": user_id,
+                    "email": email,
+                    "full_name": name,
+                    "role": role,
+                    "profile_picture": picture
+                }
+            }
+            
+    except httpx.RequestError as e:
+        logging.error(f"Google auth error: {e}")
+        raise HTTPException(status_code=500, detail="Authentication service unavailable")
+
+
+# ==================== IMAGE UPLOAD FOR TEACHERS ====================
+
+@content_router.post("/upload-image")
+async def upload_image_file(
+    course_id: str,
+    title: str,
+    file: UploadFile = File(...),
+    description: str = "",
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload image file from device for course content"""
+    if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    # Validate file type
+    allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Only JPEG, PNG, GIF, and WebP images are allowed")
+    
+    try:
+        image_id = str(uuid.uuid4())
+        os.makedirs("/app/uploaded_images", exist_ok=True)
+        file_ext = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
+        image_path = f"/app/uploaded_images/{image_id}.{file_ext}"
+        
+        content = await file.read()
+        with open(image_path, "wb") as f:
+            f.write(content)
+        
+        image_url = f"/api/content/uploaded-image/{image_id}.{file_ext}"
+        
+        # Create content record
+        content_record = {
+            "id": image_id,
+            "course_id": course_id,
+            "content_type": "image",
+            "title": title,
+            "description": description,
+            "image_url": image_url,
+            "file_path": image_path,
+            "created_by": current_user['id'],
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.course_content.insert_one(content_record)
+        
+        return {"message": "Image uploaded", "image_url": image_url, "content_id": image_id}
+    except Exception as e:
+        logging.error(f"Image upload error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@content_router.get("/uploaded-image/{filename}")
+async def get_uploaded_image(filename: str):
+    """Serve uploaded image file"""
+    from fastapi.responses import FileResponse
+    image_path = f"/app/uploaded_images/{filename}"
+    if not os.path.exists(image_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    # Determine content type
+    ext = filename.split('.')[-1].lower()
+    content_types = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp'}
+    return FileResponse(image_path, media_type=content_types.get(ext, 'image/jpeg'))
+
+
+# ==================== TEACHER DASHBOARD ENHANCEMENTS ====================
+
+@api_router.get("/teacher/dashboard-stats")
+async def get_teacher_dashboard_stats(current_user: dict = Depends(get_current_user)):
+    """Get real statistics for teacher dashboard"""
+    if current_user.get('role') not in ['teacher', 'admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    teacher_id = current_user['id']
+    
+    # Get courses created by teacher
+    courses = await db.courses.find({"created_by": teacher_id}, {"_id": 0}).to_list(length=100)
+    course_ids = [c['id'] for c in courses]
+    
+    # Count students enrolled in teacher's courses
+    total_students = 0
+    for course in courses:
+        enrolled_count = await db.student_profiles.count_documents({
+            "enrolled_courses": course['id']
+        })
+        total_students += enrolled_count
+    
+    # Get exams created by teacher
+    exams = await db.exams.find({"created_by": teacher_id}, {"_id": 0}).to_list(length=100)
+    
+    # Get pending assignments to grade
+    pending_submissions = await db.assignment_submissions.count_documents({
+        "graded": {"$ne": True},
+        "assignment_id": {"$in": [a['id'] for a in await db.assignments.find({"created_by": teacher_id}, {"_id": 0, "id": 1}).to_list(100)]}
+    })
+    
+    # Get recent activity
+    recent_submissions = await db.assignment_submissions.find(
+        {},
+        {"_id": 0}
+    ).sort("submitted_at", -1).limit(10).to_list(10)
+    
+    return {
+        "total_courses": len(courses),
+        "total_students": total_students,
+        "total_exams": len(exams),
+        "pending_grades": pending_submissions,
+        "courses": courses,
+        "recent_activity": recent_submissions
+    }
+
+
+@api_router.get("/teacher/course/{course_id}/students")
+async def get_course_enrolled_students(course_id: str, current_user: dict = Depends(get_current_user)):
+    """Get all students enrolled in a specific course"""
+    if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    # Find all student profiles with this course enrolled
+    profiles = await db.student_profiles.find(
+        {"enrolled_courses": course_id},
+        {"_id": 0}
+    ).to_list(length=500)
+    
+    students = []
+    for profile in profiles:
+        user = await db.users.find_one({"id": profile['user_id']}, {"_id": 0, "password_hash": 0})
+        if user:
+            # Get grades for this course
+            grades = await db.grades.find({
+                "student_id": profile['user_id'],
+                "course_id": course_id
+            }, {"_id": 0}).to_list(length=100)
+            
+            # Get attendance for this course
+            attendance = await db.attendance.find({
+                "student_id": profile['user_id'],
+                "course_id": course_id
+            }, {"_id": 0}).to_list(length=100)
+            
+            students.append({
+                **user,
+                "profile": profile,
+                "grades": grades,
+                "attendance": attendance,
+                "average_grade": sum(g.get('score', 0) for g in grades) / len(grades) if grades else 0
+            })
+    
+    return students
+
+
+# ==================== COURSE TYPE & ACADEMIC LEVELS ====================
+
+# Zimbabwe Academic Levels
+ZIMBABWE_ACADEMIC_LEVELS = [
+    {"code": "grade_1", "name": "Grade 1", "category": "primary"},
+    {"code": "grade_2", "name": "Grade 2", "category": "primary"},
+    {"code": "grade_3", "name": "Grade 3", "category": "primary"},
+    {"code": "grade_4", "name": "Grade 4", "category": "primary"},
+    {"code": "grade_5", "name": "Grade 5", "category": "primary"},
+    {"code": "grade_6", "name": "Grade 6", "category": "primary"},
+    {"code": "grade_7", "name": "Grade 7", "category": "primary"},
+    {"code": "form_1", "name": "Form 1", "category": "secondary"},
+    {"code": "form_2", "name": "Form 2", "category": "secondary"},
+    {"code": "form_3", "name": "Form 3", "category": "secondary"},
+    {"code": "form_4", "name": "Form 4", "category": "secondary"},
+    {"code": "form_5", "name": "Form 5 (Lower 6)", "category": "secondary"},
+    {"code": "form_6", "name": "Form 6 (Upper 6)", "category": "secondary"},
+    {"code": "undergraduate", "name": "Undergraduate", "category": "tertiary"},
+    {"code": "postgraduate", "name": "Postgraduate", "category": "tertiary"},
+]
+
+COURSE_TYPES = [
+    {"code": "free", "name": "Free Course", "price": 0},
+    {"code": "3_day_course", "name": "3-Day Course", "price": 29.99},
+    {"code": "certificate", "name": "Certificate Program", "price": 99.99},
+    {"code": "certification", "name": "Professional Certification", "price": 199.99},
+    {"code": "diploma", "name": "Diploma Program", "price": 499.99},
+]
+
+@api_router.get("/academic-levels")
+async def get_academic_levels():
+    """Get Zimbabwe academic levels"""
+    return ZIMBABWE_ACADEMIC_LEVELS
+
+@api_router.get("/course-types")
+async def get_course_types():
+    """Get available course types with pricing"""
+    return COURSE_TYPES
+
+
+@courses_router.post("/create-with-details")
+async def create_course_with_details(
+    title: str,
+    description: str,
+    category: str,  # free, 3_day_course, certificate, certification, diploma
+    academic_level: str,  # grade_1, form_1, undergraduate, etc.
+    num_lessons: int = 10,
+    subject: str = "General",
+    current_user: dict = Depends(get_current_user)
+):
+    """Create course with type, academic level, and lesson count"""
+    if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    # Get price from course type
+    course_type = next((ct for ct in COURSE_TYPES if ct['code'] == category), None)
+    price = course_type['price'] if course_type else 0
+    
+    course_id = str(uuid.uuid4())
+    course = {
+        "id": course_id,
+        "title": title,
+        "description": description,
+        "category": category,
+        "course_type": course_type['name'] if course_type else "Free Course",
+        "academic_level": academic_level,
+        "subject": subject,
+        "num_lessons": num_lessons,
+        "price": price,
+        "created_by": current_user['id'],
+        "teacher_name": current_user.get('full_name', 'Unknown'),
+        "org_id": current_user.get('org_id'),
+        "enrolled_count": 0,
+        "lessons": [],
+        "is_published": False,
+        "created_at": datetime.now(timezone.utc)
+    }
+    
+    await db.courses.insert_one(course)
+    
+    # Generate AI lessons if requested
+    if num_lessons > 0:
+        try:
+            from services.advanced_ai import generate_interactive_lesson
+            for i in range(num_lessons):
+                lesson_result = await generate_interactive_lesson(
+                    f"{title} - Lesson {i+1}",
+                    [f"Understand key concepts of lesson {i+1}"],
+                    30
+                )
+                lesson = {
+                    "id": str(uuid.uuid4()),
+                    "course_id": course_id,
+                    "title": f"Lesson {i+1}: {lesson_result.get('title', f'Introduction to {title}')}",
+                    "order": i + 1,
+                    "content": lesson_result.get('content', ''),
+                    "objectives": lesson_result.get('learning_objectives', []),
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }
+                await db.lessons.insert_one(lesson)
+        except Exception as e:
+            logging.warning(f"Could not generate AI lessons: {e}")
+    
+    return {"message": "Course created", "course_id": course_id, "course": course}
+
+
+# ==================== ASSIGNMENTS LINKED TO COURSES ====================
+
+@assignments_router.post("/create-linked")
+async def create_assignment_linked_to_course(
+    title: str,
+    course_id: str,
+    description: str = "",
+    due_date: str = None,
+    max_score: int = 100,
+    auto_grade: bool = True,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create assignment linked to a specific course"""
+    if current_user.get('role') not in ['teacher', 'admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    # Verify course exists
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    assignment_id = str(uuid.uuid4())
+    
+    # Generate suggested answers using AI
+    suggested_answer = ""
+    try:
+        from services.advanced_ai import gemini_chat
+        response = await gemini_chat([{
+            "role": "user",
+            "content": f"Generate a model answer for this assignment:\nTitle: {title}\nDescription: {description}\nCourse: {course.get('title')}\n\nProvide a comprehensive, well-structured answer."
+        }])
+        suggested_answer = response
+    except Exception as e:
+        logging.warning(f"Could not generate suggested answer: {e}")
+    
+    assignment = {
+        "id": assignment_id,
+        "title": title,
+        "description": description,
+        "course_id": course_id,
+        "course_title": course.get('title', ''),
+        "due_date": due_date,
+        "max_score": max_score,
+        "auto_grade": auto_grade,
+        "suggested_answer": suggested_answer,
+        "created_by": current_user['id'],
+        "teacher_name": current_user.get('full_name', ''),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.assignments.insert_one(assignment)
+    
+    return {
+        "message": "Assignment created",
+        "assignment_id": assignment_id,
+        "suggested_answer": suggested_answer[:500] + "..." if len(suggested_answer) > 500 else suggested_answer
+    }
+
+
+@assignments_router.get("/student/my-assignments")
+async def get_student_assignments(current_user: dict = Depends(get_current_user)):
+    """Get assignments for courses the student is enrolled in"""
+    if current_user.get('role') != 'student':
+        raise HTTPException(status_code=403, detail="Student access required")
+    
+    # Get enrolled courses
+    profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+    enrolled_courses = profile.get('enrolled_courses', []) if profile else []
+    
+    # Get assignments for enrolled courses
+    assignments = await db.assignments.find(
+        {"course_id": {"$in": enrolled_courses}},
+        {"_id": 0, "suggested_answer": 0}  # Don't show suggested answer to students
+    ).to_list(length=100)
+    
+    # Check submission status for each assignment
+    for assignment in assignments:
+        submission = await db.assignment_submissions.find_one({
+            "assignment_id": assignment['id'],
+            "student_id": current_user['id']
+        }, {"_id": 0})
+        assignment['submitted'] = submission is not None
+        assignment['submission'] = submission
+    
+    return assignments
+
+
+@assignments_router.post("/{assignment_id}/submit-and-grade")
+async def submit_assignment_with_auto_grade(
+    assignment_id: str,
+    content: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Submit assignment and auto-grade using AI"""
+    if current_user.get('role') != 'student':
+        raise HTTPException(status_code=403, detail="Student access required")
+    
+    # Get assignment
+    assignment = await db.assignments.find_one({"id": assignment_id}, {"_id": 0})
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    # Check if already submitted
+    existing = await db.assignment_submissions.find_one({
+        "assignment_id": assignment_id,
+        "student_id": current_user['id']
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail="Assignment already submitted")
+    
+    submission_id = str(uuid.uuid4())
+    score = 0
+    feedback = ""
+    
+    # Auto-grade if enabled
+    if assignment.get('auto_grade', False):
+        try:
+            from services.advanced_ai import gemini_chat
+            grading_response = await gemini_chat([{
+                "role": "user",
+                "content": f"""Grade this student submission on a scale of 0-{assignment.get('max_score', 100)}.
+
+Assignment: {assignment.get('title')}
+Description: {assignment.get('description')}
+Model Answer: {assignment.get('suggested_answer', 'Not provided')}
+
+Student Submission:
+{content}
+
+Provide your response in this exact format:
+SCORE: [number]
+FEEDBACK: [detailed feedback for the student]
+"""
+            }])
+            
+            # Parse score and feedback
+            lines = grading_response.split('\n')
+            for line in lines:
+                if line.startswith('SCORE:'):
+                    try:
+                        score = int(line.replace('SCORE:', '').strip())
+                        score = min(score, assignment.get('max_score', 100))
+                    except:
+                        score = 0
+                elif line.startswith('FEEDBACK:'):
+                    feedback = line.replace('FEEDBACK:', '').strip()
+            
+            if not feedback:
+                feedback = grading_response
+                
+        except Exception as e:
+            logging.error(f"Auto-grade error: {e}")
+            feedback = "Auto-grading unavailable. Manual grading required."
+    
+    submission = {
+        "id": submission_id,
+        "assignment_id": assignment_id,
+        "student_id": current_user['id'],
+        "student_name": current_user.get('full_name', ''),
+        "content": content,
+        "score": score,
+        "max_score": assignment.get('max_score', 100),
+        "feedback": feedback,
+        "graded": assignment.get('auto_grade', False),
+        "auto_graded": assignment.get('auto_grade', False),
+        "submitted_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.assignment_submissions.insert_one(submission)
+    
+    # Record grade
+    if score > 0:
+        await db.grades.insert_one({
+            "id": str(uuid.uuid4()),
+            "student_id": current_user['id'],
+            "course_id": assignment.get('course_id'),
+            "assessment_type": "assignment",
+            "assessment_name": assignment.get('title'),
+            "score": score,
+            "max_score": assignment.get('max_score', 100),
+            "created_at": datetime.now(timezone.utc)
+        })
+    
+    return {
+        "message": "Assignment submitted and graded" if assignment.get('auto_grade') else "Assignment submitted",
+        "submission_id": submission_id,
+        "score": score,
+        "max_score": assignment.get('max_score', 100),
+        "feedback": feedback
+    }
+
+
+@assignments_router.get("/{assignment_id}/suggested-answer")
+async def get_assignment_suggested_answer(assignment_id: str, current_user: dict = Depends(get_current_user)):
+    """Get suggested answer for an assignment (teacher only)"""
+    if current_user.get('role') not in ['teacher', 'admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    assignment = await db.assignments.find_one({"id": assignment_id}, {"_id": 0})
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    return {
+        "assignment_id": assignment_id,
+        "title": assignment.get('title'),
+        "suggested_answer": assignment.get('suggested_answer', 'No suggested answer available')
+    }
+
+
+# ==================== STRIPE PAYMENTS ====================
+
+from services.payment_service import create_payment_session, get_payment_status, get_course_price, COURSE_PACKAGES
+
+@payments_router.post("/create-checkout")
+async def create_payment_checkout(
+    course_id: str,
+    origin_url: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create Stripe checkout session for course enrollment"""
+    # Get course
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    price = course.get('price', 0)
+    if price <= 0:
+        # Free course - enroll directly
+        await enroll_student_in_course(current_user['id'], course_id)
+        return {"message": "Enrolled in free course", "enrolled": True}
+    
+    # Create webhook URL
+    webhook_url = f"{origin_url}/api/webhook/stripe"
+    success_url = f"{origin_url}/payment-success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{origin_url}/courses/{course_id}"
+    
+    metadata = {
+        "course_id": course_id,
+        "user_id": current_user['id'],
+        "course_title": course.get('title', ''),
+        "user_email": current_user.get('email', '')
+    }
+    
+    result = await create_payment_session(
+        amount=float(price),
+        currency="usd",
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata=metadata,
+        webhook_url=webhook_url
+    )
+    
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    
+    # Store pending payment
+    await db.payment_transactions.insert_one({
+        "id": str(uuid.uuid4()),
+        "session_id": result["session_id"],
+        "user_id": current_user['id'],
+        "course_id": course_id,
+        "amount": price,
+        "currency": "usd",
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc)
+    })
+    
+    return {"checkout_url": result["url"], "session_id": result["session_id"]}
+
+
+@payments_router.get("/status/{session_id}")
+async def check_payment_status(session_id: str, origin_url: str, current_user: dict = Depends(get_current_user)):
+    """Check payment status and enroll if paid"""
+    webhook_url = f"{origin_url}/api/webhook/stripe"
+    
+    status = await get_payment_status(session_id, webhook_url)
+    
+    if "error" in status:
+        raise HTTPException(status_code=500, detail=status["error"])
+    
+    # Update transaction
+    await db.payment_transactions.update_one(
+        {"session_id": session_id},
+        {"$set": {
+            "status": status["status"],
+            "payment_status": status["payment_status"],
+            "updated_at": datetime.now(timezone.utc)
+        }}
+    )
+    
+    # If paid, enroll student
+    if status["payment_status"] == "paid":
+        transaction = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+        if transaction and not transaction.get("enrolled"):
+            await enroll_student_in_course(transaction["user_id"], transaction["course_id"])
+            await db.payment_transactions.update_one(
+                {"session_id": session_id},
+                {"$set": {"enrolled": True}}
+            )
+    
+    return status
+
+
+async def enroll_student_in_course(user_id: str, course_id: str):
+    """Helper to enroll student in course"""
+    # Add to student profile
+    await db.student_profiles.update_one(
+        {"user_id": user_id},
+        {"$addToSet": {"enrolled_courses": course_id}},
+        upsert=True
+    )
+    
+    # Update course enrolled count
+    await db.courses.update_one(
+        {"id": course_id},
+        {"$inc": {"enrolled_count": 1}}
+    )
+
+
+# ==================== RISK PREDICTION ACTIONS ====================
+
+@api_router.post("/risk/contact-parent")
+async def contact_parent_about_risk(
+    student_id: str,
+    risk_type: str,
+    message: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Send notification to parent about student risk"""
+    if current_user.get('role') not in ['teacher', 'admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    # Get student
+    student = await db.users.find_one({"id": student_id}, {"_id": 0, "password_hash": 0})
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Find parent linked to this student
+    link = await db.parent_child_links.find_one({"child_id": student_id, "status": "approved"}, {"_id": 0})
+    if not link:
+        raise HTTPException(status_code=404, detail="No parent linked to this student")
+    
+    parent = await db.users.find_one({"id": link["parent_id"]}, {"_id": 0})
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent not found")
+    
+    # Create notification
+    notification = {
+        "id": str(uuid.uuid4()),
+        "user_id": parent["id"],
+        "type": "risk_alert",
+        "title": f"Risk Alert for {student.get('full_name')}",
+        "message": f"Risk Type: {risk_type}\n\n{message}",
+        "from_user_id": current_user['id'],
+        "from_user_name": current_user.get('full_name'),
+        "student_id": student_id,
+        "read": False,
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.notifications.insert_one(notification)
+    
+    # Send email notification
+    await send_notification_email(
+        parent.get('email'),
+        parent.get('full_name', 'Parent'),
+        f"Risk Alert: {student.get('full_name')}",
+        f"A teacher has flagged a concern about your child.\n\nRisk Type: {risk_type}\n\nMessage: {message}\n\nPlease log in to EduOS to learn more."
+    )
+    
+    return {"message": "Parent notified", "notification_id": notification["id"]}
+
+
+@api_router.post("/risk/set-alert")
+async def set_student_alert(
+    student_id: str,
+    alert_type: str,
+    severity: str,
+    notes: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Set an alert for a student"""
+    if current_user.get('role') not in ['teacher', 'admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    alert = {
+        "id": str(uuid.uuid4()),
+        "student_id": student_id,
+        "alert_type": alert_type,
+        "severity": severity,
+        "notes": notes,
+        "created_by": current_user['id'],
+        "created_by_name": current_user.get('full_name'),
+        "status": "active",
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.student_alerts.insert_one(alert)
+    
+    return {"message": "Alert set", "alert_id": alert["id"]}
+
+
+# ==================== CREDENTIAL ISSUANCE FIX ====================
+
+@api_router.post("/credentials/issue-v2")
+async def issue_credential_v2(
+    student_id: str,
+    credential_type: str,
+    title: str,
+    description: str = "",
+    course_id: str = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Issue a credential to a student"""
+    if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Get student
+    student = await db.users.find_one({"id": student_id}, {"_id": 0, "password_hash": 0})
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Generate credential hash
+    import hashlib
+    credential_data = f"{student_id}{credential_type}{title}{datetime.now(timezone.utc).isoformat()}"
+    credential_hash = hashlib.sha256(credential_data.encode()).hexdigest()
+    
+    credential = {
+        "id": str(uuid.uuid4()),
+        "hash": credential_hash,
+        "student_id": student_id,
+        "student_name": student.get('full_name'),
+        "student_email": student.get('email'),
+        "credential_type": credential_type,
+        "title": title,
+        "description": description,
+        "course_id": course_id,
+        "issued_by": current_user['id'],
+        "issuer_name": current_user.get('full_name'),
+        "org_id": current_user.get('org_id'),
+        "status": "issued",
+        "issued_at": datetime.now(timezone.utc),
+        "blockchain_status": "hash_verified"  # MVP uses hash-based verification
+    }
+    
+    await db.credentials.insert_one(credential)
+    
+    return {
+        "message": "Credential issued successfully",
+        "credential_id": credential["id"],
+        "credential_hash": credential_hash,
+        "verification_url": f"/verify/{credential_hash}"
+    }
+
+
+# ==================== ORGANIZATION SCOPED FEATURES ====================
+
+@api_router.get("/org/courses")
+async def get_org_courses(current_user: dict = Depends(get_current_user)):
+    """Get courses for the current user's organization only"""
+    org_id = current_user.get('org_id')
+    
+    if not org_id:
+        # If no org, return empty or raise error
+        return []
+    
+    courses = await db.courses.find({"org_id": org_id}, {"_id": 0}).to_list(length=100)
+    return courses
+
+
+@api_router.get("/org/participants")
+async def get_org_participants(current_user: dict = Depends(get_current_user)):
+    """Get all participants (students) in the organization"""
+    if current_user.get('role') != 'org_admin':
+        raise HTTPException(status_code=403, detail="Org admin access required")
+    
+    org_id = current_user.get('org_id')
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization associated")
+    
+    # Get users in this org
+    participants = await db.users.find(
+        {"org_id": org_id, "role": "student"},
+        {"_id": 0, "password_hash": 0}
+    ).to_list(length=500)
+    
+    return participants
+
+
+@api_router.get("/org/staff")
+async def get_org_staff(current_user: dict = Depends(get_current_user)):
+    """Get all staff (teachers) in the organization"""
+    if current_user.get('role') != 'org_admin':
+        raise HTTPException(status_code=403, detail="Org admin access required")
+    
+    org_id = current_user.get('org_id')
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization associated")
+    
+    staff = await db.users.find(
+        {"org_id": org_id, "role": "teacher"},
+        {"_id": 0, "password_hash": 0}
+    ).to_list(length=100)
+    
+    return staff
+
+
+@api_router.post("/org/enroll-participant")
+async def org_enroll_participant(
+    email: str,
+    full_name: str,
+    role: str = "student",
+    current_user: dict = Depends(get_current_user)
+):
+    """Enroll a participant in the organization with email confirmation"""
+    if current_user.get('role') != 'org_admin':
+        raise HTTPException(status_code=403, detail="Org admin access required")
+    
+    org_id = current_user.get('org_id')
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization associated")
+    
+    # Get org name
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    org_name = org.get('name', 'Organization') if org else 'Organization'
+    
+    # Check if user exists
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        # Add to org
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {"org_id": org_id}}
+        )
+        return {"message": "Existing user added to organization"}
+    
+    # Generate temp password
+    temp_password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+    
+    # Create user
+    user_id = str(uuid.uuid4())
+    new_user = {
+        "id": user_id,
+        "email": email,
+        "full_name": full_name,
+        "password_hash": bcrypt.hashpw(temp_password.encode(), bcrypt.gensalt()).decode(),
+        "role": role,
+        "org_id": org_id,
+        "is_active": True,
+        "email_verified": False,
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.users.insert_one(new_user)
+    
+    # Create profile
+    if role == "student":
+        await db.student_profiles.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "org_id": org_id,
+            "enrolled_courses": [],
+            "created_at": datetime.now(timezone.utc)
+        })
+    
+    # Send confirmation email
+    await send_enrollment_confirmation_email(email, full_name, org_name, role, temp_password)
+    
+    return {
+        "message": "Participant enrolled and email sent",
+        "user_id": user_id,
+        "email_sent": True
+    }
+
+
+@api_router.post("/org/bulk-enroll")
+async def org_bulk_enroll_participants(
+    emails: List[str],
+    role: str = "student",
+    current_user: dict = Depends(get_current_user)
+):
+    """Bulk enroll participants via email list"""
+    if current_user.get('role') != 'org_admin':
+        raise HTTPException(status_code=403, detail="Org admin access required")
+    
+    org_id = current_user.get('org_id')
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization associated")
+    
+    results = []
+    for email in emails:
+        try:
+            # Generate name from email
+            name = email.split('@')[0].replace('.', ' ').title()
+            result = await org_enroll_participant(email, name, role, current_user)
+            results.append({"email": email, "status": "success", **result})
+        except Exception as e:
+            results.append({"email": email, "status": "error", "error": str(e)})
+    
+    return {"results": results, "total": len(emails), "successful": len([r for r in results if r["status"] == "success"])}
+
 # Include all routes in the app - MUST be after all route definitions
 app.include_router(api_router)
 
