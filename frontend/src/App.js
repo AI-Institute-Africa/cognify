@@ -322,6 +322,12 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      <Route path="/assignments" element={
+        <ProtectedRoute>
+          <StudentAssignmentsPage />
+        </ProtectedRoute>
+      } />
+      
       <Route path="/vr-learning" element={
         <ProtectedRoute>
           <VRLearningPage />
