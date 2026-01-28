@@ -157,14 +157,14 @@ export const Sidebar = () => {
           item.divider ? (
             <div key={`divider-${index}`} className="pt-4 pb-2">
               <p className="px-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-                {item.label}
+                {item.labelKey ? t(item.labelKey) : item.label}
               </p>
             </div>
           ) : (
             <NavLink
               key={item.path}
               to={item.path}
-              data-testid={`nav-${item.label.toLowerCase().replace(/\s/g, '-')}`}
+              data-testid={`nav-${(item.labelKey || item.label).toLowerCase().replace(/\s/g, '-')}`}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 group ${
                   isActive
@@ -174,7 +174,7 @@ export const Sidebar = () => {
               }
             >
               <item.icon className="w-5 h-5" />
-              <span className="flex-1">{item.label}</span>
+              <span className="flex-1">{item.labelKey ? t(item.labelKey) : item.label}</span>
               <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
             </NavLink>
           )
@@ -189,7 +189,7 @@ export const Sidebar = () => {
           className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
         >
           <Settings className="w-5 h-5" />
-          <span>Settings</span>
+          <span>{t('settings')}</span>
         </NavLink>
         <button
           onClick={handleLogout}
@@ -197,7 +197,7 @@ export const Sidebar = () => {
           className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-all mt-1"
         >
           <LogOut className="w-5 h-5" />
-          <span>Logout</span>
+          <span>{t('logout')}</span>
         </button>
       </div>
     </aside>
