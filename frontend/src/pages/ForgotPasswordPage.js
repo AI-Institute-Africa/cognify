@@ -55,7 +55,7 @@ export default function ForgotPasswordPage() {
     
     setLoading(true);
     try {
-      await resetPassword(email, resetCode, newPassword);
+      await resetPasswordV2(email, resetCode, newPassword);
       toast.success('Password reset successfully!');
       setStep(3);
     } catch (error) {
