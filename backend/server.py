@@ -5131,40 +5131,7 @@ async def get_org_analytics(current_user: dict = Depends(get_current_user)):
         "total_payments": len(payments)
     }
 
-# Include all routers
-api_router.include_router(auth_router)
-api_router.include_router(users_router)
-api_router.include_router(students_router)
-api_router.include_router(teachers_router)
-api_router.include_router(courses_router)
-api_router.include_router(attendance_router)
-api_router.include_router(grades_router)
-api_router.include_router(fees_router)
-api_router.include_router(achievements_router)
-api_router.include_router(ai_router)
-api_router.include_router(dashboard_router)
-api_router.include_router(notifications_router)
-api_router.include_router(orgs_router)
-api_router.include_router(knowledge_router)
-api_router.include_router(mentor_router)
-api_router.include_router(content_router)
-api_router.include_router(voice_router)
-api_router.include_router(parents_router)
-api_router.include_router(reports_router)
-api_router.include_router(credentials_router)
-api_router.include_router(rfid_router)
-api_router.include_router(messages_router)
-api_router.include_router(study_groups_router)
-api_router.include_router(zoom_router)
-api_router.include_router(advanced_router)
-api_router.include_router(language_router)
-api_router.include_router(multimodal_router)
-api_router.include_router(exams_router)
-api_router.include_router(assignments_router)
-api_router.include_router(payments_router)
-api_router.include_router(org_admin_router)
-
-# NOTE: app.include_router is moved to end of file after all route definitions
+# NOTE: Router inclusion moved to end of file after all route definitions
 
 app.add_middleware(
     CORSMiddleware,
