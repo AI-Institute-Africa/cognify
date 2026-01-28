@@ -954,3 +954,193 @@ export const linkChild = async (childEmail) => {
   const response = await axios.post(`${API}/parents/link-child?child_email=${encodeURIComponent(childEmail)}`, {}, { headers: getAuthHeaders() });
   return response.data;
 };
+
+// ==================== EMAIL VERIFICATION ====================
+export const registerWithVerification = async (email, password, fullName, role = 'student') => {
+  const params = new URLSearchParams({ email, password, full_name: fullName, role });
+  const response = await axios.post(`${API}/auth/register-with-verification?${params}`);
+  return response.data;
+};
+
+export const verifyEmail = async (email, verificationCode) => {
+  const params = new URLSearchParams({ email, verification_code: verificationCode });
+  const response = await axios.post(`${API}/auth/verify-email?${params}`);
+  return response.data;
+};
+
+export const resendVerification = async (email) => {
+  const response = await axios.post(`${API}/auth/resend-verification?email=${encodeURIComponent(email)}`);
+  return response.data;
+};
+
+export const forgotPasswordV2 = async (email) => {
+  const response = await axios.post(`${API}/auth/forgot-password-v2?email=${encodeURIComponent(email)}`);
+  return response.data;
+};
+
+export const resetPasswordV2 = async (email, resetCode, newPassword) => {
+  const params = new URLSearchParams({ email, reset_code: resetCode, new_password: newPassword });
+  const response = await axios.post(`${API}/auth/reset-password-v2?${params}`);
+  return response.data;
+};
+
+// ==================== GOOGLE AUTH ====================
+export const processGoogleSessionV2 = async (sessionId) => {
+  const response = await axios.post(`${API}/auth/google/session?session_id=${sessionId}`);
+  return response.data;
+};
+
+export const initiateGoogleLogin = (redirectPath = '/dashboard') => {
+  // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS - THIS BREAKS THE AUTH
+  const redirectUrl = window.location.origin + redirectPath;
+  window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+};
+
+// ==================== FILE UPLOADS ====================
+export const uploadImageFile = async (courseId, title, file, description = '') => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await axios.post(
+    `${API}/content/upload-image?course_id=${courseId}&title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}`,
+    formData,
+    { headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' } }
+  );
+  return response.data;
+};
+
+// ==================== TEACHER DASHBOARD ====================
+export const getTeacherDashboardStats = async () => {
+  const response = await axios.get(`${API}/teacher/dashboard-stats`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getCourseEnrolledStudents = async (courseId) => {
+  const response = await axios.get(`${API}/teacher/course/${courseId}/students`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== COURSE TYPES & ACADEMIC LEVELS ====================
+export const getAcademicLevels = async () => {
+  const response = await axios.get(`${API}/academic-levels`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getCourseTypes = async () => {
+  const response = await axios.get(`${API}/course-types`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const createCourseWithDetails = async (title, description, category, academicLevel, numLessons = 10, subject = 'General') => {
+  const params = new URLSearchParams({
+    title,
+    description,
+    category,
+    academic_level: academicLevel,
+    num_lessons: numLessons.toString(),
+    subject
+  });
+  const response = await axios.post(`${API}/courses/create-with-details?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== ASSIGNMENTS (ENHANCED) ====================
+export const createLinkedAssignment = async (title, courseId, description = '', dueDate = null, maxScore = 100, autoGrade = true) => {
+  const params = new URLSearchParams({
+    title,
+    course_id: courseId,
+    max_score: maxScore.toString(),
+    auto_grade: autoGrade.toString()
+  });
+  if (description) params.append('description', description);
+  if (dueDate) params.append('due_date', dueDate);
+  const response = await axios.post(`${API}/assignments/create-linked?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getStudentAssignments = async () => {
+  const response = await axios.get(`${API}/assignments/student/my-assignments`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const submitAndGradeAssignment = async (assignmentId, content) => {
+  const response = await axios.post(
+    `${API}/assignments/${assignmentId}/submit-and-grade?content=${encodeURIComponent(content)}`,
+    {},
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+export const getSuggestedAnswer = async (assignmentId) => {
+  const response = await axios.get(`${API}/assignments/${assignmentId}/suggested-answer`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== STRIPE PAYMENTS ====================
+export const createPaymentCheckout = async (courseId) => {
+  const originUrl = window.location.origin;
+  const response = await axios.post(
+    `${API}/payments/create-checkout?course_id=${courseId}&origin_url=${encodeURIComponent(originUrl)}`,
+    {},
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+export const getPaymentStatus = async (sessionId) => {
+  const originUrl = window.location.origin;
+  const response = await axios.get(
+    `${API}/payments/status/${sessionId}?origin_url=${encodeURIComponent(originUrl)}`,
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+// ==================== RISK PREDICTION ACTIONS ====================
+export const contactParentAboutRisk = async (studentId, riskType, message) => {
+  const params = new URLSearchParams({ student_id: studentId, risk_type: riskType, message });
+  const response = await axios.post(`${API}/risk/contact-parent?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const setStudentAlert = async (studentId, alertType, severity, notes) => {
+  const params = new URLSearchParams({ student_id: studentId, alert_type: alertType, severity, notes });
+  const response = await axios.post(`${API}/risk/set-alert?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== CREDENTIALS (FIXED) ====================
+export const issueCredentialV2 = async (studentId, credentialType, title, description = '', courseId = null) => {
+  const params = new URLSearchParams({ student_id: studentId, credential_type: credentialType, title });
+  if (description) params.append('description', description);
+  if (courseId) params.append('course_id', courseId);
+  const response = await axios.post(`${API}/credentials/issue-v2?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== ORGANIZATION SCOPED ====================
+export const getOrgCourses = async () => {
+  const response = await axios.get(`${API}/org/courses`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getOrgParticipants = async () => {
+  const response = await axios.get(`${API}/org/participants`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getOrgStaff = async () => {
+  const response = await axios.get(`${API}/org/staff`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const orgEnrollParticipant = async (email, fullName, role = 'student') => {
+  const params = new URLSearchParams({ email, full_name: fullName, role });
+  const response = await axios.post(`${API}/org/enroll-participant?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const orgBulkEnroll = async (emails, role = 'student') => {
+  const response = await axios.post(`${API}/org/bulk-enroll`, { emails, role }, { headers: getAuthHeaders() });
+  return response.data;
+};
