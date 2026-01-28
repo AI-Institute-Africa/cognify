@@ -4800,21 +4800,24 @@ async def get_student_meetings(current_user: dict = Depends(get_current_user)):
         
         # Add status to each meeting
         unique_meetings = []
+        now = datetime.now(timezone.utc)
+        
         for m in all_meetings:
             try:
-                # Parse start_time
+                # Parse start_time with proper timezone handling
                 start_time_str = m.get('start_time') or m.get('created_at')
                 if start_time_str:
                     if isinstance(start_time_str, datetime):
                         start_time = start_time_str
+                        if start_time.tzinfo is None:
+                            start_time = start_time.replace(tzinfo=timezone.utc)
                     else:
                         start_time = datetime.fromisoformat(str(start_time_str).replace('Z', '+00:00'))
                 else:
-                    start_time = datetime.now(timezone.utc)
+                    start_time = now
                 
                 duration = m.get('duration', 60)
                 end_time = start_time + timedelta(minutes=duration)
-                now = datetime.now(timezone.utc)
                 
                 if now < start_time:
                     m['status'] = 'scheduled'
@@ -4824,14 +4827,19 @@ async def get_student_meetings(current_user: dict = Depends(get_current_user)):
                     m['status'] = 'completed'
                     m['recording_url'] = m.get('recording_url', None)
                 
+                m['parsed_start_time'] = start_time.isoformat()
                 unique_meetings.append(serialize_doc(m))
             except Exception as parse_error:
                 logging.warning(f"Error parsing meeting: {parse_error}")
                 m['status'] = 'scheduled'
+                m['parsed_start_time'] = now.isoformat()
                 unique_meetings.append(serialize_doc(m))
         
-        # Sort by start time (most recent first)
-        unique_meetings.sort(key=lambda x: x.get('start_time', x.get('created_at', '')), reverse=True)
+        # Sort by start time (most recent first), with fallback for None values
+        unique_meetings.sort(
+            key=lambda x: x.get('parsed_start_time', x.get('start_time', x.get('created_at', '1970-01-01T00:00:00+00:00'))),
+            reverse=True
+        )
         
         return unique_meetings
         
