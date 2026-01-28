@@ -8,6 +8,8 @@ import logging
 import io
 import base64
 import asyncio
+import random
+import string
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import List, Optional, Dict, Any
