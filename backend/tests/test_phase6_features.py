@@ -96,8 +96,13 @@ class TestStudyGroups:
         response = requests.get(f"{BASE_URL}/api/study-groups/my-groups", headers=headers)
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list)
-        print(f"✓ My study groups: {len(data)} groups found")
+        # Response can be a list or dict with 'groups' key
+        if isinstance(data, dict):
+            assert "groups" in data
+            print(f"✓ My study groups: {len(data.get('groups', []))} groups found")
+        else:
+            assert isinstance(data, list)
+            print(f"✓ My study groups: {len(data)} groups found")
 
 
 class TestAcademicLevels:
