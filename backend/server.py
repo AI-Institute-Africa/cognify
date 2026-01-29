@@ -2002,14 +2002,53 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         stats['recent_students'] = [serialize_doc(s) for s in recent_students]
         
     elif current_user['role'] == 'teacher':
+        # Get courses created by this teacher
+        created_courses = await db.courses.find({"created_by": current_user['id']}, {"_id": 0}).to_list(100)
+        created_course_ids = [c['id'] for c in created_courses]
+        
+        # Also get assigned courses from profile
         profile = await db.teacher_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
-        if profile:
-            assigned_courses = profile.get('assigned_courses', [])
-            stats['total_courses'] = len(assigned_courses)
-            stats['total_students'] = await db.student_profiles.count_documents(
-                {"enrolled_courses": {"$in": assigned_courses}}
-            )
-        stats['pending_grades'] = 0
+        assigned_courses = profile.get('assigned_courses', []) if profile else []
+        
+        # Combine both
+        all_course_ids = list(set(created_course_ids + assigned_courses))
+        
+        stats['total_courses'] = len(all_course_ids)
+        stats['created_courses'] = len(created_course_ids)
+        
+        # Count total students across all courses
+        stats['total_students'] = await db.student_profiles.count_documents(
+            {"enrolled_courses": {"$in": all_course_ids}}
+        )
+        
+        # Get pending grades count
+        assignments = await db.assignments.find({"created_by": current_user['id']}, {"_id": 0, "id": 1}).to_list(100)
+        assignment_ids = [a['id'] for a in assignments]
+        stats['pending_grades'] = await db.assignment_submissions.count_documents({
+            "assignment_id": {"$in": assignment_ids},
+            "graded": {"$ne": True}
+        })
+        
+        # Get exams count
+        stats['total_exams'] = await db.exams.count_documents({"created_by": current_user['id']})
+        
+        # Get recent student enrollments
+        recent_enrollments = await db.student_profiles.find(
+            {"enrolled_courses": {"$in": all_course_ids}},
+            {"_id": 0}
+        ).sort("created_at", -1).limit(5).to_list(5)
+        
+        recent_students = []
+        for profile in recent_enrollments:
+            user = await db.users.find_one({"id": profile['user_id']}, {"_id": 0, "password_hash": 0})
+            if user:
+                recent_students.append({
+                    "id": user['id'],
+                    "full_name": user.get('full_name', 'Unknown'),
+                    "email": user.get('email', ''),
+                    "profile_picture": user.get('profile_picture')
+                })
+        stats['recent_students'] = recent_students
         
     elif current_user['role'] == 'student':
         profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
