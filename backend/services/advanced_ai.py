@@ -982,6 +982,54 @@ async def personalize_content_for_identity(
 
 
 # =============================================================================
+# GEMINI CHAT FUNCTION (For KTCE and other services)
+# =============================================================================
+
+async def gemini_chat(messages: List[Dict[str, str]]) -> str:
+    """
+    Simple Gemini chat function for KTCE and other services.
+    Takes a list of messages and returns the AI response.
+    """
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.getenv("EMERGENT_LLM_KEY")
+        if not api_key:
+            raise ValueError("EMERGENT_LLM_KEY not configured")
+        
+        # Extract system message if present
+        system_message = "You are a helpful AI assistant."
+        user_messages = []
+        
+        for msg in messages:
+            if msg.get('role') == 'system':
+                system_message = msg.get('content', system_message)
+            elif msg.get('role') == 'user':
+                user_messages.append(msg.get('content', ''))
+        
+        session_id = f"gemini-{datetime.now().timestamp()}"
+        
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=session_id,
+            system_message=system_message
+        )
+        chat.with_model("openai", "gpt-5.2")  # Using GPT-5.2 via Emergent
+        
+        # Send all user messages and get final response
+        response = None
+        for content in user_messages:
+            if content:
+                response = await chat.send_message(UserMessage(text=content))
+        
+        return response or "No response generated"
+        
+    except Exception as e:
+        logger.error(f"Gemini chat error: {str(e)}")
+        raise e
+
+
+# =============================================================================
 # OUTCOME-FIRST LEARNING (OFL) - MVP/MOCKED
 # =============================================================================
 
