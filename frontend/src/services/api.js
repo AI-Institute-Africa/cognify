@@ -1144,3 +1144,34 @@ export const orgBulkEnroll = async (emails, role = 'student') => {
   const response = await axios.post(`${API}/org/bulk-enroll`, { emails, role }, { headers: getAuthHeaders() });
   return response.data;
 };
+
+// ==================== KTCE (Knowledge Time Compression Engine) ====================
+export const ktceOptimizePath = async (courseId, learnerGoal) => {
+  const params = new URLSearchParams({ course_id: courseId, learner_goal: learnerGoal });
+  const response = await axios.post(`${API}/ktce/optimize-path?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const ktceGetCompressedLesson = async (conceptId, conceptName, description = '') => {
+  const params = new URLSearchParams({ concept_id: conceptId, concept_name: conceptName });
+  if (description) params.append('description', description);
+  const response = await axios.post(`${API}/ktce/compressed-lesson?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== TEACHER DASHBOARD ENHANCED ====================
+export const getTeacherStudentsByCourse = async () => {
+  const response = await axios.get(`${API}/teacher/students-by-course`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const teacherSendMessage = async (studentId, subject, message) => {
+  const params = new URLSearchParams({ student_id: studentId, subject, message });
+  const response = await axios.post(`${API}/teacher/send-message?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getStudentProfileForTeacher = async (studentId) => {
+  const response = await axios.get(`${API}/teacher/student-profile/${studentId}`, { headers: getAuthHeaders() });
+  return response.data;
+};
