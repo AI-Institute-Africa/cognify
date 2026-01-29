@@ -49,6 +49,16 @@ export default function DashboardPage() {
       setStats(statsData);
       setCourses(coursesData.slice(0, 4));
       setAchievements(achievementsData.slice(0, 3));
+      
+      // Load teacher-specific data
+      if (user?.role === 'teacher') {
+        try {
+          const teacherData = await getTeacherStudentsByCourse();
+          setTeacherCourseStudents(teacherData);
+        } catch (e) {
+          console.log('Could not load teacher course data');
+        }
+      }
     } catch (error) {
       console.error('Failed to load dashboard:', error);
     } finally {
@@ -58,9 +68,9 @@ export default function DashboardPage() {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
+    if (hour < 12) return t('goodMorning');
+    if (hour < 18) return t('goodAfternoon');
+    return t('goodEvening');
   };
 
   if (loading) {
