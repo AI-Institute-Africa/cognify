@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
 import { StatCard, WideStatCard } from '../components/StatCard';
-import { getDashboardStats, getCourses, getAchievements } from '../services/api';
+import { getDashboardStats, getCourses, getAchievements, getTeacherStudentsByCourse } from '../services/api';
 import { 
   GraduationCap, 
   BookOpen, 
@@ -15,7 +16,10 @@ import {
   Clock,
   Target,
   Sparkles,
-  ArrowUpRight
+  ArrowUpRight,
+  Eye,
+  Mail,
+  FileText
 } from 'lucide-react';
 import { Progress } from '../components/ui/progress';
 import { Badge } from '../components/ui/badge';
@@ -24,9 +28,11 @@ import { Link } from 'react-router-dom';
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [stats, setStats] = useState({});
   const [courses, setCourses] = useState([]);
   const [achievements, setAchievements] = useState([]);
+  const [teacherCourseStudents, setTeacherCourseStudents] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
