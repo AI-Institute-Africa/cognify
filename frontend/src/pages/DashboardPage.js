@@ -149,7 +149,7 @@ export default function DashboardPage() {
           {user?.role === 'teacher' && (
             <>
               <WideStatCard
-                title="Total Students"
+                title={t('totalStudents')}
                 value={stats.total_students || 0}
                 subtitle="Across all your classes"
                 icon={Users}
@@ -157,7 +157,7 @@ export default function DashboardPage() {
               />
               
               <StatCard
-                title="Active Courses"
+                title={t('activeCourses')}
                 value={stats.total_courses || 0}
                 icon={BookOpen}
                 iconColor="text-blue-400"
@@ -168,6 +168,13 @@ export default function DashboardPage() {
                 value={stats.pending_grades || 0}
                 icon={Target}
                 iconColor="text-amber-400"
+              />
+              
+              <StatCard
+                title={t('exams')}
+                value={stats.total_exams || 0}
+                icon={FileText}
+                iconColor="text-cyan-400"
               />
             </>
           )}
