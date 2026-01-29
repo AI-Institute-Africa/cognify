@@ -51,6 +51,7 @@ import PaymentPage from './pages/PaymentPage';
 import OrgAdminDashboardPage from './pages/OrgAdminDashboardPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import StudentAssignmentsPage from './pages/StudentAssignmentsPage';
+import KTCELearningPage from './pages/KTCELearningPage';
 
 import './App.css';
 
