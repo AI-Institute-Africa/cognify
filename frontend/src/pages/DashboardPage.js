@@ -367,10 +367,10 @@ export default function DashboardPage() {
             {user?.role === 'student' && (
               <div className="glass-card p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">Achievements</h3>
+                  <h3 className="text-lg font-semibold">{t('achievements')}</h3>
                   <Link to="/achievements">
                     <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300">
-                      View all
+                      {t('viewAll')}
                     </Button>
                   </Link>
                 </div>
@@ -400,8 +400,101 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
+            
+            {/* Recent Students for Teachers */}
+            {user?.role === 'teacher' && stats.recent_students && stats.recent_students.length > 0 && (
+              <div className="glass-card p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Recent Students</h3>
+                  <Link to="/students">
+                    <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300">
+                      {t('viewAll')}
+                    </Button>
+                  </Link>
+                </div>
+                <div className="space-y-3">
+                  {stats.recent_students.map((student) => (
+                    <div
+                      key={student.id}
+                      className="flex items-center gap-3 p-3 rounded-lg bg-zinc-900/50 hover:bg-zinc-800/50 transition-colors"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500/20 to-violet-500/20 flex items-center justify-center overflow-hidden">
+                        {student.profile_picture ? (
+                          <img src={student.profile_picture} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <Users className="w-5 h-5 text-blue-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{student.full_name}</p>
+                        <p className="text-xs text-zinc-500">{student.email}</p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Link to={`/students?view=${student.id}`}>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Eye className="w-4 h-4 text-zinc-400" />
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
+        
+        {/* Teacher Course Students Section */}
+        {user?.role === 'teacher' && teacherCourseStudents.length > 0 && (
+          <div className="mt-8">
+            <h3 className="text-xl font-semibold mb-4">Students by Course</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {teacherCourseStudents.map((courseData) => (
+                <div key={courseData.course.id} className="glass-card p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-violet-500/20 flex items-center justify-center">
+                      <BookOpen className="w-6 h-6 text-blue-400" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">{courseData.course.title || courseData.course.name}</h4>
+                      <p className="text-sm text-zinc-500">{courseData.student_count} students enrolled</p>
+                    </div>
+                  </div>
+                  
+                  {courseData.students.length > 0 ? (
+                    <div className="space-y-2">
+                      {courseData.students.slice(0, 3).map((student) => (
+                        <div key={student.id} className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/30">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center text-sm">
+                              {student.full_name?.charAt(0) || '?'}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">{student.full_name}</p>
+                              <p className="text-xs text-zinc-500">Avg: {student.average_grade || 0}%</p>
+                            </div>
+                          </div>
+                          <Link to={`/students?view=${student.id}`}>
+                            <Button variant="ghost" size="sm" className="h-7 text-xs">
+                              View
+                            </Button>
+                          </Link>
+                        </div>
+                      ))}
+                      {courseData.students.length > 3 && (
+                        <p className="text-xs text-center text-zinc-500 pt-2">
+                          +{courseData.students.length - 3} more students
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-zinc-500 text-center py-4">No students enrolled yet</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
