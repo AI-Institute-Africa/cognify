@@ -492,6 +492,18 @@ export default function CourseViewPage() {
               
               {/* Language Selector and Teacher Upload */}
               <div className="flex items-center gap-3">
+                {/* KTCE Button for Students */}
+                {!isTeacher && (
+                  <Button 
+                    onClick={() => navigate(`/ktce/${courseId}`)}
+                    className="bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600"
+                    data-testid="ktce-optimize-btn"
+                  >
+                    <Zap className="w-4 h-4 mr-2" />
+                    KTCE Optimize
+                  </Button>
+                )}
+                
                 {isTeacher && (
                   <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
                     <DialogTrigger asChild>
