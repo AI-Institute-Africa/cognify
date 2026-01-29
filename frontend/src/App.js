@@ -236,6 +236,12 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      <Route path="/ktce/:courseId" element={
+        <ProtectedRoute>
+          <KTCELearningPage />
+        </ProtectedRoute>
+      } />
+      
       <Route path="/parent-portal" element={
         <ProtectedRoute allowedRoles={['parent']}>
           <ParentPortalPage />
