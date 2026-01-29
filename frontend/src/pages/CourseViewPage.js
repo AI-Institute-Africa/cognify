@@ -890,17 +890,67 @@ export default function CourseViewPage() {
                   <TabsContent value="slides" className="mt-0">
                     <div className="space-y-4">
                       {/* Slide viewer */}
-                      <div className="aspect-video bg-gradient-to-br from-blue-500/5 to-violet-500/5 rounded-xl flex items-center justify-center border border-white/10 p-8">
-                        <div className="text-center max-w-2xl">
-                          <div className="w-20 h-20 bg-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                            <Image className="w-10 h-10 text-blue-400" />
-                          </div>
-                          <h3 className="text-2xl font-bold mb-4">{currentLesson?.title}</h3>
-                          <p className="text-zinc-400 text-lg">
-                            {currentLesson?.description || displayText.substring(0, 200)}
-                          </p>
+                      {currentLesson?.image_url || currentLesson?.slides_url ? (
+                        <div className="aspect-video bg-zinc-900 rounded-xl overflow-hidden border border-white/10">
+                          <img 
+                            src={currentLesson.image_url || currentLesson.slides_url}
+                            alt={currentLesson.title}
+                            className="w-full h-full object-contain"
+                          />
                         </div>
-                      </div>
+                      ) : currentLesson?.slides ? (
+                        <div className="space-y-4">
+                          {currentLesson.slides.map((slide, idx) => (
+                            <div key={idx} className="aspect-video bg-gradient-to-br from-blue-500/5 to-violet-500/5 rounded-xl border border-white/10 p-8">
+                              <div className="text-center max-w-2xl mx-auto">
+                                <h3 className="text-2xl font-bold mb-4">{slide.title || `Slide ${idx + 1}`}</h3>
+                                <p className="text-zinc-300 text-lg whitespace-pre-wrap">{slide.content}</p>
+                                {slide.image_url && (
+                                  <img src={slide.image_url} alt={slide.title} className="mt-4 mx-auto rounded-lg max-h-64" />
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="aspect-video bg-gradient-to-br from-blue-500/5 to-violet-500/5 rounded-xl flex items-center justify-center border border-white/10 p-8">
+                          <div className="text-center max-w-2xl">
+                            <div className="w-20 h-20 bg-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                              <Image className="w-10 h-10 text-blue-400" />
+                            </div>
+                            <h3 className="text-2xl font-bold mb-4">{currentLesson?.title}</h3>
+                            <p className="text-zinc-400 text-lg mb-6">
+                              {currentLesson?.description || displayText.substring(0, 200)}
+                            </p>
+                            {isTeacher && (
+                              <div className="flex gap-3 justify-center">
+                                <Button 
+                                  onClick={() => {
+                                    setNewContent({ ...newContent, type: 'image' });
+                                    setShowUploadDialog(true);
+                                  }}
+                                  className="bg-blue-500 hover:bg-blue-600"
+                                >
+                                  <Upload className="w-4 h-4 mr-2" />
+                                  Upload Slides
+                                </Button>
+                                <Button 
+                                  onClick={() => {
+                                    setGenerateType('slides');
+                                    setShowGenerateDialog(true);
+                                  }}
+                                  variant="outline"
+                                  className="border-cyan-500/30 text-cyan-400"
+                                  data-testid="generate-slides-btn"
+                                >
+                                  <Wand2 className="w-4 h-4 mr-2" />
+                                  AI Generate Slides
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       
                       {/* Slide thumbnails */}
                       <div className="flex gap-2 overflow-x-auto pb-2">
@@ -915,7 +965,11 @@ export default function CourseViewPage() {
                             }`}
                           >
                             <div className="w-full h-full flex items-center justify-center">
-                              <span className="text-sm font-medium">{index + 1}</span>
+                              {lesson.image_url ? (
+                                <img src={lesson.image_url} alt="" className="w-full h-full object-cover rounded-md" />
+                              ) : (
+                                <span className="text-sm font-medium">{index + 1}</span>
+                              )}
                             </div>
                           </button>
                         ))}
