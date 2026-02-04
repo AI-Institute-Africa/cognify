@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   GraduationCap, Brain, Globe, Building2, Users, Shield, Sparkles,
   ArrowRight, CheckCircle, Play, ChevronRight, BookOpen, Award,
   TrendingUp, Network, Wifi, Video, MessageSquare, Mic, Camera,
-  Image, Upload, X, Send, Loader2, Volume2, Languages, ChevronDown
+  Image, Upload, X, Send, Loader2, Volume2, Languages, ChevronDown,
+  Zap, User, Layers, Target, Bot
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -21,31 +22,42 @@ import { toast } from 'sonner';
 // Multi-language translations for landing page
 const TRANSLATIONS = {
   en: {
-    nav: { features: 'Features', organizations: 'For Organizations', pricing: 'Pricing', contact: 'Contact', signIn: 'Sign In', getStarted: 'Get Started' },
+    nav: { features: 'Features', organizations: 'For Organizations', pricing: 'Pricing', contact: 'Contact', signIn: 'Sign In', getStarted: 'Get Started', tryDemo: 'Try Demo' },
     hero: {
       badge: 'Powered by GPT-5.2 & Blockchain',
       title1: 'The Future of',
-      title2: 'African Education',
-      subtitle: 'AI-powered learning platform with blockchain credentials, smart campus features, and multi-language support built for Africa\'s educational transformation.',
+      title2: 'Education',
+      subtitle: 'AI-powered learning platform with blockchain credentials, smart campus features, and multi-language support designed for educational transformation worldwide.',
       registerBtn: 'Register Your Institution',
-      signUpBtn: 'Individual Sign Up'
+      signUpBtn: 'Individual Sign Up',
+      tryAvatarBtn: 'Try Avatar Learning Free'
     },
-    stats: { partners: 'Partner Institutions', learners: 'Active Learners', languages: 'African Languages', uptime: 'Uptime' },
+    stats: { partners: 'Partner Institutions', learners: 'Active Learners', languages: 'Languages Supported', uptime: 'Uptime' },
     features: {
       title: 'Comprehensive Features',
       subtitle: 'Everything you need to transform education',
+      avatarTraining: 'Avatar-Based Training',
+      avatarTrainingDesc: 'Learn from personalized AI avatars that adapt to your learning style with voice cloning and visual customization.',
+      ktce: 'KTCE',
+      ktceDesc: 'Knowledge Time Compression Engine minimizes time-to-competence while preserving correctness.',
+      adaptiveLearning: 'Adaptive Identity-Based Learning',
+      adaptiveLearningDesc: 'Personalized learning paths based on your LinkedIn profile, skills, and career goals.',
+      multiModal: 'Multi-Modal Learning',
+      multiModalDesc: 'Learn through text, video, audio, slides, and interactive content tailored to your preferences.',
+      knowledgeGraph: 'Knowledge Graph & Career Guidance',
+      knowledgeGraphDesc: 'Visual mapping of concepts with AI-powered career path recommendations.',
+      learnByTeaching: 'Learn by Teaching',
+      learnByTeachingDesc: 'Teach an AI student avatar to reinforce your understanding and identify knowledge gaps.',
+      multiLanguage: 'Multi-Language Support',
+      multiLanguageDesc: 'Full platform support in 10+ languages including African languages.',
       aiMentor: 'AI Personal Mentor',
-      aiMentorDesc: 'Personalized learning with GPT-5.2 powered tutoring in 5 African languages',
-      knowledgeGraph: 'Knowledge Graph',
-      knowledgeGraphDesc: 'Visual mapping of concepts with mastery tracking and spaced repetition',
-      blockchain: 'Blockchain Credentials',
-      blockchainDesc: 'Tamper-proof digital certificates verified on Ethereum blockchain',
-      smartCampus: 'Smart Campus',
-      smartCampusDesc: 'RFID/NFC attendance, biometric verification, and IoT integration',
-      virtualClass: 'Virtual Classrooms',
-      virtualClassDesc: 'Seamless Zoom & Google Meet integration for hybrid learning',
-      riskPrediction: 'Risk Prediction',
-      riskPredictionDesc: 'AI-powered early warning system for at-risk students'
+      aiMentorDesc: 'Lifelong learning companion that reads your profile and provides personalized guidance.'
+    },
+    trialSection: {
+      title: 'Try Avatar-Based Learning Now',
+      subtitle: 'Experience our AI-powered avatar tutor without creating an account',
+      startTrial: 'Start Free Trial',
+      features: ['No account required', 'Instant access', '5 minute demo']
     },
     assistant: {
       title: 'Ask EduOS AI',
@@ -69,49 +81,64 @@ const TRANSLATIONS = {
       corporationsDesc: 'Corporate training programs'
     },
     footer: {
-      tagline: 'Transforming African Education with AI',
+      tagline: 'Transforming Education with AI',
       copyright: '© 2026 AI Institute Africa. All rights reserved.'
+    },
+    languageSelect: {
+      title: 'Select Your Language',
+      subtitle: 'Choose your preferred language for the platform'
     }
   },
   sw: {
-    nav: { features: 'Vipengele', organizations: 'Kwa Mashirika', pricing: 'Bei', contact: 'Wasiliana', signIn: 'Ingia', getStarted: 'Anza' },
+    nav: { features: 'Vipengele', organizations: 'Kwa Mashirika', pricing: 'Bei', contact: 'Wasiliana', signIn: 'Ingia', getStarted: 'Anza', tryDemo: 'Jaribu Demo' },
     hero: {
       badge: 'Inayoendeshwa na GPT-5.2 na Blockchain',
       title1: 'Mustakabali wa',
-      title2: 'Elimu ya Afrika',
-      subtitle: 'Jukwaa la kujifunza linaloendeshwa na AI na vyeti vya blockchain, vipengele vya chuo cha kisasa, na msaada wa lugha nyingi uliotengenezwa kwa mabadiliko ya elimu ya Afrika.',
+      title2: 'Elimu',
+      subtitle: 'Jukwaa la kujifunza linaloendeshwa na AI na vyeti vya blockchain, vipengele vya chuo cha kisasa, na msaada wa lugha nyingi.',
       registerBtn: 'Sajili Taasisi Yako',
-      signUpBtn: 'Jiandikishe Kibinafsi'
+      signUpBtn: 'Jiandikishe Kibinafsi',
+      tryAvatarBtn: 'Jaribu Avatar Bure'
     },
-    stats: { partners: 'Taasisi Washirika', learners: 'Wanafunzi Hai', languages: 'Lugha za Kiafrika', uptime: 'Wakati wa Uendeshaji' },
+    stats: { partners: 'Taasisi Washirika', learners: 'Wanafunzi Hai', languages: 'Lugha Zinazosaidiwa', uptime: 'Wakati wa Uendeshaji' },
     features: {
       title: 'Vipengele Kamili',
       subtitle: 'Kila unachohitaji kubadilisha elimu',
-      aiMentor: 'Mshauri wa AI',
-      aiMentorDesc: 'Kujifunza kwa kibinafsi na ufundishaji unaoendesha na GPT-5.2 katika lugha 5 za Kiafrika',
-      knowledgeGraph: 'Grafu ya Maarifa',
-      knowledgeGraphDesc: 'Uchoraji wa dhana na ufuatiliaji wa umahiri',
-      blockchain: 'Vyeti vya Blockchain',
-      blockchainDesc: 'Vyeti vya kidijitali visivyoweza kubadilishwa',
-      smartCampus: 'Chuo cha Kisasa',
-      smartCampusDesc: 'Mahudhurio ya RFID/NFC na uthibitishaji wa biometri',
-      virtualClass: 'Madarasa ya Mtandaoni',
-      virtualClassDesc: 'Ujumuishaji wa Zoom na Google Meet',
-      riskPrediction: 'Utabiri wa Hatari',
-      riskPredictionDesc: 'Mfumo wa onyo la mapema kwa wanafunzi walio hatarini'
+      avatarTraining: 'Mafunzo ya Avatar',
+      avatarTrainingDesc: 'Jifunze kutoka kwa avatar za AI zinazobadilika kulingana na mtindo wako wa kujifunza.',
+      ktce: 'KTCE',
+      ktceDesc: 'Engine ya Kupunguza Muda wa Maarifa inayopunguza muda wa kufikia ustadi.',
+      adaptiveLearning: 'Kujifunza Kulingana na Utambulisho',
+      adaptiveLearningDesc: 'Njia za kujifunza zinazobinafsishwa kulingana na wasifu wako wa LinkedIn.',
+      multiModal: 'Kujifunza kwa Njia Nyingi',
+      multiModalDesc: 'Jifunze kupitia maandishi, video, sauti, slaidi, na maudhui ya maingiliano.',
+      knowledgeGraph: 'Grafu ya Maarifa na Mwongozo wa Kazi',
+      knowledgeGraphDesc: 'Uchoraji wa dhana na mapendekezo ya njia ya kazi yanayoendeshwa na AI.',
+      learnByTeaching: 'Jifunze kwa Kufundisha',
+      learnByTeachingDesc: 'Fundisha avatar ya mwanafunzi wa AI kuimarisha uelewa wako.',
+      multiLanguage: 'Msaada wa Lugha Nyingi',
+      multiLanguageDesc: 'Msaada kamili wa jukwaa katika lugha 10+ ikiwa ni pamoja na lugha za Kiafrika.',
+      aiMentor: 'Mshauri wa AI Binafsi',
+      aiMentorDesc: 'Mwandani wa kujifunza maisha yote anayesoma wasifu wako na kutoa mwongozo wa kibinafsi.'
+    },
+    trialSection: {
+      title: 'Jaribu Kujifunza kwa Avatar Sasa',
+      subtitle: 'Pata uzoefu wa mwalimu wetu wa avatar unaendeshwa na AI bila kuunda akaunti',
+      startTrial: 'Anza Jaribio Bila Malipo',
+      features: ['Hakuna akaunti inayohitajika', 'Ufikiaji wa papo hapo', 'Demo ya dakika 5']
     },
     assistant: {
       title: 'Uliza EduOS AI',
-      subtitle: 'Pata majibu ya haraka kuhusu jukwaa letu!',
+      subtitle: 'Pata majibu ya papo hapo kuhusu jukwaa letu!',
       placeholder: 'Niulize chochote kuhusu elimu...',
       sendBtn: 'Tuma',
       uploadHint: 'Unaweza pia kupakia picha, sauti, au video',
-      recording: 'Inarekodi...',
-      processing: 'Inachakata...'
+      recording: 'Inarekodiwa...',
+      processing: 'Inachakatwa...'
     },
     orgs: {
-      title: 'Imeundwa kwa Aina Zote za Mashirika',
-      subtitle: 'Iwe ni shule, chuo kikuu, au shirika',
+      title: 'Imejengwa kwa Aina Zote za Mashirika',
+      subtitle: 'Iwe wewe ni shule, chuo kikuu, au kampuni',
       universities: 'Vyuo Vikuu',
       universitiesDesc: 'Taasisi za elimu ya juu',
       schools: 'Shule',
@@ -122,89 +149,119 @@ const TRANSLATIONS = {
       corporationsDesc: 'Programu za mafunzo ya kampuni'
     },
     footer: {
-      tagline: 'Kubadilisha Elimu ya Afrika na AI',
-      copyright: '© 2026 Taasisi ya AI Afrika. Haki zote zimehifadhiwa.'
+      tagline: 'Kubadilisha Elimu na AI',
+      copyright: '© 2026 AI Institute Africa. Haki zote zimehifadhiwa.'
+    },
+    languageSelect: {
+      title: 'Chagua Lugha Yako',
+      subtitle: 'Chagua lugha unayopendelea kwa jukwaa'
     }
   },
   sn: {
-    nav: { features: 'Zvinhu', organizations: 'KuMasangano', pricing: 'Mutengo', contact: 'Bata', signIn: 'Pinda', getStarted: 'Tanga' },
+    nav: { features: 'Zvimwe', organizations: 'Kuma Sangano', pricing: 'Mitengo', contact: 'Bata Nesu', signIn: 'Pinda', getStarted: 'Tanga', tryDemo: 'Edza Demo' },
     hero: {
-      badge: 'Inofambiswa neGPT-5.2 neBlockchain',
+      badge: 'Inoshanda neGPT-5.2 neBlockchain',
       title1: 'Ramangwana re',
-      title2: 'Dzidzo yeAfrica',
-      subtitle: 'Nzvimbo yekudzidza inofambiswa neAI nezvitupa zveblockchain, zvinhu zvechikoro chepamusoro, uye rutsigiro rwemitauro yakawanda rwakavakwa kuchinja dzidzo yeAfrica.',
+      title2: 'Dzidzo',
+      subtitle: 'Nzvimbo yekudzidza inoshanda neAI ine zvitupa zveblockchain, zvimwe zvechikoro chitsva, nerutsigiro rwemitauro mizhinji.',
       registerBtn: 'Nyoresa Sangano Rako',
-      signUpBtn: 'Nyoresa Iwe Pachako'
+      signUpBtn: 'Nyoresa Wega',
+      tryAvatarBtn: 'Edza Avatar Mahara'
     },
-    stats: { partners: 'Masangano Eshamwari', learners: 'Vadzidzi Vanoshanda', languages: 'Mitauro yeAfrica', uptime: 'Nguva Yekushanda' },
+    stats: { partners: 'Masangano Anoshanda Nesu', learners: 'Vadzidzi Vanoshanda', languages: 'Mitauro Inotsigirwa', uptime: 'Nguva Yekushanda' },
     features: {
-      title: 'Zvinhu Zvakakwana',
-      subtitle: 'Zvese zvaunoda kuchinja dzidzo',
-      aiMentor: 'Mudzidzisi weAI',
-      aiMentorDesc: 'Kudzidza kwemunhu mumwe chete nekudzidzisa kunofambiswa neGPT-5.2',
-      knowledgeGraph: 'Mufananidzo weRuzivo',
-      knowledgeGraphDesc: 'Kuratidza mazano nekutevera kugona',
-      blockchain: 'Zvitupa zveBlockchain',
-      blockchainDesc: 'Zvitupa zvedigitaru zvisingagoni kushandurwa',
-      smartCampus: 'Chikoro Chechinyakare',
-      smartCampusDesc: 'Kupinda kweRFID/NFC nekusimbisa kwebiometric',
-      virtualClass: 'Makirasi eInternet',
-      virtualClassDesc: 'Kubatanidza Zoom neGoogle Meet',
-      riskPrediction: 'Kufembera Njodzi',
-      riskPredictionDesc: 'Hurongwa hweyambiro yekutanga kuvadzidzi vari panjodzi'
+      title: 'Zvese Zvimwe',
+      subtitle: 'Zvese zvaunoda kushandura dzidzo',
+      avatarTraining: 'Kudzidziswa neAvatar',
+      avatarTrainingDesc: 'Dzidza kubva kumaAvatar eAI anoshanduka maererano nemaitiro ako ekudzidza.',
+      ktce: 'KTCE',
+      ktceDesc: 'Injini Yekuderedza Nguva Yeruzivo inoderedza nguva yekusvika pakugona.',
+      adaptiveLearning: 'Kudzidza Kunoenderana Nezita',
+      adaptiveLearningDesc: 'Nzira dzekudzidza dzinoenderana neprofile yako yeLinkedIn.',
+      multiModal: 'Kudzidza Nenzira Dzakawanda',
+      multiModalDesc: 'Dzidza kuburikidza nezvinyorwa, mavhidhiyo, manzwi, maslaidi, nezvimwe zvinoshanda.',
+      knowledgeGraph: 'Chati yeRuzivo neKutungamira Basa',
+      knowledgeGraphDesc: 'Kuona kwemifungo ine zvidzidzo zvenharaunda inoshanda neAI.',
+      learnByTeaching: 'Dzidza Nekudzidzisa',
+      learnByTeachingDesc: 'Dzidzisa avatar yemudzidzi weAI kusimbisa kunzwisisa kwako.',
+      multiLanguage: 'Rutsigiro rweMitauro Mizhinji',
+      multiLanguageDesc: 'Rutsigiro rwakakwana munzvimbo mumitauro 10+ kusanganisira mitauro yeAfrica.',
+      aiMentor: 'Mudzidzisi weAI Wako',
+      aiMentorDesc: 'Shamwari yekudzidza kweupenyu hwese inoverenga profile yako uye inopa kutungamira kwako.'
+    },
+    trialSection: {
+      title: 'Edza Kudzidza kweAvatar Iye Zvino',
+      subtitle: 'Ona mudzidzisi wedu weAvatar inoshanda neAI usina kugadzira account',
+      startTrial: 'Tanga Kuedza Mahara',
+      features: ['Hapana account inodikanwa', 'Kupinda pakarepo', 'Demo yemaminetsi 5']
     },
     assistant: {
       title: 'Bvunza EduOS AI',
       subtitle: 'Wana mhinduro dzekukurumidza pamusoro penzvimbo yedu!',
-      placeholder: 'Ndibvunze chero chinhu pamusoro pedzidzo...',
+      placeholder: 'Ndibvunze chero chii pamusoro pedzidzo...',
       sendBtn: 'Tumira',
-      uploadHint: 'Unogona zvakare kuisa mifananidzo, ruzha, kana vhidhiyo',
+      uploadHint: 'Unogona zvakare kuisa mifananidzo, manzwi, kana mavhidhiyo',
       recording: 'Iri kurekodha...',
-      processing: 'Iri kugadzira...'
+      processing: 'Iri kushanda...'
     },
     orgs: {
-      title: 'Yakavakwa Kune Marudzi Ese eMasangano',
-      subtitle: 'Kunyangwe uri chikoro, yunivhesiti, kana kambani',
+      title: 'Yakagadzirirwa Marudzi Ese eMasangano',
+      subtitle: 'Kunyangwe uri chikoro, koreji, kana kambani',
       universities: 'Mayunivhesiti',
-      universitiesDesc: 'Nzvimbo dzedzidzo yepamusoro',
+      universitiesDesc: 'Masangano edzidzo yepamusoro',
       schools: 'Zvikoro',
-      schoolsDesc: 'Primary nesekondari',
+      schoolsDesc: 'Pakutanga uye sekondari',
       government: 'Hurumende',
       governmentDesc: 'Masangano edzidzo yeruzhinji',
       corporations: 'Makambani',
       corporationsDesc: 'Mapurogiramu ekudzidzisa makambani'
     },
     footer: {
-      tagline: 'Kuchinja Dzidzo yeAfrica neAI',
+      tagline: 'Kushandura Dzidzo neAI',
       copyright: '© 2026 AI Institute Africa. Kodzero dzese dzakachengetwa.'
+    },
+    languageSelect: {
+      title: 'Sarudza Mutauro Wako',
+      subtitle: 'Sarudza mutauro waunoda kunzvimbo'
     }
   },
   zu: {
-    nav: { features: 'Izici', organizations: 'Kuzinhlangano', pricing: 'Amanani', contact: 'Xhumana', signIn: 'Ngena', getStarted: 'Qala' },
+    nav: { features: 'Izici', organizations: 'Ezezinhlangano', pricing: 'Amanani', contact: 'Xhumana', signIn: 'Ngena', getStarted: 'Qala', tryDemo: 'Zama iDemo' },
     hero: {
-      badge: 'Iqhutshwa yi-GPT-5.2 ne-Blockchain',
-      title1: 'Ikusasa le',
-      title2: 'Mfundo yase-Afrika',
-      subtitle: 'Inkundla yokufunda eqhutshwa yi-AI nezitifiketi ze-blockchain, izici zekhempasi ehlakaniphile, nokusekela izilimi eziningi okwakhelwe ukuguqula imfundo yase-Afrika.',
+      badge: 'Isebenza nge-GPT-5.2 ne-Blockchain',
+      title1: 'Ikusasa Le',
+      title2: 'mfundo',
+      subtitle: 'Inkundla yokufunda esebenza nge-AI enezitifiketi ze-blockchain, izici zekhempasi ehlakaniphile, nokusekela izilimi eziningi.',
       registerBtn: 'Bhalisa Isikhungo Sakho',
-      signUpBtn: 'Bhalisa Ngokwakho'
+      signUpBtn: 'Bhalisa Uwedwa',
+      tryAvatarBtn: 'Zama i-Avatar Mahhala'
     },
-    stats: { partners: 'Izikhungo Ezilingani', learners: 'Abafundi Abasebenzayo', languages: 'Izilimi zase-Afrika', uptime: 'Isikhathi Sokusebenza' },
+    stats: { partners: 'Izikhungo Ezibambisene', learners: 'Abafundi Abasebenzayo', languages: 'Izilimi Ezisekelwayo', uptime: 'Isikhathi Sokusebenza' },
     features: {
       title: 'Izici Eziphelele',
-      subtitle: 'Konke okudingayo ukuguqula imfundo',
-      aiMentor: 'Umeluleki we-AI',
-      aiMentorDesc: 'Ukufunda ngokwakho nokufundisa okuqhutshwa yi-GPT-5.2',
-      knowledgeGraph: 'Igrafu Yolwazi',
-      knowledgeGraphDesc: 'Ukubonisa imiqondo nokulandelela ukwazi',
-      blockchain: 'Izitifiketi ze-Blockchain',
-      blockchainDesc: 'Izitifiketi zedijithali ezingashintshwa',
-      smartCampus: 'Ikhempasi Ehlakaniphile',
-      smartCampusDesc: 'Ukuba khona kwe-RFID/NFC nokuqinisekisa kwe-biometric',
-      virtualClass: 'Amakilasi Akhona Nge-Inthanethi',
-      virtualClassDesc: 'Ukuhlanganisa i-Zoom ne-Google Meet',
-      riskPrediction: 'Ukubikezela Ubungozi',
-      riskPredictionDesc: 'Uhlelo lokuxwayisa kusenesikhathi kubafundi abasengozini'
+      subtitle: 'Konke okudingayo ukushintsha imfundo',
+      avatarTraining: 'Ukuqeqeshwa Nge-Avatar',
+      avatarTrainingDesc: 'Funda kuma-avatar e-AI ajikayo ngokwendlela yakho yokufunda.',
+      ktce: 'KTCE',
+      ktceDesc: 'I-Engine Yokuncipha Kwesikhathi Solwazi enciphisa isikhathi sokufinyelela amakhono.',
+      adaptiveLearning: 'Ukufunda Okujikayo Okususelwe Kuwe',
+      adaptiveLearningDesc: 'Izindlela zokufunda ezihambisana nephrofayela yakho ye-LinkedIn.',
+      multiModal: 'Ukufunda Ngezindlela Eziningi',
+      multiModalDesc: 'Funda ngombhalo, ividiyo, umsindo, amaslayidi, nokuqukethwe okusebenzisanayo.',
+      knowledgeGraph: 'Igrafu Yolwazi Nokwelulekwa Ngomsebenzi',
+      knowledgeGraphDesc: 'Ukubonisa imibono ngezincomo zendlela yomsebenzi ezisebenza nge-AI.',
+      learnByTeaching: 'Funda Ngokufundisa',
+      learnByTeachingDesc: 'Fundisa i-avatar yomfundi we-AI ukuqinisa ukuqonda kwakho.',
+      multiLanguage: 'Ukusekela Izilimi Eziningi',
+      multiLanguageDesc: 'Ukusekela okuphelele kwinkundla ngezilimi ezingu-10+ kufaka phakathi izilimi zase-Afrika.',
+      aiMentor: 'Umeluleki Wakho We-AI',
+      aiMentorDesc: 'Umngane wokufunda wempilo yonke ofunda iphrofayela yakho futhi anikeze isiqondiso sakho.'
+    },
+    trialSection: {
+      title: 'Zama Ukufunda Nge-Avatar Manje',
+      subtitle: 'Thola ulwazi lomfundisi wethu we-avatar osebenza nge-AI ngaphandle kokudala i-akhawunti',
+      startTrial: 'Qala Ukuzama Mahhala',
+      features: ['Ayikho i-akhawunti edingekayo', 'Ukufinyelela okusheshayo', 'Idemo yemizuzu emi-5']
     },
     assistant: {
       title: 'Buza i-EduOS AI',
@@ -228,36 +285,51 @@ const TRANSLATIONS = {
       corporationsDesc: 'Izinhlelo zokuqeqesha izinkampani'
     },
     footer: {
-      tagline: 'Ukuguqula Imfundo Yase-Afrika Nge-AI',
+      tagline: 'Ukuguqula Imfundo Nge-AI',
       copyright: '© 2026 AI Institute Africa. Wonke amalungelo agodliwe.'
+    },
+    languageSelect: {
+      title: 'Khetha Ulimi Lwakho',
+      subtitle: 'Khetha ulimi olusithandayo kwinkundla'
     }
   },
   fr: {
-    nav: { features: 'Fonctionnalités', organizations: 'Pour les Organisations', pricing: 'Tarifs', contact: 'Contact', signIn: 'Connexion', getStarted: 'Commencer' },
+    nav: { features: 'Fonctionnalités', organizations: 'Pour les Organisations', pricing: 'Tarifs', contact: 'Contact', signIn: 'Connexion', getStarted: 'Commencer', tryDemo: 'Essayer Démo' },
     hero: {
       badge: 'Propulsé par GPT-5.2 et Blockchain',
       title1: "L'avenir de",
-      title2: "l'éducation africaine",
-      subtitle: "Plateforme d'apprentissage alimentée par l'IA avec des certifications blockchain, des fonctionnalités de campus intelligent et un support multilingue conçu pour la transformation éducative de l'Afrique.",
+      title2: "l'éducation",
+      subtitle: "Plateforme d'apprentissage alimentée par l'IA avec des certifications blockchain, des fonctionnalités de campus intelligent et un support multilingue.",
       registerBtn: 'Enregistrez votre institution',
-      signUpBtn: 'Inscription individuelle'
+      signUpBtn: 'Inscription individuelle',
+      tryAvatarBtn: "Essayer l'Avatar Gratuit"
     },
-    stats: { partners: 'Institutions partenaires', learners: 'Apprenants actifs', languages: 'Langues africaines', uptime: 'Disponibilité' },
+    stats: { partners: 'Institutions partenaires', learners: 'Apprenants actifs', languages: 'Langues supportées', uptime: 'Disponibilité' },
     features: {
-      title: 'Fonctionnalités complètes',
+      title: 'Fonctionnalités Complètes',
       subtitle: "Tout ce dont vous avez besoin pour transformer l'éducation",
+      avatarTraining: 'Formation par Avatar',
+      avatarTrainingDesc: "Apprenez avec des avatars IA personnalisés qui s'adaptent à votre style d'apprentissage.",
+      ktce: 'KTCE',
+      ktceDesc: "Le moteur de compression du temps de connaissance minimise le temps d'acquisition des compétences.",
+      adaptiveLearning: 'Apprentissage Adaptatif Basé sur l\'Identité',
+      adaptiveLearningDesc: "Parcours d'apprentissage personnalisés basés sur votre profil LinkedIn.",
+      multiModal: 'Apprentissage Multi-Modal',
+      multiModalDesc: 'Apprenez par le texte, la vidéo, l\'audio, les diapositives et le contenu interactif.',
+      knowledgeGraph: 'Graphe de Connaissances et Orientation',
+      knowledgeGraphDesc: "Cartographie visuelle des concepts avec recommandations de carrière alimentées par l'IA.",
+      learnByTeaching: 'Apprendre en Enseignant',
+      learnByTeachingDesc: 'Enseignez à un avatar étudiant IA pour renforcer votre compréhension.',
+      multiLanguage: 'Support Multilingue',
+      multiLanguageDesc: 'Support complet de la plateforme en 10+ langues incluant les langues africaines.',
       aiMentor: 'Mentor IA Personnel',
-      aiMentorDesc: 'Apprentissage personnalisé avec tutorat GPT-5.2 en 5 langues africaines',
-      knowledgeGraph: 'Graphe de Connaissances',
-      knowledgeGraphDesc: 'Cartographie visuelle des concepts avec suivi de maîtrise',
-      blockchain: 'Certifications Blockchain',
-      blockchainDesc: 'Certificats numériques inviolables vérifiés sur Ethereum',
-      smartCampus: 'Campus Intelligent',
-      smartCampusDesc: 'Présence RFID/NFC, vérification biométrique et intégration IoT',
-      virtualClass: 'Salles de Classe Virtuelles',
-      virtualClassDesc: 'Intégration transparente de Zoom et Google Meet',
-      riskPrediction: 'Prédiction des Risques',
-      riskPredictionDesc: "Système d'alerte précoce alimenté par l'IA pour les étudiants à risque"
+      aiMentorDesc: 'Compagnon d\'apprentissage à vie qui lit votre profil et fournit des conseils personnalisés.'
+    },
+    trialSection: {
+      title: "Essayez l'Apprentissage par Avatar Maintenant",
+      subtitle: 'Découvrez notre tuteur avatar alimenté par l\'IA sans créer de compte',
+      startTrial: 'Commencer l\'Essai Gratuit',
+      features: ['Aucun compte requis', 'Accès instantané', 'Démo de 5 minutes']
     },
     assistant: {
       title: 'Demandez à EduOS AI',
@@ -281,8 +353,12 @@ const TRANSLATIONS = {
       corporationsDesc: 'Programmes de formation en entreprise'
     },
     footer: {
-      tagline: "Transformer l'éducation africaine avec l'IA",
+      tagline: "Transformer l'éducation avec l'IA",
       copyright: '© 2026 AI Institute Africa. Tous droits réservés.'
+    },
+    languageSelect: {
+      title: 'Sélectionnez Votre Langue',
+      subtitle: 'Choisissez votre langue préférée pour la plateforme'
     }
   }
 };
@@ -295,9 +371,12 @@ const LANGUAGES = [
   { code: 'fr', name: 'Français', flag: '🇫🇷' },
 ];
 
+const ROBOT_IMAGE = "https://static.prod-images.emergentagent.com/jobs/d5abe282-5f0b-41cb-809e-ba3c4bccbb96/images/124de12080a24addbb12f7124b107bafa37de5281e979ba9846ae48b7f4c7763.png";
+
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 export default function HomePage() {
+  const navigate = useNavigate();
   const [language, setLanguage] = useState(() => localStorage.getItem('eduos_language') || 'en');
   const [showAssistant, setShowAssistant] = useState(false);
   const [query, setQuery] = useState('');
@@ -305,6 +384,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -341,18 +421,15 @@ export default function HomePage() {
         const data = await response.json();
         setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
       } else {
-        // Fallback response if API not available
         setMessages(prev => [...prev, { 
           role: 'assistant', 
-          content: language === 'sw' 
-            ? 'Karibu EduOS! Ninaweza kukusaidia na maswali kuhusu elimu, kozi, na jukwaa letu. Je, una swali gani?' 
-            : 'Welcome to EduOS! I can help you with questions about education, courses, and our platform. What would you like to know?'
+          content: 'Welcome to EduOS! I can help you with questions about education, courses, and our platform. What would you like to know?'
         }]);
       }
     } catch (error) {
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: 'I\'m here to help! EduOS is an AI-powered learning platform with features like personalized AI tutoring, knowledge graphs, blockchain credentials, and smart campus features. How can I assist you today?'
+        content: 'I\'m here to help! Ask me anything about EduOS, our features, or education in general.'
       }]);
     } finally {
       setIsLoading(false);
@@ -361,40 +438,133 @@ export default function HomePage() {
   };
 
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (file) {
       setUploadedFile(file);
-      toast.success(`File "${file.name}" ready to analyze`);
+      toast.success(`File uploaded: ${file.name}`);
     }
   };
 
-  const features = [
-    { icon: Brain, title: t.features.aiMentor, description: t.features.aiMentorDesc, color: 'blue' },
-    { icon: Network, title: t.features.knowledgeGraph, description: t.features.knowledgeGraphDesc, color: 'violet' },
-    { icon: Shield, title: t.features.blockchain, description: t.features.blockchainDesc, color: 'emerald' },
-    { icon: Wifi, title: t.features.smartCampus, description: t.features.smartCampusDesc, color: 'amber' },
-    { icon: Video, title: t.features.virtualClass, description: t.features.virtualClassDesc, color: 'red' },
-    { icon: TrendingUp, title: t.features.riskPrediction, description: t.features.riskPredictionDesc, color: 'cyan' }
-  ];
+  const startAvatarTrial = () => {
+    navigate('/avatar-trial');
+  };
 
   const stats = [
-    { value: '50+', label: t.stats.partners },
+    { value: '500+', label: t.stats.partners },
     { value: '100K+', label: t.stats.learners },
-    { value: '5', label: t.stats.languages },
+    { value: '10+', label: t.stats.languages },
     { value: '99.9%', label: t.stats.uptime }
   ];
 
+  // Updated features list (removed Outcome-Based Learning)
+  const features = [
+    { 
+      key: 'avatarTraining',
+      icon: User, 
+      color: 'violet',
+      title: t.features.avatarTraining, 
+      description: t.features.avatarTrainingDesc 
+    },
+    { 
+      key: 'ktce',
+      icon: Zap, 
+      color: 'emerald',
+      title: t.features.ktce, 
+      description: t.features.ktceDesc 
+    },
+    { 
+      key: 'adaptiveLearning',
+      icon: Target, 
+      color: 'blue',
+      title: t.features.adaptiveLearning, 
+      description: t.features.adaptiveLearningDesc 
+    },
+    { 
+      key: 'multiModal',
+      icon: Layers, 
+      color: 'amber',
+      title: t.features.multiModal, 
+      description: t.features.multiModalDesc 
+    },
+    { 
+      key: 'knowledgeGraph',
+      icon: Network, 
+      color: 'cyan',
+      title: t.features.knowledgeGraph, 
+      description: t.features.knowledgeGraphDesc 
+    },
+    { 
+      key: 'learnByTeaching',
+      icon: Users, 
+      color: 'pink',
+      title: t.features.learnByTeaching, 
+      description: t.features.learnByTeachingDesc 
+    },
+    { 
+      key: 'multiLanguage',
+      icon: Globe, 
+      color: 'indigo',
+      title: t.features.multiLanguage, 
+      description: t.features.multiLanguageDesc 
+    },
+    { 
+      key: 'aiMentor',
+      icon: Brain, 
+      color: 'rose',
+      title: t.features.aiMentor, 
+      description: t.features.aiMentorDesc 
+    }
+  ];
+
   const orgTypes = [
-    { icon: Building2, title: t.orgs.universities, description: t.orgs.universitiesDesc },
-    { icon: GraduationCap, title: t.orgs.schools, description: t.orgs.schoolsDesc },
-    { icon: Globe, title: t.orgs.government, description: t.orgs.governmentDesc },
+    { icon: GraduationCap, title: t.orgs.universities, description: t.orgs.universitiesDesc },
+    { icon: BookOpen, title: t.orgs.schools, description: t.orgs.schoolsDesc },
+    { icon: Building2, title: t.orgs.government, description: t.orgs.governmentDesc },
     { icon: Users, title: t.orgs.corporations, description: t.orgs.corporationsDesc }
   ];
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-[#09090B] text-white">
+      {/* Language Selection Modal (Prominent) */}
+      {showLanguageModal && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-8 max-w-md w-full">
+            <div className="text-center mb-6">
+              <Globe className="w-12 h-12 text-blue-400 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold">{t.languageSelect.title}</h2>
+              <p className="text-zinc-400 mt-2">{t.languageSelect.subtitle}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {LANGUAGES.map(lang => (
+                <button
+                  key={lang.code}
+                  onClick={() => {
+                    setLanguage(lang.code);
+                    setShowLanguageModal(false);
+                  }}
+                  className={`p-4 rounded-xl border transition-all ${
+                    language === lang.code 
+                      ? 'border-blue-500 bg-blue-500/10' 
+                      : 'border-white/10 hover:border-white/20 hover:bg-white/5'
+                  }`}
+                >
+                  <span className="text-2xl mb-2 block">{lang.flag}</span>
+                  <span className="font-medium">{lang.name}</span>
+                </button>
+              ))}
+            </div>
+            <Button 
+              onClick={() => setShowLanguageModal(false)}
+              className="w-full mt-6 bg-blue-500 hover:bg-blue-600"
+            >
+              Continue
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-zinc-950/80 backdrop-blur-xl border-b border-white/5">
+      <nav className="fixed top-0 left-0 right-0 z-40 bg-[#09090B]/80 backdrop-blur-xl border-b border-white/5">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -403,7 +573,7 @@ export default function HomePage() {
               </div>
               <div>
                 <h1 className="font-bold text-lg">EduOS 2026</h1>
-                <p className="text-xs text-zinc-500">by AI Institute Africa</p>
+                <p className="text-xs text-zinc-500">AI-Powered Education</p>
               </div>
             </div>
             
@@ -414,30 +584,23 @@ export default function HomePage() {
             </div>
             
             <div className="flex items-center gap-3">
-              {/* Language Selector */}
-              <Select value={language} onValueChange={setLanguage}>
-                <SelectTrigger className="w-[130px] bg-zinc-900/50 border-white/10" data-testid="home-language-selector">
-                  <Globe className="w-4 h-4 mr-2" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-white/10">
-                  {LANGUAGES.map(lang => (
-                    <SelectItem key={lang.code} value={lang.code}>
-                      <span className="flex items-center gap-2">
-                        <span>{lang.flag}</span>
-                        <span>{lang.name}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Prominent Language Selector */}
+              <Button 
+                variant="outline" 
+                onClick={() => setShowLanguageModal(true)}
+                className="border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400"
+                data-testid="language-selector-btn"
+              >
+                <Globe className="w-4 h-4 mr-2" />
+                {LANGUAGES.find(l => l.code === language)?.flag} {LANGUAGES.find(l => l.code === language)?.name}
+              </Button>
               
               <Link to="/login">
                 <Button variant="ghost" className="text-zinc-400 hover:text-white">
                   {t.nav.signIn}
                 </Button>
               </Link>
-              <Link to="/register-organization">
+              <Link to="/register">
                 <Button className="bg-blue-500 hover:bg-blue-600">
                   {t.nav.getStarted}
                 </Button>
@@ -447,37 +610,64 @@ export default function HomePage() {
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="pt-32 pb-20 px-6">
+      {/* Hero Section with Robot */}
+      <section className="pt-32 pb-20 px-6 relative overflow-hidden">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center max-w-4xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 mb-8">
-              <Sparkles className="w-4 h-4 text-blue-400" />
-              <span className="text-sm text-blue-400">{t.hero.badge}</span>
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Text Content */}
+            <div className="text-center lg:text-left">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 mb-8">
+                <Sparkles className="w-4 h-4 text-blue-400" />
+                <span className="text-sm text-blue-400">{t.hero.badge}</span>
+              </div>
+              
+              <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
+                {t.hero.title1}
+                <span className="bg-gradient-to-r from-blue-400 via-violet-400 to-emerald-400 bg-clip-text text-transparent block"> {t.hero.title2}</span>
+              </h1>
+              
+              <p className="text-xl text-zinc-400 mb-10 max-w-2xl">
+                {t.hero.subtitle}
+              </p>
+              
+              <div className="flex flex-col sm:flex-row items-center lg:items-start gap-4">
+                <Link to="/register-organization">
+                  <Button size="lg" className="bg-blue-500 hover:bg-blue-600 h-14 px-8 text-lg">
+                    {t.hero.registerBtn}
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Button>
+                </Link>
+                <Link to="/register">
+                  <Button size="lg" variant="outline" className="h-14 px-8 text-lg border-white/10 hover:bg-white/5">
+                    <Play className="w-5 h-5 mr-2" />
+                    {t.hero.signUpBtn}
+                  </Button>
+                </Link>
+              </div>
             </div>
             
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
-              {t.hero.title1}
-              <span className="bg-gradient-to-r from-blue-400 via-violet-400 to-emerald-400 bg-clip-text text-transparent"> {t.hero.title2}</span>
-            </h1>
-            
-            <p className="text-xl text-zinc-400 mb-10 max-w-2xl mx-auto">
-              {t.hero.subtitle}
-            </p>
-            
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link to="/register-organization">
-                <Button size="lg" className="bg-blue-500 hover:bg-blue-600 h-14 px-8 text-lg">
-                  {t.hero.registerBtn}
-                  <ArrowRight className="w-5 h-5 ml-2" />
-                </Button>
-              </Link>
-              <Link to="/register">
-                <Button size="lg" variant="outline" className="h-14 px-8 text-lg border-white/10 hover:bg-white/5">
-                  <Play className="w-5 h-5 mr-2" />
-                  {t.hero.signUpBtn}
-                </Button>
-              </Link>
+            {/* Robot Image */}
+            <div className="relative flex justify-center lg:justify-end">
+              <div className="relative">
+                {/* Glow effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/30 via-violet-500/30 to-cyan-500/30 blur-3xl scale-150" />
+                
+                {/* Robot image */}
+                <img 
+                  src={ROBOT_IMAGE} 
+                  alt="AI Education Robot" 
+                  className="relative z-10 w-full max-w-lg transform -scale-x-100"
+                  style={{ filter: 'drop-shadow(0 0 40px rgba(59, 130, 246, 0.5))' }}
+                />
+                
+                {/* Floating badges */}
+                <div className="absolute top-10 left-0 bg-zinc-900/90 backdrop-blur border border-white/10 rounded-xl px-4 py-2 animate-pulse">
+                  <p className="text-sm font-medium text-emerald-400">AI-Powered</p>
+                </div>
+                <div className="absolute bottom-20 right-0 bg-zinc-900/90 backdrop-blur border border-white/10 rounded-xl px-4 py-2 animate-pulse delay-500">
+                  <p className="text-sm font-medium text-violet-400">24/7 Learning</p>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -495,8 +685,41 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Avatar Trial Section */}
+      <section className="py-20 px-6 bg-gradient-to-r from-violet-500/10 via-blue-500/10 to-emerald-500/10 border-y border-white/5">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-500/20 border border-violet-500/30 mb-6">
+            <User className="w-4 h-4 text-violet-400" />
+            <span className="text-sm text-violet-400">Free Trial Available</span>
+          </div>
+          
+          <h2 className="text-3xl md:text-5xl font-bold mb-4">{t.trialSection.title}</h2>
+          <p className="text-xl text-zinc-400 mb-8 max-w-2xl mx-auto">{t.trialSection.subtitle}</p>
+          
+          <div className="flex flex-wrap justify-center gap-4 mb-8">
+            {t.trialSection.features.map((feature, idx) => (
+              <div key={idx} className="flex items-center gap-2 bg-zinc-900/50 px-4 py-2 rounded-full">
+                <CheckCircle className="w-4 h-4 text-emerald-400" />
+                <span className="text-sm">{feature}</span>
+              </div>
+            ))}
+          </div>
+          
+          <Button 
+            size="lg" 
+            onClick={startAvatarTrial}
+            className="h-16 px-12 text-xl bg-gradient-to-r from-violet-500 to-blue-500 hover:from-violet-600 hover:to-blue-600"
+            data-testid="try-avatar-btn"
+          >
+            <Bot className="w-6 h-6 mr-3" />
+            {t.trialSection.startTrial}
+            <ArrowRight className="w-6 h-6 ml-3" />
+          </Button>
+        </div>
+      </section>
+
       {/* AI Assistant Section */}
-      <section id="assistant" className="py-20 px-6 bg-gradient-to-b from-transparent via-blue-500/5 to-transparent">
+      <section id="assistant" className="py-20 px-6">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.assistant.title}</h2>
@@ -577,14 +800,6 @@ export default function HomePage() {
                 >
                   <Mic className={`w-4 h-4 ${isRecording ? 'text-red-500' : ''}`} />
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  className="border-white/10"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Camera className="w-4 h-4" />
-                </Button>
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -608,25 +823,28 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-20 px-6">
+      {/* Features Section - 8 Feature Cards */}
+      <section id="features" className="py-20 px-6 bg-zinc-900/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.features.title}</h2>
             <p className="text-zinc-400 max-w-xl mx-auto">{t.features.subtitle}</p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((feature, index) => (
               <div
-                key={index}
-                className="group p-6 rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-white/10 transition-all duration-300"
+                key={feature.key}
+                className="group p-6 rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-white/20 transition-all duration-300 hover:transform hover:-translate-y-1"
               >
-                <div className={`w-12 h-12 rounded-xl bg-${feature.color}-500/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                  <feature.icon className={`w-6 h-6 text-${feature.color}-400`} />
+                <div className={`w-14 h-14 rounded-xl bg-${feature.color}-500/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                  <feature.icon className={`w-7 h-7 text-${feature.color}-400`} />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-                <p className="text-sm text-zinc-400">{feature.description}</p>
+                <p className="text-sm text-zinc-400 mb-4">{feature.description}</p>
+                <Link to="/register" className="inline-flex items-center text-sm text-blue-400 hover:text-blue-300 transition-colors">
+                  Learn More <ChevronRight className="w-4 h-4 ml-1" />
+                </Link>
               </div>
             ))}
           </div>
@@ -634,7 +852,7 @@ export default function HomePage() {
       </section>
 
       {/* Organizations Section */}
-      <section id="organizations" className="py-20 px-6 bg-zinc-900/30">
+      <section id="organizations" className="py-20 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.orgs.title}</h2>
