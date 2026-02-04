@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
 import { getCourses, enrollCourse, createCourse } from '../services/api';
-import { BookOpen, Users, Clock, Plus, Search, Filter, ArrowRight, Eye, CheckCircle, DollarSign, Award, GraduationCap, Calendar, Sparkles, Building2, Shield, Zap } from 'lucide-react';
+import { BookOpen, Users, Clock, Plus, Search, Filter, ArrowRight, Eye, CheckCircle, DollarSign, Award, GraduationCap, Calendar, Sparkles, Building2, Shield, Zap, Target, Rocket, FileText } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
@@ -50,6 +50,28 @@ const COURSE_BRANCHES = {
     features: ['Flexible content', 'Self-paced', 'Organization training']
   }
 };
+
+// Customized Subject Options
+const CUSTOMIZED_OPTIONS = [
+  {
+    id: 'create-course',
+    title: 'Create My Own Course',
+    description: 'Design and generate your own AI-powered course with custom content',
+    icon: Rocket,
+    color: 'violet',
+    path: '/create-custom-course',
+    buttonText: 'Start Creating'
+  },
+  {
+    id: 'outcome-learning',
+    title: 'Outcome-Based Learning',
+    description: 'Define your learning goal and get a personalized pathway to achieve it',
+    icon: Target,
+    color: 'emerald',
+    path: '/outcome-learning',
+    buttonText: 'Set My Goals'
+  }
+];
 
 const COURSE_CATEGORIES = [
   { id: 'free', name: 'Free Course', icon: BookOpen, color: 'gray', price: 0, branch: 'standard' },
