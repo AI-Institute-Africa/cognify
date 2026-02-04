@@ -320,15 +320,28 @@ export default function CourseViewPage() {
     
     setUploading(true);
     try {
-      await uploadCourseContent(
-        courseId,
-        newContent.type,
-        newContent.title,
-        newContent.description,
-        newContent.content_url,
-        newContent.content_text
-      );
-      toast.success('Content uploaded successfully!');
+      if (uploadMode === 'file' && selectedFile) {
+        // File upload mode
+        await uploadCourseFile(
+          courseId,
+          selectedFile,
+          newContent.title,
+          newContent.description,
+          newContent.type
+        );
+        toast.success('File uploaded successfully!');
+      } else {
+        // URL or text mode
+        await uploadCourseContent(
+          courseId,
+          newContent.type,
+          newContent.title,
+          newContent.description,
+          newContent.content_url,
+          newContent.content_text
+        );
+        toast.success('Content uploaded successfully!');
+      }
       setShowUploadDialog(false);
       setNewContent({
         title: '',
@@ -337,6 +350,8 @@ export default function CourseViewPage() {
         content_text: '',
         content_url: ''
       });
+      setSelectedFile(null);
+      setUploadMode('url');
       loadCourseData(); // Refresh content
     } catch (error) {
       console.error('Upload failed:', error);
