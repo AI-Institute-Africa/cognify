@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
 import { getCourses, enrollCourse, createCourse } from '../services/api';
-import { BookOpen, Users, Clock, Plus, Search, Filter, ArrowRight, Eye, CheckCircle, DollarSign, Award, GraduationCap, Calendar } from 'lucide-react';
+import { BookOpen, Users, Clock, Plus, Search, Filter, ArrowRight, Eye, CheckCircle, DollarSign, Award, GraduationCap, Calendar, Sparkles, Building2, Shield, Zap } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
@@ -25,13 +25,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '../components/ui/tabs';
 import { toast } from 'sonner';
 
+// Course branches
+const COURSE_BRANCHES = {
+  standard: {
+    name: 'Standard Courses',
+    description: 'Formal, structured courses with accredited certificates',
+    icon: GraduationCap,
+    color: 'blue',
+    features: ['Fixed curriculum', 'Formal assessment', 'Accredited certificates']
+  },
+  customized: {
+    name: 'Customized Subjects',
+    description: 'Flexible, user-created courses tailored to specific needs',
+    icon: Sparkles,
+    color: 'violet',
+    features: ['Flexible content', 'Self-paced', 'Organization training']
+  }
+};
+
 const COURSE_CATEGORIES = [
-  { id: '3day', name: '3-Day Course', icon: Calendar, color: 'emerald', description: 'Quick intensive training' },
-  { id: 'certification', name: 'Certification', icon: Award, color: 'blue', description: 'Professional certification' },
-  { id: 'certificate', name: 'Certificate', icon: CheckCircle, color: 'violet', description: 'Completion certificate' },
-  { id: 'diploma', name: 'Diploma', icon: GraduationCap, color: 'amber', description: 'Full diploma program' },
+  { id: 'free', name: 'Free Course', icon: BookOpen, color: 'gray', price: 0, branch: 'standard' },
+  { id: '3_day_course', name: '3-Day Course', icon: Calendar, color: 'emerald', price: 29.99, branch: 'standard' },
+  { id: 'certificate', name: 'Certificate', icon: CheckCircle, color: 'blue', price: 99.99, branch: 'standard' },
+  { id: 'certification', name: 'Certification', icon: Award, color: 'violet', price: 199.99, branch: 'standard' },
+  { id: 'diploma', name: 'Diploma', icon: GraduationCap, color: 'amber', price: 499.99, branch: 'standard' },
+  { id: 'custom_basic', name: 'Custom Basic', icon: Sparkles, color: 'pink', price: 49.99, branch: 'customized' },
+  { id: 'custom_advanced', name: 'Custom Advanced', icon: Zap, color: 'cyan', price: 149.99, branch: 'customized' },
+  { id: 'custom_enterprise', name: 'Enterprise', icon: Building2, color: 'orange', price: 999.99, branch: 'customized' },
 ];
 
 export default function CoursesPage() {
@@ -41,6 +69,7 @@ export default function CoursesPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [branchFilter, setBranchFilter] = useState('all');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [creating, setCreating] = useState(false);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState([]);
