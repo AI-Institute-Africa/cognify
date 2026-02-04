@@ -523,6 +523,13 @@ export default function HomePage() {
       color: 'rose',
       title: t.features.aiMentor, 
       description: t.features.aiMentorDesc 
+    },
+    { 
+      key: 'outcomeBased',
+      icon: TrendingUp, 
+      color: 'orange',
+      title: t.features.outcomeBased, 
+      description: t.features.outcomeBasedDesc 
     }
   ];
 
