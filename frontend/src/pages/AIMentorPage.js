@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
-import { mentorChat, getMentorProfile, updateMentorProfile, textToSpeech } from '../services/api';
+import { mentorChat, getMentorProfile, updateMentorProfile, textToSpeech, analyzeLinkedInProfile } from '../services/api';
 import { 
   Sparkles, 
   Send, 
@@ -18,7 +18,10 @@ import {
   Settings,
   Brain,
   Target,
-  Lightbulb
+  Lightbulb,
+  Linkedin,
+  RefreshCw,
+  CheckCircle
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
