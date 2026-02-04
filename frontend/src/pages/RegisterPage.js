@@ -202,6 +202,28 @@ export default function RegisterPage() {
                   </Select>
                 </div>
                 
+                {/* LinkedIn Profile - Optional */}
+                <div className="space-y-2">
+                  <Label htmlFor="linkedinUrl" className="text-zinc-400">
+                    LinkedIn Profile <span className="text-zinc-600">(optional)</span>
+                  </Label>
+                  <div className="relative">
+                    <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                    <Input
+                      id="linkedinUrl"
+                      type="url"
+                      placeholder="https://linkedin.com/in/yourprofile"
+                      value={formData.linkedinUrl}
+                      onChange={(e) => handleChange('linkedinUrl', e.target.value)}
+                      data-testid="register-linkedin-input"
+                      className="pl-11 bg-zinc-900/50 border-white/10 h-12 focus:border-blue-500/50"
+                    />
+                  </div>
+                  <p className="text-xs text-zinc-600">
+                    Add your LinkedIn to get personalized learning recommendations from our AI Mentor
+                  </p>
+                </div>
+                
                 <div className="space-y-2">
                   <Label htmlFor="password" className="text-zinc-400">Password</Label>
                   <div className="relative">
