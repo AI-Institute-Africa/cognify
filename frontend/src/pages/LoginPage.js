@@ -129,19 +129,19 @@ export default function LoginPage() {
       </div>
       
       {/* Right side - Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-[#09090B]">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 bg-[#09090B]">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-white" />
+          <div className="lg:hidden flex items-center gap-3 mb-6 sm:mb-8 justify-center">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center">
+              <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
-            <h1 className="text-2xl font-bold">Cognify</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Cognify</h1>
           </div>
           
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold">Welcome back</h2>
-            <p className="text-zinc-500 mt-2">Enter your credentials to access your account</p>
+          <div className="mb-6 sm:mb-8 text-center lg:text-left">
+            <h2 className="text-xl sm:text-2xl font-bold">Welcome back</h2>
+            <p className="text-zinc-500 mt-2 text-sm sm:text-base">Enter your credentials to access your account</p>
           </div>
           
           <form onSubmit={handleSubmit} className="space-y-6">
