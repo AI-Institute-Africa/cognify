@@ -1402,6 +1402,120 @@ async def get_course_content_list(
     contents = await db.course_contents.find(query, {"_id": 0}).to_list(100)
     return [serialize_doc(c) for c in contents]
 
+
+@content_router.post("/course/{course_id}/upload-file")
+async def upload_course_file_content(
+    course_id: str,
+    file: UploadFile = File(...),
+    title: str = Form(...),
+    description: str = Form(None),
+    content_type: str = Form(None),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload a file directly to course content (PDF, DOCX, MP4, images)"""
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    # Determine content type from file extension if not provided
+    filename = file.filename.lower()
+    if not content_type:
+        if filename.endswith(('.mp4', '.mov', '.avi', '.webm')):
+            content_type = 'video'
+        elif filename.endswith(('.mp3', '.wav', '.ogg', '.m4a')):
+            content_type = 'audio'
+        elif filename.endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
+            content_type = 'image'
+        elif filename.endswith(('.pdf', '.doc', '.docx', '.ppt', '.pptx')):
+            content_type = 'document'
+        else:
+            content_type = 'file'
+    
+    # Validate file size (max 100MB)
+    file_content = await file.read()
+    if len(file_content) > 100 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Max 100MB allowed.")
+    
+    # Create directory for uploads
+    upload_dir = Path("/app/course_uploads") / course_id
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save file
+    file_id = str(uuid.uuid4())
+    file_ext = Path(filename).suffix
+    file_path = upload_dir / f"{file_id}{file_ext}"
+    
+    with open(file_path, 'wb') as f:
+        f.write(file_content)
+    
+    # Create URL for accessing the file
+    file_url = f"/api/content/files/{course_id}/{file_id}{file_ext}"
+    
+    # Save to database
+    content = {
+        "id": str(uuid.uuid4()),
+        "course_id": course_id,
+        "type": content_type,
+        "title": title,
+        "description": description,
+        "url": file_url,
+        "file_path": str(file_path),
+        "original_filename": file.filename,
+        "file_size": len(file_content),
+        "mime_type": file.content_type,
+        "uploaded_by": current_user['id'],
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.course_contents.insert_one(content)
+    
+    return {
+        "id": content["id"],
+        "title": title,
+        "type": content_type,
+        "url": file_url,
+        "filename": file.filename,
+        "size": len(file_content),
+        "message": "File uploaded successfully"
+    }
+
+
+@content_router.get("/files/{course_id}/{filename}")
+async def serve_uploaded_course_file(course_id: str, filename: str):
+    """Serve uploaded course files"""
+    from fastapi.responses import FileResponse
+    
+    file_path = Path("/app/course_uploads") / course_id / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Determine media type
+    ext = file_path.suffix.lower()
+    media_types = {
+        '.pdf': 'application/pdf',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.ppt': 'application/vnd.ms-powerpoint',
+        '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.mov': 'video/quicktime',
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
+        '.ogg': 'audio/ogg',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+    }
+    media_type = media_types.get(ext, 'application/octet-stream')
+    
+    return FileResponse(file_path, media_type=media_type)
+
+
 # ==================== SYLLABUS INGESTION ROUTES ====================
 
 @content_router.post("/ingest-syllabus")
