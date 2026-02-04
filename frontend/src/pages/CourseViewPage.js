@@ -604,18 +604,94 @@ export default function CourseViewPage() {
                             />
                           </div>
                         ) : (
-                          <div className="space-y-2">
-                            <Label>Content URL</Label>
-                            <Input
-                              placeholder={`Enter ${newContent.type} URL...`}
-                              value={newContent.content_url}
-                              onChange={(e) => setNewContent({...newContent, content_url: e.target.value})}
-                              className="bg-zinc-800 border-white/10"
-                              data-testid="content-url-input"
-                            />
-                            <p className="text-xs text-zinc-500">
-                              Paste a link to your {newContent.type} content (YouTube, Vimeo, cloud storage, etc.)
-                            </p>
+                          <div className="space-y-4">
+                            {/* Upload Mode Toggle */}
+                            <div className="flex gap-2 p-1 bg-zinc-800/50 rounded-lg">
+                              <button
+                                type="button"
+                                onClick={() => setUploadMode('url')}
+                                className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                                  uploadMode === 'url' 
+                                    ? 'bg-blue-500 text-white' 
+                                    : 'text-zinc-400 hover:text-white'
+                                }`}
+                              >
+                                URL Link
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setUploadMode('file')}
+                                className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                                  uploadMode === 'file' 
+                                    ? 'bg-blue-500 text-white' 
+                                    : 'text-zinc-400 hover:text-white'
+                                }`}
+                              >
+                                Upload File
+                              </button>
+                            </div>
+                            
+                            {uploadMode === 'url' ? (
+                              <div className="space-y-2">
+                                <Label>Content URL</Label>
+                                <Input
+                                  placeholder={`Enter ${newContent.type} URL...`}
+                                  value={newContent.content_url}
+                                  onChange={(e) => setNewContent({...newContent, content_url: e.target.value})}
+                                  className="bg-zinc-800 border-white/10"
+                                  data-testid="content-url-input"
+                                />
+                                <p className="text-xs text-zinc-500">
+                                  Paste a link to your {newContent.type} content (YouTube, Vimeo, cloud storage, etc.)
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <Label>Upload File</Label>
+                                <div 
+                                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                                    selectedFile 
+                                      ? 'border-blue-500/50 bg-blue-500/10' 
+                                      : 'border-white/20 hover:border-blue-500/50'
+                                  }`}
+                                >
+                                  {selectedFile ? (
+                                    <div className="space-y-2">
+                                      <CheckCircle className="w-8 h-8 text-blue-400 mx-auto" />
+                                      <p className="text-sm text-white font-medium">{selectedFile.name}</p>
+                                      <p className="text-xs text-zinc-500">
+                                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                                      </p>
+                                      <Button 
+                                        type="button" 
+                                        variant="ghost" 
+                                        size="sm"
+                                        onClick={() => setSelectedFile(null)}
+                                        className="text-red-400 hover:text-red-300"
+                                      >
+                                        <X className="w-4 h-4 mr-1" />
+                                        Remove
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <label className="cursor-pointer">
+                                      <Upload className="w-8 h-8 text-zinc-500 mx-auto mb-2" />
+                                      <p className="text-sm text-zinc-400 mb-1">Click to upload or drag & drop</p>
+                                      <p className="text-xs text-zinc-600">
+                                        PDF, DOCX, MP4, MP3, JPG, PNG (max 100MB)
+                                      </p>
+                                      <input
+                                        type="file"
+                                        className="hidden"
+                                        accept=".pdf,.doc,.docx,.ppt,.pptx,.mp4,.mov,.webm,.mp3,.wav,.jpg,.jpeg,.png,.gif,.webp"
+                                        onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                                        data-testid="file-upload-input"
+                                      />
+                                    </label>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                         
