@@ -122,6 +122,7 @@ function AppRoutes() {
           <ForgotPasswordPage />
         </PublicRoute>
       } />
+      <Route path="/accept-invite" element={<AcceptInvitePage />} />
       
       {/* Protected Routes */}
       <Route path="/dashboard" element={
