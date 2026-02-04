@@ -364,14 +364,32 @@ export default function LiveResearchPage() {
                               <p className="text-xs text-zinc-500">Relevance</p>
                               <p className="text-lg font-bold text-blue-400">{result.relevance}%</p>
                             </div>
-                            <a
-                              href={result.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors"
-                            >
-                              <ExternalLink className="w-4 h-4 text-zinc-400" />
-                            </a>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleCrawlContent(result.url)}
+                                disabled={crawlingUrl === result.url}
+                                className="border-white/10"
+                              >
+                                {crawlingUrl === result.url ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Eye className="w-4 h-4 mr-1" />
+                                    Read
+                                  </>
+                                )}
+                              </Button>
+                              <a
+                                href={result.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors"
+                              >
+                                <ExternalLink className="w-4 h-4 text-zinc-400" />
+                              </a>
+                            </div>
                           </div>
                         </div>
                       </div>
