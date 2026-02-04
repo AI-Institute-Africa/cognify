@@ -6994,6 +6994,7 @@ from services.email_service import (
     send_password_reset_email,
     send_enrollment_confirmation_email,
     send_notification_email,
+    send_magic_link_email,
     generate_verification_code,
     generate_reset_token
 )
