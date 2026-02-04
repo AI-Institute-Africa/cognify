@@ -52,6 +52,7 @@ import OrgAdminDashboardPage from './pages/OrgAdminDashboardPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import StudentAssignmentsPage from './pages/StudentAssignmentsPage';
 import KTCELearningPage from './pages/KTCELearningPage';
+import AvatarTrialPage from './pages/AvatarTrialPage';
 
 import './App.css';
 
