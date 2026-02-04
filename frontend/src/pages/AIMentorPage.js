@@ -244,6 +244,40 @@ export default function AIMentorPage() {
             </div>
             
             <div className="flex items-center gap-2">
+              {/* LinkedIn Analysis Button */}
+              {profile?.linkedin_profile ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 gap-2"
+                  disabled
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  LinkedIn Connected
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAnalyzeLinkedIn}
+                  disabled={analyzingLinkedin}
+                  className="border-blue-500/30 bg-blue-500/10 text-blue-400 gap-2 hover:bg-blue-500/20"
+                  data-testid="analyze-linkedin-btn"
+                >
+                  {analyzingLinkedin ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Linkedin className="w-4 h-4" />
+                      Analyze LinkedIn
+                    </>
+                  )}
+                </Button>
+              )}
+              
               {/* Audio Toggle */}
               <Button
                 variant="outline"
