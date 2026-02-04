@@ -6330,7 +6330,8 @@ async def register_with_email_verification(
     email: str,
     password: str,
     full_name: str,
-    role: str = "student"
+    role: str = "student",
+    linkedin_url: Optional[str] = None
 ):
     """Register new user with email verification required"""
     # Check if user exists
@@ -6343,6 +6344,16 @@ async def register_with_email_verification(
     if role not in valid_roles:
         raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {valid_roles}")
     
+    # Validate LinkedIn URL if provided
+    if linkedin_url:
+        linkedin_url = linkedin_url.strip()
+        if linkedin_url and not linkedin_url.startswith("https://linkedin.com/") and not linkedin_url.startswith("https://www.linkedin.com/"):
+            # Auto-fix common patterns
+            if linkedin_url.startswith("linkedin.com/"):
+                linkedin_url = "https://www." + linkedin_url
+            elif linkedin_url.startswith("www.linkedin.com/"):
+                linkedin_url = "https://" + linkedin_url
+    
     # Generate verification code
     verification_code = generate_verification_code()
     
@@ -6353,6 +6364,7 @@ async def register_with_email_verification(
         "password_hash": bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
         "full_name": full_name,
         "role": role,
+        "linkedin_url": linkedin_url,
         "verification_code": verification_code,
         "created_at": datetime.now(timezone.utc),
         "expires_at": datetime.now(timezone.utc) + timedelta(minutes=15)
