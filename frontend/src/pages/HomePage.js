@@ -261,7 +261,9 @@ const TRANSLATIONS = {
       multiLanguage: 'Ukusekela Izilimi Eziningi',
       multiLanguageDesc: 'Ukusekela okuphelele kwinkundla ngezilimi ezingu-10+ kufaka phakathi izilimi zase-Afrika.',
       aiMentor: 'Umeluleki Wakho We-AI',
-      aiMentorDesc: 'Umngane wokufunda wempilo yonke ofunda iphrofayela yakho futhi anikeze isiqondiso sakho.'
+      aiMentorDesc: 'Umngane wokufunda wempilo yonke ofunda iphrofayela yakho futhi anikeze isiqondiso sakho.',
+      outcomeBased: 'Ukufunda Okususelwe Emiphumeleni',
+      outcomeBasedDesc: 'Beka izinhloso zakho zokufunda futhi uthole indlela yakho esiqu sokuzifinyelela.'
     },
     trialSection: {
       title: 'Zama Ukufunda Nge-Avatar Manje',
