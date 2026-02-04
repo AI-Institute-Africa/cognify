@@ -71,24 +71,24 @@ export const Header = ({ title, subtitle }) => {
   );
 
   return (
-    <header className="sticky top-0 z-40 bg-[#09090B]/80 backdrop-blur-xl border-b border-white/5">
-      <div className="flex items-center justify-between px-8 py-4">
+    <header className="sticky top-0 z-30 bg-[#09090B]/80 backdrop-blur-xl border-b border-white/5">
+      <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
         {/* Title */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-          {subtitle && <p className="text-sm text-zinc-500 mt-0.5">{subtitle}</p>}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg sm:text-xl lg:text-2xl font-bold tracking-tight truncate">{title}</h1>
+          {subtitle && <p className="text-xs sm:text-sm text-zinc-500 mt-0.5 truncate">{subtitle}</p>}
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-4">
-          {/* Search */}
-          <div className="relative hidden md:block">
+        <div className="flex items-center gap-2 sm:gap-4 ml-4">
+          {/* Search - hidden on mobile */}
+          <div className="relative hidden lg:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
             <input
               type="text"
               placeholder={t('search') + '...'}
               data-testid="header-search"
-              className="w-64 pl-10 pr-4 py-2 bg-zinc-900/50 border border-white/10 rounded-lg text-sm placeholder:text-zinc-500 focus:outline-none focus:border-blue-500/50 transition-colors"
+              className="w-48 xl:w-64 pl-10 pr-4 py-2 bg-zinc-900/50 border border-white/10 rounded-lg text-sm placeholder:text-zinc-500 focus:outline-none focus:border-blue-500/50 transition-colors"
             />
           </div>
 
@@ -97,7 +97,7 @@ export const Header = ({ title, subtitle }) => {
             <DropdownMenuTrigger asChild>
               <button
                 data-testid="language-selector-btn"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors border border-white/10"
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 rounded-lg hover:bg-white/5 transition-colors border border-white/10"
               >
                 <Globe className="w-4 h-4 text-zinc-400" />
                 <span className="text-sm hidden sm:inline">{currentLanguage?.flag} {currentLanguage?.code?.toUpperCase()}</span>
@@ -157,7 +157,7 @@ export const Header = ({ title, subtitle }) => {
                 )}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 bg-zinc-900 border-white/10">
+            <DropdownMenuContent align="end" className="w-72 sm:w-80 bg-zinc-900 border-white/10">
               <DropdownMenuLabel className="text-zinc-400">Notifications</DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-white/10" />
               {notifications.length === 0 ? (
@@ -186,7 +186,7 @@ export const Header = ({ title, subtitle }) => {
             <DropdownMenuTrigger asChild>
               <button
                 data-testid="user-menu-btn"
-                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors"
+                className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg hover:bg-white/5 transition-colors"
               >
                 <Avatar className="w-8 h-8">
                   <AvatarImage src={user?.profile_image} />
@@ -194,13 +194,13 @@ export const Header = ({ title, subtitle }) => {
                     {getInitials(user?.full_name)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="hidden md:block text-left">
+                <div className="hidden lg:block text-left">
                   <p className="text-sm font-medium">{user?.full_name}</p>
                   <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${getRoleBadge(user?.role)}`}>
                     {user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1)}
                   </Badge>
                 </div>
-                <ChevronDown className="w-4 h-4 text-zinc-500 hidden md:block" />
+                <ChevronDown className="w-4 h-4 text-zinc-500 hidden lg:block" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 bg-zinc-900 border-white/10">
