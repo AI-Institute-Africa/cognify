@@ -371,7 +371,7 @@ const LANGUAGES = [
   { code: 'fr', name: 'Français', flag: '🇫🇷' },
 ];
 
-const ROBOT_IMAGE = "https://static.prod-images.emergentagent.com/jobs/d5abe282-5f0b-41cb-809e-ba3c4bccbb96/images/124de12080a24addbb12f7124b107bafa37de5281e979ba9846ae48b7f4c7763.png";
+const ROBOT_IMAGE = "https://static.prod-images.emergentagent.com/jobs/04bc6db1-7ac3-4709-aae3-54bc87bb7c66/images/e0ffb9d236aaca027e7180c6e198ee0638091ebb1f8d4b51ee90fd171a5d8ebb.png";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 

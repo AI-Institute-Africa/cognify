@@ -348,6 +348,9 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* Avatar Trial (Public - No account needed) */}
+      <Route path="/avatar-trial" element={<AvatarTrialPage />} />
+      
       {/* Home Page (Public) */}
       <Route path="/" element={<HomePage />} />
       
