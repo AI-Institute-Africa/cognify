@@ -4883,6 +4883,21 @@ async def generate_video_content(
             }
             await db.generated_videos.insert_one(video_record)
             
+            # Also save to course_content for display in CourseViewPage
+            if course_id:
+                content_record = {
+                    "id": f"content-{video_id}",
+                    "course_id": course_id,
+                    "type": "video",
+                    "title": topic,
+                    "description": f"AI-generated video about {topic}",
+                    "text": f"# {topic}\n\nThis is an AI-generated educational video covering the key concepts of {topic}.\n\nWatch the video above to learn more about this topic.",
+                    "video_url": f"/api/content/video/{video_id}",
+                    "created_by": current_user['id'],
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }
+                await db.course_contents.insert_one(content_record)
+            
             return {
                 "message": "Video generated successfully",
                 "video_id": video_id,
