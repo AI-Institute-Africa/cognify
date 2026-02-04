@@ -2206,7 +2206,7 @@ async def landing_ai_assistant(request: LandingAssistantRequest):
         api_key = os.environ.get('EMERGENT_LLM_KEY')
         if not api_key:
             # Return a helpful fallback response
-            return {"response": "Welcome to EduOS! I'm your AI assistant. EduOS is Africa's leading AI-powered education platform featuring personalized AI tutoring, blockchain credentials, smart campus features, and support for 5 African languages. How can I help you today?"}
+            return {"response": "Welcome to Cognify! I'm your AI assistant. Cognify is Africa's leading AI-powered education platform featuring personalized AI tutoring, blockchain credentials, smart campus features, and support for 5 African languages. How can I help you today?"}
         
         lang_context = {
             'en': 'Respond in English.',
@@ -2216,9 +2216,9 @@ async def landing_ai_assistant(request: LandingAssistantRequest):
             'fr': 'Répondez en français.'
         }
         
-        system_message = f"""You are EduOS AI Assistant on the landing page. Help visitors learn about the platform.
+        system_message = f"""You are Cognify AI Assistant on the landing page. Help visitors learn about the platform.
         
-        Key features of EduOS 2026:
+        Key features of Cognify:
         - AI Personal Mentor: GPT-5.2 powered tutoring in 5 African languages (English, Swahili, Shona, Zulu, Ndebele)
         - Knowledge Graph: Visual concept mapping with mastery tracking
         - Blockchain Credentials: Ethereum-verified digital certificates
@@ -2238,7 +2238,79 @@ async def landing_ai_assistant(request: LandingAssistantRequest):
         return {"response": response}
     except Exception as e:
         logging.error(f"Landing Assistant Error: {str(e)}")
-        return {"response": "Welcome to EduOS! I'm here to help you learn about our AI-powered education platform. We offer personalized AI tutoring, blockchain credentials, smart campus features, and support for African languages. Would you like to know more about any specific feature?"}
+        return {"response": "Welcome to Cognify! I'm here to help you learn about our AI-powered education platform. We offer personalized AI tutoring, blockchain credentials, smart campus features, and support for African languages. Would you like to know more about any specific feature?"}
+
+@ai_router.post("/transcribe")
+async def transcribe_audio(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Transcribe audio file to text using OpenAI Whisper"""
+    try:
+        from emergentintegrations.llm.openai.transcription import OpenAITranscription
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="Transcription service not configured")
+        
+        # Read the audio file
+        content = await file.read()
+        
+        # Save temporarily
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+        
+        try:
+            transcription = OpenAITranscription(api_key=api_key)
+            text = await transcription.transcribe(tmp_path)
+            return {"text": text, "success": True}
+        finally:
+            os.unlink(tmp_path)
+            
+    except Exception as e:
+        logging.error(f"Transcription error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
+
+@ai_router.post("/analyze-image")
+async def analyze_image(
+    file: UploadFile = File(...),
+    question: str = "What's in this image? Describe it in detail.",
+    current_user: dict = Depends(get_current_user)
+):
+    """Analyze an image using vision AI"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        import base64
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        # Read and encode the image
+        content = await file.read()
+        base64_image = base64.b64encode(content).decode('utf-8')
+        
+        # Determine the mime type
+        mime_type = file.content_type or 'image/jpeg'
+        
+        system_message = """You are an AI assistant that analyzes images. Provide detailed, helpful descriptions and answer any questions about the image content. Be specific about what you see."""
+        
+        chat = LlmChat(api_key=api_key, session_id=f"image-{uuid.uuid4()}", system_message=system_message)
+        chat.with_model("openai", "gpt-5.2")
+        
+        # Send the image with the question
+        response = await chat.send_message(UserMessage(
+            text=question,
+            image_url=f"data:{mime_type};base64,{base64_image}"
+        ))
+        
+        return {"response": response, "success": True}
+        
+    except Exception as e:
+        logging.error(f"Image analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Image analysis failed: {str(e)}")
 
 # Student & Teacher Management
 @students_router.get("")
