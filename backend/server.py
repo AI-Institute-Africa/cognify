@@ -455,6 +455,23 @@ class TTSRequest(BaseModel):
     voice_id: Optional[str] = None
     language: str = "en"
 
+class BulkEnrollmentRequest(BaseModel):
+    emails: List[str]
+    course_id: str
+
+class MagicLinkEnrollment(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    email: str
+    token: str
+    org_id: str
+    course_id: str
+    course_name: str
+    org_name: str
+    status: str = "pending"  # pending, accepted, expired
+    expires_at: datetime
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 # Helper Functions
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
