@@ -358,6 +358,12 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      <Route path="/bulk-enrollment" element={
+        <ProtectedRoute allowedRoles={['org_admin', 'admin', 'teacher']}>
+          <BulkEnrollmentPage />
+        </ProtectedRoute>
+      } />
+      
       {/* Avatar Trial (Public - No account needed) */}
       <Route path="/avatar-trial" element={<AvatarTrialPage />} />
       
