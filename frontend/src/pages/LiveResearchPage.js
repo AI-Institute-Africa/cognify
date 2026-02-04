@@ -259,6 +259,23 @@ export default function LiveResearchPage() {
                   </>
                 )}
               </Button>
+              
+              {/* PDF Upload Button */}
+              <label className={`h-12 px-4 rounded-lg border border-white/10 flex items-center gap-2 cursor-pointer hover:bg-zinc-800 transition-colors ${uploadingPdf ? 'opacity-50' : ''}`}>
+                {uploadingPdf ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+                <span className="text-sm">Upload PDF</span>
+                <input 
+                  type="file" 
+                  accept=".pdf" 
+                  className="hidden" 
+                  onChange={handlePdfUpload}
+                  disabled={uploadingPdf}
+                />
+              </label>
             </div>
 
             {/* Quick Search Suggestions */}
