@@ -53,6 +53,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import StudentAssignmentsPage from './pages/StudentAssignmentsPage';
 import KTCELearningPage from './pages/KTCELearningPage';
 import AvatarTrialPage from './pages/AvatarTrialPage';
+import CreateCustomCoursePage from './pages/CreateCustomCoursePage';
 
 import './App.css';
 
