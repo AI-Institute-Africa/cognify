@@ -15,7 +15,13 @@ import {
   Sparkles,
   Filter,
   Clock,
-  Link2
+  Link2,
+  Eye,
+  Download,
+  Upload,
+  X,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -27,6 +33,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
 import { toast } from 'sonner';
 
 const categories = [
@@ -44,6 +56,16 @@ export default function LiveResearchPage() {
   const [results, setResults] = useState([]);
   const [directLinks, setDirectLinks] = useState([]);
   const [searched, setSearched] = useState(false);
+  
+  // Content crawling state
+  const [crawlingUrl, setCrawlingUrl] = useState(null);
+  const [crawledContent, setCrawledContent] = useState(null);
+  const [showContentModal, setShowContentModal] = useState(false);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [pdfAnalysis, setPdfAnalysis] = useState(null);
+  const [expandedContent, setExpandedContent] = useState(false);
+
+  const API = process.env.REACT_APP_BACKEND_URL;
 
   const handleSearch = async () => {
     if (!query.trim()) {
