@@ -51,7 +51,9 @@ const TRANSLATIONS = {
       multiLanguage: 'Multi-Language Support',
       multiLanguageDesc: 'Full platform support in 10+ languages including African languages.',
       aiMentor: 'AI Personal Mentor',
-      aiMentorDesc: 'Lifelong learning companion that reads your profile and provides personalized guidance.'
+      aiMentorDesc: 'Lifelong learning companion that reads your profile and provides personalized guidance.',
+      outcomeBased: 'Outcome-Based Learning',
+      outcomeBasedDesc: 'Define your learning goals and get a personalized pathway to achieve them with measurable outcomes.'
     },
     trialSection: {
       title: 'Try Avatar-Based Learning Now',
