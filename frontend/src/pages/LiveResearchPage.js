@@ -471,6 +471,165 @@ export default function LiveResearchPage() {
           )}
         </div>
       </div>
+      
+      {/* Content Modal */}
+      <Dialog open={showContentModal} onOpenChange={setShowContentModal}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-zinc-900 border-white/10">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-400" />
+              {pdfAnalysis ? 'PDF Analysis' : 'Extracted Content'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {crawledContent && (
+            <div className="space-y-6">
+              {crawledContent.structured && (
+                <>
+                  {crawledContent.structured.title && (
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">{crawledContent.structured.title}</h3>
+                      {crawledContent.structured.authors && (
+                        <p className="text-sm text-zinc-500">
+                          Authors: {Array.isArray(crawledContent.structured.authors) 
+                            ? crawledContent.structured.authors.join(', ')
+                            : crawledContent.structured.authors}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {crawledContent.structured.abstract && (
+                    <div className="p-4 rounded-lg bg-zinc-800/50">
+                      <h4 className="font-semibold text-blue-400 mb-2">Abstract</h4>
+                      <p className="text-sm text-zinc-300">{crawledContent.structured.abstract}</p>
+                    </div>
+                  )}
+                  
+                  {crawledContent.structured.key_points && (
+                    <div>
+                      <h4 className="font-semibold mb-2">Key Points</h4>
+                      <ul className="space-y-2">
+                        {crawledContent.structured.key_points.map((point, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-sm text-zinc-300">
+                            <span className="text-blue-400">•</span>
+                            {point}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {crawledContent.structured.conclusions && (
+                    <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                      <h4 className="font-semibold text-emerald-400 mb-2">Conclusions</h4>
+                      <p className="text-sm text-zinc-300">{crawledContent.structured.conclusions}</p>
+                    </div>
+                  )}
+                </>
+              )}
+              
+              {/* Raw content toggle */}
+              <div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setExpandedContent(!expandedContent)}
+                  className="border-white/10 mb-2"
+                >
+                  {expandedContent ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
+                  {expandedContent ? 'Hide' : 'Show'} Raw Content
+                </Button>
+                
+                {expandedContent && (
+                  <div className="p-4 rounded-lg bg-zinc-800/50 max-h-60 overflow-y-auto">
+                    <pre className="text-xs text-zinc-400 whitespace-pre-wrap">
+                      {crawledContent.raw_content}
+                    </pre>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => window.open(crawledContent.url, '_blank')} className="border-white/10">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Open Original
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          {pdfAnalysis && (
+            <div className="space-y-6">
+              {pdfAnalysis.analysis && (
+                <>
+                  {pdfAnalysis.analysis.title && (
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">{pdfAnalysis.analysis.title}</h3>
+                      {pdfAnalysis.analysis.authors && (
+                        <p className="text-sm text-zinc-500">
+                          Authors: {pdfAnalysis.analysis.authors.join(', ')}
+                        </p>
+                      )}
+                      {pdfAnalysis.analysis.year && (
+                        <Badge className="mt-2">{pdfAnalysis.analysis.year}</Badge>
+                      )}
+                    </div>
+                  )}
+                  
+                  {pdfAnalysis.analysis.abstract && (
+                    <div className="p-4 rounded-lg bg-zinc-800/50">
+                      <h4 className="font-semibold text-blue-400 mb-2">Abstract</h4>
+                      <p className="text-sm text-zinc-300">{pdfAnalysis.analysis.abstract}</p>
+                    </div>
+                  )}
+                  
+                  {pdfAnalysis.analysis.key_findings && (
+                    <div>
+                      <h4 className="font-semibold mb-2">Key Findings</h4>
+                      <ul className="space-y-2">
+                        {pdfAnalysis.analysis.key_findings.map((finding, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-sm text-zinc-300">
+                            <span className="text-blue-400">•</span>
+                            {finding}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {pdfAnalysis.analysis.methodology && (
+                    <div className="p-4 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                      <h4 className="font-semibold text-violet-400 mb-2">Methodology</h4>
+                      <p className="text-sm text-zinc-300">{pdfAnalysis.analysis.methodology}</p>
+                    </div>
+                  )}
+                  
+                  {pdfAnalysis.analysis.conclusions && (
+                    <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                      <h4 className="font-semibold text-emerald-400 mb-2">Conclusions</h4>
+                      <p className="text-sm text-zinc-300">{pdfAnalysis.analysis.conclusions}</p>
+                    </div>
+                  )}
+                  
+                  {pdfAnalysis.analysis.keywords && (
+                    <div className="flex flex-wrap gap-2">
+                      {pdfAnalysis.analysis.keywords.map((keyword, idx) => (
+                        <Badge key={idx} variant="outline" className="border-white/10">{keyword}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+              
+              <div className="text-sm text-zinc-500">
+                <p>Filename: {pdfAnalysis.filename}</p>
+                <p>Word count: ~{pdfAnalysis.word_count}</p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
