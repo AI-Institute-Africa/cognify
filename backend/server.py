@@ -4399,6 +4399,19 @@ async def mentor_chat(msg: MentorMessage, current_user: dict = Depends(get_curre
         
         history_context = "\n".join([f"User: {h.get('user_message', '')}\nMentor: {h.get('mentor_response', '')}" for h in reversed(history)])
         
+        # Build LinkedIn context if available
+        linkedin_context = ""
+        linkedin_profile = profile.get("linkedin_profile", {})
+        if linkedin_profile:
+            insights = linkedin_profile.get("linkedin_insights", {})
+            if insights:
+                linkedin_context = f"""
+        LINKEDIN PROFESSIONAL INSIGHTS:
+        - Profile Summary: {insights.get('profile_summary', 'Not available')}
+        - Career Insights: {insights.get('career_insights', 'Not available')}
+        - Recommended Topics: {', '.join(insights.get('recommended_topics', []))}
+        """
+        
         system_message = f"""You are a personal AI mentor with lifelong memory for this learner.
         
         LEARNER PROFILE:
@@ -4407,6 +4420,7 @@ async def mentor_chat(msg: MentorMessage, current_user: dict = Depends(get_curre
         - Learning Style: {profile.get('learning_style', 'visual')}
         - Goals: {', '.join(profile.get('goals', [])) or 'Not yet set'}
         - Sessions: {profile.get('conversation_count', 0)}
+        {linkedin_context}
         
         RECENT CONVERSATION HISTORY:
         {history_context}
@@ -4417,6 +4431,7 @@ async def mentor_chat(msg: MentorMessage, current_user: dict = Depends(get_curre
         3. Proactively revisit weak areas
         4. Track and celebrate progress
         5. Provide personalized guidance
+        6. Use LinkedIn insights to give career-aligned recommendations
         
         Be warm, supportive, and remember you are their permanent learning companion."""
         
