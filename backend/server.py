@@ -4678,9 +4678,10 @@ async def mentor_upload_document(
     question: str = "",
     current_user: dict = Depends(get_current_user)
 ):
-    """Upload a document for the AI mentor to analyze and answer questions"""
+    """Upload a document or image for the AI mentor to analyze and answer questions"""
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
+        import base64
         
         api_key = os.environ.get('EMERGENT_LLM_KEY')
         if not api_key:
@@ -4689,32 +4690,67 @@ async def mentor_upload_document(
         # Read file content
         content = await file.read()
         text_content = ""
+        image_data = None
         
         # Handle different file types
-        if file.content_type == "application/pdf":
-            # For PDF, extract text (simplified - in production use a PDF library)
-            text_content = content.decode('utf-8', errors='ignore')[:5000]
-        elif file.content_type in ["text/plain", "text/markdown", "application/json"]:
-            text_content = content.decode('utf-8')[:5000]
-        elif file.content_type.startswith("image/"):
-            # For images, describe that we received an image
-            text_content = f"[Image file: {file.filename}]"
+        if file.content_type and file.content_type.startswith("image/"):
+            # For images, use vision AI
+            base64_image = base64.b64encode(content).decode('utf-8')
+            image_data = f"data:{file.content_type};base64,{base64_image}"
+            text_content = f"[Analyzing image: {file.filename}]"
+        elif file.content_type == "application/pdf":
+            # For PDF, extract text using PyMuPDF
+            try:
+                import fitz
+                import io
+                pdf_document = fitz.open(stream=io.BytesIO(content), filetype="pdf")
+                text_content = ""
+                for page in pdf_document:
+                    text_content += page.get_text()
+                text_content = text_content[:8000]  # Limit content length
+            except:
+                text_content = content.decode('utf-8', errors='ignore')[:5000]
+        elif file.content_type in ["text/plain", "text/markdown", "application/json", "text/csv"]:
+            text_content = content.decode('utf-8')[:8000]
         else:
             text_content = content.decode('utf-8', errors='ignore')[:5000]
         
-        system_message = f"""You are analyzing a document uploaded by a learner.
+        user_question = question if question else "Please analyze this and provide key insights."
         
-        Document content:
-        {text_content}
-        
-        Answer the learner's question about this document clearly and helpfully.
-        If no specific question is asked, provide a summary of the key points."""
-        
-        chat = LlmChat(api_key=api_key, session_id=f"mentor-doc-{current_user['id']}", system_message=system_message)
-        chat.with_model("openai", "gpt-5.2")
-        
-        user_question = question if question else "Please summarize the key points of this document."
-        response = await chat.send_message(UserMessage(text=user_question))
+        if image_data:
+            # Vision-based analysis for images
+            system_message = """You are an AI mentor analyzing an image uploaded by a learner.
+            Provide a detailed analysis of what you see in the image.
+            If it's educational content (diagram, chart, notes, textbook), explain it thoroughly.
+            If it's a question or problem, help solve it step by step.
+            Be educational, supportive, and thorough in your explanation."""
+            
+            chat = LlmChat(api_key=api_key, session_id=f"mentor-img-{current_user['id']}", system_message=system_message)
+            chat.with_model("openai", "gpt-5.2")
+            
+            response = await chat.send_message(UserMessage(
+                text=user_question,
+                image_url=image_data
+            ))
+        else:
+            # Text-based analysis for documents
+            system_message = f"""You are an AI mentor analyzing a document uploaded by a learner.
+            
+            Document content:
+            {text_content}
+            
+            Analyze the document thoroughly. If it contains:
+            - Study notes: Summarize key points and suggest study strategies
+            - Questions/problems: Provide step-by-step solutions
+            - Educational material: Explain concepts in simple terms
+            - Code: Explain what it does and suggest improvements
+            
+            Answer the learner's question clearly and helpfully."""
+            
+            chat = LlmChat(api_key=api_key, session_id=f"mentor-doc-{current_user['id']}", system_message=system_message)
+            chat.with_model("openai", "gpt-5.2")
+            
+            response = await chat.send_message(UserMessage(text=user_question))
         
         # Store in conversation history
         await db.mentor_conversations.insert_one({
@@ -4723,6 +4759,7 @@ async def mentor_upload_document(
             "mentor_response": response,
             "has_file": True,
             "filename": file.filename,
+            "file_type": file.content_type,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
         
