@@ -55,6 +55,7 @@ import KTCELearningPage from './pages/KTCELearningPage';
 import AvatarTrialPage from './pages/AvatarTrialPage';
 import CreateCustomCoursePage from './pages/CreateCustomCoursePage';
 import AcceptInvitePage from './pages/AcceptInvitePage';
+import BulkEnrollmentPage from './pages/BulkEnrollmentPage';
 
 import './App.css';
 
