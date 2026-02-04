@@ -84,6 +84,8 @@ export default function CourseViewPage() {
   // Teacher content upload state
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadMode, setUploadMode] = useState('url'); // 'url' or 'file'
+  const [selectedFile, setSelectedFile] = useState(null);
   const [newContent, setNewContent] = useState({
     title: '',
     description: '',
