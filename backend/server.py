@@ -4991,6 +4991,23 @@ async def generate_slides_content(
         }
         await db.generated_slideshows.insert_one(slideshow_record)
         
+        # Also save to course_content for display in CourseViewPage
+        if course_id and slides:
+            slides_description = "\n\n".join([f"**{s['title']}**\n{s.get('description', '')}" for s in slides])
+            content_record = {
+                "id": f"content-{slideshow_id}",
+                "course_id": course_id,
+                "type": "slides",
+                "title": f"{topic} - Slides",
+                "description": f"AI-generated educational slides about {topic}",
+                "text": f"# {topic} - Visual Slides\n\n{slides_description}\n\n*Navigate through the slides using the picture mode above.*",
+                "slides": slides,
+                "slideshow_id": slideshow_id,
+                "created_by": current_user['id'],
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.course_contents.insert_one(content_record)
+        
         return {
             "message": "Slides generated successfully",
             "slideshow_id": slideshow_id,
