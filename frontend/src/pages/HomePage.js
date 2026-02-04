@@ -858,25 +858,25 @@ export default function HomePage() {
       </section>
 
       {/* Features Section - 8 Feature Cards */}
-      <section id="features" className="py-20 px-6 bg-zinc-900/30">
+      <section id="features" className="py-12 sm:py-20 px-4 sm:px-6 bg-zinc-900/30">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.features.title}</h2>
-            <p className="text-zinc-400 max-w-xl mx-auto">{t.features.subtitle}</p>
+          <div className="text-center mb-10 sm:mb-16">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-3 sm:mb-4">{t.features.title}</h2>
+            <p className="text-sm sm:text-base text-zinc-400 max-w-xl mx-auto px-4">{t.features.subtitle}</p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
             {features.map((feature, index) => (
               <div
                 key={feature.key}
-                className="group p-6 rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-white/20 transition-all duration-300 hover:transform hover:-translate-y-1"
+                className="group p-4 sm:p-6 rounded-xl sm:rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-white/20 transition-all duration-300 hover:transform hover:-translate-y-1"
               >
-                <div className={`w-14 h-14 rounded-xl bg-${feature.color}-500/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                  <feature.icon className={`w-7 h-7 text-${feature.color}-400`} />
+                <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-${feature.color}-500/20 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 transition-transform`}>
+                  <feature.icon className={`w-6 h-6 sm:w-7 sm:h-7 text-${feature.color}-400`} />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-                <p className="text-sm text-zinc-400 mb-4">{feature.description}</p>
-                <Link to="/register" className="inline-flex items-center text-sm text-blue-400 hover:text-blue-300 transition-colors">
+                <h3 className="text-base sm:text-lg font-semibold mb-2">{feature.title}</h3>
+                <p className="text-xs sm:text-sm text-zinc-400 mb-3 sm:mb-4">{feature.description}</p>
+                <Link to="/register" className="inline-flex items-center text-xs sm:text-sm text-blue-400 hover:text-blue-300 transition-colors">
                   Learn More <ChevronRight className="w-4 h-4 ml-1" />
                 </Link>
               </div>
@@ -886,30 +886,30 @@ export default function HomePage() {
       </section>
 
       {/* Organizations Section */}
-      <section id="organizations" className="py-20 px-6">
+      <section id="organizations" className="py-12 sm:py-20 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.orgs.title}</h2>
-            <p className="text-zinc-400">{t.orgs.subtitle}</p>
+          <div className="text-center mb-10 sm:mb-16">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-3 sm:mb-4">{t.orgs.title}</h2>
+            <p className="text-sm sm:text-base text-zinc-400">{t.orgs.subtitle}</p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
             {orgTypes.map((org, index) => (
-              <div key={index} className="text-center p-8 rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-blue-500/30 transition-all">
-                <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center mx-auto mb-4">
-                  <org.icon className="w-8 h-8 text-blue-400" />
+              <div key={index} className="text-center p-4 sm:p-8 rounded-xl sm:rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-blue-500/30 transition-all">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-blue-500/10 flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                  <org.icon className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">{org.title}</h3>
-                <p className="text-sm text-zinc-400">{org.description}</p>
+                <h3 className="text-sm sm:text-lg font-semibold mb-1 sm:mb-2">{org.title}</h3>
+                <p className="text-xs sm:text-sm text-zinc-400 hidden sm:block">{org.description}</p>
               </div>
             ))}
           </div>
           
-          <div className="text-center mt-12">
+          <div className="text-center mt-8 sm:mt-12">
             <Link to="/register-organization">
-              <Button size="lg" className="bg-blue-500 hover:bg-blue-600">
+              <Button size="lg" className="bg-blue-500 hover:bg-blue-600 h-12 sm:h-auto">
                 {t.hero.registerBtn}
-                <ArrowRight className="w-5 h-5 ml-2" />
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
               </Button>
             </Link>
           </div>
@@ -917,15 +917,15 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-6 border-t border-white/5">
+      <footer className="py-8 sm:py-12 px-4 sm:px-6 border-t border-white/5">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
-                <Brain className="w-6 h-6 text-white" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
+                <Brain className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
               </div>
               <div>
-                <h1 className="font-bold">Cognify 2026</h1>
+                <h1 className="font-bold text-sm sm:text-base">Cognify 2026</h1>
                 <p className="text-xs text-zinc-500">{t.footer.tagline}</p>
               </div>
             </div>
