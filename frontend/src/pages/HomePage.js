@@ -121,7 +121,9 @@ const TRANSLATIONS = {
       multiLanguage: 'Msaada wa Lugha Nyingi',
       multiLanguageDesc: 'Msaada kamili wa jukwaa katika lugha 10+ ikiwa ni pamoja na lugha za Kiafrika.',
       aiMentor: 'Mshauri wa AI Binafsi',
-      aiMentorDesc: 'Mwandani wa kujifunza maisha yote anayesoma wasifu wako na kutoa mwongozo wa kibinafsi.'
+      aiMentorDesc: 'Mwandani wa kujifunza maisha yote anayesoma wasifu wako na kutoa mwongozo wa kibinafsi.',
+      outcomeBased: 'Kujifunza Kulingana na Matokeo',
+      outcomeBasedDesc: 'Weka malengo yako ya kujifunza na upate njia ya kibinafsi ya kuyafikia.'
     },
     trialSection: {
       title: 'Jaribu Kujifunza kwa Avatar Sasa',
