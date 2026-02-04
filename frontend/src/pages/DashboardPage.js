@@ -93,9 +93,9 @@ export default function DashboardPage() {
         subtitle={new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
       />
       
-      <div className="p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         {/* Stats Grid */}
-        <div className="bento-grid mb-8">
+        <div className="bento-grid mb-6 sm:mb-8">
           {user?.role === 'student' && (
             <>
               <WideStatCard
