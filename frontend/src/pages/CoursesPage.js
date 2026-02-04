@@ -297,6 +297,52 @@ export default function CoursesPage() {
             </div>
           </div>
         )}
+        
+        {/* Customized Subjects Options - Create Course & Outcome Learning */}
+        {branchFilter === 'customized' && (
+          <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {CUSTOMIZED_OPTIONS.map(option => {
+              const Icon = option.icon;
+              return (
+                <div 
+                  key={option.id}
+                  className={`p-6 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${
+                    option.color === 'violet' 
+                      ? 'bg-gradient-to-br from-violet-500/10 to-purple-500/10 border-violet-500/30 hover:border-violet-500/50' 
+                      : 'bg-gradient-to-br from-emerald-500/10 to-green-500/10 border-emerald-500/30 hover:border-emerald-500/50'
+                  }`}
+                  onClick={() => navigate(option.path)}
+                  data-testid={`customized-option-${option.id}`}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                      option.color === 'violet' ? 'bg-violet-500/20' : 'bg-emerald-500/20'
+                    }`}>
+                      <Icon className={`w-6 h-6 ${option.color === 'violet' ? 'text-violet-400' : 'text-emerald-400'}`} />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className={`font-semibold text-lg ${option.color === 'violet' ? 'text-violet-400' : 'text-emerald-400'}`}>
+                        {option.title}
+                      </h3>
+                      <p className="text-sm text-zinc-400 mt-1">{option.description}</p>
+                      <Button 
+                        className={`mt-4 ${
+                          option.color === 'violet' 
+                            ? 'bg-violet-500 hover:bg-violet-600' 
+                            : 'bg-emerald-500 hover:bg-emerald-600'
+                        }`}
+                        size="sm"
+                      >
+                        {option.buttonText}
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Actions Bar */}
         <div className="flex flex-col md:flex-row gap-4 mb-8">
