@@ -956,8 +956,11 @@ export const linkChild = async (childEmail) => {
 };
 
 // ==================== EMAIL VERIFICATION ====================
-export const registerWithVerification = async (email, password, fullName, role = 'student') => {
+export const registerWithVerification = async (email, password, fullName, role = 'student', linkedinUrl = '') => {
   const params = new URLSearchParams({ email, password, full_name: fullName, role });
+  if (linkedinUrl && linkedinUrl.trim()) {
+    params.append('linkedin_url', linkedinUrl.trim());
+  }
   const response = await axios.post(`${API}/auth/register-with-verification?${params}`);
   return response.data;
 };
