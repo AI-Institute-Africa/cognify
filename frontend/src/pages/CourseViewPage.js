@@ -567,6 +567,11 @@ export default function CourseViewPage() {
                                   <Image className="w-4 h-4" /> Image/Slides
                                 </span>
                               </SelectItem>
+                              <SelectItem value="document">
+                                <span className="flex items-center gap-2">
+                                  <FileSearch className="w-4 h-4" /> Document (PDF/DOCX)
+                                </span>
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
