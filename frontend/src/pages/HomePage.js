@@ -191,7 +191,9 @@ const TRANSLATIONS = {
       multiLanguage: 'Rutsigiro rweMitauro Mizhinji',
       multiLanguageDesc: 'Rutsigiro rwakakwana munzvimbo mumitauro 10+ kusanganisira mitauro yeAfrica.',
       aiMentor: 'Mudzidzisi weAI Wako',
-      aiMentorDesc: 'Shamwari yekudzidza kweupenyu hwese inoverenga profile yako uye inopa kutungamira kwako.'
+      aiMentorDesc: 'Shamwari yekudzidza kweupenyu hwese inoverenga profile yako uye inopa kutungamira kwako.',
+      outcomeBased: 'Kudzidza Kunobva Pazvigumisiro',
+      outcomeBasedDesc: 'Isa zvinangwa zvako zvekudzidza uye uwane nzira yako yekuzvisvika.'
     },
     trialSection: {
       title: 'Edza Kudzidza kweAvatar Iye Zvino',
