@@ -331,7 +331,9 @@ const TRANSLATIONS = {
       multiLanguage: 'Support Multilingue',
       multiLanguageDesc: 'Support complet de la plateforme en 10+ langues incluant les langues africaines.',
       aiMentor: 'Mentor IA Personnel',
-      aiMentorDesc: 'Compagnon d\'apprentissage à vie qui lit votre profil et fournit des conseils personnalisés.'
+      aiMentorDesc: 'Compagnon d\'apprentissage à vie qui lit votre profil et fournit des conseils personnalisés.',
+      outcomeBased: 'Apprentissage Basé sur les Résultats',
+      outcomeBasedDesc: 'Définissez vos objectifs d\'apprentissage et obtenez un parcours personnalisé pour les atteindre.'
     },
     trialSection: {
       title: "Essayez l'Apprentissage par Avatar Maintenant",
