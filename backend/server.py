@@ -7878,7 +7878,7 @@ async def create_payment_checkout(
         "user_email": current_user.get('email', '')
     }
     
-    result = await create_payment_session(
+    result = await create_stripe_session(
         amount=float(price),
         currency="usd",
         success_url=success_url,
