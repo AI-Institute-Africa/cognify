@@ -6548,6 +6548,171 @@ async def live_research_search(
         logging.error(f"Research search error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@api_router.post("/research/crawl-content")
+async def crawl_research_content(
+    url: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Crawl and extract content from an academic paper or research URL"""
+    try:
+        from emergentintegrations.tools.web_scraper import WebScraper
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="Scraping service not configured")
+        
+        # Initialize web scraper
+        scraper = WebScraper(api_key=api_key)
+        
+        # Scrape the content
+        result = await scraper.scrape(
+            url=url,
+            extract_text=True,
+            extract_links=False,
+            extract_images=False
+        )
+        
+        if result and result.get('text'):
+            content = result['text']
+            
+            # Use AI to summarize and structure the content
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            
+            system_msg = """You are a research paper analyzer. Given the raw text from an academic paper or article, extract and return:
+            
+            1. title: The paper/article title
+            2. authors: List of authors if found
+            3. abstract: The abstract or summary
+            4. key_points: 3-5 main points or findings
+            5. methodology: Brief methodology description if found
+            6. conclusions: Main conclusions
+            7. references_count: Approximate number of references if visible
+            
+            Return as a JSON object. If a field cannot be determined, use null."""
+            
+            chat = LlmChat(api_key=api_key, session_id=f"crawl-{uuid.uuid4()}", system_message=system_msg)
+            chat.with_model("openai", "gpt-5.2")
+            
+            analysis = await chat.send_message(UserMessage(
+                text=f"Analyze this academic content:\n\n{content[:8000]}"
+            ))
+            
+            # Parse AI analysis
+            import json
+            try:
+                json_start = analysis.find('{')
+                json_end = analysis.rfind('}') + 1
+                if json_start >= 0 and json_end > json_start:
+                    structured = json.loads(analysis[json_start:json_end])
+                else:
+                    structured = {"raw_summary": analysis}
+            except json.JSONDecodeError:
+                structured = {"raw_summary": analysis}
+            
+            return {
+                "success": True,
+                "url": url,
+                "raw_content": content[:5000],  # First 5000 chars
+                "structured": structured,
+                "content_length": len(content),
+                "crawled_at": datetime.now(timezone.utc).isoformat()
+            }
+        else:
+            return {
+                "success": False,
+                "url": url,
+                "error": "Could not extract content from URL",
+                "suggestion": "Try opening the link directly in your browser"
+            }
+            
+    except Exception as e:
+        logging.error(f"Content crawl error: {e}")
+        return {
+            "success": False,
+            "url": url,
+            "error": str(e),
+            "suggestion": "This site may block automated access. Try opening directly."
+        }
+
+@api_router.post("/research/summarize-pdf")
+async def summarize_research_pdf(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload and summarize a research PDF"""
+    try:
+        import fitz  # PyMuPDF
+        import io
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        # Read PDF content
+        content = await file.read()
+        pdf_document = fitz.open(stream=io.BytesIO(content), filetype="pdf")
+        
+        text_content = ""
+        for page in pdf_document:
+            text_content += page.get_text()
+        
+        pdf_document.close()
+        
+        if not text_content.strip():
+            return {"success": False, "error": "Could not extract text from PDF"}
+        
+        # Summarize using AI
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        system_msg = """You are an expert research paper summarizer. Analyze the provided academic paper and return:
+        
+        {
+            "title": "Paper title",
+            "authors": ["Author 1", "Author 2"],
+            "year": "Publication year if found",
+            "abstract": "Paper abstract or summary",
+            "research_question": "Main research question",
+            "methodology": "Research methodology used",
+            "key_findings": ["Finding 1", "Finding 2", "Finding 3"],
+            "conclusions": "Main conclusions",
+            "implications": "Practical implications",
+            "limitations": "Study limitations if mentioned",
+            "future_work": "Suggested future research",
+            "keywords": ["keyword1", "keyword2"]
+        }"""
+        
+        chat = LlmChat(api_key=api_key, session_id=f"pdf-{uuid.uuid4()}", system_message=system_msg)
+        chat.with_model("openai", "gpt-5.2")
+        
+        analysis = await chat.send_message(UserMessage(
+            text=f"Summarize this research paper:\n\n{text_content[:12000]}"
+        ))
+        
+        # Parse response
+        import json
+        try:
+            json_start = analysis.find('{')
+            json_end = analysis.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                structured = json.loads(analysis[json_start:json_end])
+            else:
+                structured = {"summary": analysis}
+        except json.JSONDecodeError:
+            structured = {"summary": analysis}
+        
+        return {
+            "success": True,
+            "filename": file.filename,
+            "analysis": structured,
+            "page_count": len(text_content) // 3000 + 1,  # Rough estimate
+            "word_count": len(text_content.split()),
+            "analyzed_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logging.error(f"PDF summarize error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ==================== KTCE (Knowledge Time Compression Engine) ====================
 
 from services.ktce_service import process_ktce_learning_path, generate_compressed_lesson
