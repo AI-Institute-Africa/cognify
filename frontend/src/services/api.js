@@ -213,6 +213,11 @@ export const updateMentorProfile = async (profileData) => {
   return response.data;
 };
 
+export const analyzeLinkedInProfile = async () => {
+  const response = await axios.post(`${API}/mentor/analyze-linkedin`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
 export const mentorChat = async (message, context = null, language = 'en', includeAudio = false) => {
   const response = await axios.post(
     `${API}/mentor/chat`,
