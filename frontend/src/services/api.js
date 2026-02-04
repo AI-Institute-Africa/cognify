@@ -622,6 +622,22 @@ export const uploadCourseContent = async (courseId, contentType, title, descript
   return response.data;
 };
 
+export const uploadCourseFile = async (courseId, file, title, description = '', contentType = '') => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('title', title);
+  if (description) formData.append('description', description);
+  if (contentType) formData.append('content_type', contentType);
+  
+  const response = await axios.post(`${API}/content/course/${courseId}/upload-file`, formData, {
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'multipart/form-data'
+    }
+  });
+  return response.data;
+};
+
 export const getCourseContent = async (courseId, contentType = null) => {
   const params = contentType ? `?content_type=${contentType}` : '';
   const response = await axios.get(`${API}/content/course/${courseId}/content${params}`, { headers: getAuthHeaders() });
