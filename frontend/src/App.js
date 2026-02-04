@@ -307,6 +307,12 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      <Route path="/create-custom-course" element={
+        <ProtectedRoute>
+          <CreateCustomCoursePage />
+        </ProtectedRoute>
+      } />
+      
       <Route path="/multidisciplinary" element={
         <ProtectedRoute allowedRoles={['admin', 'teacher', 'org_admin']}>
           <MultidisciplinaryPage />
