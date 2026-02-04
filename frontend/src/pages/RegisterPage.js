@@ -123,7 +123,7 @@ export default function RegisterPage() {
             <>
               <div className="mb-8">
                 <h2 className="text-2xl font-bold">Create your account</h2>
-                <p className="text-zinc-500 mt-2">Join EduOS and start your learning journey</p>
+                <p className="text-zinc-500 mt-2">Join Cognify and start your learning journey</p>
               </div>
               
               {/* Google Sign Up Button */}
@@ -380,7 +380,7 @@ export default function RegisterPage() {
             <GraduationCap className="w-12 h-12 text-white" />
           </div>
           <h1 className="text-4xl font-bold mb-4">
-            Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">EduOS 2026</span>
+            Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Cognify 2026</span>
           </h1>
           <p className="text-xl text-zinc-400 max-w-md">
             The most advanced AI-powered education platform. Learn smarter, not harder.

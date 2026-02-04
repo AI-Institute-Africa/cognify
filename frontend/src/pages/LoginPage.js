@@ -41,8 +41,8 @@ export default function LoginPage() {
     try {
       const result = await processGoogleSession(sessionId);
       if (result.access_token) {
-        localStorage.setItem('eduos_token', result.access_token);
-        localStorage.setItem('eduos_user', JSON.stringify(result.user));
+        localStorage.setItem('cognify_token', result.access_token);
+        localStorage.setItem('cognify_user', JSON.stringify(result.user));
         if (loginWithToken) {
           await loginWithToken(result.access_token);
         }
