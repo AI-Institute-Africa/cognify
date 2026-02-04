@@ -6938,12 +6938,29 @@ ZIMBABWE_ACADEMIC_LEVELS = [
 ]
 
 COURSE_TYPES = [
-    {"code": "free", "name": "Free Course", "price": 0},
-    {"code": "3_day_course", "name": "3-Day Course", "price": 29.99},
-    {"code": "certificate", "name": "Certificate Program", "price": 99.99},
-    {"code": "certification", "name": "Professional Certification", "price": 199.99},
-    {"code": "diploma", "name": "Diploma Program", "price": 499.99},
+    {"code": "free", "name": "Free Course", "price": 0, "branch": "standard", "accredited": False},
+    {"code": "3_day_course", "name": "3-Day Course", "price": 29.99, "branch": "standard", "accredited": False},
+    {"code": "certificate", "name": "Certificate Program", "price": 99.99, "branch": "standard", "accredited": True},
+    {"code": "certification", "name": "Professional Certification", "price": 199.99, "branch": "standard", "accredited": True},
+    {"code": "diploma", "name": "Diploma Program", "price": 499.99, "branch": "standard", "accredited": True},
+    {"code": "custom_basic", "name": "Customized Subject - Basic", "price": 49.99, "branch": "customized", "accredited": False},
+    {"code": "custom_advanced", "name": "Customized Subject - Advanced", "price": 149.99, "branch": "customized", "accredited": False},
+    {"code": "custom_enterprise", "name": "Customized Enterprise Training", "price": 999.99, "branch": "customized", "accredited": False},
 ]
+
+# Course branch descriptions
+COURSE_BRANCHES = {
+    "standard": {
+        "name": "Standard Courses",
+        "description": "Formal, structured courses with fixed curricula. Includes accredited certificate, certification, and diploma programs.",
+        "features": ["Fixed curriculum", "Formal assessment", "Accredited certificates", "Professional recognition"]
+    },
+    "customized": {
+        "name": "Customized Subjects",
+        "description": "Flexible, user-created or organization-specific courses. Non-accredited but tailored to specific needs.",
+        "features": ["Flexible content", "Self-paced learning", "Custom topics", "Organization training"]
+    }
+}
 
 @api_router.get("/academic-levels")
 async def get_academic_levels():
