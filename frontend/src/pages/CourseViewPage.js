@@ -158,7 +158,7 @@ export default function CourseViewPage() {
     
     setLoadingHint(true);
     try {
-      const token = localStorage.getItem('eduos_token');
+      const token = localStorage.getItem('cognify_token');
       const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/ai/micro-hint`, {
         method: 'POST',
         headers: {
