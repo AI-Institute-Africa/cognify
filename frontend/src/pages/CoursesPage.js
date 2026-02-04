@@ -224,40 +224,40 @@ export default function CoursesPage() {
         subtitle={`${courses.length} courses available`}
       />
       
-      <div className="p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         {/* Branch Selection Tabs */}
-        <div className="mb-6">
+        <div className="mb-4 sm:mb-6 overflow-x-auto">
           <Tabs defaultValue="all" onValueChange={setBranchFilter}>
-            <TabsList className="bg-zinc-900/50 border border-white/10 p-1">
+            <TabsList className="bg-zinc-900/50 border border-white/10 p-1 inline-flex min-w-max">
               <TabsTrigger 
                 value="all" 
-                className="data-[state=active]:bg-white/10"
+                className="data-[state=active]:bg-white/10 text-xs sm:text-sm px-2 sm:px-4"
                 data-testid="branch-all-tab"
               >
-                All Courses
+                All
               </TabsTrigger>
               <TabsTrigger 
                 value="standard" 
-                className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400"
+                className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400 text-xs sm:text-sm px-2 sm:px-4"
                 data-testid="branch-standard-tab"
               >
-                <GraduationCap className="w-4 h-4 mr-2" />
-                Standard Courses
+                <GraduationCap className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Standard Courses</span>
                 {standardCourses.length > 0 && (
-                  <Badge variant="secondary" className="ml-2 bg-blue-500/20 text-blue-400">
+                  <Badge variant="secondary" className="ml-1 sm:ml-2 bg-blue-500/20 text-blue-400 text-xs">
                     {standardCourses.length}
                   </Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger 
                 value="customized" 
-                className="data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-400"
+                className="data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-400 text-xs sm:text-sm px-2 sm:px-4"
                 data-testid="branch-customized-tab"
               >
-                <Sparkles className="w-4 h-4 mr-2" />
-                Customized Subjects
+                <Sparkles className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Customized</span>
                 {customizedCourses.length > 0 && (
-                  <Badge variant="secondary" className="ml-2 bg-violet-500/20 text-violet-400">
+                  <Badge variant="secondary" className="ml-1 sm:ml-2 bg-violet-500/20 text-violet-400 text-xs">
                     {customizedCourses.length}
                   </Badge>
                 )}
@@ -268,25 +268,25 @@ export default function CoursesPage() {
         
         {/* Branch Info Banner */}
         {branchFilter !== 'all' && COURSE_BRANCHES[branchFilter] && (
-          <div className={`mb-6 p-4 rounded-xl border ${
+          <div className={`mb-4 sm:mb-6 p-3 sm:p-4 rounded-xl border ${
             branchFilter === 'standard' 
               ? 'bg-blue-500/10 border-blue-500/30' 
               : 'bg-violet-500/10 border-violet-500/30'
           }`}>
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-3 sm:gap-4">
               {branchFilter === 'standard' ? (
-                <GraduationCap className="w-8 h-8 text-blue-400 flex-shrink-0" />
+                <GraduationCap className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400 flex-shrink-0" />
               ) : (
-                <Sparkles className="w-8 h-8 text-violet-400 flex-shrink-0" />
+                <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 text-violet-400 flex-shrink-0" />
               )}
               <div>
-                <h3 className={`font-semibold ${branchFilter === 'standard' ? 'text-blue-400' : 'text-violet-400'}`}>
+                <h3 className={`font-semibold text-sm sm:text-base ${branchFilter === 'standard' ? 'text-blue-400' : 'text-violet-400'}`}>
                   {COURSE_BRANCHES[branchFilter].name}
                 </h3>
-                <p className="text-sm text-zinc-400 mt-1">
+                <p className="text-xs sm:text-sm text-zinc-400 mt-1 hidden sm:block">
                   {COURSE_BRANCHES[branchFilter].description}
                 </p>
-                <div className="flex flex-wrap gap-2 mt-2">
+                <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-2">
                   {COURSE_BRANCHES[branchFilter].features.map((feature, idx) => (
                     <Badge key={idx} variant="outline" className="text-xs border-white/20">
                       {feature}
