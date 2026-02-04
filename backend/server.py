@@ -2312,6 +2312,68 @@ async def analyze_image(
         logging.error(f"Image analysis error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Image analysis failed: {str(e)}")
 
+@ai_router.post("/landing-upload")
+async def landing_upload_file(
+    file: UploadFile = File(...),
+    question: str = ""
+):
+    """Public endpoint for landing page file upload and analysis - no authentication required"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        import base64
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            return {"response": "I can see you've uploaded a file. Our AI file analysis feature requires authentication. Please sign up to get full access to file analysis, image recognition, and document processing!"}
+        
+        # Read file content
+        content = await file.read()
+        
+        # Check file type
+        if file.content_type and file.content_type.startswith("image/"):
+            # Vision analysis for images
+            base64_image = base64.b64encode(content).decode('utf-8')
+            image_data = f"data:{file.content_type};base64,{base64_image}"
+            
+            system_message = """You are Cognify's AI assistant on the landing page, analyzing an uploaded image.
+            Describe what you see in detail. If it's educational content (notes, diagrams, problems), explain it helpfully.
+            Encourage the user to sign up for full access to our AI tutoring features."""
+            
+            chat = LlmChat(api_key=api_key, session_id=f"landing-img-{uuid.uuid4()}", system_message=system_message)
+            chat.with_model("openai", "gpt-5.2")
+            
+            user_question = question if question else "What do you see in this image?"
+            response = await chat.send_message(UserMessage(
+                text=user_question,
+                image_url=image_data
+            ))
+        else:
+            # Text analysis for documents
+            try:
+                text_content = content.decode('utf-8', errors='ignore')[:5000]
+            except:
+                text_content = "[Binary file uploaded]"
+            
+            system_message = f"""You are Cognify's AI assistant on the landing page, analyzing an uploaded document.
+            
+            Document content:
+            {text_content}
+            
+            Provide a helpful summary or answer questions about the document.
+            Encourage the user to sign up for full access to our AI tutoring features."""
+            
+            chat = LlmChat(api_key=api_key, session_id=f"landing-doc-{uuid.uuid4()}", system_message=system_message)
+            chat.with_model("openai", "gpt-5.2")
+            
+            user_question = question if question else "Please summarize this document."
+            response = await chat.send_message(UserMessage(text=user_question))
+        
+        return {"response": response}
+        
+    except Exception as e:
+        logging.error(f"Landing upload error: {str(e)}")
+        return {"response": "Thanks for uploading! I can see your file. Sign up for a free account to unlock full AI analysis features including image recognition, document summarization, and personalized tutoring!"}
+
 # Student & Teacher Management
 @students_router.get("")
 async def get_students(current_user: dict = Depends(get_current_user)):
