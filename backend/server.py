@@ -1979,6 +1979,64 @@ async def mark_notification_read(notification_id: str, current_user: dict = Depe
     )
     return {"message": "Marked as read"}
 
+class SendNotificationRequest(BaseModel):
+    user_id: Optional[str] = None  # If not provided, sends to current user
+    template_type: str  # welcome, course_enrolled, payment_success, assignment_reminder, class_reminder
+    channels: List[str] = ["email"]  # email, whatsapp
+    template_data: Dict[str, Any] = {}
+
+@notifications_router.post("/send")
+async def send_user_notification(
+    request: SendNotificationRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Send notification to user via email and/or WhatsApp"""
+    from services.notification_service import send_notification
+    
+    # Admin/teacher can send to others, students only to themselves
+    target_user_id = request.user_id or current_user['id']
+    if request.user_id and current_user['role'] not in ['admin', 'teacher', 'org_admin']:
+        target_user_id = current_user['id']
+    
+    result = await send_notification(
+        user_id=target_user_id,
+        notification_type="manual",
+        channels=request.channels,
+        template_type=request.template_type,
+        template_data=request.template_data,
+        db=db
+    )
+    
+    return result
+
+@notifications_router.post("/test-whatsapp")
+async def test_whatsapp_notification(
+    phone: str,
+    message: str = "Test notification from Cognify! 🎓",
+    current_user: dict = Depends(get_current_user)
+):
+    """Test WhatsApp notification (generates wa.me link in MVP mode)"""
+    from services.notification_service import send_whatsapp
+    
+    result = await send_whatsapp(phone_number=phone, message=message)
+    return result
+
+@notifications_router.post("/test-email")
+async def test_email_notification(
+    email: str,
+    subject: str = "Test from Cognify",
+    current_user: dict = Depends(get_current_user)
+):
+    """Test email notification"""
+    from services.notification_service import send_email
+    
+    result = await send_email(
+        to_email=email,
+        subject=subject,
+        html_content="<h1>Test Email</h1><p>This is a test notification from Cognify! 🎓</p>"
+    )
+    return result
+
 # Dashboard Routes
 @dashboard_router.get("/stats")
 async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
