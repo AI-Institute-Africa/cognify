@@ -100,23 +100,23 @@ async def send_verification_email(to_email: str, verification_code: str, user_na
     <body>
         <div class="container">
             <div class="header">
-                <div class="logo">🎓 EduOS 2026</div>
+                <div class="logo">🎓 Cognify</div>
                 <p>AI-Powered Education Platform</p>
             </div>
             <p class="message">Hello {user_name},</p>
-            <p class="message">Welcome to EduOS 2026! Please use the following verification code to complete your registration:</p>
+            <p class="message">Welcome to Cognify! Please use the following verification code to complete your registration:</p>
             <div class="code">{verification_code}</div>
             <p class="message">This code will expire in 15 minutes.</p>
             <p class="message">If you didn't request this verification, please ignore this email.</p>
             <div class="footer">
-                <p>© 2026 EduOS - AI Institute Africa</p>
+                <p>© 2026 Cognify - AI Institute Africa</p>
                 <p>Transforming Education Across Africa</p>
             </div>
         </div>
     </body>
     </html>
     """
-    return await send_email(to_email, "Verify Your EduOS Account", html_content)
+    return await send_email(to_email, "Verify Your Cognify Account", html_content)
 
 
 async def send_password_reset_email(to_email: str, reset_code: str, user_name: str = "User") -> dict:
@@ -140,7 +140,7 @@ async def send_password_reset_email(to_email: str, reset_code: str, user_name: s
     <body>
         <div class="container">
             <div class="header">
-                <div class="logo">🎓 EduOS 2026</div>
+                <div class="logo">🎓 Cognify</div>
                 <p>Password Reset Request</p>
             </div>
             <p class="message">Hello {user_name},</p>
@@ -149,13 +149,13 @@ async def send_password_reset_email(to_email: str, reset_code: str, user_name: s
             <p class="message">This code will expire in 30 minutes.</p>
             <p class="warning">If you didn't request a password reset, please ignore this email and your password will remain unchanged.</p>
             <div class="footer">
-                <p>© 2026 EduOS - AI Institute Africa</p>
+                <p>© 2026 Cognify - AI Institute Africa</p>
             </div>
         </div>
     </body>
     </html>
     """
-    return await send_email(to_email, "Reset Your EduOS Password", html_content)
+    return await send_email(to_email, "Reset Your Cognify Password", html_content)
 
 
 async def send_enrollment_confirmation_email(to_email: str, user_name: str, org_name: str, role: str, temp_password: str = None) -> dict:
@@ -187,21 +187,21 @@ async def send_enrollment_confirmation_email(to_email: str, user_name: str, org_
     <body>
         <div class="container">
             <div class="header">
-                <div class="logo">🎓 EduOS 2026</div>
+                <div class="logo">🎓 Cognify</div>
                 <p>Welcome to {org_name}!</p>
             </div>
             <p class="message">Hello {user_name},</p>
-            <p class="message">You have been enrolled as a <strong>{role}</strong> at <strong>{org_name}</strong> on the EduOS platform.</p>
+            <p class="message">You have been enrolled as a <strong>{role}</strong> at <strong>{org_name}</strong> on Cognify.</p>
             {password_section}
             <p class="message">You can now access your account and start your learning journey!</p>
             <div class="footer">
-                <p>© 2026 EduOS - AI Institute Africa</p>
+                <p>© 2026 Cognify - AI Institute Africa</p>
             </div>
         </div>
     </body>
     </html>
     """
-    return await send_email(to_email, f"Welcome to {org_name} - EduOS", html_content)
+    return await send_email(to_email, f"Welcome to {org_name} - Cognify", html_content)
 
 
 async def send_notification_email(to_email: str, user_name: str, notification_title: str, notification_body: str) -> dict:
