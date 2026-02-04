@@ -4496,6 +4496,175 @@ async def get_payment_history(current_user: dict = Depends(get_current_user)):
     payments = await db.payments.find({"user_id": current_user['id']}, {"_id": 0}).to_list(100)
     return [serialize_doc(p) for p in payments]
 
+# ====================  PAYNOW ZIMBABWE INTEGRATION ====================
+class PaynowPaymentRequest(BaseModel):
+    course_id: str
+    course_name: str
+    amount: float
+    currency: str = "USD"
+    payment_method: str  # 'ecocash', 'onemoney', 'card'
+    phone: Optional[str] = None
+
+@payments_router.post("/paynow/initiate")
+async def initiate_paynow_payment(
+    request: PaynowPaymentRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Initiate a Paynow payment (EcoCash, OneMoney, or Card)"""
+    from services.payment_service import PaynowService, generate_payment_reference
+    
+    base_url = os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8001')
+    paynow = PaynowService(
+        result_url=f"{base_url}/api/payments/paynow/result",
+        return_url=f"{base_url.replace('/api', '')}/payment-success"
+    )
+    
+    # Generate unique reference
+    reference = generate_payment_reference(request.course_id, current_user['id'])
+    
+    # Store pending payment
+    payment_record = {
+        "id": str(uuid.uuid4()),
+        "reference": reference,
+        "user_id": current_user['id'],
+        "user_email": current_user.get('email', ''),
+        "course_id": request.course_id,
+        "course_name": request.course_name,
+        "amount": request.amount,
+        "currency": request.currency,
+        "payment_method": request.payment_method,
+        "gateway": "paynow",
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.payments.insert_one(payment_record)
+    
+    # Initiate payment based on method
+    if request.payment_method in ['ecocash', 'onemoney']:
+        if not request.phone:
+            raise HTTPException(status_code=400, detail="Phone number required for mobile payments")
+        
+        result = await paynow.initiate_mobile_payment(
+            reference=reference,
+            email=current_user.get('email', 'customer@cognify.edu'),
+            phone=request.phone,
+            method=request.payment_method,
+            amount=request.amount,
+            item_description=f"Course: {request.course_name}"
+        )
+    else:
+        # Card payment
+        result = await paynow.initiate_web_payment(
+            reference=reference,
+            email=current_user.get('email', 'customer@cognify.edu'),
+            amount=request.amount,
+            item_description=f"Course: {request.course_name}"
+        )
+    
+    if result.get('success'):
+        # Update payment record with poll URL
+        await db.payments.update_one(
+            {"reference": reference},
+            {"$set": {
+                "poll_url": result.get('pollUrl'),
+                "paynow_reference": result.get('paynow_reference')
+            }}
+        )
+        
+        return {
+            "success": True,
+            "reference": reference,
+            "payment_url": result.get('paymentUrl'),
+            "poll_url": result.get('pollUrl'),
+            "instructions": result.get('instructions')
+        }
+    else:
+        return {"success": False, "error": result.get('error', 'Payment initiation failed')}
+
+@payments_router.post("/paynow/check-status")
+async def check_paynow_status(
+    reference: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Check Paynow payment status"""
+    from services.payment_service import PaynowService
+    
+    # Get payment record
+    payment = await db.payments.find_one({"reference": reference}, {"_id": 0})
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    
+    poll_url = payment.get('poll_url')
+    if not poll_url:
+        return {"status": payment.get('status', 'unknown')}
+    
+    base_url = os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8001')
+    paynow = PaynowService(
+        result_url=f"{base_url}/api/payments/paynow/result",
+        return_url=f"{base_url.replace('/api', '')}/payment-success"
+    )
+    
+    result = await paynow.check_payment_status(poll_url)
+    
+    if result.get('paid'):
+        # Update payment and enroll student
+        await db.payments.update_one(
+            {"reference": reference},
+            {"$set": {"status": "completed", "completed_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        
+        # Enroll student
+        await db.student_profiles.update_one(
+            {"user_id": current_user['id']},
+            {"$addToSet": {"enrolled_courses": payment['course_id']}}
+        )
+        await db.courses.update_one(
+            {"id": payment['course_id']},
+            {"$addToSet": {"enrolled_students": current_user['id']}}
+        )
+        
+        return {"status": "paid", "message": "Payment successful! You are now enrolled."}
+    
+    return {"status": result.get('status', 'pending')}
+
+@payments_router.post("/paynow/result")
+async def paynow_webhook(request: Request):
+    """Webhook endpoint for Paynow to notify about payment status"""
+    try:
+        body = await request.body()
+        data = dict(x.split('=') for x in body.decode().split('&') if '=' in x)
+        
+        reference = data.get('reference')
+        status = data.get('status', '').lower()
+        
+        if reference:
+            # Update payment status
+            await db.payments.update_one(
+                {"reference": reference},
+                {"$set": {
+                    "status": "completed" if status in ['paid', 'awaiting delivery'] else status,
+                    "webhook_received_at": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            
+            # If paid, enroll student
+            if status in ['paid', 'awaiting delivery']:
+                payment = await db.payments.find_one({"reference": reference}, {"_id": 0})
+                if payment:
+                    await db.student_profiles.update_one(
+                        {"user_id": payment['user_id']},
+                        {"$addToSet": {"enrolled_courses": payment['course_id']}}
+                    )
+                    await db.courses.update_one(
+                        {"id": payment['course_id']},
+                        {"$addToSet": {"enrolled_students": payment['user_id']}}
+                    )
+        
+        return {"success": True}
+    except Exception as e:
+        logging.error(f"Paynow webhook error: {e}")
+        return {"success": False}
+
 # ==================== AI MENTOR WITH LIFELONG MEMORY ====================
 class MentorMessage(BaseModel):
     message: str
