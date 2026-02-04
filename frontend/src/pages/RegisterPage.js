@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import { GraduationCap, Mail, Lock, User, Eye, EyeOff, ArrowRight, ArrowLeft, CheckCircle, RefreshCw } from 'lucide-react';
+import { GraduationCap, Mail, Lock, User, Eye, EyeOff, ArrowRight, ArrowLeft, CheckCircle, RefreshCw, Linkedin } from 'lucide-react';
 import { toast } from 'sonner';
 import { registerWithVerification, verifyEmail, resendVerification, initiateGoogleLogin } from '../services/api';
 
@@ -22,7 +22,8 @@ export default function RegisterPage() {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'student'
+    role: 'student',
+    linkedinUrl: ''
   });
   const [verificationCode, setVerificationCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
