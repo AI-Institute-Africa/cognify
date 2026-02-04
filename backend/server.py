@@ -8392,29 +8392,322 @@ async def org_enroll_participant(
 
 @api_router.post("/org/bulk-enroll")
 async def org_bulk_enroll_participants(
-    emails: List[str],
-    role: str = "student",
+    request: BulkEnrollmentRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Bulk enroll participants via email list"""
-    if current_user.get('role') != 'org_admin':
-        raise HTTPException(status_code=403, detail="Org admin access required")
+    """Bulk enroll participants via email list with magic links"""
+    # Allow org_admin OR teachers to bulk enroll
+    if current_user.get('role') not in ['org_admin', 'teacher', 'admin']:
+        raise HTTPException(status_code=403, detail="Admin/Teacher access required")
     
-    org_id = current_user.get('org_id')
-    if not org_id:
-        raise HTTPException(status_code=400, detail="No organization associated")
+    org_id = current_user.get('organization_id') or current_user.get('org_id')
+    
+    # Get organization info
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0}) if org_id else None
+    org_name = org.get('name', 'Organization') if org else 'Cognify'
+    
+    # Get course info
+    course = await db.courses.find_one({"id": request.course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    course_name = course.get('title') or course.get('name', 'Course')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://learnquest-hub-7.preview.emergentagent.com')
     
     results = []
-    for email in emails:
+    for email in request.emails:
         try:
-            # Generate name from email
-            name = email.split('@')[0].replace('.', ' ').title()
-            result = await org_enroll_participant(email, name, role, current_user)
-            results.append({"email": email, "status": "success", **result})
+            # Check if already enrolled or has pending invitation
+            existing_enrollment = await db.magic_link_enrollments.find_one({
+                "email": email.lower(),
+                "course_id": request.course_id,
+                "status": "pending"
+            })
+            
+            if existing_enrollment:
+                results.append({
+                    "email": email,
+                    "success": False,
+                    "error": "Pending invitation already exists"
+                })
+                continue
+            
+            # Check if user already exists and is enrolled
+            existing_user = await db.users.find_one({"email": email.lower()})
+            if existing_user:
+                # Check if already enrolled in course
+                profile = await db.student_profiles.find_one({"user_id": existing_user['id']})
+                if profile and request.course_id in profile.get('enrolled_courses', []):
+                    results.append({
+                        "email": email,
+                        "success": False,
+                        "error": "User already enrolled in course"
+                    })
+                    continue
+            
+            # Generate magic link token (72 hours expiry)
+            token = generate_reset_token(length=48)
+            expires_at = datetime.now(timezone.utc) + timedelta(hours=72)
+            
+            # Create enrollment record
+            enrollment = MagicLinkEnrollment(
+                email=email.lower(),
+                token=token,
+                org_id=org_id or "",
+                course_id=request.course_id,
+                course_name=course_name,
+                org_name=org_name,
+                expires_at=expires_at
+            )
+            
+            enrollment_dict = enrollment.model_dump()
+            enrollment_dict['expires_at'] = enrollment_dict['expires_at'].isoformat()
+            enrollment_dict['created_at'] = enrollment_dict['created_at'].isoformat()
+            
+            await db.magic_link_enrollments.insert_one(enrollment_dict)
+            
+            # Generate magic link URL
+            magic_link = f"{frontend_url}/accept-invite?token={token}"
+            
+            # Send email
+            email_result = await send_magic_link_email(
+                to_email=email.lower(),
+                magic_link=magic_link,
+                org_name=org_name,
+                course_name=course_name,
+                expires_hours=72
+            )
+            
+            results.append({
+                "email": email,
+                "success": email_result.get('success', True),
+                "error": None if email_result.get('success') else email_result.get('message')
+            })
+            
         except Exception as e:
-            results.append({"email": email, "status": "error", "error": str(e)})
+            results.append({
+                "email": email,
+                "success": False,
+                "error": str(e)
+            })
     
-    return {"results": results, "total": len(emails), "successful": len([r for r in results if r["status"] == "success"])}
+    return {
+        "results": results,
+        "total": len(request.emails),
+        "successful": len([r for r in results if r.get('success')])
+    }
+
+
+@api_router.get("/org/pending-enrollments")
+async def get_pending_enrollments(current_user: dict = Depends(get_current_user)):
+    """Get pending magic link enrollments for the organization"""
+    if current_user.get('role') not in ['org_admin', 'teacher', 'admin']:
+        raise HTTPException(status_code=403, detail="Admin/Teacher access required")
+    
+    org_id = current_user.get('organization_id') or current_user.get('org_id')
+    
+    # Get all pending enrollments
+    query = {"status": "pending"}
+    if org_id:
+        query["org_id"] = org_id
+    
+    enrollments = await db.magic_link_enrollments.find(
+        query,
+        {"_id": 0, "token": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    # Clean up expired ones
+    now = datetime.now(timezone.utc)
+    for enrollment in enrollments:
+        if 'expires_at' in enrollment:
+            expires = enrollment['expires_at']
+            if isinstance(expires, str):
+                expires = datetime.fromisoformat(expires.replace('Z', '+00:00'))
+            if expires < now:
+                await db.magic_link_enrollments.update_one(
+                    {"id": enrollment['id']},
+                    {"$set": {"status": "expired"}}
+                )
+                enrollment['status'] = 'expired'
+    
+    # Filter out expired from results
+    active_enrollments = [e for e in enrollments if e.get('status') == 'pending']
+    
+    return active_enrollments
+
+
+@api_router.post("/org/resend-invitation/{enrollment_id}")
+async def resend_invitation(
+    enrollment_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Resend a magic link invitation"""
+    if current_user.get('role') not in ['org_admin', 'teacher', 'admin']:
+        raise HTTPException(status_code=403, detail="Admin/Teacher access required")
+    
+    enrollment = await db.magic_link_enrollments.find_one(
+        {"id": enrollment_id},
+        {"_id": 0}
+    )
+    
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Enrollment not found")
+    
+    if enrollment.get('status') != 'pending':
+        raise HTTPException(status_code=400, detail="Enrollment is no longer pending")
+    
+    # Generate new token and extend expiry
+    new_token = generate_reset_token(length=48)
+    new_expires = datetime.now(timezone.utc) + timedelta(hours=72)
+    
+    await db.magic_link_enrollments.update_one(
+        {"id": enrollment_id},
+        {"$set": {
+            "token": new_token,
+            "expires_at": new_expires.isoformat()
+        }}
+    )
+    
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://learnquest-hub-7.preview.emergentagent.com')
+    magic_link = f"{frontend_url}/accept-invite?token={new_token}"
+    
+    # Resend email
+    email_result = await send_magic_link_email(
+        to_email=enrollment['email'],
+        magic_link=magic_link,
+        org_name=enrollment.get('org_name', 'Organization'),
+        course_name=enrollment.get('course_name', 'Course'),
+        expires_hours=72
+    )
+    
+    return {
+        "success": email_result.get('success', True),
+        "message": "Invitation resent successfully"
+    }
+
+
+@auth_router.get("/verify-magic-link")
+async def verify_magic_link(token: str):
+    """Verify a magic link token and return enrollment details"""
+    enrollment = await db.magic_link_enrollments.find_one(
+        {"token": token, "status": "pending"},
+        {"_id": 0}
+    )
+    
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Invalid or expired invitation")
+    
+    # Check expiry
+    expires = enrollment.get('expires_at')
+    if isinstance(expires, str):
+        expires = datetime.fromisoformat(expires.replace('Z', '+00:00'))
+    
+    if expires < datetime.now(timezone.utc):
+        await db.magic_link_enrollments.update_one(
+            {"token": token},
+            {"$set": {"status": "expired"}}
+        )
+        raise HTTPException(status_code=400, detail="Invitation has expired")
+    
+    return {
+        "email": enrollment['email'],
+        "course_name": enrollment.get('course_name'),
+        "org_name": enrollment.get('org_name'),
+        "valid": True
+    }
+
+
+@auth_router.post("/accept-magic-link")
+async def accept_magic_link(token: str, password: str, full_name: str):
+    """Accept magic link and create/update user account"""
+    enrollment = await db.magic_link_enrollments.find_one(
+        {"token": token, "status": "pending"},
+        {"_id": 0}
+    )
+    
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Invalid or expired invitation")
+    
+    # Check expiry
+    expires = enrollment.get('expires_at')
+    if isinstance(expires, str):
+        expires = datetime.fromisoformat(expires.replace('Z', '+00:00'))
+    
+    if expires < datetime.now(timezone.utc):
+        await db.magic_link_enrollments.update_one(
+            {"token": token},
+            {"$set": {"status": "expired"}}
+        )
+        raise HTTPException(status_code=400, detail="Invitation has expired")
+    
+    email = enrollment['email']
+    course_id = enrollment['course_id']
+    org_id = enrollment.get('org_id')
+    
+    # Check if user exists
+    existing_user = await db.users.find_one({"email": email})
+    
+    if existing_user:
+        user_id = existing_user['id']
+        # Update password if provided
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": {
+                "password_hash": hash_password(password),
+                "full_name": full_name,
+                "organization_id": org_id
+            }}
+        )
+    else:
+        # Create new user
+        user_id = str(uuid.uuid4())
+        new_user = {
+            "id": user_id,
+            "email": email,
+            "full_name": full_name,
+            "password_hash": hash_password(password),
+            "role": "student",
+            "organization_id": org_id,
+            "is_active": True,
+            "email_verified": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(new_user)
+        
+        # Create student profile
+        await db.student_profiles.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "organization_id": org_id,
+            "enrolled_courses": [],
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+    
+    # Enroll in course
+    await db.student_profiles.update_one(
+        {"user_id": user_id},
+        {"$addToSet": {"enrolled_courses": course_id}}
+    )
+    
+    # Update enrollment status
+    await db.magic_link_enrollments.update_one(
+        {"token": token},
+        {"$set": {"status": "accepted"}}
+    )
+    
+    # Create token for auto-login
+    jwt_token = create_token(user_id, "student", org_id)
+    
+    return {
+        "message": "Account created and enrolled successfully",
+        "access_token": jwt_token,
+        "user": {
+            "id": user_id,
+            "email": email,
+            "full_name": full_name,
+            "role": "student"
+        }
+    }
 
 # Include all routers - MUST be after all route definitions
 api_router.include_router(auth_router)
