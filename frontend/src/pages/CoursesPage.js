@@ -159,10 +159,26 @@ export default function CoursesPage() {
   };
 
   const filteredCourses = courses.filter(course => {
-    const matchesSearch = course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.code.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = course.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      course.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      course.title?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = categoryFilter === 'all' || course.category === categoryFilter;
-    return matchesSearch && matchesCategory;
+    // Filter by branch - check course_branch field or infer from category
+    const courseBranch = course.course_branch || 
+      (COURSE_CATEGORIES.find(c => c.id === course.category)?.branch || 'standard');
+    const matchesBranch = branchFilter === 'all' || courseBranch === branchFilter;
+    return matchesSearch && matchesCategory && matchesBranch;
+  });
+
+  // Separate courses by branch for display
+  const standardCourses = filteredCourses.filter(c => {
+    const branch = c.course_branch || COURSE_CATEGORIES.find(cat => cat.id === c.category)?.branch || 'standard';
+    return branch === 'standard';
+  });
+  
+  const customizedCourses = filteredCourses.filter(c => {
+    const branch = c.course_branch || COURSE_CATEGORIES.find(cat => cat.id === c.category)?.branch;
+    return branch === 'customized';
   });
 
   const getCategoryInfo = (categoryId) => {
