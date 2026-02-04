@@ -18,7 +18,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => {
     // Initialize token from localStorage on mount
-    const storedToken = localStorage.getItem('eduos_token');
+    const storedToken = localStorage.getItem('cognify_token');
     return storedToken || null;
   });
   const [loading, setLoading] = useState(true);
@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Failed to fetch user:', error);
       // Clear invalid token
-      localStorage.removeItem('eduos_token');
+      localStorage.removeItem('cognify_token');
       setToken(null);
       setUser(null);
     } finally {
@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     // Check token on mount and fetch user
-    const storedToken = localStorage.getItem('eduos_token');
+    const storedToken = localStorage.getItem('cognify_token');
     if (storedToken) {
       setToken(storedToken);
       fetchUser(storedToken);
@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     const response = await axios.post(`${API}/auth/login`, { email, password });
     const { access_token, user: userData } = response.data;
-    localStorage.setItem('eduos_token', access_token);
+    localStorage.setItem('cognify_token', access_token);
     setToken(access_token);
     setUser(userData);
     return userData;
@@ -73,14 +73,14 @@ export const AuthProvider = ({ children }) => {
       role
     });
     const { access_token, user: userData } = response.data;
-    localStorage.setItem('eduos_token', access_token);
+    localStorage.setItem('cognify_token', access_token);
     setToken(access_token);
     setUser(userData);
     return userData;
   };
 
   const logout = () => {
-    localStorage.removeItem('eduos_token');
+    localStorage.removeItem('cognify_token');
     setToken(null);
     setUser(null);
   };

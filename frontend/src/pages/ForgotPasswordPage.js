@@ -78,7 +78,7 @@ export default function ForgotPasswordPage() {
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center">
             <GraduationCap className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold">EduOS</h1>
+          <h1 className="text-2xl font-bold">Cognify</h1>
         </div>
         
         {/* Step 1: Enter Email */}
