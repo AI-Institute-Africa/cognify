@@ -59,6 +59,7 @@ const navItems = {
     { path: '/learning-journey', icon: TrendingUp, labelKey: 'learningJourney' },
     { path: '/study-groups', icon: UsersRound, labelKey: 'studyGroups' },
     { path: '/outcome-learning', icon: Target, label: 'Outcome Learning' },
+    { path: '/create-custom-course', icon: Sparkles, label: 'Create My Course' },
     { divider: true, label: 'Classes' },
     { path: '/virtual-classroom', icon: Video, labelKey: 'virtualClassroom' },
     { path: '/live-research', icon: Search, labelKey: 'liveResearch' },
