@@ -131,6 +131,149 @@ export default function AIMentorPage() {
     }
   };
 
+  // File Upload Handler
+  const handleFileUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File size must be less than 10MB');
+      return;
+    }
+
+    setUploadingFile(true);
+    
+    // Add user message showing the file
+    const fileMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: `📎 Uploaded: ${file.name}${input.trim() ? `\n\n${input.trim()}` : '\n\nPlease analyze this file.'}`,
+      hasFile: true,
+      fileName: file.name
+    };
+    setMessages(prev => [...prev, fileMessage]);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('question', input.trim() || 'Please analyze this file and provide key insights.');
+      
+      const token = localStorage.getItem('token');
+      const API = process.env.REACT_APP_BACKEND_URL;
+      
+      const response = await fetch(`${API}/mentor/upload-document`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+      
+      if (!response.ok) throw new Error('Upload failed');
+      
+      const data = await response.json();
+      
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: data.response
+      }]);
+      
+      setInput('');
+      toast.success('File analyzed successfully!');
+    } catch (error) {
+      console.error('File upload error:', error);
+      toast.error('Failed to analyze file. Please try again.');
+      // Remove the user message on error
+      setMessages(prev => prev.filter(m => m.id !== fileMessage.id));
+    } finally {
+      setUploadingFile(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Voice Recording Handler
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        stream.getTracks().forEach(track => track.stop());
+        await transcribeAudio(audioBlob);
+      };
+      
+      mediaRecorder.start();
+      setIsRecording(true);
+      toast.success('Recording started... Click again to stop');
+    } catch (error) {
+      console.error('Recording error:', error);
+      toast.error('Could not access microphone. Please check permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      toast.info('Processing your voice...');
+    }
+  };
+
+  const transcribeAudio = async (audioBlob) => {
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'recording.webm');
+      
+      const token = localStorage.getItem('token');
+      const API = process.env.REACT_APP_BACKEND_URL;
+      
+      // First transcribe the audio
+      const transcribeResponse = await fetch(`${API}/ai/transcribe`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+      
+      if (!transcribeResponse.ok) throw new Error('Transcription failed');
+      
+      const { text } = await transcribeResponse.json();
+      
+      if (text && text.trim()) {
+        // Send the transcribed text to the mentor
+        await handleSend(text.trim());
+      } else {
+        toast.error('Could not understand the audio. Please try again.');
+      }
+    } catch (error) {
+      console.error('Transcription error:', error);
+      toast.error('Failed to process voice input');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
   const handleSend = async (text = input) => {
     if (!text.trim() || loading) return;
     
