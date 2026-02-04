@@ -6984,7 +6984,7 @@ async def get_course_branches():
 async def create_course_with_details(
     title: str,
     description: str,
-    category: str,  # free, 3_day_course, certificate, certification, diploma
+    category: str,  # free, 3_day_course, certificate, certification, diploma, custom_basic, etc.
     academic_level: str,  # grade_1, form_1, undergraduate, etc.
     num_lessons: int = 10,
     subject: str = "General",
@@ -6994,9 +6994,11 @@ async def create_course_with_details(
     if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
         raise HTTPException(status_code=403, detail="Teacher access required")
     
-    # Get price from course type
+    # Get price and branch from course type
     course_type = next((ct for ct in COURSE_TYPES if ct['code'] == category), None)
     price = course_type['price'] if course_type else 0
+    branch = course_type.get('branch', 'standard') if course_type else 'standard'
+    is_accredited = course_type.get('accredited', False) if course_type else False
     
     course_id = str(uuid.uuid4())
     course = {
@@ -7005,6 +7007,8 @@ async def create_course_with_details(
         "description": description,
         "category": category,
         "course_type": course_type['name'] if course_type else "Free Course",
+        "course_branch": branch,
+        "is_accredited": is_accredited,
         "academic_level": academic_level,
         "subject": subject,
         "num_lessons": num_lessons,
