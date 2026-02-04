@@ -1,111 +1,102 @@
-# EduOS 2026 - Product Requirements Document
+# Cognify 2026 - Product Requirements Document
 
 ## Overview
-AI-Powered School Management, Learning & Career Intelligence Platform featuring advanced AI-driven learning experiences, multi-language support, and comprehensive educational tools.
+AI-Powered School Management, Learning & Career Intelligence Platform (formerly EduOS 2026)
 
-## Current Status: Active Development - Phase 8 Complete (Feb 4, 2026)
+## Current Status: Active Development - Major Updates (Feb 4, 2026)
 
-### What's Been Implemented
+### What's Been Implemented Today
 
-#### P0 Features - Complete (Feb 4, 2026)
+#### 1. Bug Fixes - AI Mentor & File Processing ✅
+- **File Upload Handler** - AI Mentor now properly reads and analyzes uploaded files (PDF, images, text, CSV, JSON)
+- **Voice Recording** - Full voice recording implementation with WebRTC MediaRecorder API
+- **Audio Transcription** - `/api/ai/transcribe` endpoint using OpenAI Whisper
+- **Image Analysis** - Vision AI analysis for uploaded images in mentor and landing chatbot
+- **Landing Page File Upload** - `/api/ai/landing-upload` endpoint for public file analysis
 
-##### 1. User Registration Enhancement
-- [x] **LinkedIn Profile Field** - Optional field in registration form
-- [x] **URL Validation** - Auto-fixes common LinkedIn URL patterns
-- [x] **Database Storage** - linkedin_url stored with user profile
-- [x] **Privacy-First** - Field is clearly marked as optional
+#### 2. System Rebranding: EduOS → Cognify ✅
+- All frontend pages rebranded to "Cognify 2026"
+- Backend system prompts updated
+- Landing page, login, register, sidebar all updated
+- API responses reference Cognify
 
-##### 2. AI Personal Mentor LinkedIn Integration
-- [x] **Analyze LinkedIn Button** - Visible on AI Mentor page
-- [x] **Profile Analysis Endpoint** - `/api/mentor/analyze-linkedin`
-- [x] **AI-Powered Insights** - GPT-5.2 generates learner profile from LinkedIn
-- [x] **Learner Profile Update** - Strengths, weaknesses, goals, recommended topics
-- [x] **Career-Aligned Recommendations** - Mentor uses LinkedIn insights for personalized guidance
+#### 3. Paynow Zimbabwe Integration ✅
+- **Backend Service** - `/app/backend/services/payment_service.py` with full Paynow integration
+- **Web Payments** - Card payments via Paynow redirect
+- **Mobile Payments** - EcoCash and OneMoney support with USSD instructions
+- **API Endpoints:**
+  - `POST /api/payments/paynow/initiate` - Initiate payment
+  - `POST /api/payments/paynow/check-status` - Poll payment status
+  - `POST /api/payments/paynow/result` - Webhook for payment updates
+- **Test Credentials:** Uses Paynow test mode (auto-approved)
 
-##### 3. Course Structure Redesign
-- [x] **Standard Courses** - Formal, paid, accredited (Certificate, Certification, Diploma)
-- [x] **Customized Subjects** - Flexible, user-created, non-accredited (Basic, Advanced, Enterprise)
-- [x] **Branch Tabs UI** - Three tabs: All Courses, Standard Courses, Customized Subjects
-- [x] **Branch Info Banners** - Display branch features when filtered
-- [x] **API Endpoints** - `/api/course-types?branch=`, `/api/course-branches`
+#### 4. LinkedIn Scraping Service ✅
+- **Proxycurl API Integration** - `/app/backend/services/linkedin_service.py`
+- **Profile Data Extraction** - Skills, experience, education, headline
+- **AI Fallback** - Uses GPT-5.2 if Proxycurl API unavailable
+- **Learner Profile Generation** - Strengths, weaknesses, goals, recommended topics
 
-#### Landing Page Redesign (Feb 4, 2026)
-- [x] **Hero Section** - "The Future of Education" headline with AI-generated robot image
-- [x] **Prominent Language Selector** - Blue button in navbar, modal with 5 languages
-- [x] **Comprehensive Features Section** - 9 feature cards including Outcome-Based Learning
-- [x] **Avatar Trial Section** - "Try Avatar-Based Learning Now" with free trial button
+#### 5. WhatsApp & Email Notifications ✅
+- **Notification Service** - `/app/backend/services/notification_service.py`
+- **Email Templates** - Welcome, enrollment, payment, reminders
+- **WhatsApp Messages** - MVP mode generates wa.me links
+- **API Endpoints:**
+  - `POST /api/notifications/send` - Send notification
+  - `POST /api/notifications/test-whatsapp` - Test WhatsApp
+  - `POST /api/notifications/test-email` - Test email
 
-#### Avatar-Based Learning Trial (Feb 4, 2026)
-- [x] **Public Trial Page** - `/avatar-trial` accessible without login
-- [x] **3-Step Flow** - Avatar selection → Topic selection → Interactive chat
-- [x] **AI Chat Integration** - `/api/ai/avatar-chat` endpoint
-- [x] **Text-to-Speech** - Listen button for avatar messages
-
-#### Core Platform Features
-- [x] Multi-role authentication (Student, Teacher, Admin, Org Admin, Parent)
-- [x] Student/Teacher/Admin Dashboards
-- [x] Email Verification & Forgot Password (Resend)
-- [x] Emergent-managed Google Auth
-- [x] Multi-language support (10+ languages)
-
-#### AI Learning Features
-- [x] AI Personal Mentor with lifelong memory
-- [x] Knowledge Graph visualization
-- [x] Outcome-First Learning paths
-- [x] AI Study Groups
-- [x] AI Assignment/Exam Generator
-- [x] Learn by Teaching Mode
-- [x] Avatar-Based Learning
-- [x] KTCE (Knowledge Time Compression Engine)
+#### 6. Course Structure (Standard vs Customized) ✅
+- **Standard Courses** - Formal, accredited (Certificate, Certification, Diploma)
+- **Customized Subjects** - Flexible, user-created (Basic, Advanced, Enterprise)
+- **Branch Tabs** - UI shows three tabs: All, Standard, Customized
+- **Pricing** - USD and ZWL prices for each course type
 
 ### Technology Stack
 - **Frontend:** React 18, Tailwind CSS, Shadcn UI
 - **Backend:** FastAPI, Python 3.11
 - **Database:** MongoDB
-- **AI:** Emergent LLM Key (GPT-5.2, Sora 2, Gemini Nano Banana)
-- **Auth:** JWT, Emergent Google Auth
+- **AI:** Emergent LLM Key (GPT-5.2, Whisper, Vision)
+- **Payments:** Paynow Zimbabwe, Stripe
 - **Email:** Resend
+- **LinkedIn:** Proxycurl API
+
+## Services Created
+1. `/app/backend/services/payment_service.py` - Stripe & Paynow payments
+2. `/app/backend/services/linkedin_service.py` - LinkedIn profile scraping
+3. `/app/backend/services/notification_service.py` - Email & WhatsApp notifications
+
+## API Endpoints (New)
+- `POST /api/ai/transcribe` - Audio transcription
+- `POST /api/ai/landing-upload` - Public file analysis
+- `POST /api/payments/paynow/initiate` - Paynow payment
+- `POST /api/payments/paynow/check-status` - Check Paynow status
+- `POST /api/notifications/send` - Send notification
 
 ## Prioritized Backlog
 
-### P1 - High Priority (Next Sprint)
-- [ ] Organizational Training - Data ingestion for custom courses
-- [ ] Live Search Content Crawling - Fetch and display actual content
-- [ ] Platform-wide Translation - Apply t() across all pages
-- [ ] Stripe Payment Checkout - Full frontend integration
+### P1 - In Progress
+- [ ] User-Created Courses in Customized Subjects (similar to Outcome-based)
+- [ ] Live Search Content Crawling
+- [ ] Platform-wide Translation (t() function)
+- [ ] Organizational Training Data Ingestion
+
+### P2 - Upcoming
+- [ ] KTCE Frontend Implementation
 - [ ] Full ElevenLabs Voice Cloning
-
-### P2 - Medium Priority
-- [ ] KTCE Frontend Implementation (KTCELearningPage.js)
 - [ ] Mobile App (React Native)
-- [ ] Gamification features
-- [ ] Advanced analytics dashboard
-
-### P3 - Future
-- [ ] AI career guidance enhancements
-- [ ] Job board integration
-- [ ] Alumni network
 
 ## Test Credentials
-- Student: demo.student@eduos.edu / demo123
-- Teacher: demo.teacher@eduos.edu / demo123
-- Admin: demo.admin@eduos.edu / demo123
-- Parent: demo.parent@eduos.edu / demo123
-- Org Admin: demo.orgadmin@eduos.edu / demo123
+- Student: demo.student@cognify.edu / demo123
+- Teacher: demo.teacher@cognify.edu / demo123
+- Admin: demo.admin@cognify.edu / demo123
 
-## Known Limitations
-- LinkedIn analysis uses AI inference (not actual profile scraping)
-- Voice cloning is simplified
-- Payments are mocked with auto-confirm
-- Video generation takes 2-5 minutes
+## Environment Variables (New)
+- `PAYNOW_INTEGRATION_ID` - Paynow merchant ID
+- `PAYNOW_INTEGRATION_KEY` - Paynow integration key
+- `PROXYCURL_API_KEY` - LinkedIn scraping API key
+- `WHATSAPP_API_KEY` - WhatsApp Business API (optional)
 
-## Recent Test Reports
-- iteration_10.json: Landing page & Avatar Trial (100% pass)
-- iteration_11.json: P0 Features (100% pass - 12 backend, all frontend)
-
-## API Endpoints (New)
-- `/api/auth/register-with-verification?linkedin_url=` - Registration with LinkedIn
-- `/api/mentor/analyze-linkedin` - Analyze LinkedIn profile
-- `/api/course-types?branch=standard|customized` - Get course types by branch
-- `/api/course-branches` - Get branch definitions
-- `/api/ai/avatar-chat` - Avatar trial chat
+## Notes
+- LinkedIn scraping falls back to AI inference if Proxycurl unavailable
+- WhatsApp uses wa.me links in MVP mode (no API key required)
+- Paynow test mode auto-approves payments
