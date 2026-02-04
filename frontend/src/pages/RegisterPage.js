@@ -55,7 +55,7 @@ export default function RegisterPage() {
     
     setLoading(true);
     try {
-      await registerWithVerification(formData.email, formData.password, formData.fullName, formData.role);
+      await registerWithVerification(formData.email, formData.password, formData.fullName, formData.role, formData.linkedinUrl);
       toast.success('Verification code sent to your email!');
       setStep('verify');
     } catch (error) {
