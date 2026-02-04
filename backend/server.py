@@ -7431,6 +7431,210 @@ async def create_course_with_details(
     return {"message": "Course created", "course_id": course_id, "course": course}
 
 
+# ==================== USER-CREATED CUSTOM COURSES ====================
+
+class CustomCourseRequest(BaseModel):
+    title: str
+    description: str
+    learning_goal: str
+    target_audience: str = "beginner"
+    duration_weeks: int = 4
+    num_lessons: int = 10
+    course_type: str = "free_custom"
+    include_quizzes: bool = True
+    include_video: bool = False
+    include_slides: bool = True
+    language: str = "en"
+
+@courses_router.post("/generate-custom")
+async def generate_custom_course(
+    request: CustomCourseRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate a custom course using AI based on user's learning goals"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        # Determine pricing based on course type
+        pricing = {
+            "free_custom": 0,
+            "custom_basic": 49.99,
+            "custom_advanced": 149.99
+        }
+        price = pricing.get(request.course_type, 0)
+        
+        # Generate course structure using AI
+        system_message = f"""You are an expert curriculum designer. Create a structured course based on the user's learning goal.
+        
+        Return a JSON object with:
+        {{
+            "course_title": "title",
+            "description": "comprehensive description",
+            "lessons": [
+                {{
+                    "title": "Lesson title",
+                    "description": "What this lesson covers",
+                    "duration": "estimated time (e.g., 30 min)",
+                    "content": "detailed lesson content (500+ words)",
+                    "key_points": ["point1", "point2", "point3"],
+                    "quiz_questions": [
+                        {{"question": "...", "options": ["a", "b", "c", "d"], "correct": 0}}
+                    ]
+                }}
+            ],
+            "learning_objectives": ["objective1", "objective2"],
+            "prerequisites": ["prereq1", "prereq2"] or []
+        }}
+        
+        Create exactly {request.num_lessons} lessons.
+        Target audience: {request.target_audience}
+        Language: {request.language}
+        """
+        
+        chat = LlmChat(api_key=api_key, session_id=f"custom-course-{uuid.uuid4()}", system_message=system_message)
+        chat.with_model("openai", "gpt-5.2")
+        
+        prompt = f"""Create a {request.duration_weeks}-week course with {request.num_lessons} lessons.
+
+Course Title: {request.title}
+Learning Goal: {request.learning_goal}
+Additional Description: {request.description}
+Target Audience: {request.target_audience}
+
+Make the content practical, engaging, and comprehensive. Each lesson should build on the previous one."""
+        
+        response = await chat.send_message(UserMessage(text=prompt))
+        
+        # Parse AI response
+        import json
+        try:
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                course_structure = json.loads(response[json_start:json_end])
+            else:
+                raise ValueError("No JSON found in response")
+        except (json.JSONDecodeError, ValueError):
+            # Generate fallback structure
+            course_structure = {
+                "course_title": request.title,
+                "description": request.description or request.learning_goal,
+                "lessons": [
+                    {
+                        "title": f"Lesson {i+1}: Introduction",
+                        "description": f"Part {i+1} of {request.title}",
+                        "duration": "30 min",
+                        "content": response[:1000] if i == 0 else f"Content for lesson {i+1}",
+                        "key_points": ["Key concept 1", "Key concept 2", "Key concept 3"],
+                        "quiz_questions": []
+                    }
+                    for i in range(min(request.num_lessons, 5))
+                ],
+                "learning_objectives": ["Master the fundamentals", "Apply knowledge practically"],
+                "prerequisites": []
+            }
+        
+        # Create course in database
+        course_id = str(uuid.uuid4())
+        course = {
+            "id": course_id,
+            "title": course_structure.get("course_title", request.title),
+            "description": course_structure.get("description", request.description),
+            "learning_goal": request.learning_goal,
+            "category": request.course_type,
+            "course_type": "Custom Course",
+            "course_branch": "customized",
+            "is_accredited": False,
+            "target_audience": request.target_audience,
+            "duration_weeks": request.duration_weeks,
+            "num_lessons": request.num_lessons,
+            "price": price,
+            "language": request.language,
+            "learning_objectives": course_structure.get("learning_objectives", []),
+            "prerequisites": course_structure.get("prerequisites", []),
+            "created_by": current_user['id'],
+            "teacher_name": current_user.get('full_name', 'Unknown'),
+            "is_user_created": True,
+            "enrolled_count": 0,
+            "is_published": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await db.courses.insert_one(course)
+        
+        # Create lessons
+        lessons = []
+        for idx, lesson_data in enumerate(course_structure.get("lessons", [])[:request.num_lessons]):
+            lesson_id = str(uuid.uuid4())
+            lesson = {
+                "id": lesson_id,
+                "course_id": course_id,
+                "title": lesson_data.get("title", f"Lesson {idx + 1}"),
+                "description": lesson_data.get("description", ""),
+                "text": lesson_data.get("content", ""),
+                "duration": lesson_data.get("duration", "30 min"),
+                "key_points": lesson_data.get("key_points", []),
+                "order": idx + 1,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.lessons.insert_one(lesson)
+            lessons.append(lesson)
+            
+            # Create quiz questions if included
+            if request.include_quizzes and lesson_data.get("quiz_questions"):
+                for q_idx, quiz in enumerate(lesson_data.get("quiz_questions", [])[:3]):
+                    quiz_id = str(uuid.uuid4())
+                    quiz_record = {
+                        "id": quiz_id,
+                        "lesson_id": lesson_id,
+                        "course_id": course_id,
+                        "question": quiz.get("question", ""),
+                        "options": quiz.get("options", []),
+                        "correct_answer": quiz.get("correct", 0),
+                        "order": q_idx + 1
+                    }
+                    await db.lesson_quizzes.insert_one(quiz_record)
+        
+        return {
+            "message": "Course generated successfully",
+            "course_id": course_id,
+            "title": course.get("title"),
+            "description": course.get("description"),
+            "duration_weeks": request.duration_weeks,
+            "lessons": lessons,
+            "learning_objectives": course_structure.get("learning_objectives", []),
+            "price": price
+        }
+        
+    except Exception as e:
+        logging.error(f"Custom course generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate course: {str(e)}")
+
+@courses_router.post("/{course_id}/publish")
+async def publish_custom_course(
+    course_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Publish a custom course, making it visible to students"""
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    if course.get("created_by") != current_user['id'] and current_user.get('role') not in ['admin']:
+        raise HTTPException(status_code=403, detail="You can only publish your own courses")
+    
+    await db.courses.update_one(
+        {"id": course_id},
+        {"$set": {"is_published": True, "published_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"message": "Course published successfully", "course_id": course_id}
+
+
 # ==================== ASSIGNMENTS LINKED TO COURSES ====================
 
 @assignments_router.post("/create-linked")
