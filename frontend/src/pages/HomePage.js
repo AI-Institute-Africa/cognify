@@ -413,19 +413,34 @@ export default function HomePage() {
     
     const userMessage = { role: 'user', content: query, file: uploadedFile?.name };
     setMessages(prev => [...prev, userMessage]);
+    const currentQuery = query;
     setQuery('');
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/ai/landing-assistant`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: query || `Please analyze this ${uploadedFile?.type} file`,
-          language,
-          has_file: !!uploadedFile
-        })
-      });
+      let response;
+      
+      if (uploadedFile) {
+        // Handle file upload with AI analysis
+        const formData = new FormData();
+        formData.append('file', uploadedFile);
+        formData.append('question', currentQuery || 'Please analyze this file and tell me what you see.');
+        
+        response = await fetch(`${API_URL}/api/ai/landing-upload`, {
+          method: 'POST',
+          body: formData
+        });
+      } else {
+        // Regular text message
+        response = await fetch(`${API_URL}/api/ai/landing-assistant`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            message: currentQuery,
+            language
+          })
+        });
+      }
       
       if (response.ok) {
         const data = await response.json();
@@ -433,13 +448,13 @@ export default function HomePage() {
       } else {
         setMessages(prev => [...prev, { 
           role: 'assistant', 
-          content: 'Welcome to EduOS! I can help you with questions about education, courses, and our platform. What would you like to know?'
+          content: 'Welcome to Cognify! I can help you with questions about education, courses, and our platform. What would you like to know?'
         }]);
       }
     } catch (error) {
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: 'I\'m here to help! Ask me anything about EduOS, our features, or education in general.'
+        content: 'I\'m here to help! Ask me anything about Cognify, our features, or education in general.'
       }]);
     } finally {
       setIsLoading(false);
