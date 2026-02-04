@@ -62,9 +62,9 @@ const TRANSLATIONS = {
       features: ['No account required', 'Instant access', '5 minute demo']
     },
     assistant: {
-      title: 'Ask EduOS AI',
+      title: 'Ask Cognify AI',
       subtitle: 'Get instant answers about our platform, education, or anything!',
-      placeholder: 'Ask me anything about education, courses, or EduOS...',
+      placeholder: 'Ask me anything about education, courses, or Cognify...',
       sendBtn: 'Send',
       uploadHint: 'You can also upload images, audio, or video for analysis',
       recording: 'Recording...',
@@ -132,7 +132,7 @@ const TRANSLATIONS = {
       features: ['Hakuna akaunti inayohitajika', 'Ufikiaji wa papo hapo', 'Demo ya dakika 5']
     },
     assistant: {
-      title: 'Uliza EduOS AI',
+      title: 'Uliza Cognify AI',
       subtitle: 'Pata majibu ya papo hapo kuhusu jukwaa letu!',
       placeholder: 'Niulize chochote kuhusu elimu...',
       sendBtn: 'Tuma',
@@ -202,7 +202,7 @@ const TRANSLATIONS = {
       features: ['Hapana account inodikanwa', 'Kupinda pakarepo', 'Demo yemaminetsi 5']
     },
     assistant: {
-      title: 'Bvunza EduOS AI',
+      title: 'Bvunza Cognify AI',
       subtitle: 'Wana mhinduro dzekukurumidza pamusoro penzvimbo yedu!',
       placeholder: 'Ndibvunze chero chii pamusoro pedzidzo...',
       sendBtn: 'Tumira',
@@ -272,7 +272,7 @@ const TRANSLATIONS = {
       features: ['Ayikho i-akhawunti edingekayo', 'Ukufinyelela okusheshayo', 'Idemo yemizuzu emi-5']
     },
     assistant: {
-      title: 'Buza i-EduOS AI',
+      title: 'Buza i-Cognify AI',
       subtitle: 'Thola izimpendulo ezisheshayo mayelana nenkundla yethu!',
       placeholder: 'Ngibuze noma yini mayelana nemfundo...',
       sendBtn: 'Thumela',
@@ -342,7 +342,7 @@ const TRANSLATIONS = {
       features: ['Aucun compte requis', 'Accès instantané', 'Démo de 5 minutes']
     },
     assistant: {
-      title: 'Demandez à EduOS AI',
+      title: 'Demandez à Cognify AI',
       subtitle: 'Obtenez des réponses instantanées sur notre plateforme!',
       placeholder: "Posez-moi n'importe quelle question sur l'éducation...",
       sendBtn: 'Envoyer',
@@ -387,7 +387,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const [language, setLanguage] = useState(() => localStorage.getItem('eduos_language') || 'en');
+  const [language, setLanguage] = useState(() => localStorage.getItem('cognify_language') || 'en');
   const [showAssistant, setShowAssistant] = useState(false);
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState([]);
@@ -401,7 +401,7 @@ export default function HomePage() {
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
 
   useEffect(() => {
-    localStorage.setItem('eduos_language', language);
+    localStorage.setItem('cognify_language', language);
   }, [language]);
 
   useEffect(() => {
@@ -604,7 +604,7 @@ export default function HomePage() {
                 <Brain className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="font-bold text-lg">EduOS 2026</h1>
+                <h1 className="font-bold text-lg">Cognify 2026</h1>
                 <p className="text-xs text-zinc-500">AI-Powered Education</p>
               </div>
             </div>
@@ -923,7 +923,7 @@ export default function HomePage() {
                 <Brain className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="font-bold">EduOS 2026</h1>
+                <h1 className="font-bold">Cognify 2026</h1>
                 <p className="text-xs text-zinc-500">{t.footer.tagline}</p>
               </div>
             </div>

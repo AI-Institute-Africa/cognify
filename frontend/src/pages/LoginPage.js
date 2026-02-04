@@ -98,7 +98,7 @@ export default function LoginPage() {
               <GraduationCap className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">EduOS</h1>
+              <h1 className="text-3xl font-bold">Cognify</h1>
               <p className="text-zinc-500 text-sm">2026 Platform</p>
             </div>
           </div>
@@ -136,7 +136,7 @@ export default function LoginPage() {
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center">
               <GraduationCap className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-2xl font-bold">EduOS</h1>
+            <h1 className="text-2xl font-bold">Cognify</h1>
           </div>
           
           <div className="mb-8">
@@ -244,7 +244,7 @@ export default function LoginPage() {
                 <div className="w-full border-t border-white/10" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-[#09090B] text-zinc-500">New to EduOS?</span>
+                <span className="px-4 bg-[#09090B] text-zinc-500">New to Cognify?</span>
               </div>
             </div>
             
