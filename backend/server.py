@@ -4793,9 +4793,9 @@ async def update_learner_profile(updates: Dict[str, Any], current_user: dict = D
 
 @mentor_router.post("/analyze-linkedin")
 async def analyze_linkedin_profile(current_user: dict = Depends(get_current_user)):
-    """Analyze user's LinkedIn profile to build personalized learner profile"""
+    """Analyze user's LinkedIn profile using Proxycurl API to build personalized learner profile"""
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        from services.linkedin_service import linkedin_scraper
         
         # Get user's LinkedIn URL
         user = await db.users.find_one({"id": current_user['id']}, {"_id": 0})
@@ -4807,73 +4807,24 @@ async def analyze_linkedin_profile(current_user: dict = Depends(get_current_user
                 "message": "No LinkedIn profile linked. Add your LinkedIn URL in settings to get personalized recommendations."
             }
         
-        api_key = os.environ.get('EMERGENT_LLM_KEY')
-        if not api_key:
-            return {"success": False, "message": "AI service not configured"}
+        # Use LinkedIn scraper service (Proxycurl API or AI fallback)
+        result = await linkedin_scraper.scrape_profile(linkedin_url)
         
-        # Use AI to analyze the LinkedIn profile and generate learner profile
-        system_message = """You are an AI career and learning advisor. Based on a LinkedIn profile URL, 
-        generate a comprehensive learner profile that includes:
-        1. Professional strengths (3-5 key skills)
-        2. Areas for improvement (2-3 areas based on career trajectory)
-        3. Recommended learning goals (3-5 goals aligned with career)
-        4. Suggested learning style based on profession
-        5. Personalized course recommendations (5 topics)
-        
-        Return a JSON object with these fields:
-        {
-            "strengths": ["strength1", "strength2", ...],
-            "weaknesses": ["area1", "area2", ...],
-            "goals": ["goal1", "goal2", ...],
-            "learning_style": "visual|auditory|kinesthetic|reading",
-            "recommended_topics": ["topic1", "topic2", ...],
-            "career_insights": "Brief career growth advice",
-            "profile_summary": "One paragraph summary of the professional"
-        }"""
-        
-        import uuid
-        chat = LlmChat(api_key=api_key, session_id=f"linkedin-{uuid.uuid4()}", system_message=system_message)
-        chat.with_model("openai", "gpt-5.2")
-        
-        response = await chat.send_message(UserMessage(
-            text=f"Analyze this LinkedIn profile and generate a learner profile: {linkedin_url}\n\nUser's name: {user.get('full_name', 'Unknown')}"
-        ))
-        
-        # Parse the AI response
-        import json
-        try:
-            # Try to extract JSON from the response
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
-            if json_start >= 0 and json_end > json_start:
-                profile_data = json.loads(response[json_start:json_end])
-            else:
-                # Fallback if no JSON found
-                profile_data = {
-                    "strengths": ["Leadership", "Problem Solving", "Communication"],
-                    "weaknesses": ["Technical depth", "Time management"],
-                    "goals": ["Advance career", "Learn new technologies", "Build expertise"],
-                    "learning_style": "visual",
-                    "recommended_topics": ["Leadership", "Data Science", "Project Management"],
-                    "career_insights": "Focus on building technical skills while leveraging your existing strengths.",
-                    "profile_summary": response[:500]
-                }
-        except json.JSONDecodeError:
-            profile_data = {
-                "strengths": ["Adaptability", "Communication", "Technical Skills"],
-                "weaknesses": ["Specialization"],
-                "goals": ["Career growth", "Skill development"],
-                "learning_style": "visual",
-                "recommended_topics": ["Industry trends", "Leadership"],
-                "career_insights": response[:300],
-                "profile_summary": "Profile analysis complete."
+        if not result.get('success'):
+            return {
+                "success": False,
+                "message": result.get('error', 'Failed to analyze LinkedIn profile')
             }
+        
+        profile_data = result.get('learner_profile', {})
         
         # Update the learner profile with LinkedIn insights
         linkedin_profile = {
             "linkedin_url": linkedin_url,
             "linkedin_analyzed_at": datetime.now(timezone.utc).isoformat(),
-            "linkedin_insights": profile_data
+            "linkedin_insights": profile_data,
+            "profile_data": result.get('profile_data', {}),
+            "source": result.get('source', 'proxycurl_api')
         }
         
         await db.learner_profiles.update_one(
