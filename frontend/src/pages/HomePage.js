@@ -660,28 +660,28 @@ export default function HomePage() {
                 <span className="bg-gradient-to-r from-blue-400 via-violet-400 to-emerald-400 bg-clip-text text-transparent block"> {t.hero.title2}</span>
               </h1>
               
-              <p className="text-xl text-zinc-400 mb-10 max-w-2xl">
+              <p className="text-base sm:text-lg lg:text-xl text-zinc-400 mb-6 sm:mb-10 max-w-2xl mx-auto lg:mx-0">
                 {t.hero.subtitle}
               </p>
               
-              <div className="flex flex-col sm:flex-row items-center lg:items-start gap-4">
-                <Link to="/register-organization">
-                  <Button size="lg" className="bg-blue-500 hover:bg-blue-600 h-14 px-8 text-lg">
+              <div className="flex flex-col sm:flex-row items-center lg:items-start gap-3 sm:gap-4">
+                <Link to="/register-organization" className="w-full sm:w-auto">
+                  <Button size="lg" className="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 h-12 sm:h-14 px-6 sm:px-8 text-base sm:text-lg">
                     {t.hero.registerBtn}
-                    <ArrowRight className="w-5 h-5 ml-2" />
+                    <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
                   </Button>
                 </Link>
-                <Link to="/register">
-                  <Button size="lg" variant="outline" className="h-14 px-8 text-lg border-white/10 hover:bg-white/5">
-                    <Play className="w-5 h-5 mr-2" />
+                <Link to="/register" className="w-full sm:w-auto">
+                  <Button size="lg" variant="outline" className="w-full sm:w-auto h-12 sm:h-14 px-6 sm:px-8 text-base sm:text-lg border-white/10 hover:bg-white/5">
+                    <Play className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                     {t.hero.signUpBtn}
                   </Button>
                 </Link>
               </div>
             </div>
             
-            {/* Robot Image */}
-            <div className="relative flex justify-center lg:justify-end">
+            {/* Robot Image - hidden on small mobile */}
+            <div className="relative hidden sm:flex justify-center lg:justify-end">
               <div className="relative">
                 {/* Glow effect */}
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-500/30 via-violet-500/30 to-cyan-500/30 blur-3xl scale-150" />
@@ -690,29 +690,29 @@ export default function HomePage() {
                 <img 
                   src={ROBOT_IMAGE} 
                   alt="AI Education Robot" 
-                  className="relative z-10 w-full max-w-lg transform -scale-x-100"
+                  className="relative z-10 w-full max-w-md lg:max-w-lg transform -scale-x-100"
                   style={{ filter: 'drop-shadow(0 0 40px rgba(59, 130, 246, 0.5))' }}
                 />
                 
-                {/* Floating badges */}
-                <div className="absolute top-10 left-0 bg-zinc-900/90 backdrop-blur border border-white/10 rounded-xl px-4 py-2 animate-pulse">
-                  <p className="text-sm font-medium text-emerald-400">AI-Powered</p>
+                {/* Floating badges - hidden on tablet */}
+                <div className="absolute top-10 left-0 bg-zinc-900/90 backdrop-blur border border-white/10 rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 animate-pulse hidden lg:block">
+                  <p className="text-xs sm:text-sm font-medium text-emerald-400">AI-Powered</p>
                 </div>
-                <div className="absolute bottom-20 right-0 bg-zinc-900/90 backdrop-blur border border-white/10 rounded-xl px-4 py-2 animate-pulse delay-500">
-                  <p className="text-sm font-medium text-violet-400">24/7 Learning</p>
+                <div className="absolute bottom-20 right-0 bg-zinc-900/90 backdrop-blur border border-white/10 rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 animate-pulse delay-500 hidden lg:block">
+                  <p className="text-xs sm:text-sm font-medium text-violet-400">24/7 Learning</p>
                 </div>
               </div>
             </div>
           </div>
           
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-20">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mt-12 sm:mt-20">
             {stats.map((stat, index) => (
-              <div key={index} className="text-center p-6 rounded-2xl bg-zinc-900/50 border border-white/5">
-                <p className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">
+              <div key={index} className="text-center p-4 sm:p-6 rounded-xl sm:rounded-2xl bg-zinc-900/50 border border-white/5">
+                <p className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">
                   {stat.value}
                 </p>
-                <p className="text-sm text-zinc-500 mt-2">{stat.label}</p>
+                <p className="text-xs sm:text-sm text-zinc-500 mt-1 sm:mt-2">{stat.label}</p>
               </div>
             ))}
           </div>
