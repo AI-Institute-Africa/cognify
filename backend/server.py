@@ -6968,9 +6968,16 @@ async def get_academic_levels():
     return ZIMBABWE_ACADEMIC_LEVELS
 
 @api_router.get("/course-types")
-async def get_course_types():
-    """Get available course types with pricing"""
+async def get_course_types(branch: Optional[str] = None):
+    """Get available course types with pricing. Optionally filter by branch (standard/customized)"""
+    if branch:
+        return [ct for ct in COURSE_TYPES if ct.get('branch') == branch]
     return COURSE_TYPES
+
+@api_router.get("/course-branches")
+async def get_course_branches():
+    """Get course branch definitions (standard vs customized)"""
+    return COURSE_BRANCHES
 
 
 @courses_router.post("/create-with-details")
