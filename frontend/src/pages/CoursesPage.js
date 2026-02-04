@@ -203,6 +203,79 @@ export default function CoursesPage() {
       />
       
       <div className="p-8">
+        {/* Branch Selection Tabs */}
+        <div className="mb-6">
+          <Tabs defaultValue="all" onValueChange={setBranchFilter}>
+            <TabsList className="bg-zinc-900/50 border border-white/10 p-1">
+              <TabsTrigger 
+                value="all" 
+                className="data-[state=active]:bg-white/10"
+                data-testid="branch-all-tab"
+              >
+                All Courses
+              </TabsTrigger>
+              <TabsTrigger 
+                value="standard" 
+                className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400"
+                data-testid="branch-standard-tab"
+              >
+                <GraduationCap className="w-4 h-4 mr-2" />
+                Standard Courses
+                {standardCourses.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 bg-blue-500/20 text-blue-400">
+                    {standardCourses.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="customized" 
+                className="data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-400"
+                data-testid="branch-customized-tab"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                Customized Subjects
+                {customizedCourses.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 bg-violet-500/20 text-violet-400">
+                    {customizedCourses.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+        
+        {/* Branch Info Banner */}
+        {branchFilter !== 'all' && COURSE_BRANCHES[branchFilter] && (
+          <div className={`mb-6 p-4 rounded-xl border ${
+            branchFilter === 'standard' 
+              ? 'bg-blue-500/10 border-blue-500/30' 
+              : 'bg-violet-500/10 border-violet-500/30'
+          }`}>
+            <div className="flex items-start gap-4">
+              {branchFilter === 'standard' ? (
+                <GraduationCap className="w-8 h-8 text-blue-400 flex-shrink-0" />
+              ) : (
+                <Sparkles className="w-8 h-8 text-violet-400 flex-shrink-0" />
+              )}
+              <div>
+                <h3 className={`font-semibold ${branchFilter === 'standard' ? 'text-blue-400' : 'text-violet-400'}`}>
+                  {COURSE_BRANCHES[branchFilter].name}
+                </h3>
+                <p className="text-sm text-zinc-400 mt-1">
+                  {COURSE_BRANCHES[branchFilter].description}
+                </p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {COURSE_BRANCHES[branchFilter].features.map((feature, idx) => (
+                    <Badge key={idx} variant="outline" className="text-xs border-white/20">
+                      {feature}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Actions Bar */}
         <div className="flex flex-col md:flex-row gap-4 mb-8">
           <div className="relative flex-1">
@@ -216,12 +289,20 @@ export default function CoursesPage() {
             />
           </div>
           
-          <Button variant="outline" className="h-12 border-white/10">
-            <Filter className="w-4 h-4 mr-2" />
-            Filters
-          </Button>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-[180px] h-12 bg-zinc-900/50 border-white/10">
+              <Filter className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Filter by type" />
+            </SelectTrigger>
+            <SelectContent className="bg-zinc-900 border-white/10">
+              <SelectItem value="all">All Types</SelectItem>
+              {COURSE_CATEGORIES.filter(c => branchFilter === 'all' || c.branch === branchFilter).map(cat => (
+                <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           
-          {(user?.role === 'admin' || user?.role === 'teacher') && (
+          {(user?.role === 'admin' || user?.role === 'teacher' || user?.role === 'org_admin') && (
             <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
               <DialogTrigger asChild>
                 <Button data-testid="create-course-btn" className="h-12 bg-blue-500 hover:bg-blue-600">
