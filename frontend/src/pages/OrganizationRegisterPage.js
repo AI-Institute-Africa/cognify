@@ -97,7 +97,7 @@ export default function OrganizationRegisterPage() {
     setLoading(true);
     try {
       const result = await registerOrganization(formData);
-      localStorage.setItem('eduos_token', result.access_token);
+      localStorage.setItem('cognify_token', result.access_token);
       toast.success('Organization registered successfully!');
       navigate('/dashboard');
     } catch (error) {
@@ -123,7 +123,7 @@ export default function OrganizationRegisterPage() {
             <Building2 className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold">Register Your Organization</h1>
-          <p className="text-zinc-500 mt-2">Join EduOS with your school, university, or institution</p>
+          <p className="text-zinc-500 mt-2">Join Cognify with your school, university, or institution</p>
         </div>
 
         {/* Progress Steps */}

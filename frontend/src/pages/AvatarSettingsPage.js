@@ -78,7 +78,7 @@ export default function AvatarSettingsPage() {
 
     setGenerating(true);
     try {
-      const token = localStorage.getItem('eduos_token');
+      const token = localStorage.getItem('cognify_token');
       const response = await fetch(`${API_URL}/api/advanced/avatar/generate?prompt=${encodeURIComponent(generationPrompt)}&style=professional educator`, {
         method: 'POST',
         headers: {
@@ -132,7 +132,7 @@ export default function AvatarSettingsPage() {
   const handleTestVoice = async () => {
     setIsSpeaking(true);
     try {
-      const token = localStorage.getItem('eduos_token');
+      const token = localStorage.getItem('cognify_token');
       const testText = `Hello! I'm ${selectedAvatar?.name || 'your AI tutor'}. I'll be guiding you through your learning journey. Let's achieve great things together!`;
       
       const response = await fetch(`${API_URL}/api/advanced/tts?text=${encodeURIComponent(testText)}&voice=${selectedAvatar?.voice || 'nova'}&speed=1.0`, {
@@ -161,8 +161,8 @@ export default function AvatarSettingsPage() {
 
   const handleSaveAvatar = () => {
     const avatarToSave = customAvatar || selectedAvatar;
-    localStorage.setItem('eduos_avatar', JSON.stringify(avatarToSave));
-    localStorage.setItem('eduos_tutor_style', selectedStyle);
+    localStorage.setItem('cognify_avatar', JSON.stringify(avatarToSave));
+    localStorage.setItem('cognify_tutor_style', selectedStyle);
     toast.success('Avatar settings saved!');
   };
 

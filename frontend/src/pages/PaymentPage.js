@@ -39,7 +39,7 @@ export default function PaymentPage() {
 
   const loadCourse = async () => {
     try {
-      const token = localStorage.getItem('eduos_token');
+      const token = localStorage.getItem('cognify_token');
       const response = await fetch(`${API_URL}/api/courses/${courseId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -67,7 +67,7 @@ export default function PaymentPage() {
 
     setProcessing(true);
     try {
-      const token = localStorage.getItem('eduos_token');
+      const token = localStorage.getItem('cognify_token');
       const response = await fetch(`${API_URL}/api/payments/initiate`, {
         method: 'POST',
         headers: {

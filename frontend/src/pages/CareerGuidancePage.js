@@ -183,7 +183,7 @@ export default function CareerGuidancePage() {
                 </Button>
               </div>
               <p className="text-xs text-zinc-600 mt-2 text-center">
-                AI-powered by EduOS. Responses are for guidance only.
+                AI-powered by Cognify. Responses are for guidance only.
               </p>
             </div>
           </div>

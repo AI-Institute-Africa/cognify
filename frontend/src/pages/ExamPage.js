@@ -103,7 +103,7 @@ export default function ExamPage() {
 
   const loadData = async () => {
     try {
-      const token = localStorage.getItem('eduos_token');
+      const token = localStorage.getItem('cognify_token');
       const headers = { 'Authorization': `Bearer ${token}` };
       
       const [examsRes, coursesRes] = await Promise.all([
@@ -158,7 +158,7 @@ export default function ExamPage() {
     setSelectedExam(exam);
     
     try {
-      const token = localStorage.getItem('eduos_token');
+      const token = localStorage.getItem('cognify_token');
       const response = await fetch(`${API_URL}/api/exams/${exam.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -185,7 +185,7 @@ export default function ExamPage() {
     stopWebcam();
     
     try {
-      const token = localStorage.getItem('eduos_token');
+      const token = localStorage.getItem('cognify_token');
       const response = await fetch(`${API_URL}/api/exams/${selectedExam.id}/submit`, {
         method: 'POST',
         headers: {
@@ -236,7 +236,7 @@ export default function ExamPage() {
     
     setCreating(true);
     try {
-      const token = localStorage.getItem('eduos_token');
+      const token = localStorage.getItem('cognify_token');
       const response = await fetch(`${API_URL}/api/exams`, {
         method: 'POST',
         headers: {
