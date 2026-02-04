@@ -4,7 +4,7 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('eduos_token');
+  const token = localStorage.getItem('cognify_token');
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
