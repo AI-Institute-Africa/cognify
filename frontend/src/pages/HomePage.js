@@ -597,44 +597,46 @@ export default function HomePage() {
 
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-40 bg-[#09090B]/80 backdrop-blur-xl border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
-                <Brain className="w-6 h-6 text-white" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
+                <Brain className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
               </div>
               <div>
-                <h1 className="font-bold text-lg">Cognify 2026</h1>
-                <p className="text-xs text-zinc-500">AI-Powered Education</p>
+                <h1 className="font-bold text-base sm:text-lg">Cognify</h1>
+                <p className="text-xs text-zinc-500 hidden sm:block">AI-Powered Education</p>
               </div>
             </div>
             
-            <div className="hidden md:flex items-center gap-8">
+            <div className="hidden lg:flex items-center gap-8">
               <a href="#features" className="text-sm text-zinc-400 hover:text-white transition-colors">{t.nav.features}</a>
               <a href="#organizations" className="text-sm text-zinc-400 hover:text-white transition-colors">{t.nav.organizations}</a>
               <a href="#assistant" className="text-sm text-zinc-400 hover:text-white transition-colors">AI Assistant</a>
             </div>
             
-            <div className="flex items-center gap-3">
-              {/* Prominent Language Selector */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Language Selector - icon only on mobile */}
               <Button 
                 variant="outline" 
                 onClick={() => setShowLanguageModal(true)}
-                className="border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400"
+                className="border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 px-2 sm:px-3"
                 data-testid="language-selector-btn"
               >
-                <Globe className="w-4 h-4 mr-2" />
-                {LANGUAGES.find(l => l.code === language)?.flag} {LANGUAGES.find(l => l.code === language)?.name}
+                <Globe className="w-4 h-4" />
+                <span className="hidden sm:inline ml-2">{LANGUAGES.find(l => l.code === language)?.flag} {LANGUAGES.find(l => l.code === language)?.name}</span>
               </Button>
               
               <Link to="/login">
-                <Button variant="ghost" className="text-zinc-400 hover:text-white">
-                  {t.nav.signIn}
+                <Button variant="ghost" className="text-zinc-400 hover:text-white px-2 sm:px-4">
+                  <span className="hidden sm:inline">{t.nav.signIn}</span>
+                  <User className="w-4 h-4 sm:hidden" />
                 </Button>
               </Link>
               <Link to="/register">
-                <Button className="bg-blue-500 hover:bg-blue-600">
-                  {t.nav.getStarted}
+                <Button className="bg-blue-500 hover:bg-blue-600 px-3 sm:px-4 text-sm">
+                  <span className="hidden sm:inline">{t.nav.getStarted}</span>
+                  <span className="sm:hidden">Join</span>
                 </Button>
               </Link>
             </div>
@@ -643,17 +645,17 @@ export default function HomePage() {
       </nav>
 
       {/* Hero Section with Robot */}
-      <section className="pt-32 pb-20 px-6 relative overflow-hidden">
+      <section className="pt-24 sm:pt-32 pb-12 sm:pb-20 px-4 sm:px-6 relative overflow-hidden">
         <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
             {/* Text Content */}
             <div className="text-center lg:text-left">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 mb-8">
+              <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 mb-6 sm:mb-8">
                 <Sparkles className="w-4 h-4 text-blue-400" />
-                <span className="text-sm text-blue-400">{t.hero.badge}</span>
+                <span className="text-xs sm:text-sm text-blue-400">{t.hero.badge}</span>
               </div>
               
-              <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
+              <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold mb-4 sm:mb-6 leading-tight">
                 {t.hero.title1}
                 <span className="bg-gradient-to-r from-blue-400 via-violet-400 to-emerald-400 bg-clip-text text-transparent block"> {t.hero.title2}</span>
               </h1>
