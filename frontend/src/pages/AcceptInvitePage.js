@@ -46,12 +46,13 @@ export default function AcceptInvitePage() {
   const verifyToken = async () => {
     try {
       const response = await fetch(`${API}/api/auth/verify-magic-link?token=${token}`);
-      const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.detail || 'Invalid invitation');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Invalid or expired invitation');
       }
       
+      const data = await response.json();
       setInviteData(data);
     } catch (err) {
       setError(err.message || 'Invalid or expired invitation');
