@@ -68,8 +68,12 @@ export default function AIMentorPage() {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [analyzingLinkedin, setAnalyzingLinkedin] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const messagesEndRef = useRef(null);
   const audioRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
   useEffect(() => {
     loadProfile();
