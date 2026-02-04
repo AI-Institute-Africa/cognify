@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
-import { getCourse, getCourseContent, translateText, generateTTS, uploadCourseContent, avatarTeachLesson, generateVideoContent, generateSlidesContent, getAvatarSettings } from '../services/api';
+import { getCourse, getCourseContent, translateText, generateTTS, uploadCourseContent, uploadCourseFile, avatarTeachLesson, generateVideoContent, generateSlidesContent, getAvatarSettings } from '../services/api';
 import { 
   BookOpen, Video, FileText, Headphones, Image, 
   ArrowLeft, Play, Pause, Volume2, Globe, 
