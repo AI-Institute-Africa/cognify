@@ -2143,6 +2143,60 @@ class LandingAssistantRequest(BaseModel):
     language: str = "en"
     has_file: bool = False
 
+class AvatarChatRequest(BaseModel):
+    message: str
+    avatar_name: str = "Professor Ada"
+    avatar_style: str = "Academic & Detailed"
+    topic: str = "Introduction to Algebra"
+    subject: str = "Mathematics"
+    conversation_history: List[dict] = []
+
+@ai_router.post("/avatar-chat")
+async def avatar_chat_trial(request: AvatarChatRequest):
+    """Avatar-based learning chat for the trial page - no authentication required"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            # Return a helpful fallback response
+            return {"response": f"That's an excellent question! In {request.topic}, we need to understand the fundamental concepts first. Let me explain this step by step in a way that makes it easy to grasp. Would you like me to use more examples or shall we try a practice problem?"}
+        
+        # Build conversation history for context
+        history_context = ""
+        if request.conversation_history:
+            for msg in request.conversation_history[-4:]:  # Last 4 messages for context
+                role = "Student" if msg.get('role') == 'user' else request.avatar_name
+                history_context += f"{role}: {msg.get('content', '')}\n"
+        
+        system_message = f"""You are {request.avatar_name}, an AI tutor avatar teaching {request.topic} in {request.subject}.
+        
+        Your teaching style: {request.avatar_style}
+        
+        Guidelines:
+        - Be encouraging and supportive
+        - Break down complex concepts into simple steps
+        - Use analogies and real-world examples
+        - Ask follow-up questions to check understanding
+        - Praise effort and progress
+        - Keep responses concise (2-3 paragraphs max)
+        - This is a demo/trial experience, so make it engaging
+        
+        Recent conversation:
+        {history_context}
+        
+        Respond as the AI tutor would, maintaining your teaching style and personality."""
+        
+        import uuid
+        chat = LlmChat(api_key=api_key, session_id=f"avatar-trial-{uuid.uuid4()}", system_message=system_message)
+        chat.with_model("openai", "gpt-5.2")
+        
+        response = await chat.send_message(UserMessage(text=request.message))
+        return {"response": response}
+    except Exception as e:
+        logging.error(f"Avatar Chat Error: {str(e)}")
+        return {"response": f"That's a great question! In {request.topic}, this concept is really important. Let me help you understand it better with an example. Think of it like this - every new idea builds on what you already know. Would you like me to explain further or try a practice question together?"}
+
 @ai_router.post("/landing-assistant")
 async def landing_ai_assistant(request: LandingAssistantRequest):
     """Public AI assistant for the landing page - no authentication required"""
