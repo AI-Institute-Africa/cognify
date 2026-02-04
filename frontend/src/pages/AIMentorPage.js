@@ -67,6 +67,7 @@ export default function AIMentorPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [analyzingLinkedin, setAnalyzingLinkedin] = useState(false);
   const messagesEndRef = useRef(null);
   const audioRef = useRef(null);
 
@@ -100,6 +101,29 @@ export default function AIMentorPage() {
       setProfile(data);
     } catch (error) {
       console.error('Failed to load mentor profile:', error);
+    }
+  };
+
+  const handleAnalyzeLinkedIn = async () => {
+    setAnalyzingLinkedin(true);
+    try {
+      const result = await analyzeLinkedInProfile();
+      if (result.success) {
+        toast.success('LinkedIn profile analyzed! Your AI mentor now has personalized insights.');
+        await loadProfile();
+        // Add a message to the chat about the new insights
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: `I've analyzed your LinkedIn profile and updated your learner profile! Here's what I learned:\n\n**Your Strengths:** ${result.profile?.strengths?.join(', ') || 'Analyzing...'}\n\n**Recommended Topics:** ${result.profile?.recommended_topics?.join(', ') || 'Analyzing...'}\n\n**Career Insight:** ${result.profile?.career_insights || 'Ready to help you grow!'}\n\nI'll now use these insights to provide more personalized learning recommendations. What would you like to learn today?`
+        }]);
+      } else {
+        toast.error(result.message || 'Failed to analyze LinkedIn profile');
+      }
+    } catch (error) {
+      toast.error('Failed to analyze LinkedIn profile');
+    } finally {
+      setAnalyzingLinkedin(false);
     }
   };
 
