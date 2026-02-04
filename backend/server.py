@@ -7846,7 +7846,7 @@ async def get_assignment_suggested_answer(assignment_id: str, current_user: dict
 
 # ==================== STRIPE PAYMENTS ====================
 
-from services.payment_service import create_payment_session, get_payment_status, get_course_price, COURSE_PACKAGES
+from services.payment_service import create_stripe_session, get_course_price, COURSE_PACKAGES
 
 @payments_router.post("/create-checkout")
 async def create_payment_checkout(
