@@ -114,6 +114,76 @@ export default function LiveResearchPage() {
     }
   };
 
+  // Crawl content from URL
+  const handleCrawlContent = async (url) => {
+    setCrawlingUrl(url);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API}/research/crawl-content?url=${encodeURIComponent(url)}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setCrawledContent(data);
+        setShowContentModal(true);
+        toast.success('Content extracted successfully!');
+      } else {
+        toast.error(data.error || 'Failed to extract content');
+        // Open in new tab as fallback
+        window.open(url, '_blank');
+      }
+    } catch (error) {
+      console.error('Crawl error:', error);
+      toast.error('Failed to extract content. Opening in new tab...');
+      window.open(url, '_blank');
+    } finally {
+      setCrawlingUrl(null);
+    }
+  };
+
+  // Handle PDF upload
+  const handlePdfUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    if (file.type !== 'application/pdf') {
+      toast.error('Please upload a PDF file');
+      return;
+    }
+    
+    setUploadingPdf(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API}/research/summarize-pdf`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setPdfAnalysis(data);
+        setShowContentModal(true);
+        toast.success('PDF analyzed successfully!');
+      } else {
+        toast.error(data.error || 'Failed to analyze PDF');
+      }
+    } catch (error) {
+      console.error('PDF upload error:', error);
+      toast.error('Failed to analyze PDF');
+    } finally {
+      setUploadingPdf(false);
+      event.target.value = '';
+    }
+  };
+
   return (
     <DashboardLayout>
       <Header 
