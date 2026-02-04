@@ -36,7 +36,8 @@ import {
   User,
   ClipboardList,
   Glasses,
-  FileText
+  FileText,
+  X
 } from 'lucide-react';
 
 const navItems = {
@@ -124,7 +125,7 @@ const navItems = {
   ],
 };
 
-export const Sidebar = () => {
+export const Sidebar = ({ isOpen, onClose, isMobile }) => {
   const { user, logout } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
@@ -133,20 +134,42 @@ export const Sidebar = () => {
   const handleLogout = () => {
     logout();
     navigate('/login');
+    if (onClose) onClose();
+  };
+
+  const handleNavClick = () => {
+    if (isMobile && onClose) {
+      onClose();
+    }
   };
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-[#0d0d0f] border-r border-white/5 flex flex-col z-50">
+    <aside className={`
+      fixed left-0 top-0 h-screen w-64 bg-[#0d0d0f] border-r border-white/5 flex flex-col z-50
+      transition-transform duration-300 ease-in-out
+      ${isMobile ? (isOpen ? 'translate-x-0' : '-translate-x-full') : 'translate-x-0'}
+    `}>
       {/* Logo */}
       <div className="p-6 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center">
-            <GraduationCap className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center">
+              <GraduationCap className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="font-bold text-lg tracking-tight">Cognify</h1>
+              <p className="text-xs text-zinc-500">2026 Platform</p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-bold text-lg tracking-tight">Cognify</h1>
-            <p className="text-xs text-zinc-500">2026 Platform</p>
-          </div>
+          {isMobile && (
+            <button 
+              onClick={onClose}
+              className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+              data-testid="close-sidebar-btn"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -163,6 +186,7 @@ export const Sidebar = () => {
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={handleNavClick}
               data-testid={`nav-${(item.labelKey || item.label).toLowerCase().replace(/\s/g, '-')}`}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 group ${
@@ -184,6 +208,7 @@ export const Sidebar = () => {
       <div className="p-4 border-t border-white/5">
         <NavLink
           to="/settings"
+          onClick={handleNavClick}
           data-testid="nav-settings"
           className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
         >
