@@ -6414,6 +6414,7 @@ async def verify_email_and_complete_registration(email: str, verification_code: 
         "password_hash": pending["password_hash"],
         "full_name": pending["full_name"],
         "role": pending["role"],
+        "linkedin_url": pending.get("linkedin_url"),
         "is_active": True,
         "email_verified": True,
         "created_at": datetime.now(timezone.utc),
