@@ -594,17 +594,29 @@ export default function AIMentorPage() {
             <div className="p-4 border-t border-white/5">
               <div className="flex gap-3">
                 {/* File Upload */}
-                <label className="p-3 rounded-xl bg-zinc-800/50 hover:bg-zinc-800 cursor-pointer transition-colors border border-white/5">
-                  <Upload className="w-5 h-5 text-zinc-400" />
-                  <input type="file" className="hidden" accept="image/*,.pdf,.txt" />
+                <label className={`p-3 rounded-xl cursor-pointer transition-colors border border-white/5 ${uploadingFile ? 'bg-blue-500/20 animate-pulse' : 'bg-zinc-800/50 hover:bg-zinc-800'}`}>
+                  {uploadingFile ? (
+                    <RefreshCw className="w-5 h-5 text-blue-400 animate-spin" />
+                  ) : (
+                    <Upload className="w-5 h-5 text-zinc-400" />
+                  )}
+                  <input 
+                    ref={fileInputRef}
+                    type="file" 
+                    className="hidden" 
+                    accept="image/*,.pdf,.txt,.doc,.docx,.json,.csv"
+                    onChange={handleFileUpload}
+                    disabled={uploadingFile || loading}
+                  />
                 </label>
                 
                 {/* Voice Input */}
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setIsRecording(!isRecording)}
-                  className={`p-3 rounded-xl border border-white/5 ${isRecording ? 'bg-red-500/20 text-red-400' : 'bg-zinc-800/50'}`}
+                  onClick={toggleRecording}
+                  disabled={loading || uploadingFile}
+                  className={`p-3 rounded-xl border border-white/5 ${isRecording ? 'bg-red-500/20 text-red-400 animate-pulse' : 'bg-zinc-800/50'}`}
                 >
                   {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5 text-zinc-400" />}
                 </Button>
@@ -615,17 +627,17 @@ export default function AIMentorPage() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Ask your mentor anything..."
+                    placeholder={uploadingFile ? "Processing file..." : isRecording ? "Listening..." : "Ask your mentor anything..."}
                     data-testid="mentor-chat-input"
                     className="min-h-[56px] max-h-[120px] bg-zinc-800/50 border-white/10 resize-none"
-                    disabled={loading}
+                    disabled={loading || uploadingFile}
                   />
                 </div>
                 
                 {/* Send Button */}
                 <Button
                   onClick={() => handleSend()}
-                  disabled={!input.trim() || loading}
+                  disabled={!input.trim() || loading || uploadingFile}
                   data-testid="mentor-send-btn"
                   className="h-14 w-14 bg-violet-500 hover:bg-violet-600 p-0"
                 >
@@ -634,7 +646,7 @@ export default function AIMentorPage() {
               </div>
               
               <p className="text-xs text-zinc-600 mt-2 text-center">
-                Your mentor remembers your learning history and adapts to your style
+                Upload files, record voice, or type • Your mentor remembers everything
               </p>
             </div>
           </div>
