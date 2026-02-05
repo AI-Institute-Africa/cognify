@@ -442,7 +442,7 @@ export default function CoursesPage() {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Grade Level</Label>
+                      <Label>Grade Level (Zimbabwe)</Label>
                       <Select
                         value={newCourse.grade_level}
                         onValueChange={(value) => setNewCourse({...newCourse, grade_level: value})}
@@ -450,10 +450,18 @@ export default function CoursesPage() {
                         <SelectTrigger className="bg-zinc-800 border-white/10">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-zinc-800 border-white/10">
-                          {['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'Undergraduate', 'Graduate'].map(grade => (
+                        <SelectContent className="bg-zinc-800 border-white/10 max-h-[300px]">
+                          <SelectItem value="header-primary" disabled className="text-zinc-500 font-semibold">Primary School</SelectItem>
+                          {['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'].map(grade => (
                             <SelectItem key={grade} value={grade}>{grade}</SelectItem>
                           ))}
+                          <SelectItem value="header-secondary" disabled className="text-zinc-500 font-semibold">Secondary School</SelectItem>
+                          {['Form 1', 'Form 2', 'Form 3', 'Form 4', 'Form 5', 'Form 6'].map(form => (
+                            <SelectItem key={form} value={form}>{form}</SelectItem>
+                          ))}
+                          <SelectItem value="header-tertiary" disabled className="text-zinc-500 font-semibold">Tertiary</SelectItem>
+                          <SelectItem value="Undergraduate">Undergraduate</SelectItem>
+                          <SelectItem value="Postgraduate">Postgraduate</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
