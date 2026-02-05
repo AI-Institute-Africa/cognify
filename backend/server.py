@@ -6370,7 +6370,7 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
 
 @api_router.post("/auth/forgot-password")
 async def forgot_password(email: str):
-    """Send password reset email (mocked - returns reset code)"""
+    """Send password reset email"""
     user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user:
         # Don't reveal if email exists
@@ -6386,12 +6386,18 @@ async def forgot_password(email: str):
         upsert=True
     )
     
-    # In production, send email. For now, return code (MOCKED)
-    return {
-        "message": "Reset code sent to email",
-        "reset_code": reset_code,  # MOCKED - remove in production
-        "note": "Email sending is mocked. Use this code to reset password."
-    }
+    # Send reset email
+    try:
+        email_result = await send_password_reset_email(
+            to_email=email,
+            reset_code=reset_code,
+            user_name=user.get('full_name', 'User')
+        )
+        logging.info(f"Password reset email sent to {email}: {email_result}")
+    except Exception as email_error:
+        logging.error(f"Failed to send reset email: {email_error}")
+    
+    return {"message": "If the email exists, a reset code has been sent"}
 
 @api_router.post("/auth/reset-password")
 async def reset_password(email: str, reset_code: str, new_password: str):
