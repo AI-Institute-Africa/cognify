@@ -420,24 +420,33 @@ export default function OrgAdminDashboardPage() {
 
           {/* Main Content Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="bg-zinc-900/50 border border-white/10 mb-6">
+            <TabsList className="bg-zinc-900/50 border border-white/10 mb-6 flex-wrap">
               <TabsTrigger value="overview" className="data-[state=active]:bg-blue-500/20">
                 <PieChart className="w-4 h-4 mr-2" />
                 Overview
               </TabsTrigger>
+              <TabsTrigger value="profile" className="data-[state=active]:bg-blue-500/20">
+                <Building2 className="w-4 h-4 mr-2" />
+                Organization Profile
+              </TabsTrigger>
               <TabsTrigger value="teachers" className="data-[state=active]:bg-blue-500/20">
                 <Users className="w-4 h-4 mr-2" />
-                Teachers
+                Staff
               </TabsTrigger>
               <TabsTrigger value="students" className="data-[state=active]:bg-blue-500/20">
                 <GraduationCap className="w-4 h-4 mr-2" />
-                Students
+                Participants
               </TabsTrigger>
               <TabsTrigger value="analytics" className="data-[state=active]:bg-blue-500/20">
                 <TrendingUp className="w-4 h-4 mr-2" />
                 Analytics
               </TabsTrigger>
             </TabsList>
+
+            {/* Organization Profile Tab */}
+            <TabsContent value="profile">
+              <OrgProfileSection dashboard={dashboard} onUpdate={loadDashboardData} />
+            </TabsContent>
 
             <TabsContent value="overview">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
