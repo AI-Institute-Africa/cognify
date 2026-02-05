@@ -88,15 +88,15 @@ export default function StudentAssignmentsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090B] flex">
-      <Sidebar />
+    <DashboardLayout>
+      <Header title={t('assignments')} subtitle="View and submit your assignments" />
       
-      <main className="flex-1 p-8 overflow-y-auto">
+      <div className="p-4 sm:p-6 lg:p-8">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-              <FileText className="w-8 h-8 text-blue-400" />
+            <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
+              <FileText className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400" />
               {t('assignments')}
             </h1>
             <p className="text-zinc-400 mt-2">View and submit your course assignments</p>
