@@ -423,7 +423,7 @@ export default function KTCELearningPage() {
             </div>
           )}
         </div>
-      </main>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }
