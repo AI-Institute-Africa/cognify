@@ -53,6 +53,8 @@ export default function SettingsPage() {
   
   const [fullName, setFullName] = useState(user?.full_name || '');
   const [phone, setPhone] = useState(user?.phone || '');
+  const [linkedinUrl, setLinkedinUrl] = useState(user?.linkedin_url || '');
+  const [bio, setBio] = useState(user?.bio || '');
   const [appearance, setAppearance] = useState('dark');
   
   const [notifications, setNotifications] = useState({
