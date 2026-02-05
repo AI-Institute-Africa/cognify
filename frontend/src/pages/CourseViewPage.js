@@ -800,6 +800,38 @@ export default function CourseViewPage() {
 
             {/* Main Content Area */}
             <div className="lg:col-span-3">
+              {/* Enrollment Gate Banner */}
+              {accessRestricted && (
+                <div className="glass-card p-6 mb-6 border-2 border-amber-500/30 bg-amber-500/5" data-testid="enrollment-gate-banner">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 rounded-full bg-amber-500/20">
+                      <Lock className="w-6 h-6 text-amber-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-amber-400 mb-2">
+                        Full Content Locked
+                      </h3>
+                      <p className="text-zinc-400 mb-4">
+                        {restrictionMessage || 'Complete payment to access all course content, assignments, and features.'}
+                      </p>
+                      <div className="flex items-center gap-4">
+                        <Button 
+                          onClick={() => navigate(`/payment/${courseId}`)}
+                          className="bg-amber-500 hover:bg-amber-600 text-black"
+                          data-testid="unlock-course-btn"
+                        >
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Unlock Full Course - ${coursePrice}
+                        </Button>
+                        <span className="text-sm text-zinc-500">
+                          Viewing preview content only
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               {/* Learning Mode Selector */}
               <div className="glass-card p-4 mb-6">
                 <h3 className="font-semibold mb-4 text-sm uppercase tracking-wider text-zinc-500">
