@@ -7569,15 +7569,22 @@ from services.email_service import (
     generate_reset_token
 )
 
-@auth_router.post("/register-with-verification")
-async def register_with_email_verification(
-    email: str,
-    password: str,
-    full_name: str,
-    role: str = "student",
+class RegisterWithVerificationRequest(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+    role: str = "student"
     linkedin_url: Optional[str] = None
-):
+
+@auth_router.post("/register-with-verification")
+async def register_with_email_verification(request: RegisterWithVerificationRequest):
     """Register new user with email verification required"""
+    email = request.email
+    password = request.password
+    full_name = request.full_name
+    role = request.role
+    linkedin_url = request.linkedin_url
+    
     # Check if user exists
     existing = await db.users.find_one({"email": email})
     if existing:
