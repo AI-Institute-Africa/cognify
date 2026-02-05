@@ -2545,6 +2545,7 @@ async def landing_upload_file(
         
         # Read file content
         content = await file.read()
+        filename = file.filename.lower() if file.filename else ""
         
         # Check file type
         if file.content_type and file.content_type.startswith("image/"):
@@ -2564,8 +2565,109 @@ async def landing_upload_file(
                 text=user_question,
                 image_url=image_data
             ))
+        elif filename.endswith('.pdf'):
+            # Extract text from PDF
+            import tempfile
+            text_content = ""
+            
+            try:
+                import fitz  # PyMuPDF
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+                    tmp.write(content)
+                    tmp_path = tmp.name
+                
+                doc = fitz.open(tmp_path)
+                for page in doc:
+                    text_content += page.get_text()
+                doc.close()
+                os.unlink(tmp_path)
+            except Exception as pdf_error:
+                logging.warning(f"PDF extraction error: {pdf_error}")
+                text_content = content.decode('utf-8', errors='ignore')[:5000]
+            
+            system_message = f"""You are Cognify's AI assistant, analyzing a PDF document.
+            
+            Document content (first 5000 chars):
+            {text_content[:5000]}
+            
+            Provide a helpful summary, answer questions, and offer insights about the document.
+            Encourage the user to sign up for full AI tutoring features."""
+            
+            chat = LlmChat(api_key=api_key, session_id=f"landing-pdf-{uuid.uuid4()}", system_message=system_message)
+            chat.with_model("openai", "gpt-5.2")
+            
+            user_question = question if question else "Please summarize this PDF document and highlight the key points."
+            response = await chat.send_message(UserMessage(text=user_question))
+            
+        elif filename.endswith(('.doc', '.docx')):
+            # Extract text from Word documents
+            import tempfile
+            text_content = ""
+            
+            try:
+                import docx
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp:
+                    tmp.write(content)
+                    tmp_path = tmp.name
+                
+                doc = docx.Document(tmp_path)
+                for para in doc.paragraphs:
+                    text_content += para.text + "\n"
+                os.unlink(tmp_path)
+            except Exception as doc_error:
+                logging.warning(f"DOCX extraction error: {doc_error}")
+                text_content = content.decode('utf-8', errors='ignore')[:5000]
+            
+            system_message = f"""You are Cognify's AI assistant, analyzing a Word document.
+            
+            Document content:
+            {text_content[:5000]}
+            
+            Provide a helpful summary and offer insights.
+            Encourage the user to sign up for full AI tutoring features."""
+            
+            chat = LlmChat(api_key=api_key, session_id=f"landing-doc-{uuid.uuid4()}", system_message=system_message)
+            chat.with_model("openai", "gpt-5.2")
+            
+            user_question = question if question else "Please summarize this document and highlight the key points."
+            response = await chat.send_message(UserMessage(text=user_question))
+            
+        elif filename.endswith(('.ppt', '.pptx')):
+            # Extract text from PowerPoint
+            import tempfile
+            text_content = ""
+            
+            try:
+                from pptx import Presentation
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.pptx') as tmp:
+                    tmp.write(content)
+                    tmp_path = tmp.name
+                
+                prs = Presentation(tmp_path)
+                for slide in prs.slides:
+                    for shape in slide.shapes:
+                        if hasattr(shape, "text"):
+                            text_content += shape.text + "\n"
+                os.unlink(tmp_path)
+            except Exception as ppt_error:
+                logging.warning(f"PPTX extraction error: {ppt_error}")
+                text_content = content.decode('utf-8', errors='ignore')[:5000]
+            
+            system_message = f"""You are Cognify's AI assistant, analyzing a PowerPoint presentation.
+            
+            Presentation content:
+            {text_content[:5000]}
+            
+            Provide a summary of the presentation slides and key points.
+            Encourage the user to sign up for full AI tutoring features."""
+            
+            chat = LlmChat(api_key=api_key, session_id=f"landing-ppt-{uuid.uuid4()}", system_message=system_message)
+            chat.with_model("openai", "gpt-5.2")
+            
+            user_question = question if question else "Please summarize this presentation and highlight the main points."
+            response = await chat.send_message(UserMessage(text=user_question))
         else:
-            # Text analysis for documents
+            # Text analysis for other documents
             try:
                 text_content = content.decode('utf-8', errors='ignore')[:5000]
             except:
