@@ -223,10 +223,22 @@ export default function CourseViewPage() {
         getCourseContent(courseId)
       ]);
       setCourse(courseData);
-      setContent(contentData);
+      
+      // Handle enrollment gate response
+      if (contentData && contentData.access_restricted) {
+        // Student hasn't paid - show restricted content
+        setContent(contentData.contents || []);
+        setAccessRestricted(true);
+        setRestrictionMessage(contentData.message);
+        setCoursePrice(contentData.course_price);
+        toast.info(contentData.message);
+      } else {
+        setContent(Array.isArray(contentData) ? contentData : []);
+        setAccessRestricted(false);
+      }
       
       // Create default lessons if no content exists
-      if (contentData.length === 0) {
+      if ((!contentData || (Array.isArray(contentData) && contentData.length === 0)) && !contentData?.access_restricted) {
         setContent(generateDefaultLessons(courseData));
       }
     } catch (error) {
