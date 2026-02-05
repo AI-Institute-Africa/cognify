@@ -159,10 +159,10 @@ export default function AIMentorPage() {
       formData.append('file', file);
       formData.append('question', input.trim() || 'Please analyze this file and provide key insights.');
       
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('cognify_token');
       const API = process.env.REACT_APP_BACKEND_URL;
       
-      const response = await fetch(`${API}/mentor/upload-document`, {
+      const response = await fetch(`${API}/api/mentor/upload-document`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
