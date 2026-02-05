@@ -81,6 +81,11 @@ export default function CourseViewPage() {
   const [lastActivity, setLastActivity] = useState(Date.now());
   const [researchPapers, setResearchPapers] = useState([]);
   
+  // Enrollment gate state
+  const [accessRestricted, setAccessRestricted] = useState(false);
+  const [restrictionMessage, setRestrictionMessage] = useState('');
+  const [coursePrice, setCoursePrice] = useState(0);
+  
   // Teacher content upload state
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [uploading, setUploading] = useState(false);
