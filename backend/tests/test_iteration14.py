@@ -150,9 +150,21 @@ class TestAcademicLevels:
 class TestCourses:
     """Test courses endpoint"""
     
-    def test_get_courses(self):
+    @pytest.fixture
+    def student_token(self):
+        """Get student token for authenticated requests"""
+        response = requests.post(f"{BASE_URL}/api/auth/login", json={
+            "email": "demo.student@cognify.edu",
+            "password": "demo123"
+        })
+        if response.status_code == 200:
+            return response.json()["access_token"]
+        pytest.skip("Could not login as student")
+    
+    def test_get_courses(self, student_token):
         """GET /api/courses returns courses with course_type, price, is_paid fields"""
-        response = requests.get(f"{BASE_URL}/api/courses")
+        headers = {"Authorization": f"Bearer {student_token}"}
+        response = requests.get(f"{BASE_URL}/api/courses", headers=headers)
         assert response.status_code == 200, f"Failed to get courses: {response.text}"
         data = response.json()
         
@@ -182,8 +194,6 @@ class TestCourses:
                 is_paid = course.get('is_paid', 'N/A')
                 category = course.get('category', 'N/A')
                 print(f"  Course: {name} | Price: ${price} | Paid: {is_paid} | Category: {category}")
-        
-        return data
 
 
 class TestAILandingUpload:
