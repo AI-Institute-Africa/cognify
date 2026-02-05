@@ -8942,6 +8942,66 @@ async def get_org_staff(current_user: dict = Depends(get_current_user)):
     return staff
 
 
+class OrgProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    website: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    social_media: Optional[Dict[str, str]] = None
+
+@api_router.put("/org/profile")
+async def update_org_profile(
+    profile: OrgProfileUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update organization profile including social media links"""
+    if current_user.get('role') != 'org_admin':
+        raise HTTPException(status_code=403, detail="Org admin access required")
+    
+    org_id = current_user.get('org_id')
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization associated")
+    
+    # Build update dict
+    update_data = {"updated_at": datetime.now(timezone.utc)}
+    if profile.name:
+        update_data["name"] = profile.name
+    if profile.description:
+        update_data["description"] = profile.description
+    if profile.website:
+        update_data["website"] = profile.website
+    if profile.phone:
+        update_data["phone"] = profile.phone
+    if profile.address:
+        update_data["address"] = profile.address
+    if profile.social_media:
+        update_data["social_media"] = profile.social_media
+    
+    await db.organizations.update_one(
+        {"id": org_id},
+        {"$set": update_data}
+    )
+    
+    return {"message": "Organization profile updated", "updated_fields": list(update_data.keys())}
+
+@api_router.get("/org/profile")
+async def get_org_profile(current_user: dict = Depends(get_current_user)):
+    """Get organization profile"""
+    if current_user.get('role') != 'org_admin':
+        raise HTTPException(status_code=403, detail="Org admin access required")
+    
+    org_id = current_user.get('org_id')
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization associated")
+    
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    return org
+
+
 @api_router.post("/org/enroll-participant")
 async def org_enroll_participant(
     email: str,
