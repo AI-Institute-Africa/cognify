@@ -671,3 +671,245 @@ export default function OrgAdminDashboardPage() {
     </DashboardLayout>
   );
 }
+
+
+// Organization Profile Section Component
+function OrgProfileSection({ dashboard, onUpdate }) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [profile, setProfile] = useState({
+    name: dashboard?.org_name || '',
+    description: dashboard?.description || '',
+    website: dashboard?.website || '',
+    phone: dashboard?.phone || '',
+    address: dashboard?.address || '',
+    facebook: dashboard?.social_media?.facebook || '',
+    twitter: dashboard?.social_media?.twitter || '',
+    linkedin: dashboard?.social_media?.linkedin || '',
+    instagram: dashboard?.social_media?.instagram || ''
+  });
+
+  useEffect(() => {
+    if (dashboard) {
+      setProfile({
+        name: dashboard.org_name || '',
+        description: dashboard.description || '',
+        website: dashboard.website || '',
+        phone: dashboard.phone || '',
+        address: dashboard.address || '',
+        facebook: dashboard.social_media?.facebook || '',
+        twitter: dashboard.social_media?.twitter || '',
+        linkedin: dashboard.social_media?.linkedin || '',
+        instagram: dashboard.social_media?.instagram || ''
+      });
+    }
+  }, [dashboard]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('cognify_token');
+      const API = process.env.REACT_APP_BACKEND_URL;
+      
+      const response = await fetch(`${API}/api/org/profile`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: profile.name,
+          description: profile.description,
+          website: profile.website,
+          phone: profile.phone,
+          address: profile.address,
+          social_media: {
+            facebook: profile.facebook,
+            twitter: profile.twitter,
+            linkedin: profile.linkedin,
+            instagram: profile.instagram
+          }
+        })
+      });
+      
+      if (response.ok) {
+        toast.success('Organization profile updated!');
+        setEditing(false);
+        onUpdate();
+      } else {
+        toast.error('Failed to update profile');
+      }
+    } catch (error) {
+      console.error('Profile update error:', error);
+      toast.error('Failed to update profile');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Organization Profile</h2>
+        {!editing ? (
+          <Button onClick={() => setEditing(true)}>
+            Edit Profile
+          </Button>
+        ) : (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Save Changes
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Basic Info */}
+        <div className="glass-card p-6 space-y-4">
+          <h3 className="font-semibold flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-blue-400" />
+            Basic Information
+          </h3>
+          
+          <div className="space-y-4">
+            <div>
+              <Label>Organization Name</Label>
+              <Input
+                value={profile.name}
+                onChange={(e) => setProfile({...profile, name: e.target.value})}
+                disabled={!editing}
+                className="mt-1 bg-zinc-800 border-white/10"
+              />
+            </div>
+            
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                value={profile.description}
+                onChange={(e) => setProfile({...profile, description: e.target.value})}
+                disabled={!editing}
+                className="mt-1 bg-zinc-800 border-white/10 min-h-[100px]"
+                placeholder="Describe your organization..."
+              />
+            </div>
+            
+            <div>
+              <Label>Website</Label>
+              <Input
+                value={profile.website}
+                onChange={(e) => setProfile({...profile, website: e.target.value})}
+                disabled={!editing}
+                className="mt-1 bg-zinc-800 border-white/10"
+                placeholder="https://www.example.com"
+              />
+            </div>
+            
+            <div>
+              <Label>Phone</Label>
+              <Input
+                value={profile.phone}
+                onChange={(e) => setProfile({...profile, phone: e.target.value})}
+                disabled={!editing}
+                className="mt-1 bg-zinc-800 border-white/10"
+                placeholder="+263 XXX XXXX"
+              />
+            </div>
+            
+            <div>
+              <Label>Address</Label>
+              <Input
+                value={profile.address}
+                onChange={(e) => setProfile({...profile, address: e.target.value})}
+                disabled={!editing}
+                className="mt-1 bg-zinc-800 border-white/10"
+                placeholder="123 Main Street, City, Country"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Social Media */}
+        <div className="glass-card p-6 space-y-4">
+          <h3 className="font-semibold flex items-center gap-2">
+            <Users className="w-5 h-5 text-violet-400" />
+            Social Media Links
+          </h3>
+          
+          <div className="space-y-4">
+            <div>
+              <Label>Facebook</Label>
+              <Input
+                value={profile.facebook}
+                onChange={(e) => setProfile({...profile, facebook: e.target.value})}
+                disabled={!editing}
+                className="mt-1 bg-zinc-800 border-white/10"
+                placeholder="https://facebook.com/yourpage"
+              />
+            </div>
+            
+            <div>
+              <Label>Twitter / X</Label>
+              <Input
+                value={profile.twitter}
+                onChange={(e) => setProfile({...profile, twitter: e.target.value})}
+                disabled={!editing}
+                className="mt-1 bg-zinc-800 border-white/10"
+                placeholder="https://twitter.com/yourhandle"
+              />
+            </div>
+            
+            <div>
+              <Label>LinkedIn</Label>
+              <Input
+                value={profile.linkedin}
+                onChange={(e) => setProfile({...profile, linkedin: e.target.value})}
+                disabled={!editing}
+                className="mt-1 bg-zinc-800 border-white/10"
+                placeholder="https://linkedin.com/company/yourcompany"
+              />
+            </div>
+            
+            <div>
+              <Label>Instagram</Label>
+              <Input
+                value={profile.instagram}
+                onChange={(e) => setProfile({...profile, instagram: e.target.value})}
+                disabled={!editing}
+                className="mt-1 bg-zinc-800 border-white/10"
+                placeholder="https://instagram.com/yourhandle"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Display current info when not editing */}
+      {!editing && (
+        <div className="glass-card p-6">
+          <h3 className="font-semibold mb-4">Current Organization Stats</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-lg bg-zinc-800/50 text-center">
+              <p className="text-2xl font-bold text-blue-400">{dashboard?.total_staff || 0}</p>
+              <p className="text-sm text-zinc-500">Staff Members</p>
+            </div>
+            <div className="p-4 rounded-lg bg-zinc-800/50 text-center">
+              <p className="text-2xl font-bold text-emerald-400">{dashboard?.total_participants || 0}</p>
+              <p className="text-sm text-zinc-500">Participants</p>
+            </div>
+            <div className="p-4 rounded-lg bg-zinc-800/50 text-center">
+              <p className="text-2xl font-bold text-violet-400">{dashboard?.total_courses || 0}</p>
+              <p className="text-sm text-zinc-500">Courses</p>
+            </div>
+            <div className="p-4 rounded-lg bg-zinc-800/50 text-center">
+              <p className="text-2xl font-bold text-amber-400">${dashboard?.total_revenue?.toFixed(2) || '0.00'}</p>
+              <p className="text-sm text-zinc-500">Revenue</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
