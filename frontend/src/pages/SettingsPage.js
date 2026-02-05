@@ -106,7 +106,7 @@ export default function SettingsPage() {
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      await updateUserProfile(fullName, phone);
+      await updateUserProfile(fullName, phone, linkedinUrl, bio);
       if (refreshUser) await refreshUser();
       toast.success('Profile updated successfully!');
     } catch (error) {
