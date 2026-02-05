@@ -1406,6 +1406,29 @@ async def get_course_content_list(
         query["type"] = content_type
     
     contents = await db.course_contents.find(query, {"_id": 0}).to_list(100)
+    
+    # ENROLLMENT GATE: Check if student has access to paid course content
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if course and course.get('is_paid', False) and current_user.get('role') == 'student':
+        # Check if student has paid for this course
+        enrollment = await db.enrollments.find_one({
+            "course_id": course_id,
+            "student_id": current_user['id'],
+            "payment_status": "completed"
+        })
+        
+        if not enrollment:
+            # Return only preview content (first item) for unpaid courses
+            preview_contents = [c for c in contents if c.get('order', 0) <= 1]
+            return {
+                "contents": [serialize_doc(c) for c in preview_contents],
+                "access_restricted": True,
+                "message": "Please complete payment to access full course content",
+                "course_price": course.get('price', 0),
+                "total_items": len(contents),
+                "preview_items": len(preview_contents)
+            }
+    
     return [serialize_doc(c) for c in contents]
 
 
