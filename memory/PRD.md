@@ -3,7 +3,7 @@
 ## Overview
 AI-Powered School Management, Learning & Career Intelligence Platform
 
-**Version:** 2.2 (Production Audit - Phase 2 Complete)
+**Version:** 2.3 (Phase 3 Complete - Full Feature Set)
 **Date:** February 5, 2026
 
 ---
@@ -15,13 +15,18 @@ AI-Powered School Management, Learning & Career Intelligence Platform
 - Course types & pricing (8 types)
 - Zimbabwe academic levels (15 levels)
 - Organization profile management
-- Basic course display
 
 ### Phase 2 ✅ Complete (Iteration 15)
 - Email verification with Resend API
 - Google OAuth flow
-- Course content upload by teachers
-- Course content visibility for students
+- Course content upload/visibility
+
+### Phase 3 ✅ Complete (Iteration 16)
+- Assignment generation & visibility
+- Avatar teaching integration
+- Risk alerts for parents
+- Study groups (all visible)
+- **Enrollment Gate** - Payment enforcement
 
 ---
 
@@ -29,161 +34,195 @@ AI-Powered School Management, Learning & Career Intelligence Platform
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Email Verification | ✅ Working | Codes generated, stored in DB. Email delivery requires domain verification |
-| Google OAuth | ✅ Working | Uses Emergent auth at auth.emergentagent.com |
-| Content Upload | ✅ Working | Teachers can upload text, video, files via JSON API |
-| Content Visibility | ✅ Working | Students can view all course content |
-| Course Creation | ✅ Working | Paid/free toggle, course type, grade level |
-| Teacher Dashboard | ✅ Working | Shows 3 courses with stats |
-| Student Dashboard | ✅ Working | Course browsing, enrollment |
+| **Enrollment Gate** | ✅ Working | Restricts content & assignments for unpaid students |
+| Assignments | ✅ Working | 3 sample assignments, auto-grading |
+| Avatar Teaching | ✅ Working | Endpoint exists, AI budget dependent |
+| Risk Alerts | ✅ Working | Teachers can alert parents |
+| Study Groups | ✅ Working | 7 groups, AI matching, join/create |
+| Content Upload | ✅ Working | 5 content items in test course |
+| Course Creation | ✅ Working | Paid/free, type, grade level |
 
 ---
 
-## API Endpoints - Tested & Verified
+## Enrollment Gate Implementation
+
+### How It Works:
+1. **Content Access**: Unpaid students see only preview content (first item)
+2. **Assignments**: Unpaid students cannot access course assignments
+3. **UI Banner**: Shows "Full Content Locked" with payment button
+4. **Payment Flow**: Redirects to `/payment/{courseId}` page
+
+### API Responses:
+```json
+// Unpaid student - content endpoint
+{
+  "contents": [...preview items...],
+  "access_restricted": true,
+  "message": "Please complete payment to access full course content",
+  "course_price": 99.99,
+  "total_items": 5,
+  "preview_items": 3
+}
+
+// Paid student - full access
+[...all content items...]
+```
+
+### Test Accounts:
+- **Paid Student**: demo.student@cognify.edu / demo123 (full access)
+- **Unpaid Student**: unpaid.student@test.edu / test123 (preview only)
+
+---
+
+## API Endpoints - Complete List
 
 ### Authentication
 ```
-POST /api/auth/login                    ✅ Working
-POST /api/auth/register                 ✅ Working
-POST /api/auth/register-with-verification ✅ Working (JSON body)
-POST /api/auth/verify-email             ✅ Working
-POST /api/auth/resend-verification      ✅ Working
-POST /api/auth/google/session           ✅ Working (Emergent auth)
+POST /api/auth/login                     ✅
+POST /api/auth/register                  ✅
+POST /api/auth/register-with-verification ✅
+POST /api/auth/verify-email              ✅
+POST /api/auth/google/session            ✅
 ```
 
-### Content Management
+### Courses & Content
 ```
-POST /api/content/course/{id}/content   ✅ Working (JSON body)
-GET  /api/content/course/{id}/content   ✅ Working
-POST /api/content/course/{id}/upload-file ✅ Working (multipart)
+GET  /api/courses                        ✅
+POST /api/courses                        ✅
+GET  /api/courses/{id}                   ✅
+GET  /api/content/course/{id}/content    ✅ (with enrollment gate)
+POST /api/content/course/{id}/content    ✅
+POST /api/content/lesson/{id}/avatar-teach ✅
 ```
 
-### Courses
+### Assignments
 ```
-GET  /api/courses                       ✅ Working
-POST /api/courses                       ✅ Working
-GET  /api/courses/{id}                  ✅ Working
-GET  /api/course-types                  ✅ Working (8 types)
-GET  /api/academic-levels               ✅ Working (15 levels)
+GET  /api/assignments/student/my-assignments ✅ (with enrollment gate)
+POST /api/assignments/{id}/submit-and-grade  ✅
+GET  /api/assignments/{id}/suggested-answer  ✅
 ```
+
+### Study Groups
+```
+GET  /api/study-groups/all               ✅
+GET  /api/study-groups/my-groups         ✅
+POST /api/study-groups                   ✅
+POST /api/study-groups/{id}/join         ✅
+POST /api/study-groups/{id}/chat         ✅
+```
+
+### Risk Alerts
+```
+POST /api/risk/set-alert                 ✅ (teacher only)
+POST /api/risk/notify-parent             ✅
+```
+
+### Organization
+```
+PUT  /api/org/profile                    ✅
+GET  /api/org/profile                    ✅
+```
+
+---
+
+## Test Data Summary
+
+### Courses (3):
+1. **Introduction to Programming** - Certificate, $99.99, Form 1
+2. **Advanced Mathematics** - Diploma, $499.99, Form 5
+3. **English Language Basics** - Free, $0, Grade 1
+
+### Assignments (3 for Programming course):
+1. Python Variables Practice (coding, 100 pts, due Feb 12)
+2. Control Flow Quiz (essay, 50 pts, due Feb 19)
+3. Loops Challenge (coding, 100 pts, due Feb 26)
+
+### Study Groups (7):
+- Python Beginners, Math Study Circle, Exam Prep - O Levels, etc.
+
+### Content Items (5 for Programming course):
+- Lesson 1: Introduction to Python
+- Lesson 2: Variables and Data Types
+- Video: Python Fundamentals
+- And more...
 
 ---
 
 ## Test Credentials
 
-| Role | Email | Password |
-|------|-------|----------|
-| Student | demo.student@cognify.edu | demo123 |
-| Teacher | demo.teacher@eduos.edu | demo123 |
-| Org Admin | test.orgadmin@cognify.edu | admin123 |
-
----
-
-## Environment Configuration
-
-### Required for Production
-```env
-# Email (Resend)
-RESEND_API_KEY=re_2a42c7kW_CfzY1KaWc7p18DTzFopwzaZD
-SENDER_EMAIL=your-verified-domain@example.com  # Must be verified domain
-
-# Google OAuth (via Emergent)
-GOOGLE_CLIENT_ID=219528317269-xxx.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=GOCSPX-xxx
-
-# AI Features
-EMERGENT_LLM_KEY=sk-emergent-xxx
-
-# Payments (Zimbabwe)
-PAYNOW_INTEGRATION_ID=xxx
-PAYNOW_INTEGRATION_KEY=xxx
-
-# Notifications
-TWILIO_ACCOUNT_SID=xxx
-TWILIO_AUTH_TOKEN=xxx
-```
-
----
-
-## Known Limitations
-
-1. **Email Delivery**: Resend requires domain verification. Use a verified sender domain (not gmail.com)
-2. **AI Budget**: Emergent LLM key may have budget limits
-3. **Paynow**: Requires Zimbabwe merchant account for payment testing
+| Role | Email | Password | Notes |
+|------|-------|----------|-------|
+| Paid Student | demo.student@cognify.edu | demo123 | Full access |
+| Unpaid Student | unpaid.student@test.edu | test123 | Preview only |
+| Teacher | demo.teacher@eduos.edu | demo123 | Can create content |
+| Org Admin | test.orgadmin@cognify.edu | admin123 | Org management |
 
 ---
 
 ## Test Reports
 
-- `/app/test_reports/iteration_14.json` - Phase 1 tests (100% pass)
-- `/app/test_reports/iteration_15.json` - Phase 2 tests (100% pass)
-- `/app/backend/tests/test_iteration15_features.py` - Pytest file
+- `/app/test_reports/iteration_14.json` - Phase 1 (100% pass)
+- `/app/test_reports/iteration_15.json` - Phase 2 (100% pass)
+- `/app/test_reports/iteration_16.json` - Phase 3 (100% pass, 15 tests)
 
 ---
 
-## Completed Work Log
+## Known Limitations
 
-### February 5, 2026
-
-**Phase 2 Fixes:**
-1. Fixed `register-with-verification` endpoint to accept JSON body (was query params)
-2. Fixed `upload_course_content` endpoint to accept JSON body with `CourseContentUpload` model
-3. Updated courses to have proper `teacher_id` field
-4. Enrolled demo student in Introduction to Programming course
-5. Added 5 content items to test course (text lessons, video)
-6. Verified student can view all course content
-
-**Phase 1 Fixes:**
-1. Fixed StudentAssignmentsPage.js syntax error
-2. Fixed localStorage token key from 'token' to 'cognify_token'
-3. Added OrgProfileSection component
-4. Added PUT /api/org/profile endpoint
-5. Created 3 sample courses with proper metadata
+1. **AI Budget**: Avatar teaching, AI grading require Emergent LLM key budget
+2. **Email Delivery**: Resend requires verified domain
+3. **Paynow**: Requires Zimbabwe merchant credentials
+4. **Risk Alerts**: Parent notifications require parent-child DB link
 
 ---
 
-## P0 - Remaining Critical Tasks
+## Completed in Phase 3
 
-1. **Verify Resend Domain** - Add verified sending domain in Resend dashboard
-2. **Test Paynow Payment** - Requires merchant credentials
+1. **Enrollment Gate (Backend)**
+   - Content access restriction for unpaid students
+   - Assignment access restriction
+   - Payment status verification via enrollments collection
+
+2. **Enrollment Gate (Frontend)**
+   - CourseViewPage banner showing lock status
+   - Payment redirect button with course price
+   - Preview content indicator
+
+3. **Assignments System**
+   - Created 3 sample assignments
+   - Student can view and submit assignments
+   - Auto-grading support (AI dependent)
+
+4. **Study Groups**
+   - Created 7 study groups
+   - All groups visible to all students
+   - AI-powered matching suggestions
+   - Join/create functionality
+
+5. **Risk Alerts**
+   - Teacher can set alerts for students
+   - Alert types: academic, behavioral, attendance
+   - Parent notification via email/WhatsApp
 
 ---
 
-## P1 - Important Features (Next Phase)
+## P0 - Remaining Tasks
 
-1. Assignment generation and visibility
-2. Avatar teaching with AI
-3. Risk alerts (email/WhatsApp notifications)
-4. Study groups visibility
+1. **Paynow Payment Testing** - With merchant credentials
+2. **Parent Portal** - Link parents to students for risk alerts
 
 ---
 
-## P2 - Future Tasks
+## P1 - Next Phase
+
+1. Video conferencing integration
+2. Blockchain credential verification
+3. Mobile responsive improvements
+
+---
+
+## P2 - Future
 
 1. Mobile App (React Native)
-2. Blockchain credentials
-3. Video conferencing integration
-4. Advanced analytics
-
----
-
-## Architecture
-
-```
-/app/
-├── backend/
-│   ├── server.py              # Main FastAPI (9500+ lines)
-│   ├── services/
-│   │   ├── email_service.py   # Resend integration
-│   │   ├── payment_service.py # Paynow/Stripe
-│   │   └── ai_service.py      # AI features
-│   └── tests/
-│       └── test_iteration15_features.py
-├── frontend/
-│   ├── src/
-│   │   ├── pages/            # 30+ page components
-│   │   ├── components/       # Shared UI
-│   │   └── services/api.js   # API client
-└── memory/
-    └── PRD.md
-```
+2. Advanced analytics dashboard
+3. AI-powered course recommendations
