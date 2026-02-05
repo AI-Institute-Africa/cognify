@@ -1354,14 +1354,19 @@ async def clone_voice(
 
 # ==================== COURSE CONTENT UPLOAD ====================
 
+class CourseContentUpload(BaseModel):
+    content_type: str
+    title: str
+    description: str = ""
+    content_url: str = ""
+    content_text: str = ""
+    text: str = ""
+    order: int = 0
+
 @content_router.post("/course/{course_id}/content")
 async def upload_course_content(
     course_id: str,
-    content_type: str,
-    title: str,
-    description: str = "",
-    content_url: str = "",
-    content_text: str = "",
+    content: CourseContentUpload,
     current_user: dict = Depends(get_current_user)
 ):
     """Upload content to a course"""
@@ -1372,21 +1377,22 @@ async def upload_course_content(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
-    content = {
+    content_doc = {
         "id": str(uuid.uuid4()),
         "course_id": course_id,
-        "type": content_type,
-        "title": title,
-        "description": description,
-        "url": content_url,
-        "text": content_text,
+        "type": content.content_type,
+        "title": content.title,
+        "description": content.description,
+        "url": content.content_url,
+        "text": content.content_text or content.text,
+        "order": content.order,
         "uploaded_by": current_user['id'],
         "created_at": datetime.now(timezone.utc).isoformat()
     }
-    await db.course_contents.insert_one(content)
-    content.pop('_id', None)
+    await db.course_contents.insert_one(content_doc)
+    content_doc.pop('_id', None)
     
-    return serialize_doc(content)
+    return serialize_doc(content_doc)
 
 @content_router.get("/course/{course_id}/content")
 async def get_course_content_list(
