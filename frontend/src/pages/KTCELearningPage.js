@@ -29,6 +29,7 @@ import { ktceOptimizePath, ktceGetCompressedLesson, getCourse } from '../service
 
 export default function KTCELearningPage() {
   const { courseId } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -42,6 +43,25 @@ export default function KTCELearningPage() {
   const [loading, setLoading] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [lessonLoading, setLessonLoading] = useState(false);
+  const [conceptLearning, setConceptLearning] = useState(null);
+
+  // Load concept from Knowledge Graph navigation
+  useEffect(() => {
+    const conceptId = searchParams.get('concept');
+    if (conceptId) {
+      // Load from session storage if navigating from knowledge graph
+      const storedLearning = sessionStorage.getItem('currentLearning');
+      if (storedLearning) {
+        try {
+          const learningData = JSON.parse(storedLearning);
+          setConceptLearning(learningData);
+          toast.success(`Learning: ${learningData.concept_name}`);
+        } catch (e) {
+          console.error('Failed to parse learning data:', e);
+        }
+      }
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (courseId) {
