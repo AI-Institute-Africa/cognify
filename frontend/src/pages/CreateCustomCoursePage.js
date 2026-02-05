@@ -88,7 +88,7 @@ export default function CreateCustomCoursePage() {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('cognify_token');
       const response = await fetch(`${API}/courses/generate-custom`, {
         method: 'POST',
         headers: {
@@ -135,7 +135,7 @@ export default function CreateCustomCoursePage() {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('cognify_token');
       const response = await fetch(`${API}/courses/${generatedCourse.course_id}/publish`, {
         method: 'POST',
         headers: {

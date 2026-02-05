@@ -118,7 +118,7 @@ export default function LiveResearchPage() {
   const handleCrawlContent = async (url) => {
     setCrawlingUrl(url);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('cognify_token');
       const response = await fetch(`${API}/research/crawl-content?url=${encodeURIComponent(url)}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -159,7 +159,7 @@ export default function LiveResearchPage() {
       const formData = new FormData();
       formData.append('file', file);
       
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('cognify_token');
       const response = await fetch(`${API}/research/summarize-pdf`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },

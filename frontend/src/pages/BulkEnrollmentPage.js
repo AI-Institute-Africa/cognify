@@ -65,7 +65,7 @@ export default function BulkEnrollmentPage() {
 
   const loadCourses = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('cognify_token');
       const response = await fetch(`${API}/courses`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -80,7 +80,7 @@ export default function BulkEnrollmentPage() {
 
   const loadPendingEnrollments = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('cognify_token');
       const response = await fetch(`${API}/org/pending-enrollments`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -159,7 +159,7 @@ export default function BulkEnrollmentPage() {
     setEnrollmentResults([]);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('cognify_token');
       const response = await fetch(`${API}/org/bulk-enroll`, {
         method: 'POST',
         headers: {
@@ -216,7 +216,7 @@ export default function BulkEnrollmentPage() {
   // Resend invitation
   const resendInvitation = async (enrollmentId) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('cognify_token');
       const response = await fetch(`${API}/org/resend-invitation/${enrollmentId}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }

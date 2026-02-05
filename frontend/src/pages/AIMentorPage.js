@@ -236,7 +236,7 @@ export default function AIMentorPage() {
       const formData = new FormData();
       formData.append('file', audioBlob, 'recording.webm');
       
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('cognify_token');
       const API = process.env.REACT_APP_BACKEND_URL;
       
       // First transcribe the audio
