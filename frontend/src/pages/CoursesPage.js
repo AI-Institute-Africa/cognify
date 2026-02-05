@@ -477,6 +477,79 @@ export default function CoursesPage() {
                     </div>
                   </div>
                   
+                  {/* Course Type */}
+                  <div className="space-y-2">
+                    <Label>Course Type</Label>
+                    <Select
+                      value={newCourse.course_type}
+                      onValueChange={(value) => {
+                        const courseType = COURSE_CATEGORIES.find(c => c.id === value);
+                        setNewCourse({
+                          ...newCourse, 
+                          course_type: value,
+                          category: value,
+                          price: courseType?.price || 0,
+                          is_free: (courseType?.price || 0) === 0,
+                          is_paid: (courseType?.price || 0) > 0
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="bg-zinc-800 border-white/10">
+                        <SelectValue placeholder="Select course type" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-zinc-800 border-white/10">
+                        {COURSE_CATEGORIES.map(cat => (
+                          <SelectItem key={cat.id} value={cat.id}>
+                            <span className="flex items-center gap-2">
+                              <cat.icon className="w-4 h-4" />
+                              {cat.name} {cat.price > 0 ? `- $${cat.price}` : '- Free'}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Paid/Free Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-lg border border-white/10">
+                    <div>
+                      <Label className="text-base">Pricing</Label>
+                      <p className="text-sm text-zinc-400">Is this a paid course?</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setNewCourse({...newCourse, is_free: true, is_paid: false, price: 0})}
+                        className={`px-4 py-2 rounded-lg transition-colors ${newCourse.is_free ? 'bg-emerald-500 text-white' : 'bg-zinc-700 text-zinc-400'}`}
+                      >
+                        Free
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewCourse({...newCourse, is_free: false, is_paid: true})}
+                        className={`px-4 py-2 rounded-lg transition-colors ${newCourse.is_paid && !newCourse.is_free ? 'bg-blue-500 text-white' : 'bg-zinc-700 text-zinc-400'}`}
+                      >
+                        Paid
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Price Input (if paid) */}
+                  {newCourse.is_paid && !newCourse.is_free && (
+                    <div className="space-y-2">
+                      <Label>Price (USD)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={newCourse.price}
+                        onChange={(e) => setNewCourse({...newCourse, price: parseFloat(e.target.value) || 0})}
+                        placeholder="Enter price"
+                        className="bg-zinc-800 border-white/10"
+                      />
+                    </div>
+                  )}
+                  
                   <div className="flex justify-end gap-3 pt-4">
                     <Button type="button" variant="ghost" onClick={() => setShowCreateDialog(false)}>
                       Cancel
