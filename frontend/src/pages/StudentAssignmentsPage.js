@@ -183,58 +183,57 @@ export default function StudentAssignmentsPage() {
             </div>
           )}
         </div>
-      </main>
 
-      {/* Submission Modal */}
-      {selectedAssignment && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="glass-card p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-2">{selectedAssignment.title}</h2>
-            <p className="text-zinc-400 mb-6">{selectedAssignment.description}</p>
-            
-            <div className="space-y-4">
-              <div>
-                <Label>Your Answer</Label>
-                <textarea
-                  value={submissionContent}
-                  onChange={(e) => setSubmissionContent(e.target.value)}
-                  className="w-full h-64 mt-2 p-4 bg-zinc-900/50 border border-white/10 rounded-lg focus:border-blue-500/50 outline-none resize-none"
-                  placeholder="Type your answer here..."
-                />
-              </div>
+        {/* Submission Modal */}
+        {selectedAssignment && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="glass-card p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <h2 className="text-2xl font-bold mb-2">{selectedAssignment.title}</h2>
+              <p className="text-zinc-400 mb-6">{selectedAssignment.description}</p>
               
-              <div className="flex gap-4 justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setSelectedAssignment(null);
-                    setSubmissionContent('');
-                  }}
-                >
-                  {t('cancel')}
-                </Button>
-                <Button
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className="bg-blue-500 hover:bg-blue-600"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4 mr-2" />
-                      Submit & Grade
-                    </>
-                  )}
-                </Button>
+              <div className="space-y-4">
+                <div>
+                  <Label>Your Answer</Label>
+                  <textarea
+                    value={submissionContent}
+                    onChange={(e) => setSubmissionContent(e.target.value)}
+                    className="w-full h-64 mt-2 p-4 bg-zinc-900/50 border border-white/10 rounded-lg focus:border-blue-500/50 outline-none resize-none"
+                    placeholder="Type your answer here..."
+                  />
+                </div>
+                
+                <div className="flex gap-4 justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedAssignment(null);
+                      setSubmissionContent('');
+                    }}
+                  >
+                    {t('cancel')}
+                  </Button>
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                    className="bg-blue-500 hover:bg-blue-600"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Submit & Grade
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
       </div>
     </DashboardLayout>
   );
