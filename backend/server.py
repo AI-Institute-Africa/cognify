@@ -8476,9 +8476,27 @@ async def get_student_assignments(current_user: dict = Depends(get_current_user)
     profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
     enrolled_courses = profile.get('enrolled_courses', []) if profile else []
     
-    # Get assignments for enrolled courses
+    # ENROLLMENT GATE: Filter to only paid courses
+    paid_course_ids = []
+    for course_id in enrolled_courses:
+        course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+        if course:
+            if not course.get('is_paid', False):
+                # Free course - always include
+                paid_course_ids.append(course_id)
+            else:
+                # Paid course - check enrollment payment status
+                enrollment = await db.enrollments.find_one({
+                    "course_id": course_id,
+                    "student_id": current_user['id'],
+                    "payment_status": "completed"
+                })
+                if enrollment:
+                    paid_course_ids.append(course_id)
+    
+    # Get assignments for paid/free enrolled courses only
     assignments = await db.assignments.find(
-        {"course_id": {"$in": enrolled_courses}},
+        {"course_id": {"$in": paid_course_ids}},
         {"_id": 0, "suggested_answer": 0}  # Don't show suggested answer to students
     ).to_list(length=100)
     
