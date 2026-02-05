@@ -266,6 +266,30 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label>LinkedIn Profile URL</Label>
+                  <Input 
+                    value={linkedinUrl}
+                    onChange={(e) => setLinkedinUrl(e.target.value)}
+                    placeholder="https://linkedin.com/in/yourprofile"
+                    className="bg-zinc-900/50 border-white/10"
+                    data-testid="linkedin-url-input"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Bio</Label>
+                <textarea 
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="Tell us about yourself..."
+                  className="w-full p-3 rounded-md bg-zinc-900/50 border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-blue-500/50 min-h-[100px]"
+                  data-testid="bio-input"
+                />
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="space-y-2 flex-1">
                   <Label>Role</Label>
                   <Input 
                     defaultValue={user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1)} 
