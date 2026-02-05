@@ -6316,6 +6316,56 @@ async def change_password(
     
     return {"message": "Password changed successfully"}
 
+
+@api_router.put("/user/profile")
+async def update_user_profile(
+    full_name: Optional[str] = None,
+    linkedin_url: Optional[str] = None,
+    phone: Optional[str] = None,
+    bio: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update user profile information including LinkedIn URL"""
+    update_fields = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    
+    if full_name:
+        update_fields["full_name"] = full_name
+    if linkedin_url is not None:
+        update_fields["linkedin_url"] = linkedin_url
+    if phone is not None:
+        update_fields["phone"] = phone
+    if bio is not None:
+        update_fields["bio"] = bio
+    
+    await db.users.update_one(
+        {"id": current_user['id']},
+        {"$set": update_fields}
+    )
+    
+    # Return updated user
+    user = await db.users.find_one({"id": current_user['id']}, {"_id": 0, "password_hash": 0})
+    return {"message": "Profile updated successfully", "user": serialize_doc(user)}
+
+
+@api_router.get("/user/profile")
+async def get_user_profile(current_user: dict = Depends(get_current_user)):
+    """Get full user profile"""
+    user = await db.users.find_one({"id": current_user['id']}, {"_id": 0, "password_hash": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get student/teacher profile if exists
+    profile = None
+    if user.get('role') == 'student':
+        profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+    elif user.get('role') == 'teacher':
+        profile = await db.teacher_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+    
+    return {
+        "user": serialize_doc(user),
+        "profile": serialize_doc(profile) if profile else None
+    }
+
 # ==================== FORGOT PASSWORD ====================
 
 @api_router.post("/auth/forgot-password")
