@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://learnquest-hub-7.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://edusync-34.preview.emergentagent.com')
 
 # Test credentials
 TEACHER_CREDS = {"email": "demo.teacher@eduos.edu", "password": "demo123"}
