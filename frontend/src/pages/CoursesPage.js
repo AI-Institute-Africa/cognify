@@ -99,14 +99,23 @@ export default function CoursesPage() {
     code: '',
     name: '',
     description: '',
-    grade_level: 'Grade 10',
+    grade_level: 'Grade 1',
     credits: 3,
     max_students: 30,
     category: 'certificate',
+    course_type: 'certificate',
     price: 0,
     is_paid: false,
+    is_free: true,
     duration_weeks: 4
   });
+
+  // Zimbabwe Academic Levels
+  const ZIMBABWE_LEVELS = [
+    'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7',
+    'Form 1', 'Form 2', 'Form 3', 'Form 4', 'Form 5', 'Form 6',
+    'Undergraduate', 'Postgraduate'
+  ];
 
   useEffect(() => {
     loadCourses();
