@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Sidebar } from '../components/Sidebar';
+import { DashboardLayout } from '../components/DashboardLayout';
+import { Header } from '../components/Header';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Button } from '../components/ui/button';
