@@ -241,12 +241,34 @@ export default function KnowledgeGraphPage() {
 
   const handleStartLearning = async (conceptId) => {
     try {
-      await updateConceptState(conceptId, 0.1, 0, false);
-      await loadData();
-      toast.success('Started learning!');
-      setSelectedConcept(null);
+      // Start learning via API
+      const token = localStorage.getItem('cognify_token');
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/advanced/concept/${conceptId}/start-learning`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        await loadData();
+        setSelectedConcept(null);
+        
+        // Navigate to the concept learning page with the content
+        // For now, show the content in a modal or toast
+        toast.success(`Started learning: ${data.concept_name}!`);
+        
+        // Store learning content and navigate
+        sessionStorage.setItem('currentLearning', JSON.stringify(data));
+        window.location.href = `/ktce-learning?concept=${conceptId}`;
+      } else {
+        toast.error('Failed to start learning');
+      }
     } catch (error) {
-      toast.error('Failed to update progress');
+      console.error('Start learning error:', error);
+      toast.error('Failed to start learning');
     }
   };
 
