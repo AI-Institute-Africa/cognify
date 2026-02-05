@@ -8751,13 +8751,19 @@ async def set_student_alert(
     notes: str,
     current_user: dict = Depends(get_current_user)
 ):
-    """Set an alert for a student"""
+    """Set an alert for a student and notify parents"""
     if current_user.get('role') not in ['teacher', 'admin']:
         raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    # Get student info
+    student = await db.users.find_one({"id": student_id}, {"_id": 0, "password_hash": 0})
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
     
     alert = {
         "id": str(uuid.uuid4()),
         "student_id": student_id,
+        "student_name": student.get('full_name'),
         "alert_type": alert_type,
         "severity": severity,
         "notes": notes,
@@ -8768,7 +8774,67 @@ async def set_student_alert(
     }
     await db.student_alerts.insert_one(alert)
     
-    return {"message": "Alert set", "alert_id": alert["id"]}
+    # Send notification to parents
+    notifications_sent = []
+    
+    # Find parent connections
+    parent_connections = await db.parent_children.find(
+        {"child_id": student_id},
+        {"_id": 0}
+    ).to_list(10)
+    
+    for connection in parent_connections:
+        parent = await db.users.find_one({"id": connection.get('parent_id')}, {"_id": 0})
+        if parent:
+            # Send email notification
+            try:
+                severity_emoji = "🔴" if severity == "high" else ("🟠" if severity == "medium" else "🟡")
+                email_body = f"""
+                {severity_emoji} Alert: {alert_type}
+                
+                Student: {student.get('full_name')}
+                Severity: {severity.upper()}
+                
+                Details: {notes}
+                
+                Teacher: {current_user.get('full_name')}
+                
+                Please log in to Cognify to see more details and respond.
+                """
+                
+                email_result = await send_notification_email(
+                    to_email=parent.get('email'),
+                    user_name=parent.get('full_name', 'Parent'),
+                    notification_title=f"Student Alert: {alert_type} - {severity.upper()}",
+                    notification_body=email_body
+                )
+                notifications_sent.append({
+                    "parent_id": parent['id'],
+                    "parent_email": parent.get('email'),
+                    "email_sent": email_result.get('success', False)
+                })
+            except Exception as email_error:
+                logging.error(f"Failed to send parent email: {email_error}")
+            
+            # Try to send WhatsApp if phone available
+            if parent.get('phone'):
+                try:
+                    whatsapp_msg = f"🚨 Cognify Alert\n\nStudent: {student.get('full_name')}\nAlert: {alert_type}\nSeverity: {severity.upper()}\n\nDetails: {notes}\n\nPlease check your email or login to Cognify for more information."
+                    
+                    whatsapp_result = await send_whatsapp(
+                        phone_number=parent.get('phone'),
+                        message=whatsapp_msg
+                    )
+                    if notifications_sent:
+                        notifications_sent[-1]['whatsapp_sent'] = whatsapp_result.get('success', False)
+                except Exception as wa_error:
+                    logging.error(f"Failed to send WhatsApp: {wa_error}")
+    
+    return {
+        "message": "Alert set",
+        "alert_id": alert["id"],
+        "notifications_sent": notifications_sent
+    }
 
 
 # ==================== CREDENTIAL ISSUANCE FIX ====================
