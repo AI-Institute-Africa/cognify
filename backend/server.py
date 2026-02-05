@@ -5557,8 +5557,11 @@ async def avatar_teach_lesson(
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         
-        # Get lesson content
-        lesson = await db.course_content.find_one({"id": lesson_id}, {"_id": 0})
+        # Get lesson content from course_contents collection
+        lesson = await db.course_contents.find_one({"id": lesson_id}, {"_id": 0})
+        if not lesson:
+            # Try alternative collections
+            lesson = await db.lessons.find_one({"id": lesson_id}, {"_id": 0})
         if not lesson:
             raise HTTPException(status_code=404, detail="Lesson not found")
         
@@ -5574,10 +5577,12 @@ async def avatar_teach_lesson(
         chat = LlmChat(api_key=api_key, session_id=f"avatar-teach-{lesson_id}", system_message=system_msg)
         chat.with_model("openai", "gpt-5.2")
         
-        content_text = lesson.get('content_text', lesson.get('description', 'No content available'))
+        content_text = lesson.get('text', lesson.get('content_text', lesson.get('description', 'No content available')))
+        lesson_title = lesson.get('title', 'Lesson')
+        
         prompt = f"""Convert this lesson into an engaging teaching script:
 
-Title: {lesson.get('title', 'Lesson')}
+Title: {lesson_title}
 Content: {content_text[:3000]}
 
 Create a natural, conversational teaching script that an AI avatar would speak."""
@@ -5587,23 +5592,20 @@ Create a natural, conversational teaching script that an AI avatar would speak."
         # Try to generate TTS audio
         audio_url = None
         try:
-            tts_response = await db.tts_cache.find_one({"text_hash": hash(teaching_script[:500])}, {"_id": 0})
-            if not tts_response:
-                # Generate TTS (simplified for MVP)
-                from emergentintegrations.llm.openai.tts import OpenAITextToSpeech
-                tts = OpenAITextToSpeech(api_key=api_key)
-                audio_bytes = await asyncio.to_thread(
-                    tts.text_to_speech,
-                    text=teaching_script[:4000],
-                    voice=voice_id
-                )
-                if audio_bytes:
-                    audio_id = str(uuid.uuid4())
-                    os.makedirs("/app/generated_audio", exist_ok=True)
-                    audio_path = f"/app/generated_audio/{audio_id}.mp3"
-                    with open(audio_path, "wb") as f:
-                        f.write(audio_bytes)
-                    audio_url = f"/api/content/audio/{audio_id}"
+            from emergentintegrations.llm.openai.tts import OpenAITextToSpeech
+            tts = OpenAITextToSpeech(api_key=api_key)
+            audio_bytes = await asyncio.to_thread(
+                tts.text_to_speech,
+                text=teaching_script[:4000],
+                voice=voice_id
+            )
+            if audio_bytes:
+                audio_id = str(uuid.uuid4())
+                os.makedirs("/app/generated_audio", exist_ok=True)
+                audio_path = f"/app/generated_audio/{audio_id}.mp3"
+                with open(audio_path, "wb") as f:
+                    f.write(audio_bytes)
+                audio_url = f"/api/content/audio/{audio_id}"
         except Exception as tts_error:
             logging.warning(f"TTS generation failed: {tts_error}")
         
