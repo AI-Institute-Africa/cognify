@@ -60,7 +60,7 @@ export default function PaymentPage() {
       return;
     }
 
-    if ((selectedMethod === 'ecocash' || selectedMethod === 'innbucks') && !phoneNumber) {
+    if ((selectedMethod === 'ecocash' || selectedMethod === 'innbucks' || selectedMethod === 'paynow') && !phoneNumber) {
       toast.error('Please enter your phone number');
       return;
     }
@@ -68,36 +68,97 @@ export default function PaymentPage() {
     setProcessing(true);
     try {
       const token = localStorage.getItem('cognify_token');
-      const response = await fetch(`${API_URL}/api/payments/initiate`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          course_id: courseId,
-          amount: course?.price || 99.99,
-          method: selectedMethod,
-          phone_number: phoneNumber
-        })
-      });
+      
+      // Use Paynow for EcoCash and InnBucks
+      if (selectedMethod === 'ecocash' || selectedMethod === 'innbucks' || selectedMethod === 'paynow') {
+        const response = await fetch(`${API_URL}/api/payments/paynow/initiate`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            course_id: courseId,
+            phone_number: phoneNumber,
+            amount: course?.price || 99.99,
+            payment_method: selectedMethod === 'paynow' ? 'ecocash' : selectedMethod
+          })
+        });
 
-      if (response.ok) {
-        const result = await response.json();
-        setPaymentResult(result);
-        
-        // For MVP, auto-confirm payment after 3 seconds
-        setTimeout(async () => {
-          const confirmRes = await fetch(`${API_URL}/api/payments/confirm/${result.payment_id}`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
+        if (response.ok) {
+          const result = await response.json();
+          setPaymentResult(result);
           
-          if (confirmRes.ok) {
-            toast.success('Payment successful! You are now enrolled.');
-            setTimeout(() => navigate(`/course/${courseId}`), 2000);
-          }
-        }, 3000);
+          // Poll for payment status
+          const pollInterval = setInterval(async () => {
+            try {
+              const statusRes = await fetch(`${API_URL}/api/payments/paynow/check-status?poll_url=${encodeURIComponent(result.poll_url)}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              
+              if (statusRes.ok) {
+                const statusData = await statusRes.json();
+                if (statusData.paid || statusData.status === 'Paid') {
+                  clearInterval(pollInterval);
+                  toast.success('Payment successful! You are now enrolled.');
+                  
+                  // Enroll user in course
+                  await fetch(`${API_URL}/api/courses/${courseId}/enroll`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  
+                  setTimeout(() => navigate(`/course/${courseId}`), 2000);
+                } else if (statusData.status === 'Failed' || statusData.status === 'Cancelled') {
+                  clearInterval(pollInterval);
+                  toast.error('Payment failed or cancelled. Please try again.');
+                  setPaymentResult(null);
+                }
+              }
+            } catch (err) {
+              console.error('Status check error:', err);
+            }
+          }, 5000); // Check every 5 seconds
+          
+          // Stop polling after 5 minutes
+          setTimeout(() => clearInterval(pollInterval), 300000);
+        } else {
+          const errorData = await response.json();
+          toast.error(errorData.detail || 'Payment initiation failed');
+        }
+      } else {
+        // Card payment - use Stripe
+        const response = await fetch(`${API_URL}/api/payments/initiate`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            course_id: courseId,
+            amount: course?.price || 99.99,
+            method: selectedMethod,
+            phone_number: phoneNumber
+          })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          setPaymentResult(result);
+          
+          // Simulate payment confirmation for demo
+          setTimeout(async () => {
+            const confirmRes = await fetch(`${API_URL}/api/payments/confirm/${result.payment_id}`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (confirmRes.ok) {
+              toast.success('Payment successful! You are now enrolled.');
+              setTimeout(() => navigate(`/course/${courseId}`), 2000);
+            }
+          }, 3000);
+        }
       }
     } catch (error) {
       console.error('Payment error:', error);
