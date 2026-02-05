@@ -4017,6 +4017,101 @@ async def get_hint(
         raise HTTPException(status_code=500, detail=result["error"])
     return result
 
+
+@advanced_router.post("/concept/{concept_id}/start-learning")
+async def start_concept_learning(
+    concept_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Start learning a concept from the knowledge graph - generates full learning content"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        # Get concept from knowledge graph
+        concept = await db.knowledge_graph.find_one({"id": concept_id}, {"_id": 0})
+        if not concept:
+            concept = await db.learner_concept_states.find_one({"concept_id": concept_id}, {"_id": 0})
+        if not concept:
+            # Try to find in course concepts
+            concept = {"id": concept_id, "name": concept_id.replace('-', ' ').title(), "description": ""}
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        concept_name = concept.get('name', concept.get('concept', concept_id))
+        concept_desc = concept.get('description', '')
+        
+        # Get user's profile for personalization
+        profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+        user = await db.users.find_one({"id": current_user['id']}, {"_id": 0, "password_hash": 0})
+        learning_style = profile.get('learning_style', 'visual') if profile else 'visual'
+        
+        # Generate comprehensive learning content
+        system_msg = """You are an expert AI tutor. Create comprehensive, engaging learning content.
+        Structure your response with clear sections, examples, and practice problems.
+        Make the content accessible and engaging."""
+        
+        chat = LlmChat(api_key=api_key, session_id=f"concept-{concept_id}-{current_user['id']}", system_message=system_msg)
+        chat.with_model("openai", "gpt-5.2")
+        
+        prompt = f"""Create comprehensive learning content for this concept:
+
+Concept: {concept_name}
+Description: {concept_desc}
+Learner Style: {learning_style}
+
+Please provide:
+1. Introduction - What is this concept and why is it important?
+2. Core Explanation - Detailed explanation with examples
+3. Key Points - Bullet points of the most important takeaways
+4. Real-World Applications - How this applies in practice
+5. Practice Questions - 3 questions to test understanding
+6. Summary - Brief recap of what was learned
+
+Make the content engaging and easy to understand."""
+
+        content = await chat.send_message(UserMessage(text=prompt))
+        
+        # Update learner's concept state
+        await db.learner_concept_states.update_one(
+            {"user_id": current_user['id'], "concept_id": concept_id},
+            {"$set": {
+                "user_id": current_user['id'],
+                "concept_id": concept_id,
+                "concept_name": concept_name,
+                "status": "learning",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "last_accessed": datetime.now(timezone.utc).isoformat()
+            }},
+            upsert=True
+        )
+        
+        # Create a learning session record
+        session_id = str(uuid.uuid4())
+        await db.learning_sessions.insert_one({
+            "id": session_id,
+            "user_id": current_user['id'],
+            "concept_id": concept_id,
+            "concept_name": concept_name,
+            "content": content,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "type": "concept_learning"
+        })
+        
+        return {
+            "session_id": session_id,
+            "concept_id": concept_id,
+            "concept_name": concept_name,
+            "content": content,
+            "status": "learning_started"
+        }
+        
+    except Exception as e:
+        logging.error(f"Concept learning error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Analogies
 @advanced_router.post("/analogy")
 async def get_analogy(
