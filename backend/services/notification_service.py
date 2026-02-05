@@ -55,10 +55,11 @@ async def send_email(
         return {"success": False, "error": str(e)}
 
 
-# ====================  WHATSAPP NOTIFICATIONS ====================
+# ====================  WHATSAPP NOTIFICATIONS (TWILIO) ====================
 
-WHATSAPP_BUSINESS_PHONE = os.environ.get('WHATSAPP_BUSINESS_PHONE', '')
-WHATSAPP_API_KEY = os.environ.get('WHATSAPP_API_KEY', '')
+TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
+TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
+TWILIO_WHATSAPP_NUMBER = os.environ.get('TWILIO_WHATSAPP_NUMBER', '')
 
 async def send_whatsapp(
     phone_number: str,
@@ -67,72 +68,60 @@ async def send_whatsapp(
     template_params: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
-    Send WhatsApp message
-    For MVP: Uses wa.me deep links (no API)
-    For Production: Would use WhatsApp Business API
+    Send WhatsApp message via Twilio
     """
     try:
-        # Clean phone number
+        # Clean phone number and format for Zimbabwe
         clean_phone = phone_number.replace('+', '').replace(' ', '').replace('-', '')
         if clean_phone.startswith('0'):
             clean_phone = '263' + clean_phone[1:]  # Zimbabwe country code
         
-        if WHATSAPP_API_KEY:
-            # Production: Use WhatsApp Business API
+        formatted_phone = f'+{clean_phone}'
+        
+        if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_WHATSAPP_NUMBER:
+            # Production: Use Twilio WhatsApp API
             import httpx
+            from base64 import b64encode
+            
+            auth_string = f"{TWILIO_ACCOUNT_SID}:{TWILIO_AUTH_TOKEN}"
+            auth_header = b64encode(auth_string.encode()).decode()
             
             async with httpx.AsyncClient() as client:
-                if template_name:
-                    # Send template message
-                    payload = {
-                        "messaging_product": "whatsapp",
-                        "to": clean_phone,
-                        "type": "template",
-                        "template": {
-                            "name": template_name,
-                            "language": {"code": "en"},
-                            "components": [
-                                {
-                                    "type": "body",
-                                    "parameters": [{"type": "text", "text": p} for p in (template_params or [])]
-                                }
-                            ]
-                        }
-                    }
-                else:
-                    # Send text message
-                    payload = {
-                        "messaging_product": "whatsapp",
-                        "to": clean_phone,
-                        "type": "text",
-                        "text": {"body": message}
-                    }
-                
                 response = await client.post(
-                    f"https://graph.facebook.com/v17.0/{WHATSAPP_BUSINESS_PHONE}/messages",
+                    f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Messages.json",
                     headers={
-                        "Authorization": f"Bearer {WHATSAPP_API_KEY}",
-                        "Content-Type": "application/json"
+                        "Authorization": f"Basic {auth_header}",
+                        "Content-Type": "application/x-www-form-urlencoded"
                     },
-                    json=payload,
+                    data={
+                        "From": f"whatsapp:{TWILIO_WHATSAPP_NUMBER}",
+                        "To": f"whatsapp:{formatted_phone}",
+                        "Body": message
+                    },
                     timeout=30
                 )
                 
                 if response.status_code in [200, 201]:
-                    return {"success": True, "message_id": response.json().get('messages', [{}])[0].get('id')}
+                    response_data = response.json()
+                    return {
+                        "success": True,
+                        "message_id": response_data.get('sid'),
+                        "status": response_data.get('status')
+                    }
                 else:
-                    logger.error(f"WhatsApp API error: {response.text}")
-                    return {"success": False, "error": "WhatsApp message failed"}
+                    logger.error(f"Twilio WhatsApp error: {response.status_code} - {response.text}")
+                    return {"success": False, "error": f"WhatsApp message failed: {response.text}"}
         else:
-            # MVP: Generate wa.me link
+            # Fallback: Generate wa.me link when Twilio not configured
             encoded_message = message.replace(' ', '%20').replace('\n', '%0A')
             whatsapp_link = f"https://wa.me/{clean_phone}?text={encoded_message}"
             
+            logger.warning("Twilio not configured - generating wa.me link instead")
             return {
                 "success": True,
                 "method": "link",
                 "whatsapp_link": whatsapp_link,
-                "message": "WhatsApp link generated (MVP mode)"
+                "message": "Twilio not configured - wa.me link generated"
             }
             
     except Exception as e:
