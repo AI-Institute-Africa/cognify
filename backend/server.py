@@ -5296,6 +5296,7 @@ async def mentor_upload_document(
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         import base64
+        import tempfile
         
         api_key = os.environ.get('EMERGENT_LLM_KEY')
         if not api_key:
@@ -5305,6 +5306,7 @@ async def mentor_upload_document(
         content = await file.read()
         text_content = ""
         image_data = None
+        filename = file.filename.lower() if file.filename else ""
         
         # Handle different file types
         if file.content_type and file.content_type.startswith("image/"):
@@ -5312,7 +5314,8 @@ async def mentor_upload_document(
             base64_image = base64.b64encode(content).decode('utf-8')
             image_data = f"data:{file.content_type};base64,{base64_image}"
             text_content = f"[Analyzing image: {file.filename}]"
-        elif file.content_type == "application/pdf":
+            
+        elif filename.endswith('.pdf') or file.content_type == "application/pdf":
             # For PDF, extract text using PyMuPDF
             try:
                 import fitz
@@ -5322,8 +5325,48 @@ async def mentor_upload_document(
                 for page in pdf_document:
                     text_content += page.get_text()
                 text_content = text_content[:8000]  # Limit content length
-            except:
+                pdf_document.close()
+            except Exception as pdf_err:
+                logging.warning(f"PDF extraction error: {pdf_err}")
                 text_content = content.decode('utf-8', errors='ignore')[:5000]
+                
+        elif filename.endswith(('.doc', '.docx')):
+            # For Word documents
+            try:
+                import docx
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp:
+                    tmp.write(content)
+                    tmp_path = tmp.name
+                
+                doc = docx.Document(tmp_path)
+                text_content = "\n".join([para.text for para in doc.paragraphs])[:8000]
+                os.unlink(tmp_path)
+            except Exception as doc_err:
+                logging.warning(f"DOCX extraction error: {doc_err}")
+                text_content = content.decode('utf-8', errors='ignore')[:5000]
+                
+        elif filename.endswith(('.ppt', '.pptx')):
+            # For PowerPoint presentations
+            try:
+                from pptx import Presentation
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.pptx') as tmp:
+                    tmp.write(content)
+                    tmp_path = tmp.name
+                
+                prs = Presentation(tmp_path)
+                slide_texts = []
+                for slide_num, slide in enumerate(prs.slides, 1):
+                    slide_text = f"Slide {slide_num}:\n"
+                    for shape in slide.shapes:
+                        if hasattr(shape, "text"):
+                            slide_text += shape.text + "\n"
+                    slide_texts.append(slide_text)
+                text_content = "\n\n".join(slide_texts)[:8000]
+                os.unlink(tmp_path)
+            except Exception as ppt_err:
+                logging.warning(f"PPTX extraction error: {ppt_err}")
+                text_content = content.decode('utf-8', errors='ignore')[:5000]
+                
         elif file.content_type in ["text/plain", "text/markdown", "application/json", "text/csv"]:
             text_content = content.decode('utf-8')[:8000]
         else:
