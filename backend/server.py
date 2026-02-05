@@ -1938,6 +1938,34 @@ async def enroll_course(course_id: str, current_user: dict = Depends(get_current
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
+    # Check if course requires payment
+    course_price = course.get('price', 0)
+    is_free = course.get('is_free', course_price == 0)
+    
+    if not is_free and course_price > 0:
+        # Check if user has paid for this course
+        payment = await db.payments.find_one({
+            "user_id": current_user['id'],
+            "course_id": course_id,
+            "status": "paid"
+        }, {"_id": 0})
+        
+        if not payment:
+            raise HTTPException(
+                status_code=402, 
+                detail={
+                    "message": "Payment required for this course",
+                    "course_id": course_id,
+                    "price": course_price,
+                    "currency": course.get('currency', 'USD')
+                }
+            )
+    
+    # Check if already enrolled
+    profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+    if profile and course_id in profile.get('enrolled_courses', []):
+        return {"message": "Already enrolled", "already_enrolled": True}
+    
     await db.student_profiles.update_one(
         {"user_id": current_user['id']},
         {"$addToSet": {"enrolled_courses": course_id}}
@@ -1946,7 +1974,7 @@ async def enroll_course(course_id: str, current_user: dict = Depends(get_current
         {"id": course_id},
         {"$addToSet": {"enrolled_students": current_user['id']}}
     )
-    return {"message": "Enrolled successfully"}
+    return {"message": "Enrolled successfully", "enrolled": True}
 
 # Attendance Routes
 @attendance_router.get("")
