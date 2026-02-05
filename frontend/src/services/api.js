@@ -839,10 +839,12 @@ export const getOrgAnalytics = async () => {
 };
 
 // ==================== USER SETTINGS ====================
-export const updateUserProfile = async (fullName, phone = null) => {
+export const updateUserProfile = async (fullName, phone = null, linkedinUrl = null, bio = null) => {
   const params = new URLSearchParams();
   if (fullName) params.append('full_name', fullName);
-  if (phone) params.append('phone', phone);
+  if (phone !== null) params.append('phone', phone);
+  if (linkedinUrl !== null) params.append('linkedin_url', linkedinUrl);
+  if (bio !== null) params.append('bio', bio);
   const response = await axios.put(`${API}/user/profile?${params}`, {}, { headers: getAuthHeaders() });
   return response.data;
 };
