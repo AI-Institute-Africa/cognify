@@ -119,10 +119,10 @@ export default function KTCELearningPage() {
     : 0;
 
   return (
-    <div className="min-h-screen bg-[#09090B] flex">
-      <Sidebar />
+    <DashboardLayout>
+      <Header title="KTCE Learning" subtitle="Knowledge Time Compression Engine" />
       
-      <main className="flex-1 p-8 overflow-y-auto">
+      <div className="p-4 sm:p-6 lg:p-8">
         <div className="max-w-4xl mx-auto">
           {/* Back Button */}
           <button
@@ -134,13 +134,13 @@ export default function KTCELearningPage() {
           </button>
 
           {/* Header */}
-          <div className="glass-card p-8 mb-8">
+          <div className="glass-card p-6 sm:p-8 mb-8">
             <div className="flex items-start gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 flex items-center justify-center">
-                <Zap className="w-8 h-8 text-emerald-400" />
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 flex items-center justify-center">
+                <Zap className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-400" />
               </div>
               <div className="flex-1">
-                <h1 className="text-2xl font-bold flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
                   <span>KTCE</span>
                   <span className="text-emerald-400">Knowledge Time Compression</span>
                 </h1>
