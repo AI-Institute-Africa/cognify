@@ -3,29 +3,26 @@
 ## Overview
 AI-Powered School Management, Learning & Career Intelligence Platform
 
-**Version:** 2.0 (Production Audit Complete)
+**Version:** 2.1 (Production Audit - Phase 1 Complete)
 **Date:** February 5, 2026
 
 ---
 
-## PRODUCTION AUDIT STATUS: ✅ COMPLETE
+## PRODUCTION AUDIT STATUS: ✅ Phase 1 Complete
 
-### All Features Verified Working:
+### Features Verified Working (Iteration 14):
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Authentication | ✅ Working | Login, registration, Google OAuth |
-| Email Verification | ✅ Working | Resend API configured |
-| Profile Management | ✅ Working | Including LinkedIn URL |
-| Zimbabwe Academic Levels | ✅ Working | Grade 1-7, Form 1-6, Undergrad, Postgrad |
-| Course Types | ✅ Working | 8 types with pricing |
-| Course Enrollment | ✅ Working | Payment check before enrollment |
-| Paynow Payment | 🔧 Ready | Needs PAYNOW credentials |
-| AI File Handling | ✅ Code Ready | PDF/DOCX/PPT extraction |
-| LinkedIn Analysis | ✅ Working | Via Proxycurl or manual input |
-| Risk Alerts | ✅ Working | Parent notifications via Email/WhatsApp |
-| Bulk Enrollment | ✅ Working | Magic links (72-hour expiry) |
-| Mobile Responsive | ✅ Working | All breakpoints |
+| Authentication | ✅ Working | Login, registration for teacher, student, org_admin |
+| Course Types | ✅ Working | 8 types with pricing ($0 - $999.99) |
+| Zimbabwe Academic Levels | ✅ Working | 15 levels (Primary, Secondary, Tertiary) |
+| Course Creation | ✅ Working | Paid/free toggle, course type, grade level |
+| Course Display | ✅ Working | Price badges, type badges, grade levels |
+| Organization Profile | ✅ Working | Social media links, contact info editing |
+| AI File Upload | ✅ Code Ready | Endpoint works, budget exceeded expected |
+| Teacher Dashboard | ✅ Working | Stats, courses, quick actions |
+| Org Admin Dashboard | ✅ Working | Profile section, staff/participants tabs |
 
 ---
 
@@ -35,8 +32,9 @@ AI-Powered School Management, Learning & Career Intelligence Platform
 ```env
 RESEND_API_KEY=re_2a42c7kW_CfzY1KaWc7p18DTzFopwzaZD
 SENDER_EMAIL=takuechakanyuka@gmail.com
-GOOGLE_CLIENT_ID=219528317269-6gfsf3c1esac6lnhvbso67v3k8cv88qh.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=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
+GOOGLE_CLIENT_ID=219528317269-xxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-xxx
+EMERGENT_LLM_KEY=sk-emergent-xxx
 ```
 
 ### Needs Configuration at Deployment:
@@ -62,7 +60,7 @@ PROXYCURL_API_KEY=<your-proxycurl-key>
 - Grade 1, Grade 2, Grade 3, Grade 4, Grade 5, Grade 6, Grade 7
 
 ### Secondary School:
-- Form 1, Form 2, Form 3, Form 4, Form 5, Form 6
+- Form 1, Form 2, Form 3, Form 4, Form 5 (Lower 6), Form 6 (Upper 6)
 
 ### Tertiary:
 - Undergraduate, Postgraduate
@@ -74,70 +72,13 @@ PROXYCURL_API_KEY=<your-proxycurl-key>
 | Type | Price | Branch | Accredited |
 |------|-------|--------|------------|
 | Free Course | $0 | Standard | No |
-| 3-Day Course | $9.99 | Customized | No |
-| Short Course | $29.99 | Standard | No |
-| Certificate | $49.99 | Standard | Yes |
-| Professional Certificate | $99.99 | Customized | Yes |
-| Diploma | $149.99 | Standard | Yes |
-| Advanced Diploma | $199.99 | Standard | Yes |
-| Custom Course | Variable | Customized | No |
-
----
-
-## API Endpoints Summary
-
-### Authentication
-- `POST /api/auth/login` - User login
-- `POST /api/auth/register` - User registration
-- `GET /api/auth/me` - Current user profile
-- `POST /api/auth/forgot-password` - Password reset
-- `POST /api/auth/google-callback` - Google OAuth
-
-### Profile
-- `PUT /api/user/profile` - Update profile (name, phone, LinkedIn, bio)
-- `GET /api/user/profile` - Get full profile
-
-### Courses
-- `GET /api/courses` - List courses
-- `POST /api/courses/{id}/enroll` - Enroll (checks payment)
-- `POST /api/courses/create-with-details` - Create course
-- `GET /api/academic-levels` - Zimbabwe levels
-- `GET /api/course-types` - Course types
-
-### Payments
-- `POST /api/payments/paynow/initiate` - Paynow mobile payment
-- `GET /api/payments/paynow/check-status` - Payment status
-- `POST /api/payments/initiate` - Card payment (Stripe)
-
-### AI Features
-- `POST /api/ai/landing-upload` - File analysis (landing)
-- `POST /api/mentor/upload-document` - Mentor file analysis
-- `POST /api/mentor/analyze-linkedin` - LinkedIn profile analysis
-- `POST /api/advanced/concept/{id}/start-learning` - Concept learning
-
-### Organization
-- `POST /api/org/bulk-enroll` - Bulk enrollment
-- `GET /api/org/pending-enrollments` - Pending invitations
-- `POST /api/org/resend-invitation/{id}` - Resend invite
-
-### Notifications
-- `POST /api/risk/set-alert` - Student risk alert (teacher only)
-- `POST /api/notifications/send` - Send notification
-
----
-
-## File Processing Support
-
-### Supported File Types:
-- **Documents:** PDF, DOC, DOCX, PPT, PPTX, TXT
-- **Images:** JPG, PNG, GIF, WEBP (Vision AI)
-- **Audio:** MP3, WAV, OGG (Transcription)
-- **Video:** MP4, MOV, WEBM
-
-### Libraries Used:
-- `PyMuPDF (fitz)` - PDF extraction
-- `python-docx` - Word documents
-- `python-pptx` - PowerPoint presentations
+| 3-Day Course | $29.99 | Standard | No |
+| Certificate | $99.99 | Standard | Yes |
+| Certification | $199.99 | Standard | Yes |
+| Diploma | $499.99 | Standard | Yes |
+| Custom Basic | $49.99 | Customized | No |
+| Custom Advanced | $149.99 | Customized | No |
+| Custom Enterprise | $999.99 | Customized | No |
 
 ---
 
@@ -151,40 +92,78 @@ PROXYCURL_API_KEY=<your-proxycurl-key>
 
 ---
 
-## Frontend Pages
+## API Endpoints Summary
 
-### Core Pages:
-- `/` - Landing page with Ask Cognify
-- `/login` - Login
-- `/register` - Registration
-- `/dashboard` - User dashboard
-- `/courses` - Course catalog
-- `/settings` - Profile settings
+### Authentication
+- `POST /api/auth/login` - User login ✅
+- `POST /api/auth/register` - User registration ✅
+- `GET /api/auth/me` - Current user profile ✅
 
-### AI Features:
-- `/ai-mentor` - Personal AI Mentor
-- `/knowledge-graph` - Concept visualization
-- `/ktce-learning` - Concept learning
+### Courses
+- `GET /api/courses` - List courses (with price, type, is_paid) ✅
+- `GET /api/course-types` - 8 course types with pricing ✅
+- `GET /api/academic-levels` - 15 Zimbabwe levels ✅
+- `POST /api/courses` - Create course ✅
 
-### Organization:
-- `/org-admin` - Organization dashboard
-- `/bulk-enrollment` - Bulk enrollment
-- `/accept-invite` - Magic link acceptance
+### Organization
+- `PUT /api/org/profile` - Update org profile (including social media) ✅
+- `GET /api/org/profile` - Get org profile ✅
+- `GET /api/org/staff` - List staff members ✅
+- `GET /api/org/participants` - List participants ✅
+
+### AI Features
+- `POST /api/ai/landing-upload` - File analysis (budget dependent) ✅
+- `POST /api/mentor/upload-document` - Mentor file analysis ✅
+
+### Payments
+- `POST /api/payments/paynow/initiate` - Paynow payment ⏳
+- `POST /api/payments/paynow/check-status` - Check status ⏳
 
 ---
 
-## Mobile Responsiveness
+## Completed Work (February 5, 2026)
 
-### Breakpoints:
-- `<480px` - Single column (mobile)
-- `480-768px` - 2 columns (tablet)
-- `768-1024px` - 3 columns
-- `1024px+` - Full desktop with sidebar
+1. **Fixed StudentAssignmentsPage.js syntax error** - JSX closing tag issue
+2. **Fixed localStorage token key** - Changed from 'token' to 'cognify_token' in multiple files
+3. **Added OrgProfileSection component** - Organization profile editing with social media
+4. **Added org profile backend endpoint** - PUT /api/org/profile
+5. **Created sample courses** - 3 courses with proper fields (Certificate, Diploma, Free)
+6. **Added concept learning from Knowledge Graph** - useSearchParams for concept navigation
 
-### Mobile Features:
-- Collapsible sidebar with hamburger menu
-- Touch-friendly buttons and inputs
-- Responsive navigation
+---
+
+## P0 - Remaining Critical Tasks
+
+1. **Paynow Payment Testing** - Requires production credentials
+2. **Email Verification Flow** - Test with Resend API
+3. **Google OAuth** - Test complete OAuth flow
+4. **AI Budget** - Monitor and manage Emergent LLM key budget
+
+---
+
+## P1 - Important Features (Next Phase)
+
+1. **Content Visibility** - Verify teacher-uploaded content displays for students
+2. **Assignment Generation** - Test AI-powered assignment creation
+3. **Avatar Teaching** - Test with adequate AI budget
+4. **Risk Alerts** - Test email/WhatsApp notifications to parents
+
+---
+
+## P2 - Future Tasks
+
+1. Mobile App (React Native)
+2. Blockchain Credentials
+3. Advanced Analytics Dashboard
+4. Video Conferencing Integration
+
+---
+
+## Test Reports
+
+- `/app/test_reports/iteration_14.json` - Latest comprehensive test (100% pass rate)
+- All 10 backend tests passed
+- All frontend UI elements verified
 
 ---
 
@@ -192,32 +171,31 @@ PROXYCURL_API_KEY=<your-proxycurl-key>
 
 ### Budget/Quota:
 - AI features require Emergent LLM key budget
-- Current budget may be exceeded
+- Current budget may be exceeded for AI features
 
 ### External Services:
-- Paynow requires Zimbabwe merchant account
-- Twilio WhatsApp requires approved business
-- Proxycurl has rate limits
+- Paynow requires Zimbabwe merchant account credentials
+- Twilio WhatsApp requires approved business number
+- Proxycurl has rate limits for LinkedIn scraping
 
 ---
 
-## Test Reports
+## Architecture
 
-- `/app/test_reports/iteration_13.json` - Latest audit report
-- All 19 backend tests passed
-- All frontend UI elements verified
-
----
-
-## Deployment Checklist
-
-1. ✅ Backend code complete
-2. ✅ Frontend code complete
-3. ✅ Database schema ready
-4. ✅ Email verification working
-5. 🔧 Configure Paynow credentials
-6. 🔧 Configure Twilio WhatsApp
-7. 🔧 Configure Proxycurl API
-8. 🔧 Set up production MongoDB
-9. 🔧 Configure domain and SSL
-10. 🔧 Deploy to production server
+```
+/app/
+├── backend/
+│   ├── server.py              # Main FastAPI application
+│   ├── services/              # Service modules
+│   │   ├── payment_service.py # Paynow/Stripe integration
+│   │   ├── email_service.py   # Resend email service
+│   │   └── ai_service.py      # AI services
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── pages/            # React pages
+│   │   ├── components/       # UI components
+│   │   └── services/api.js   # API client
+└── memory/
+    └── PRD.md               # This file
+```
