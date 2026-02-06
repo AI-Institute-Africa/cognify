@@ -854,7 +854,9 @@ export const getOrgAnalytics = async () => {
 };
 
 // ==================== USER SETTINGS ====================
-export const updateUserProfile = async (fullName, phone = null, linkedinUrl = null, bio = null) => {
+// Note: updateUserProfile is already defined above at line 211 using /api/auth/profile
+// This function uses query params for /api/user/profile endpoint
+export const updateUserProfileSettings = async (fullName, phone = null, linkedinUrl = null, bio = null) => {
   const params = new URLSearchParams();
   if (fullName) params.append('full_name', fullName);
   if (phone !== null) params.append('phone', phone);
