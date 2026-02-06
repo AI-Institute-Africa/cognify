@@ -35,30 +35,30 @@ class TestAuthentication:
         response = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
         assert response.status_code == 200
         data = response.json()
-        assert 'token' in data
+        assert 'access_token' in data
         assert data.get('user', {}).get('role') == 'student'
         print("✓ Student login successful")
-        return data['token']
+        return data['access_token']
     
     def test_teacher_login(self):
         """Test teacher authentication"""
         response = requests.post(f"{BASE_URL}/api/auth/login", json=TEACHER_CREDS)
         assert response.status_code == 200
         data = response.json()
-        assert 'token' in data
+        assert 'access_token' in data
         assert data.get('user', {}).get('role') == 'teacher'
         print("✓ Teacher login successful")
-        return data['token']
+        return data['access_token']
     
     def test_org_admin_login(self):
         """Test org admin authentication"""
         response = requests.post(f"{BASE_URL}/api/auth/login", json=ORG_ADMIN_CREDS)
         assert response.status_code == 200
         data = response.json()
-        assert 'token' in data
+        assert 'access_token' in data
         assert data.get('user', {}).get('role') == 'org_admin'
         print("✓ Org admin login successful")
-        return data['token']
+        return data['access_token']
 
 
 class TestStudyGroupsAll:
@@ -67,12 +67,12 @@ class TestStudyGroupsAll:
     @pytest.fixture
     def student_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        return response.json()['token']
+        return response.json()['access_token']
     
     @pytest.fixture
     def teacher_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=TEACHER_CREDS)
-        return response.json()['token']
+        return response.json()['access_token']
     
     def test_get_all_study_groups_endpoint_exists(self, student_token):
         """Test that /api/study-groups/all endpoint exists and returns data"""
@@ -151,7 +151,7 @@ class TestOrganizationSettings:
     @pytest.fixture
     def org_admin_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=ORG_ADMIN_CREDS)
-        return response.json()['token']
+        return response.json()['access_token']
     
     def test_get_org_profile(self, org_admin_token):
         """Test GET /api/org/profile endpoint"""
@@ -240,7 +240,7 @@ class TestAssignmentGenerator:
     @pytest.fixture
     def teacher_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=TEACHER_CREDS)
-        return response.json()['token']
+        return response.json()['access_token']
     
     def test_get_courses_for_dropdown(self, teacher_token):
         """Test that courses can be fetched for the dropdown"""
@@ -296,12 +296,12 @@ class TestCourseContent:
     @pytest.fixture
     def student_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        return response.json()['token']
+        return response.json()['access_token']
     
     @pytest.fixture
     def teacher_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=TEACHER_CREDS)
-        return response.json()['token']
+        return response.json()['access_token']
     
     def test_get_courses(self, student_token):
         """Test getting courses list"""
