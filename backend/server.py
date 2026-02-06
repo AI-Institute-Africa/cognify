@@ -9557,6 +9557,176 @@ async def resend_invitation(
     }
 
 
+
+# ============= ORGANIZATION DATABASE & DOCUMENTS =============
+
+class OrgDatabaseConfig(BaseModel):
+    db_type: str  # mongodb, mysql, postgresql
+    connection_string: str
+    db_name: str = ""
+    collection_name: str = ""  # For MongoDB
+    table_name: str = ""  # For SQL
+
+@api_router.post("/org/database/connect")
+async def connect_org_database(
+    config: OrgDatabaseConfig,
+    current_user: dict = Depends(get_current_user)
+):
+    """Connect organization to an external database"""
+    if current_user.get('role') != 'org_admin':
+        raise HTTPException(status_code=403, detail="Org admin access required")
+    
+    org_id = current_user.get('org_id') or current_user.get('organization_id')
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization associated")
+    
+    # Test connection
+    try:
+        if config.db_type == 'mongodb':
+            from pymongo import MongoClient
+            test_client = MongoClient(config.connection_string, serverSelectionTimeoutMS=5000)
+            test_client.server_info()  # Will raise if can't connect
+            test_client.close()
+        # Add support for SQL databases later
+        
+        # Store config (encrypted in production)
+        await db.org_databases.update_one(
+            {"org_id": org_id},
+            {"$set": {
+                "db_type": config.db_type,
+                "connection_string": config.connection_string,  # Should encrypt
+                "db_name": config.db_name,
+                "collection_name": config.collection_name,
+                "table_name": config.table_name,
+                "connected_at": datetime.now(timezone.utc),
+                "status": "connected"
+            }},
+            upsert=True
+        )
+        
+        return {"message": "Database connected successfully", "status": "connected"}
+    except Exception as e:
+        return {"message": f"Connection failed: {str(e)}", "status": "failed"}
+
+
+@api_router.get("/org/database/status")
+async def get_org_database_status(current_user: dict = Depends(get_current_user)):
+    """Get organization database connection status"""
+    if current_user.get('role') != 'org_admin':
+        raise HTTPException(status_code=403, detail="Org admin access required")
+    
+    org_id = current_user.get('org_id') or current_user.get('organization_id')
+    config = await db.org_databases.find_one({"org_id": org_id}, {"_id": 0, "connection_string": 0})
+    
+    if not config:
+        return {"status": "not_connected"}
+    
+    return config
+
+
+class OrgDocumentUpload(BaseModel):
+    title: str
+    description: str = ""
+    doc_type: str = "reference"  # reference, syllabus, policy, training
+
+@api_router.post("/org/documents/upload")
+async def upload_org_document(
+    file: UploadFile = File(...),
+    title: str = Form(...),
+    description: str = Form(""),
+    doc_type: str = Form("reference"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload organization documents (PDFs, DOCX) for course reference"""
+    if current_user.get('role') not in ['org_admin', 'teacher']:
+        raise HTTPException(status_code=403, detail="Access required")
+    
+    org_id = current_user.get('org_id') or current_user.get('organization_id')
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization associated")
+    
+    # Read file content
+    content = await file.read()
+    filename = file.filename.lower()
+    
+    # Extract text based on file type
+    extracted_text = ""
+    try:
+        if filename.endswith('.pdf'):
+            import fitz
+            pdf_doc = fitz.open(stream=content, filetype="pdf")
+            for page in pdf_doc:
+                extracted_text += page.get_text()
+            pdf_doc.close()
+        elif filename.endswith('.docx'):
+            from docx import Document
+            import io
+            doc = Document(io.BytesIO(content))
+            for para in doc.paragraphs:
+                extracted_text += para.text + "\n"
+        elif filename.endswith('.txt'):
+            extracted_text = content.decode('utf-8')
+    except Exception as e:
+        logging.error(f"Text extraction error: {e}")
+    
+    # Store document
+    doc_id = str(uuid.uuid4())
+    document = {
+        "id": doc_id,
+        "org_id": org_id,
+        "title": title,
+        "description": description,
+        "doc_type": doc_type,
+        "filename": file.filename,
+        "content_type": file.content_type,
+        "extracted_text": extracted_text[:50000],  # Limit stored text
+        "uploaded_by": current_user['id'],
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.org_documents.insert_one(document)
+    
+    return {
+        "message": "Document uploaded successfully",
+        "document_id": doc_id,
+        "text_extracted": len(extracted_text) > 0,
+        "text_length": len(extracted_text)
+    }
+
+
+@api_router.get("/org/documents")
+async def get_org_documents(current_user: dict = Depends(get_current_user)):
+    """Get all organization documents"""
+    if current_user.get('role') not in ['org_admin', 'teacher']:
+        raise HTTPException(status_code=403, detail="Access required")
+    
+    org_id = current_user.get('org_id') or current_user.get('organization_id')
+    if not org_id:
+        return []
+    
+    documents = await db.org_documents.find(
+        {"org_id": org_id},
+        {"_id": 0, "extracted_text": 0}  # Don't return full text
+    ).to_list(length=100)
+    
+    return documents
+
+
+@api_router.get("/org/documents/{doc_id}/content")
+async def get_org_document_content(doc_id: str, current_user: dict = Depends(get_current_user)):
+    """Get document content for course creation"""
+    if current_user.get('role') not in ['org_admin', 'teacher']:
+        raise HTTPException(status_code=403, detail="Access required")
+    
+    org_id = current_user.get('org_id') or current_user.get('organization_id')
+    doc = await db.org_documents.find_one({"id": doc_id, "org_id": org_id}, {"_id": 0})
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    return doc
+
+
+
 @auth_router.get("/verify-magic-link")
 async def verify_magic_link(token: str):
     """Verify a magic link token and return enrollment details"""
