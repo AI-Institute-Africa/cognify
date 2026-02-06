@@ -9063,15 +9063,34 @@ async def get_org_participants(current_user: dict = Depends(get_current_user)):
     if current_user.get('role') != 'org_admin':
         raise HTTPException(status_code=403, detail="Org admin access required")
     
-    org_id = current_user.get('org_id')
+    org_id = current_user.get('org_id') or current_user.get('organization_id')
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization associated")
     
-    # Get users in this org
+    # Get users in this org - check both org_id and organization_id fields
     participants = await db.users.find(
-        {"org_id": org_id, "role": "student"},
+        {
+            "$or": [
+                {"org_id": org_id, "role": "student"},
+                {"organization_id": org_id, "role": "student"}
+            ]
+        },
         {"_id": 0, "password_hash": 0}
     ).to_list(length=500)
+    
+    # Also get from org_enrollments collection
+    enrollments = await db.org_enrollments.find(
+        {"organization_id": org_id, "role": "student"},
+        {"_id": 0}
+    ).to_list(length=500)
+    
+    # Merge unique users
+    existing_ids = {p.get('id') for p in participants}
+    for e in enrollments:
+        if e.get('user_id') not in existing_ids:
+            user = await db.users.find_one({"id": e['user_id']}, {"_id": 0, "password_hash": 0})
+            if user:
+                participants.append(user)
     
     return participants
 
@@ -9082,12 +9101,18 @@ async def get_org_staff(current_user: dict = Depends(get_current_user)):
     if current_user.get('role') != 'org_admin':
         raise HTTPException(status_code=403, detail="Org admin access required")
     
-    org_id = current_user.get('org_id')
+    org_id = current_user.get('org_id') or current_user.get('organization_id')
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization associated")
     
+    # Get staff - check both org_id and organization_id fields
     staff = await db.users.find(
-        {"org_id": org_id, "role": "teacher"},
+        {
+            "$or": [
+                {"org_id": org_id, "role": {"$in": ["teacher", "org_admin"]}},
+                {"organization_id": org_id, "role": {"$in": ["teacher", "org_admin"]}}
+            ]
+        },
         {"_id": 0, "password_hash": 0}
     ).to_list(length=100)
     
