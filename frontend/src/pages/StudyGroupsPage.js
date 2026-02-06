@@ -361,29 +361,52 @@ export default function StudyGroupsPage() {
                           <p className="text-sm text-zinc-500">{group.topic}</p>
                         </div>
                         <Badge className="bg-blue-500/20 text-blue-400">
-                          {group.compatibility_score}% match
+                          {group.member_count || group.members?.length || 0} members
                         </Badge>
                       </div>
-                      <div className="flex items-center justify-between text-sm">
+                      <p className="text-sm text-zinc-400 mb-3">{group.description}</p>
+                      <div className="flex items-center justify-between text-sm mb-3">
                         <span className="flex items-center gap-2 text-zinc-400">
                           <Users className="w-4 h-4" />
-                          {group.members}/{group.max_members} members
+                          {group.member_count || group.members?.length || 0}/{group.max_members || 10} members
                         </span>
-                        <span className="flex items-center gap-2 text-zinc-400">
-                          <Clock className="w-4 h-4" />
-                          Next: {new Date(group.next_session).toLocaleDateString()}
-                        </span>
+                        {group.creator_id === user?.id && (
+                          <Badge className="bg-violet-500/20 text-violet-400">Creator</Badge>
+                        )}
                       </div>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="w-full mt-3 border-white/10"
-                        onClick={() => openChat(group)}
-                        data-testid={`open-chat-${group.id}`}
-                      >
-                        <MessageSquare className="w-4 h-4 mr-2" />
-                        Open Chat
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="flex-1 border-white/10"
+                          onClick={() => openChat(group)}
+                          data-testid={`open-chat-${group.id}`}
+                        >
+                          <MessageSquare className="w-4 h-4 mr-2" />
+                          Chat
+                        </Button>
+                        {group.creator_id === user?.id ? (
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                            onClick={() => handleDeleteGroup(group.id)}
+                            data-testid={`delete-group-${group.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        ) : (
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                            onClick={() => handleLeaveGroup(group.id)}
+                            data-testid={`leave-group-${group.id}`}
+                          >
+                            <LogOut className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
