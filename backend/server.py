@@ -4304,6 +4304,7 @@ async def evaluate_answer(
 @advanced_router.post("/assignment/generate")
 async def create_assignment(
     lesson_topic: str,
+    course_id: Optional[str] = None,
     learning_objectives: List[str] = Query([]),
     assignment_type: str = "reflection",
     difficulty: str = "medium",
@@ -4320,20 +4321,26 @@ async def create_assignment(
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
     
-    # Save assignment to database
+    # Save assignment to database with course linkage
     assignment = {
         "id": str(uuid.uuid4()),
+        "course_id": course_id,
         "teacher_id": current_user['id'],
         "topic": lesson_topic,
+        "title": result.get('title', lesson_topic),
+        "description": result.get('description', ''),
         "objectives": learning_objectives,
         "type": assignment_type,
         "difficulty": difficulty,
+        "max_score": 100,
+        "auto_grade": True,
         "content": result,
+        "due_date": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
         "created_at": datetime.now(timezone.utc)
     }
     await db.assignments.insert_one(assignment)
     
-    return {"assignment_id": assignment['id'], **result}
+    return {"assignment_id": assignment['id'], "course_id": course_id, **result}
 
 # Assignment Submission Evaluation
 @advanced_router.post("/assignment/{assignment_id}/evaluate")
