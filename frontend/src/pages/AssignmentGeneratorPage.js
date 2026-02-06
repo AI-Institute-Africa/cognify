@@ -97,6 +97,10 @@ export default function AssignmentGeneratorPage() {
       toast.error('Please enter a lesson topic');
       return;
     }
+    if (!selectedCourse) {
+      toast.error('Please select a course');
+      return;
+    }
     const validObjectives = objectives.filter(o => o.trim());
     if (validObjectives.length === 0) {
       toast.error('Please add at least one learning objective');
@@ -106,9 +110,9 @@ export default function AssignmentGeneratorPage() {
     setLoading(true);
     setEvaluation(null);
     try {
-      const result = await generateAssignment(topic, validObjectives, assignmentType, difficulty);
+      const result = await generateAssignment(topic, validObjectives, assignmentType, difficulty, selectedCourse);
       setAssignment(result);
-      toast.success('Assignment generated!');
+      toast.success('Assignment generated and linked to course!');
     } catch (error) {
       console.error('Generation failed:', error);
       toast.error('Failed to generate assignment');
