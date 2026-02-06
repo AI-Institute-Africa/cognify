@@ -1904,6 +1904,62 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     
     return user_data
 
+class ProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    phone: Optional[str] = None
+    bio: Optional[str] = None
+    profile_picture: Optional[str] = None
+
+@auth_router.put("/profile")
+async def update_user_profile(
+    profile: ProfileUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update user profile including LinkedIn URL"""
+    update_data = {"updated_at": datetime.now(timezone.utc)}
+    
+    if profile.full_name:
+        update_data["full_name"] = profile.full_name
+    if profile.linkedin_url is not None:
+        update_data["linkedin_url"] = profile.linkedin_url
+    if profile.phone:
+        update_data["phone"] = profile.phone
+    if profile.bio:
+        update_data["bio"] = profile.bio
+    if profile.profile_picture:
+        update_data["profile_picture"] = profile.profile_picture
+    
+    # Update main user record
+    await db.users.update_one(
+        {"id": current_user['id']},
+        {"$set": update_data}
+    )
+    
+    # Also update role-specific profile
+    if current_user['role'] == 'student':
+        await db.student_profiles.update_one(
+            {"user_id": current_user['id']},
+            {"$set": {
+                "linkedin_url": profile.linkedin_url,
+                "bio": profile.bio,
+                "updated_at": datetime.now(timezone.utc)
+            }},
+            upsert=True
+        )
+    elif current_user['role'] == 'teacher':
+        await db.teacher_profiles.update_one(
+            {"user_id": current_user['id']},
+            {"$set": {
+                "linkedin_url": profile.linkedin_url,
+                "bio": profile.bio,
+                "updated_at": datetime.now(timezone.utc)
+            }},
+            upsert=True
+        )
+    
+    return {"message": "Profile updated successfully", "updated_fields": list(update_data.keys())}
+
 # Course Routes
 @courses_router.get("")
 async def get_courses(current_user: dict = Depends(get_current_user)):
