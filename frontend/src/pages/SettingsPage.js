@@ -10,7 +10,7 @@ import { Switch } from '../components/ui/switch';
 import { Separator } from '../components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { 
-  updateUserProfile, 
+  updateUserProfileSettings, 
   uploadProfilePhoto, 
   updateNotificationSettings, 
   getUserSettings,
@@ -106,7 +106,7 @@ export default function SettingsPage() {
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      await updateUserProfile(fullName, phone, linkedinUrl, bio);
+      await updateUserProfileSettings(fullName, phone, linkedinUrl, bio);
       if (refreshUser) await refreshUser();
       toast.success('Profile updated successfully!');
     } catch (error) {
