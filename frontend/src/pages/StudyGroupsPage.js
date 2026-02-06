@@ -17,7 +17,8 @@ import {
   Send,
   X,
   Trash2,
-  LogOut
+  LogOut,
+  Search
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
