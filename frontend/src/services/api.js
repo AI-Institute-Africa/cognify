@@ -819,12 +819,12 @@ export const getOrgAdminDashboard = async () => {
 };
 
 export const getOrgTeachers = async () => {
-  const response = await axios.get(`${API}/org-admin/teachers`, { headers: getAuthHeaders() });
+  const response = await axios.get(`${API}/org/staff`, { headers: getAuthHeaders() });
   return response.data;
 };
 
 export const getOrgStudents = async () => {
-  const response = await axios.get(`${API}/org-admin/students`, { headers: getAuthHeaders() });
+  const response = await axios.get(`${API}/org/participants`, { headers: getAuthHeaders() });
   return response.data;
 };
 
