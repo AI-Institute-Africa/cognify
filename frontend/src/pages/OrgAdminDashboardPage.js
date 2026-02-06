@@ -8,13 +8,17 @@ import {
   getOrgStudents, 
   createCourseFromPDF, 
   bulkEnrollStudents,
-  getOrgAnalytics 
+  getOrgAnalytics,
+  inviteOrgStaff,
+  assignStaffRights,
+  uploadOrgDocument,
+  getOrgDocuments
 } from '../services/api';
 import { 
   Building2, Users, GraduationCap, BookOpen, DollarSign,
   Upload, UserPlus, BarChart3, TrendingUp, FileText,
   Loader2, Search, Mail, Phone, CheckCircle, AlertCircle,
-  PieChart, Calendar
+  PieChart, Calendar, Settings, Shield, Trash2
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
