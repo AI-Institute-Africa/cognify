@@ -618,15 +618,21 @@ export default function OrgAdminDashboardPage() {
             <TabsContent value="teachers">
               <div className="glass-card p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-semibold">Teachers ({teachers.length})</h3>
-                  <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-                    <Input
-                      placeholder="Search teachers..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 bg-zinc-800 border-white/10 w-64"
-                    />
+                  <h3 className="font-semibold">Staff Members ({teachers.length})</h3>
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                      <Input
+                        placeholder="Search staff..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 bg-zinc-800 border-white/10 w-64"
+                      />
+                    </div>
+                    <Button onClick={() => setShowInviteStaffDialog(true)} data-testid="invite-staff-btn">
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Invite Staff
+                    </Button>
                   </div>
                 </div>
                 
@@ -635,8 +641,9 @@ export default function OrgAdminDashboardPage() {
                     <TableRow className="border-white/10">
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
-                      <TableHead>Department</TableHead>
+                      <TableHead>Role</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -644,16 +651,31 @@ export default function OrgAdminDashboardPage() {
                       <TableRow key={teacher.id || idx} className="border-white/10">
                         <TableCell className="font-medium">{teacher.full_name}</TableCell>
                         <TableCell className="text-zinc-400">{teacher.email}</TableCell>
-                        <TableCell>{teacher.department || 'General'}</TableCell>
+                        <TableCell>
+                          <Badge className={teacher.role === 'org_admin' ? 'bg-violet-500/20 text-violet-400' : 'bg-blue-500/20 text-blue-400'}>
+                            {teacher.role === 'org_admin' ? 'Admin' : 'Teacher'}
+                          </Badge>
+                        </TableCell>
                         <TableCell>
                           <Badge className="bg-emerald-500/20 text-emerald-400">Active</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => openRightsDialog(teacher)}
+                            data-testid={`manage-rights-${teacher.id}`}
+                          >
+                            <Shield className="w-4 h-4 mr-1" />
+                            Rights
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
                     {filteredTeachers.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center text-zinc-500 py-8">
-                          No teachers found
+                        <TableCell colSpan={5} className="text-center text-zinc-500 py-8">
+                          No staff members found. Click "Invite Staff" to add team members.
                         </TableCell>
                       </TableRow>
                     )}
@@ -665,15 +687,21 @@ export default function OrgAdminDashboardPage() {
             <TabsContent value="students">
               <div className="glass-card p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-semibold">Students ({students.length})</h3>
-                  <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-                    <Input
-                      placeholder="Search students..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 bg-zinc-800 border-white/10 w-64"
-                    />
+                  <h3 className="font-semibold">Participants ({students.length})</h3>
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                      <Input
+                        placeholder="Search participants..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 bg-zinc-800 border-white/10 w-64"
+                      />
+                    </div>
+                    <Button onClick={() => setShowEnrollDialog(true)} data-testid="bulk-enroll-btn">
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Bulk Enroll
+                    </Button>
                   </div>
                 </div>
                 
