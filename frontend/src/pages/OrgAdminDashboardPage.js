@@ -804,6 +804,189 @@ export default function OrgAdminDashboardPage() {
           </Tabs>
         </div>
       </div>
+
+      {/* Invite Staff Dialog */}
+      <Dialog open={showInviteStaffDialog} onOpenChange={setShowInviteStaffDialog}>
+        <DialogContent className="bg-zinc-900 border-white/10">
+          <DialogHeader>
+            <DialogTitle>Invite Staff Member</DialogTitle>
+            <DialogDescription>
+              Add a new teacher or administrator to your organization.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Full Name</Label>
+              <Input
+                value={newStaff.fullName}
+                onChange={(e) => setNewStaff({...newStaff, fullName: e.target.value})}
+                className="mt-1 bg-zinc-800 border-white/10"
+                placeholder="John Doe"
+              />
+            </div>
+            <div>
+              <Label>Email Address</Label>
+              <Input
+                type="email"
+                value={newStaff.email}
+                onChange={(e) => setNewStaff({...newStaff, email: e.target.value})}
+                className="mt-1 bg-zinc-800 border-white/10"
+                placeholder="john@example.com"
+              />
+            </div>
+            <div>
+              <Label>Role</Label>
+              <Select value={newStaff.role} onValueChange={(v) => setNewStaff({...newStaff, role: v})}>
+                <SelectTrigger className="mt-1 bg-zinc-800 border-white/10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-800 border-white/10">
+                  <SelectItem value="teacher">Teacher</SelectItem>
+                  <SelectItem value="org_admin">Administrator</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <Button variant="outline" onClick={() => setShowInviteStaffDialog(false)}>Cancel</Button>
+            <Button onClick={handleInviteStaff} disabled={invitingStaff}>
+              {invitingStaff ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UserPlus className="w-4 h-4 mr-2" />}
+              Invite
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Staff Rights Dialog */}
+      <Dialog open={showRightsDialog} onOpenChange={setShowRightsDialog}>
+        <DialogContent className="bg-zinc-900 border-white/10">
+          <DialogHeader>
+            <DialogTitle>Manage Staff Rights</DialogTitle>
+            <DialogDescription>
+              {selectedStaff?.full_name} - Configure what this staff member can do.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50">
+              <div>
+                <p className="font-medium">Create Courses</p>
+                <p className="text-sm text-zinc-500">Can create and manage courses</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={staffRights.can_create_courses}
+                onChange={(e) => setStaffRights({...staffRights, can_create_courses: e.target.checked})}
+                className="w-5 h-5"
+              />
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50">
+              <div>
+                <p className="font-medium">Upload Content</p>
+                <p className="text-sm text-zinc-500">Can upload course materials</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={staffRights.can_upload_content}
+                onChange={(e) => setStaffRights({...staffRights, can_upload_content: e.target.checked})}
+                className="w-5 h-5"
+              />
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50">
+              <div>
+                <p className="font-medium">Manage Participants</p>
+                <p className="text-sm text-zinc-500">Can add/remove participants</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={staffRights.can_manage_participants}
+                onChange={(e) => setStaffRights({...staffRights, can_manage_participants: e.target.checked})}
+                className="w-5 h-5"
+              />
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50">
+              <div>
+                <p className="font-medium">Invite Participants</p>
+                <p className="text-sm text-zinc-500">Can send email invitations</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={staffRights.can_invite_participants}
+                onChange={(e) => setStaffRights({...staffRights, can_invite_participants: e.target.checked})}
+                className="w-5 h-5"
+              />
+            </div>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <Button variant="outline" onClick={() => setShowRightsDialog(false)}>Cancel</Button>
+            <Button onClick={handleAssignRights}>
+              <Shield className="w-4 h-4 mr-2" />
+              Save Rights
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Document Upload Dialog */}
+      <Dialog open={showDocUploadDialog} onOpenChange={setShowDocUploadDialog}>
+        <DialogContent className="bg-zinc-900 border-white/10">
+          <DialogHeader>
+            <DialogTitle>Upload Organization Document</DialogTitle>
+            <DialogDescription>
+              Upload PDFs, DOCX files for course reference material.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Document Title</Label>
+              <Input
+                value={newDocument.title}
+                onChange={(e) => setNewDocument({...newDocument, title: e.target.value})}
+                className="mt-1 bg-zinc-800 border-white/10"
+                placeholder="Company Training Manual"
+              />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                value={newDocument.description}
+                onChange={(e) => setNewDocument({...newDocument, description: e.target.value})}
+                className="mt-1 bg-zinc-800 border-white/10"
+                placeholder="Brief description of the document..."
+              />
+            </div>
+            <div>
+              <Label>Document Type</Label>
+              <Select value={newDocument.docType} onValueChange={(v) => setNewDocument({...newDocument, docType: v})}>
+                <SelectTrigger className="mt-1 bg-zinc-800 border-white/10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-800 border-white/10">
+                  <SelectItem value="reference">Reference Material</SelectItem>
+                  <SelectItem value="syllabus">Syllabus</SelectItem>
+                  <SelectItem value="policy">Policy Document</SelectItem>
+                  <SelectItem value="training">Training Material</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>File (PDF, DOCX, TXT)</Label>
+              <Input
+                type="file"
+                accept=".pdf,.docx,.txt"
+                onChange={(e) => setNewDocument({...newDocument, file: e.target.files[0]})}
+                className="mt-1 bg-zinc-800 border-white/10"
+              />
+            </div>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <Button variant="outline" onClick={() => setShowDocUploadDialog(false)}>Cancel</Button>
+            <Button onClick={handleUploadDocument} disabled={uploadingDoc}>
+              {uploadingDoc ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+              Upload
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
