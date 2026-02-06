@@ -9174,7 +9174,7 @@ async def update_org_profile(
     if current_user.get('role') != 'org_admin':
         raise HTTPException(status_code=403, detail="Org admin access required")
     
-    org_id = current_user.get('org_id')
+    org_id = current_user.get('org_id') or current_user.get('organization_id')
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization associated")
     
