@@ -49,6 +49,7 @@ import ExamPage from './pages/ExamPage';
 import VRLearningPage from './pages/VRLearningPage';
 import PaymentPage from './pages/PaymentPage';
 import OrgAdminDashboardPage from './pages/OrgAdminDashboardPage';
+import OrganizationSettingsPage from './pages/OrganizationSettingsPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import StudentAssignmentsPage from './pages/StudentAssignmentsPage';
 import KTCELearningPage from './pages/KTCELearningPage';
