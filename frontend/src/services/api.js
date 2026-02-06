@@ -208,6 +208,11 @@ export const getMentorProfile = async () => {
   return response.data;
 };
 
+export const updateUserProfile = async (profileData) => {
+  const response = await axios.put(`${API}/auth/profile`, profileData, { headers: getAuthHeaders() });
+  return response.data;
+};
+
 export const updateMentorProfile = async (profileData) => {
   const response = await axios.put(`${API}/mentor/profile`, profileData, { headers: getAuthHeaders() });
   return response.data;
