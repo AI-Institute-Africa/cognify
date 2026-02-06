@@ -372,6 +372,16 @@ export const joinStudyGroup = async (groupId) => {
   return response.data;
 };
 
+export const leaveStudyGroup = async (groupId) => {
+  const response = await axios.post(`${API}/study-groups/${groupId}/leave`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const deleteStudyGroup = async (groupId) => {
+  const response = await axios.delete(`${API}/study-groups/${groupId}`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
 export const getGroupChat = async (groupId) => {
   const response = await axios.get(`${API}/study-groups/${groupId}/chat`, { headers: getAuthHeaders() });
   return response.data;
