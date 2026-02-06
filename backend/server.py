@@ -4470,7 +4470,8 @@ async def generate_multidisciplinary(
     current_user: dict = Depends(get_current_user)
 ):
     """Generate multi-disciplinary lesson combining subjects"""
-    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
+    # Allow students to also create multi-subject learning
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin', 'student']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
     if not subjects:
@@ -4479,7 +4480,44 @@ async def generate_multidisciplinary(
     result = await generate_multidisciplinary_lesson(topic, subjects, duration_minutes)
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
+    
+    # Save the generated lesson for the student to access later
+    if current_user['role'] == 'student':
+        lesson_record = {
+            "id": str(uuid.uuid4()),
+            "user_id": current_user['id'],
+            "topic": topic,
+            "subjects": subjects,
+            "duration_minutes": duration_minutes,
+            "content": result,
+            "created_at": datetime.now(timezone.utc)
+        }
+        await db.student_multi_subject_lessons.insert_one(lesson_record)
+        result['lesson_id'] = lesson_record['id']
+    
     return result
+
+
+@advanced_router.get("/multi-subject/my-lessons")
+async def get_my_multi_subject_lessons(current_user: dict = Depends(get_current_user)):
+    """Get student's generated multi-subject lessons"""
+    lessons = await db.student_multi_subject_lessons.find(
+        {"user_id": current_user['id']},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(length=50)
+    return lessons
+
+
+@advanced_router.get("/multi-subject/lesson/{lesson_id}")
+async def get_multi_subject_lesson(lesson_id: str, current_user: dict = Depends(get_current_user)):
+    """Get a specific multi-subject lesson to start learning"""
+    lesson = await db.student_multi_subject_lessons.find_one(
+        {"id": lesson_id, "user_id": current_user['id']},
+        {"_id": 0}
+    )
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    return lesson
 
 # AIBL - Learner Identity Analysis
 @advanced_router.get("/identity/analyze")
