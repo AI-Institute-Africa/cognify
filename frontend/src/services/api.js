@@ -978,6 +978,18 @@ export const linkChild = async (childEmail) => {
   return response.data;
 };
 
+// ==================== DIRECT REGISTRATION (NO EMAIL VERIFICATION) ====================
+export const register = async (email, password, fullName, role = 'student', linkedinUrl = '') => {
+  const response = await axios.post(`${API}/auth/register`, {
+    email,
+    password,
+    full_name: fullName,
+    role,
+    linkedin_url: linkedinUrl || ''
+  });
+  return response.data;
+};
+
 // ==================== EMAIL VERIFICATION ====================
 export const registerWithVerification = async (email, password, fullName, role = 'student', linkedinUrl = '') => {
   const params = new URLSearchParams({ email, password, full_name: fullName, role });
