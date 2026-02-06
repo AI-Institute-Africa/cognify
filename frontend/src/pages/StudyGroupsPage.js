@@ -447,6 +447,81 @@ export default function StudyGroupsPage() {
             </div>
           </div>
         </div>
+
+        {/* Browse All Groups Section */}
+        <div className="glass-card p-6 mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Users className="w-5 h-5 text-blue-400" />
+              Browse All Groups ({allGroups.length})
+            </h2>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Search groups..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-zinc-800 border-white/10 w-64"
+                data-testid="search-all-groups"
+              />
+              <Button onClick={handleSearch} variant="outline" className="border-white/10">
+                <Search className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {allGroups.map((group) => (
+              <div 
+                key={group.id} 
+                className="p-4 rounded-xl bg-zinc-800/50 border border-white/5 hover:border-blue-500/30 transition-all"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <h3 className="font-medium">{group.name}</h3>
+                    <p className="text-sm text-zinc-500">{group.topic}</p>
+                  </div>
+                  {group.is_member && (
+                    <Badge className="bg-emerald-500/20 text-emerald-400">Member</Badge>
+                  )}
+                </div>
+                <p className="text-xs text-zinc-400 mb-3 line-clamp-2">{group.description}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-zinc-500 flex items-center gap-1">
+                    <Users className="w-3 h-3" />
+                    {group.member_count || group.members?.length || 0} members
+                  </span>
+                  {group.is_member ? (
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => openChat(group)}
+                      className="border-white/10"
+                    >
+                      <MessageSquare className="w-4 h-4 mr-1" />
+                      Chat
+                    </Button>
+                  ) : (
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleJoinGroup(group.id)} 
+                      className="bg-blue-500 hover:bg-blue-600"
+                    >
+                      <UserPlus className="w-4 h-4 mr-1" />
+                      Join
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {allGroups.length === 0 && (
+              <div className="col-span-full text-center py-8">
+                <Users className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+                <p className="text-zinc-500">No study groups found</p>
+                <p className="text-zinc-600 text-sm">Be the first to create one!</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Chat Dialog */}
