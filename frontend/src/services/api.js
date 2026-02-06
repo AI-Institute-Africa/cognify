@@ -584,12 +584,13 @@ export const evaluateAnswer = async (question, answer, subject = 'general') => {
 };
 
 // Assignment Generation
-export const generateAssignment = async (lessonTopic, learningObjectives, assignmentType = 'reflection', difficulty = 'medium') => {
+export const generateAssignment = async (lessonTopic, learningObjectives, assignmentType = 'reflection', difficulty = 'medium', courseId = null) => {
   const params = new URLSearchParams({ 
     lesson_topic: lessonTopic, 
     assignment_type: assignmentType, 
     difficulty 
   });
+  if (courseId) params.append('course_id', courseId);
   learningObjectives.forEach(obj => params.append('learning_objectives', obj));
   const response = await axios.post(`${API}/advanced/assignment/generate?${params}`, {}, { headers: getAuthHeaders() });
   return response.data;
