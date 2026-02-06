@@ -103,6 +103,8 @@ const navItems = {
   ],
   org_admin: [
     { path: '/dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
+    { path: '/org-admin', icon: Users, label: 'Org Dashboard' },
+    { path: '/organization-settings', icon: Settings, label: 'Organization Settings' },
     { path: '/students', icon: Users, labelKey: 'participants' },
     { path: '/teachers', icon: GraduationCap, label: 'Staff' },
     { path: '/courses', icon: BookOpen, label: 'Programs' },
