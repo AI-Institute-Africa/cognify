@@ -853,6 +853,55 @@ export const getOrgAnalytics = async () => {
   return response.data;
 };
 
+// ==================== ORG ADMIN - STAFF MANAGEMENT ====================
+export const inviteOrgStaff = async (email, fullName, role = 'teacher') => {
+  const params = new URLSearchParams({ email, full_name: fullName, role });
+  const response = await axios.post(`${API}/org/invite-staff?${params}`, {}, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const assignStaffRights = async (staffId, rights) => {
+  const response = await axios.post(`${API}/org/staff/assign-rights`, {
+    staff_id: staffId,
+    ...rights
+  }, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== ORG ADMIN - DOCUMENTS ====================
+export const uploadOrgDocument = async (file, title, description = '', docType = 'reference') => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('title', title);
+  formData.append('description', description);
+  formData.append('doc_type', docType);
+  const response = await axios.post(`${API}/org/documents/upload`, formData, {
+    headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' }
+  });
+  return response.data;
+};
+
+export const getOrgDocuments = async () => {
+  const response = await axios.get(`${API}/org/documents`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getOrgDocumentContent = async (docId) => {
+  const response = await axios.get(`${API}/org/documents/${docId}/content`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+// ==================== ORG ADMIN - DATABASE ====================
+export const connectOrgDatabase = async (config) => {
+  const response = await axios.post(`${API}/org/database/connect`, config, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const getOrgDatabaseStatus = async () => {
+  const response = await axios.get(`${API}/org/database/status`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
 // ==================== USER SETTINGS ====================
 // Note: updateUserProfile is already defined above at line 211 using /api/auth/profile
 // This function uses query params for /api/user/profile endpoint
