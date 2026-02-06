@@ -199,6 +199,80 @@ export default function OrgAdminDashboardPage() {
     }
   };
 
+  const handleInviteStaff = async () => {
+    if (!newStaff.email || !newStaff.fullName) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+    
+    setInvitingStaff(true);
+    try {
+      const result = await inviteOrgStaff(newStaff.email, newStaff.fullName, newStaff.role);
+      toast.success(`Staff member invited! ${result.temp_password ? `Temp password: ${result.temp_password}` : ''}`);
+      setShowInviteStaffDialog(false);
+      setNewStaff({ email: '', fullName: '', role: 'teacher' });
+      loadDashboardData();
+    } catch (error) {
+      console.error('Failed to invite staff:', error);
+      toast.error(error.response?.data?.detail || 'Failed to invite staff');
+    } finally {
+      setInvitingStaff(false);
+    }
+  };
+
+  const handleAssignRights = async () => {
+    if (!selectedStaff) return;
+    
+    try {
+      await assignStaffRights(selectedStaff.id, staffRights);
+      toast.success('Staff rights updated!');
+      setShowRightsDialog(false);
+      setSelectedStaff(null);
+    } catch (error) {
+      console.error('Failed to assign rights:', error);
+      toast.error('Failed to update rights');
+    }
+  };
+
+  const openRightsDialog = (staff) => {
+    setSelectedStaff(staff);
+    setStaffRights({
+      can_create_courses: staff.rights?.can_create_courses || false,
+      can_manage_participants: staff.rights?.can_manage_participants || false,
+      can_upload_content: staff.rights?.can_upload_content || false,
+      can_invite_participants: staff.rights?.can_invite_participants || false
+    });
+    setShowRightsDialog(true);
+  };
+
+  const handleUploadDocument = async () => {
+    if (!newDocument.file || !newDocument.title) {
+      toast.error('Please select a file and provide a title');
+      return;
+    }
+    
+    setUploadingDoc(true);
+    try {
+      await uploadOrgDocument(
+        newDocument.file, 
+        newDocument.title, 
+        newDocument.description, 
+        newDocument.docType
+      );
+      toast.success('Document uploaded successfully!');
+      setShowDocUploadDialog(false);
+      setNewDocument({ file: null, title: '', description: '', docType: 'reference' });
+      // Reload documents
+      const docs = await getOrgDocuments();
+      setOrgDocuments(docs || []);
+    } catch (error) {
+      console.error('Failed to upload document:', error);
+      toast.error('Failed to upload document');
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
   const filteredTeachers = teachers.filter(t => 
     t.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     t.email?.toLowerCase().includes(searchTerm.toLowerCase())
