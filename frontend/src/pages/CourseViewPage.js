@@ -942,14 +942,25 @@ export default function CourseViewPage() {
                   </TabsContent>
 
                   <TabsContent value="video" className="mt-0">
-                    {currentLesson?.video_url ? (
+                    {(currentLesson?.video_url || currentLesson?.url) && currentLesson?.type === 'video' ? (
                       <div className="aspect-video bg-zinc-900 rounded-xl overflow-hidden border border-white/10">
-                        <iframe
-                          src={currentLesson.video_url}
-                          className="w-full h-full"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        />
+                        {(currentLesson.video_url || currentLesson.url).includes('youtube.com') || (currentLesson.video_url || currentLesson.url).includes('youtu.be') ? (
+                          <iframe
+                            src={(currentLesson.video_url || currentLesson.url).replace('watch?v=', 'embed/')}
+                            className="w-full h-full"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        ) : (
+                          <video
+                            src={currentLesson.video_url || currentLesson.url}
+                            controls
+                            className="w-full h-full"
+                            data-testid="video-player"
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        )}
                       </div>
                     ) : (
                       <div className="aspect-video bg-zinc-900 rounded-xl flex items-center justify-center border border-white/10">
