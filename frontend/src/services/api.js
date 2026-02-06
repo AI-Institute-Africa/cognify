@@ -611,14 +611,14 @@ export const decomposeOutcome = async (outcome) => {
 // ==================== MULTIMODAL CONTENT API ====================
 
 export const uploadCourseContent = async (courseId, contentType, title, description = '', contentUrl = '', contentText = '') => {
-  const params = new URLSearchParams({ 
-    content_type: contentType, 
+  const response = await axios.post(`${API}/content/course/${courseId}/content`, {
+    content_type: contentType,
     title,
     description,
     content_url: contentUrl,
-    content_text: contentText
-  });
-  const response = await axios.post(`${API}/content/course/${courseId}/content?${params}`, {}, { headers: getAuthHeaders() });
+    content_text: contentText,
+    text: contentText
+  }, { headers: getAuthHeaders() });
   return response.data;
 };
 
