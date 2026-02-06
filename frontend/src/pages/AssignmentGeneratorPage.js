@@ -186,6 +186,24 @@ export default function AssignmentGeneratorPage() {
                 </h3>
 
                 <div className="space-y-2">
+                  <Label>Select Course *</Label>
+                  <select
+                    value={selectedCourse}
+                    onChange={(e) => setSelectedCourse(e.target.value)}
+                    className="w-full p-2 rounded-md bg-zinc-800 border border-white/10 text-white"
+                    data-testid="course-select"
+                  >
+                    <option value="">-- Select a course --</option>
+                    {courses.map((course) => (
+                      <option key={course.id} value={course.id}>
+                        {course.name || course.title}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-zinc-500">Assignment will be linked to this course</p>
+                </div>
+
+                <div className="space-y-2">
                   <Label>Lesson Topic</Label>
                   <Input
                     placeholder="e.g., Photosynthesis, World War II, Quadratic Equations"
