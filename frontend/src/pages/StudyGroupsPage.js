@@ -125,6 +125,28 @@ export default function StudyGroupsPage() {
     }
   };
 
+  const handleLeaveGroup = async (groupId) => {
+    if (!window.confirm('Are you sure you want to leave this group?')) return;
+    try {
+      await leaveStudyGroup(groupId);
+      toast.success('Left group successfully!');
+      loadData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to leave group');
+    }
+  };
+
+  const handleDeleteGroup = async (groupId) => {
+    if (!window.confirm('Are you sure you want to delete this group? This action cannot be undone.')) return;
+    try {
+      await deleteStudyGroup(groupId);
+      toast.success('Group deleted successfully!');
+      loadData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete group');
+    }
+  };
+
   const openChat = async (group) => {
     setSelectedGroup(group);
     setShowChatDialog(true);
