@@ -51,6 +51,28 @@ export default function AssignmentGeneratorPage() {
   const [submission, setSubmission] = useState('');
   const [evaluating, setEvaluating] = useState(false);
   const [evaluation, setEvaluation] = useState(null);
+  const [courses, setCourses] = useState([]);
+  const [selectedCourse, setSelectedCourse] = useState('');
+
+  useEffect(() => {
+    loadCourses();
+  }, []);
+
+  const loadCourses = async () => {
+    try {
+      const token = localStorage.getItem('cognify_token');
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const response = await fetch(`${API}/api/courses`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCourses(data || []);
+      }
+    } catch (error) {
+      console.error('Failed to load courses:', error);
+    }
+  };
 
   const addObjective = () => {
     if (objectives.length < 5) {
