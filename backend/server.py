@@ -9168,7 +9168,7 @@ async def get_org_profile(current_user: dict = Depends(get_current_user)):
     if current_user.get('role') != 'org_admin':
         raise HTTPException(status_code=403, detail="Org admin access required")
     
-    org_id = current_user.get('org_id')
+    org_id = current_user.get('org_id') or current_user.get('organization_id')
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization associated")
     
@@ -9177,6 +9177,121 @@ async def get_org_profile(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Organization not found")
     
     return org
+
+
+class StaffRightsUpdate(BaseModel):
+    staff_id: str
+    can_create_courses: bool = False
+    can_manage_participants: bool = False
+    can_upload_content: bool = False
+    can_invite_participants: bool = False
+
+@api_router.post("/org/staff/assign-rights")
+async def assign_staff_rights(
+    rights: StaffRightsUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Org admin assigns rights to staff members"""
+    if current_user.get('role') != 'org_admin':
+        raise HTTPException(status_code=403, detail="Org admin access required")
+    
+    org_id = current_user.get('org_id') or current_user.get('organization_id')
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization associated")
+    
+    # Verify staff belongs to org
+    staff = await db.users.find_one({"id": rights.staff_id}, {"_id": 0})
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff member not found")
+    
+    staff_org = staff.get('org_id') or staff.get('organization_id')
+    if staff_org != org_id:
+        raise HTTPException(status_code=403, detail="Staff member not in your organization")
+    
+    # Update staff rights
+    await db.staff_rights.update_one(
+        {"user_id": rights.staff_id, "org_id": org_id},
+        {"$set": {
+            "can_create_courses": rights.can_create_courses,
+            "can_manage_participants": rights.can_manage_participants,
+            "can_upload_content": rights.can_upload_content,
+            "can_invite_participants": rights.can_invite_participants,
+            "updated_at": datetime.now(timezone.utc),
+            "updated_by": current_user['id']
+        }},
+        upsert=True
+    )
+    
+    return {"message": "Staff rights updated", "staff_id": rights.staff_id}
+
+
+@api_router.post("/org/invite-staff")
+async def invite_staff_member(
+    email: str,
+    full_name: str,
+    role: str = "teacher",
+    current_user: dict = Depends(get_current_user)
+):
+    """Invite a new staff member to the organization"""
+    if current_user.get('role') != 'org_admin':
+        raise HTTPException(status_code=403, detail="Org admin access required")
+    
+    org_id = current_user.get('org_id') or current_user.get('organization_id')
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization associated")
+    
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    org_name = org.get('name', 'Organization') if org else 'Organization'
+    
+    # Generate temp password
+    temp_password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+    
+    # Check if user exists
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        # Update their org
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {"org_id": org_id, "organization_id": org_id, "role": role}}
+        )
+        return {"message": "Existing user assigned to organization as staff"}
+    
+    # Create new user
+    user_id = str(uuid.uuid4())
+    new_user = {
+        "id": user_id,
+        "email": email,
+        "full_name": full_name,
+        "password_hash": bcrypt.hashpw(temp_password.encode(), bcrypt.gensalt()).decode(),
+        "role": role,
+        "org_id": org_id,
+        "organization_id": org_id,
+        "is_active": True,
+        "email_verified": True,
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.users.insert_one(new_user)
+    
+    # Create teacher profile
+    await db.teacher_profiles.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "org_id": org_id,
+        "created_at": datetime.now(timezone.utc)
+    })
+    
+    # Send invitation email
+    try:
+        from services.email_service import send_org_invitation_email
+        await send_org_invitation_email(email, full_name, org_name, role, temp_password)
+    except:
+        pass  # Continue even if email fails
+    
+    return {
+        "message": "Staff member invited",
+        "user_id": user_id,
+        "temp_password": temp_password  # Return for manual sharing if email fails
+    }
 
 
 @api_router.post("/org/enroll-participant")
