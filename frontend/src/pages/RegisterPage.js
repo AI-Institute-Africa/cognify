@@ -55,9 +55,16 @@ export default function RegisterPage() {
     
     setLoading(true);
     try {
-      await registerWithVerification(formData.email, formData.password, formData.fullName, formData.role, formData.linkedinUrl);
-      toast.success('Verification code sent to your email!');
-      setStep('verify');
+      // Direct registration without email verification
+      const result = await register(formData.email, formData.password, formData.fullName, formData.role, formData.linkedinUrl);
+      
+      // Auto-login after registration
+      if (result.access_token) {
+        localStorage.setItem('cognify_token', result.access_token);
+        localStorage.setItem('cognify_user', JSON.stringify(result.user));
+        toast.success('Account created successfully!');
+        navigate('/dashboard');
+      }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Registration failed');
     } finally {
