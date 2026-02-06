@@ -1061,10 +1061,10 @@ export default function CourseViewPage() {
                   <TabsContent value="slides" className="mt-0">
                     <div className="space-y-4">
                       {/* Slide viewer */}
-                      {currentLesson?.image_url || currentLesson?.slides_url ? (
+                      {(currentLesson?.image_url || currentLesson?.slides_url || (currentLesson?.url && currentLesson?.type === 'image')) ? (
                         <div className="aspect-video bg-zinc-900 rounded-xl overflow-hidden border border-white/10">
                           <img 
-                            src={currentLesson.image_url || currentLesson.slides_url}
+                            src={currentLesson.image_url || currentLesson.slides_url || currentLesson.url}
                             alt={currentLesson.title}
                             className="w-full h-full object-contain"
                           />
