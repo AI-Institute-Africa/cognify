@@ -3541,6 +3541,41 @@ async def create_study_group(group: StudyGroupCreate, current_user: dict = Depen
     await db.study_groups.insert_one(new_group)
     return {"message": "Group created", "group_id": new_group['id']}
 
+@study_groups_router.delete("/{group_id}")
+async def delete_study_group(group_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a study group (creator only)"""
+    group = await db.study_groups.find_one({"id": group_id}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    if group.get('creator_id') != current_user['id']:
+        raise HTTPException(status_code=403, detail="Only the creator can delete this group")
+    
+    # Delete the group and its chat messages
+    await db.study_groups.delete_one({"id": group_id})
+    await db.group_chats.delete_many({"group_id": group_id})
+    
+    return {"message": "Group deleted successfully"}
+
+@study_groups_router.post("/{group_id}/leave")
+async def leave_study_group(group_id: str, current_user: dict = Depends(get_current_user)):
+    """Leave a study group"""
+    group = await db.study_groups.find_one({"id": group_id}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    if current_user['id'] not in group.get('members', []):
+        raise HTTPException(status_code=400, detail="Not a member of this group")
+    
+    if group.get('creator_id') == current_user['id']:
+        raise HTTPException(status_code=400, detail="Creator cannot leave. Delete the group instead.")
+    
+    await db.study_groups.update_one(
+        {"id": group_id},
+        {"$pull": {"members": current_user['id']}}
+    )
+    return {"message": "Left group successfully"}
+
 @study_groups_router.post("/{group_id}/join")
 async def join_study_group(group_id: str, current_user: dict = Depends(get_current_user)):
     """Join a study group"""
