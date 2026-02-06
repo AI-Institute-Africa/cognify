@@ -359,6 +359,12 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      <Route path="/organization-settings" element={
+        <ProtectedRoute allowedRoles={['org_admin', 'admin']}>
+          <OrganizationSettingsPage />
+        </ProtectedRoute>
+      } />
+      
       <Route path="/bulk-enrollment" element={
         <ProtectedRoute allowedRoles={['org_admin', 'admin', 'teacher']}>
           <BulkEnrollmentPage />
