@@ -675,7 +675,7 @@ export default function OrgAdminDashboardPage() {
                     {filteredTeachers.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center text-zinc-500 py-8">
-                          No staff members found. Click "Invite Staff" to add team members.
+                          No staff members found. Click &quot;Invite Staff&quot; to add team members.
                         </TableCell>
                       </TableRow>
                     )}
