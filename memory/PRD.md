@@ -3,74 +3,104 @@
 ## Overview
 AI-Powered School Management, Learning & Career Intelligence Platform
 
-**Version:** 2.5 (Phase 4 Complete - All Features Verified)
+**Version:** 2.6 (Iteration 19 Complete)
 **Date:** February 6, 2026
 
 ---
 
-## FEATURE STATUS - ALL VERIFIED WORKING
+## LATEST TEST RESULTS - ITERATION 19
 
-### ✅ Authentication
-| Feature | Status | Endpoint |
-|---------|--------|----------|
-| Direct Registration | ✅ | POST /api/auth/register |
-| Login | ✅ | POST /api/auth/login |
-| Profile Update (LinkedIn) | ✅ | PUT /api/auth/profile |
-| Get Profile | ✅ | GET /api/auth/me |
-| Google OAuth | ✅ | POST /api/auth/google/session |
-
-### ✅ Study Groups
-| Feature | Status | Endpoint |
-|---------|--------|----------|
-| List All Groups | ✅ | GET /api/study-groups/all |
-| My Groups | ✅ | GET /api/study-groups/my-groups |
-| Create Group | ✅ | POST /api/study-groups |
-| Delete Group (creator) | ✅ | DELETE /api/study-groups/{id} |
-| Leave Group (non-creator) | ✅ | POST /api/study-groups/{id}/leave |
-| Join Group | ✅ | POST /api/study-groups/{id}/join |
-
-### ✅ Organization Admin
-| Feature | Status | Endpoint |
-|---------|--------|----------|
-| View Staff | ✅ | GET /api/org/staff |
-| View Participants | ✅ | GET /api/org/participants |
-| Invite Staff | ✅ | POST /api/org/invite-staff |
-| Assign Staff Rights | ✅ | POST /api/org/staff/assign-rights |
-| Update Org Profile | ✅ | PUT /api/org/profile |
-| Upload Documents | ✅ | POST /api/org/documents/upload |
-| Connect Database | ✅ | POST /api/org/database/connect |
-
-### ✅ Content Management
-| Feature | Status | Endpoint |
-|---------|--------|----------|
-| Upload Content | ✅ | POST /api/content/course/{id}/content |
-| Get Content | ✅ | GET /api/content/course/{id}/content |
-| Upload File | ✅ | POST /api/content/course/{id}/upload-file |
-| Enrollment Gate | ✅ | Restricts unpaid students |
-
-### ⚠️ AI Features (Budget Dependent)
-| Feature | Status | Note |
-|---------|--------|------|
-| Avatar Teaching | ⚠️ | Works when AI budget available |
-| AI Lesson Planner | ⚠️ | Works when AI budget available |
-| Assignment Generation | ⚠️ | Works when AI budget available |
-| Multi-Subject Learning | ⚠️ | Works when AI budget available |
-| Custom Course Gen | ⚠️ | Works when AI budget available |
-| Ask Cognify | ⚠️ | Works when AI budget available |
-| AI Mentor | ⚠️ | Works when AI budget available |
+| Category | Pass Rate | Tests |
+|----------|-----------|-------|
+| Backend | 100% | 20/20 |
+| Frontend | 100% | All verified |
 
 ---
 
-## Test Results Summary
+## FEATURES VERIFIED WORKING
 
-| Iteration | Tests | Pass Rate | Focus |
-|-----------|-------|-----------|-------|
-| 17 | 23 | 96% | Initial Phase 4 |
-| 18 | 20 | 100% | All Phase 4 fixes verified |
+### Study Groups
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Browse All Groups | ✅ | New section shows all groups to all students |
+| Search Groups | ✅ | Search input filters groups |
+| Join Groups | ✅ | Any student can join any group |
+| Leave Groups | ✅ | Non-creators can leave |
+| Delete Groups | ✅ | Creator can delete |
+
+### Organization Settings (NEW PAGE)
+| Tab | Status | Features |
+|-----|--------|----------|
+| Profile | ✅ | Name, website, phone, address, description, logo |
+| Social Media | ✅ | Facebook, Twitter, LinkedIn, Instagram |
+| Documents | ✅ | Upload PDFs, DOCX with text extraction |
+| Database | ✅ | Connect external MongoDB |
+
+**Access:** `/organization-settings` (org_admin only)
+
+### Assignment Generator
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Course Selection | ✅ | Dropdown shows all courses |
+| Course Linking | ✅ | Assignment saved with course_id |
+| Generate | ✅ | Creates assignment (AI budget needed) |
+
+### Content Display
+| Type | Status | Notes |
+|------|--------|-------|
+| Text | ✅ | Markdown rendering |
+| Video | ✅ | YouTube embed + native video |
+| Images | ✅ | Image display with url field support |
+| Slides | ✅ | Slide presentation |
 
 ---
 
-## Test Credentials
+## API ENDPOINTS VERIFIED
+
+```
+# Study Groups
+GET  /api/study-groups/all              ✅ All groups visible
+GET  /api/study-groups/all?search=X     ✅ Search groups
+
+# Organization Settings
+GET  /api/org/profile                   ✅ Get org profile
+PUT  /api/org/profile                   ✅ Update with social media
+GET  /api/org/documents                 ✅ List documents
+POST /api/org/documents/upload          ✅ Upload with text extraction
+GET  /api/org/database/status           ✅ Check DB status
+POST /api/org/database/connect          ✅ Connect MongoDB
+
+# Assignments
+POST /api/advanced/assignment/generate?course_id=X  ✅ Linked to course
+```
+
+---
+
+## SIDEBAR UPDATES
+
+### Org Admin Menu (Updated)
+1. Dashboard
+2. **Org Dashboard** (Staff/Participants management)
+3. **Organization Settings** (NEW - Profile, Social, Documents, DB)
+4. Participants
+5. Staff
+6. Programs
+7. Finance
+8. AI Tools (Syllabus, Risk, Mentor)
+9. Smart Campus (Virtual, RFID, Biometric, Credentials)
+
+---
+
+## BUG FIXES (Iteration 19)
+
+1. **PUT /api/org/profile** - Fixed to check both `org_id` and `organization_id`
+2. **Video Display** - Added support for `url` field (not just `video_url`)
+3. **Image Display** - Added support for `url` field with type check
+4. **Study Groups** - Removed `is_public` filter so all groups visible
+
+---
+
+## TEST CREDENTIALS
 
 | Role | Email | Password |
 |------|-------|----------|
@@ -80,126 +110,37 @@ AI-Powered School Management, Learning & Career Intelligence Platform
 
 ---
 
-## What Was Implemented (Iteration 18)
+## TEST REPORTS
 
-### 1. Profile Update with LinkedIn URL
-- **Backend**: PUT /api/auth/profile accepts JSON body
-- **Frontend**: Settings page has LinkedIn Profile URL field
-- **Verified**: LinkedIn URL saves and retrieves correctly
-
-### 2. Study Group Delete/Leave
-- **Backend**: DELETE /api/study-groups/{id} (creator only)
-- **Backend**: POST /api/study-groups/{id}/leave (non-creator)
-- **Frontend**: Delete/Leave buttons added to StudyGroupsPage
-- **Verified**: Creator can delete, non-creator can leave
-
-### 3. Organization Admin Staff/Participants
-- **Backend**: GET /api/org/staff - Fixed org_id lookup
-- **Backend**: GET /api/org/participants - Fixed org_id lookup
-- **Frontend**: Staff tab shows members with Actions column
-- **Frontend**: Participants tab shows enrolled students
-- **Verified**: Both endpoints return data correctly
-
-### 4. Staff Invitation & Rights
-- **Backend**: POST /api/org/invite-staff - Creates user with temp password
-- **Backend**: POST /api/org/staff/assign-rights - Updates staff permissions
-- **Frontend**: Invite Staff dialog with email, name, role
-- **Frontend**: Rights dialog with checkboxes for permissions
-- **Verified**: Staff can be invited and rights assigned
-
-### 5. Content Upload & Visibility
-- **Backend**: POST /api/content/course/{id}/content - JSON body
-- **Frontend**: API updated to use JSON instead of query params
-- **Verified**: Teachers can upload, students can view
-
-### 6. Organization Documents & Database
-- **Backend**: POST /api/org/documents/upload - PDF/DOCX with extraction
-- **Backend**: POST /api/org/database/connect - MongoDB connection
-- **Frontend**: Upload Document dialog added
-- **Verified**: Documents can be uploaded with text extraction
+- `/app/test_reports/iteration_19.json` - Latest (100% pass)
+- `/app/backend/tests/test_iteration19_features.py`
 
 ---
 
-## Staff Rights System
-
-Org admins can assign these rights:
-- `can_create_courses` - Create new courses
-- `can_upload_content` - Upload course materials
-- `can_manage_participants` - Add/remove students
-- `can_invite_participants` - Send email invitations
-
----
-
-## Enrollment Gate
-
-- Unpaid students see only preview content (first item)
-- Unpaid students cannot access assignments
-- UI shows "Full Content Locked" banner with payment button
-- Paid students get full access
-
----
-
-## API Reference
-
-### Profile
-```bash
-# Update profile with LinkedIn
-curl -X PUT "$API/auth/profile" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"linkedin_url": "https://linkedin.com/in/user", "bio": "Bio"}'
-```
-
-### Study Groups
-```bash
-# Delete group (creator only)
-curl -X DELETE "$API/study-groups/{group_id}" \
-  -H "Authorization: Bearer $TOKEN"
-
-# Leave group (non-creator)
-curl -X POST "$API/study-groups/{group_id}/leave" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-### Org Admin
-```bash
-# Get staff
-curl "$API/org/staff" -H "Authorization: Bearer $TOKEN"
-
-# Invite staff
-curl -X POST "$API/org/invite-staff?email=x@y.com&full_name=Name&role=teacher" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
----
-
-## Known Limitations
-
-1. **AI Budget**: All AI features require Emergent LLM key budget
-2. **Email Delivery**: Resend requires verified sending domain
-3. **Payment**: Paynow requires Zimbabwe merchant credentials
-
----
-
-## Test Reports
-
-- `/app/test_reports/iteration_18.json` - Phase 4 (100% pass)
-- `/app/backend/tests/test_phase4_fixes.py` - Test file
-
----
-
-## Next Steps
-
-### P0 - Critical
-1. Replenish AI budget for AI features
-2. Set up parent-child links for risk alerts
+## REMAINING TASKS
 
 ### P1 - Important
-1. Organization-specific login page
-2. Teacher messaging improvements
-3. Voice input for AI Mentor
+1. Teacher messaging to students
+2. Voice input for AI Mentor
+3. Organization-specific login page (separate URL)
 
-### P2 - Future
-1. Mobile App (React Native)
-2. Video conferencing
-3. Blockchain credentials
+### P2 - Enhancement
+1. AI features (require budget replenishment)
+2. Mobile app
+3. Video conferencing
+
+---
+
+## FILE CHANGES (Iteration 19)
+
+### New Files
+- `/app/frontend/src/pages/OrganizationSettingsPage.js`
+
+### Modified Files
+- `/app/frontend/src/pages/StudyGroupsPage.js` - Browse All section
+- `/app/frontend/src/pages/CourseViewPage.js` - Video/Image url support
+- `/app/frontend/src/pages/AssignmentGeneratorPage.js` - Course selection
+- `/app/frontend/src/components/Sidebar.js` - Org admin menu
+- `/app/frontend/src/services/api.js` - Course ID parameter
+- `/app/frontend/src/App.js` - OrganizationSettingsPage route
+- `/app/backend/server.py` - org_id fix
