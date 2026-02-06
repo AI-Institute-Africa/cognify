@@ -78,6 +78,36 @@ export default function OrgAdminDashboardPage() {
     emails: ''
   });
   
+  // Staff Invitation
+  const [showInviteStaffDialog, setShowInviteStaffDialog] = useState(false);
+  const [invitingStaff, setInvitingStaff] = useState(false);
+  const [newStaff, setNewStaff] = useState({
+    email: '',
+    fullName: '',
+    role: 'teacher'
+  });
+  
+  // Staff Rights Management
+  const [showRightsDialog, setShowRightsDialog] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState(null);
+  const [staffRights, setStaffRights] = useState({
+    can_create_courses: false,
+    can_manage_participants: false,
+    can_upload_content: false,
+    can_invite_participants: false
+  });
+  
+  // Document Upload
+  const [showDocUploadDialog, setShowDocUploadDialog] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [orgDocuments, setOrgDocuments] = useState([]);
+  const [newDocument, setNewDocument] = useState({
+    file: null,
+    title: '',
+    description: '',
+    docType: 'reference'
+  });
+  
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
