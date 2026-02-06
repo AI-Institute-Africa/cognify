@@ -13,7 +13,7 @@ import {
 } from '../components/ui/select';
 import { GraduationCap, Mail, Lock, User, Eye, EyeOff, ArrowRight, ArrowLeft, CheckCircle, RefreshCw, Linkedin } from 'lucide-react';
 import { toast } from 'sonner';
-import { registerWithVerification, verifyEmail, resendVerification, initiateGoogleLogin } from '../services/api';
+import { register, registerWithVerification, verifyEmail, resendVerification, initiateGoogleLogin } from '../services/api';
 
 export default function RegisterPage() {
   const [step, setStep] = useState('register'); // 'register' | 'verify'
