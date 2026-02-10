@@ -416,6 +416,102 @@ export default function SettingsPage() {
           </div>
         </div>
         
+        {/* Documents Section - Students Only */}
+        {user?.role === 'student' && (
+          <div className="glass-card p-6 mb-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <FileText className="w-5 h-5 text-emerald-400" />
+                <h2 className="text-lg font-semibold">My Documents</h2>
+              </div>
+              <div>
+                <input
+                  type="file"
+                  ref={docInputRef}
+                  onChange={handleDocumentUpload}
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  className="hidden"
+                />
+                <Button
+                  onClick={() => docInputRef.current?.click()}
+                  disabled={uploadingDoc}
+                  variant="outline"
+                  size="sm"
+                  className="border-white/10"
+                  data-testid="upload-document-btn"
+                >
+                  {uploadingDoc ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4 mr-2" />
+                  )}
+                  Upload Document
+                </Button>
+              </div>
+            </div>
+            
+            <p className="text-sm text-zinc-500 mb-4">
+              Upload your CV, certificates, and academic achievements. These will be visible to potential employers and institutions.
+            </p>
+            
+            <div className="space-y-3">
+              {documents.length === 0 ? (
+                <div className="text-center py-8 border border-dashed border-white/10 rounded-lg">
+                  <Award className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+                  <p className="text-zinc-500">No documents uploaded yet</p>
+                  <p className="text-xs text-zinc-600 mt-1">Upload CVs, certificates, and achievements</p>
+                </div>
+              ) : (
+                documents.map((doc) => (
+                  <div 
+                    key={doc.id} 
+                    className="flex items-center justify-between p-4 rounded-lg bg-zinc-800/50 border border-white/5"
+                    data-testid={`document-${doc.id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${
+                        doc.document_type === 'cv' ? 'bg-blue-500/20' : 'bg-emerald-500/20'
+                      }`}>
+                        {doc.document_type === 'cv' ? (
+                          <FileText className="w-5 h-5 text-blue-400" />
+                        ) : (
+                          <Award className="w-5 h-5 text-emerald-400" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium">{doc.filename}</p>
+                        <p className="text-xs text-zinc-500">
+                          {doc.document_type === 'cv' ? 'CV/Resume' : 'Certificate'} • 
+                          Uploaded {new Date(doc.uploaded_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {doc.url && (
+                        <a 
+                          href={doc.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                        >
+                          <Download className="w-4 h-4 text-zinc-400" />
+                        </a>
+                      )}
+                      <button
+                        onClick={() => handleDeleteDocument(doc.id)}
+                        className="p-2 rounded-lg hover:bg-red-500/20 transition-colors text-zinc-400 hover:text-red-400"
+                        data-testid={`delete-doc-${doc.id}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+        
         {/* Notifications Section */}
         <div className="glass-card p-6 mb-6">
           <div className="flex items-center gap-3 mb-6">
