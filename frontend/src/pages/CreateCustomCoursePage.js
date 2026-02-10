@@ -52,6 +52,52 @@ const COURSE_TYPES = [
   { id: 'custom_advanced', name: 'Advanced Custom Course', price: 149.99, description: 'Full AI content generation with assessments' },
 ];
 
+// AI Features for advanced course creation
+const AI_FEATURES = [
+  { 
+    id: 'ktce', 
+    name: 'KTCE (Knowledge Time Compression)', 
+    description: 'Compress learning time with AI-optimized content delivery',
+    icon: Zap,
+    color: 'violet'
+  },
+  { 
+    id: 'adaptive', 
+    name: 'Adaptive Learning', 
+    description: 'Personalized learning paths based on student performance',
+    icon: Brain,
+    color: 'blue'
+  },
+  { 
+    id: 'avatar', 
+    name: 'AI Avatar Teaching', 
+    description: 'Virtual AI instructor for interactive lessons',
+    icon: Users,
+    color: 'emerald'
+  },
+  { 
+    id: 'realtime_feedback', 
+    name: 'Real-time Feedback', 
+    description: 'Instant AI feedback on assignments and quizzes',
+    icon: Lightbulb,
+    color: 'amber'
+  },
+  { 
+    id: 'multilingual', 
+    name: 'Multilingual Support', 
+    description: 'Auto-translate content to multiple languages',
+    icon: Globe,
+    color: 'cyan'
+  },
+  { 
+    id: 'micro_hints', 
+    name: 'Micro-Hints', 
+    description: 'Context-aware learning hints during lessons',
+    icon: Sparkles,
+    color: 'pink'
+  }
+];
+
 export default function CreateCustomCoursePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -71,7 +117,16 @@ export default function CreateCustomCoursePage() {
     includeVideo: false,
     includeSlides: true,
     language: 'en',
-    topics: []
+    topics: [],
+    // AI Features selection
+    aiFeatures: {
+      ktce: false,
+      adaptive: false,
+      avatar: false,
+      realtime_feedback: true,
+      multilingual: false,
+      micro_hints: true
+    }
   });
 
   const API = process.env.REACT_APP_BACKEND_URL;
