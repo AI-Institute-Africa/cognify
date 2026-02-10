@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { toast } from 'sonner';
+import PopupQuiz from '../components/PopupQuiz';
 
 const LEARNING_MODES = [
   { id: 'text', icon: FileText, label: 'Text', description: 'Read at your own pace' },
