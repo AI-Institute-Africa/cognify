@@ -7614,6 +7614,42 @@ async def get_teacher_students_by_course(current_user: dict = Depends(get_curren
     return result
 
 
+@api_router.get("/teacher/students")
+async def get_all_teacher_students(current_user: dict = Depends(get_current_user)):
+    """Get all unique students enrolled in the teacher's courses (flat list for messaging)"""
+    if current_user.get('role') not in ['teacher', 'admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    teacher_id = current_user['id']
+    
+    # Get all courses by this teacher
+    courses = await db.courses.find({"created_by": teacher_id}, {"_id": 0}).to_list(length=100)
+    course_ids = [c['id'] for c in courses]
+    
+    # Get unique students enrolled in any of these courses
+    enrolled_profiles = await db.student_profiles.find(
+        {"enrolled_courses": {"$in": course_ids}},
+        {"_id": 0}
+    ).to_list(length=500)
+    
+    # Get unique student user IDs
+    student_ids = list(set([p['user_id'] for p in enrolled_profiles]))
+    
+    students = []
+    for student_id in student_ids:
+        user = await db.users.find_one({"id": student_id}, {"_id": 0, "password_hash": 0})
+        if user:
+            students.append({
+                "id": user['id'],
+                "full_name": user.get('full_name', 'Unknown'),
+                "email": user.get('email', ''),
+                "profile_picture": user.get('profile_picture'),
+                "role": user.get('role', 'student')
+            })
+    
+    return students
+
+
 @api_router.post("/teacher/send-message")
 async def teacher_send_message_to_student(
     student_id: str,
