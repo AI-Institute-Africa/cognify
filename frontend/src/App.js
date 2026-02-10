@@ -382,6 +382,23 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* Organization Catalog */}
+      <Route path="/org-catalog" element={
+        <ProtectedRoute>
+          <OrganizationCatalogPage />
+        </ProtectedRoute>
+      } />
+      
+      {/* Certificate Routes */}
+      <Route path="/certificate/:certificateId" element={
+        <ProtectedRoute>
+          <CertificateViewPage />
+        </ProtectedRoute>
+      } />
+      
+      {/* Public Certificate Verification */}
+      <Route path="/verify-certificate/:verificationCode" element={<CertificateVerifyPage />} />
+      
       {/* Avatar Trial (Public - No account needed) */}
       <Route path="/avatar-trial" element={<AvatarTrialPage />} />
       
