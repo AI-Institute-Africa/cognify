@@ -31,7 +31,12 @@ import {
   Loader2,
   Check,
   Eye,
-  EyeOff
+  EyeOff,
+  FileText,
+  Award,
+  Upload,
+  Trash2,
+  Download
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
