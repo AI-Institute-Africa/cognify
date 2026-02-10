@@ -97,8 +97,19 @@ export default function CredentialsPage() {
     try {
       const response = await axios.post(`${API}/credentials/issue`, newCredential, { headers: getAuthHeaders() });
       
+      // Get the issued credential data
+      const issuedCredential = {
+        ...newCredential,
+        credential_id: response.data.credential_id,
+        hash: response.data.hash,
+        verification_url: response.data.verification_url,
+        issued_at: new Date().toISOString(),
+        // Get student name from students list
+        student_name: students.find(s => s.id === newCredential.student_id)?.user?.full_name || 'Student'
+      };
+      
       toast.success('Credential issued successfully!');
-      setCredentials([...credentials, response.data]);
+      setCredentials(prev => [...prev, issuedCredential]);
       setShowIssueDialog(false);
       setNewCredential({ student_id: '', credential_type: '', title: '', description: '' });
     } catch (error) {
