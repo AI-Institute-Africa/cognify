@@ -113,6 +113,11 @@ export default function CourseViewPage() {
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [generateType, setGenerateType] = useState('video');
   
+  // Popup quiz state
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [quizLessonId, setQuizLessonId] = useState(null);
+  const [lessonProgress, setLessonProgress] = useState({});
+  
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'org_admin';
 
   // Load avatar settings on mount
