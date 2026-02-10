@@ -107,6 +107,88 @@ export default function SettingsPage() {
     }
   };
 
+  const loadDocuments = async () => {
+    try {
+      const token = localStorage.getItem('cognify_token');
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const response = await fetch(`${API}/api/student/documents`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDocuments(data.documents || []);
+      }
+    } catch (error) {
+      console.error('Failed to load documents:', error);
+    }
+  };
+
+  const handleDocumentUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type and size
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/jpeg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Please upload PDF, DOC, DOCX, JPG, or PNG files');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File size must be less than 10MB');
+      return;
+    }
+
+    setUploadingDoc(true);
+    try {
+      const token = localStorage.getItem('cognify_token');
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('document_type', file.name.toLowerCase().includes('cv') || file.name.toLowerCase().includes('resume') ? 'cv' : 'certificate');
+
+      const response = await fetch(`${API}/api/student/documents/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+
+      if (response.ok) {
+        toast.success('Document uploaded successfully!');
+        loadDocuments();
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || 'Failed to upload document');
+      }
+    } catch (error) {
+      console.error('Document upload error:', error);
+      toast.error('Failed to upload document');
+    } finally {
+      setUploadingDoc(false);
+      if (docInputRef.current) docInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteDocument = async (docId) => {
+    try {
+      const token = localStorage.getItem('cognify_token');
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const response = await fetch(`${API}/api/student/documents/${docId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        toast.success('Document deleted');
+        loadDocuments();
+      } else {
+        toast.error('Failed to delete document');
+      }
+    } catch (error) {
+      console.error('Delete document error:', error);
+      toast.error('Failed to delete document');
+    }
+  };
+
   const getInitials = (name) => {
     return name
       ?.split(' ')
