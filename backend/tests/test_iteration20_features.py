@@ -264,7 +264,7 @@ class TestStudyGroupsVisibility:
     @pytest.fixture
     def student_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        return response.json()['token']
+        return response.json()['access_token']
     
     def test_get_all_study_groups(self, student_token):
         """Test that GET /api/study-groups/all returns all groups"""
@@ -345,7 +345,7 @@ class TestTeacherMessaging:
     @pytest.fixture
     def teacher_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=TEACHER_CREDS)
-        return response.json()['token']
+        return response.json()['access_token']
     
     def test_get_teacher_students(self, teacher_token):
         """Test that teachers can get list of their students"""
@@ -407,7 +407,7 @@ class TestAIMentorVoiceInput:
     @pytest.fixture
     def student_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        return response.json()['token']
+        return response.json()['access_token']
     
     def test_mentor_profile_endpoint(self, student_token):
         """Test that mentor profile endpoint works"""
