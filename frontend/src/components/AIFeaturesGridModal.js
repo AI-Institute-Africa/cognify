@@ -201,162 +201,97 @@ export default function AIFeaturesGridModal({
             AI Features Selection
           </DialogTitle>
           <DialogDescription className="text-zinc-500">
-            {step === 1 
-              ? 'Select your role to personalize your experience'
-              : 'Choose AI capabilities for your learning journey. Features attract additional fees.'}
+            Choose AI capabilities for your {courseType === 'standard' ? 'Standard' : 'Customized'} Course. Features attract additional fees.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Step 1: Role Selection */}
-        {step === 1 && showRoleSelection && (
-          <div className="space-y-4 mt-4">
-            <p className="text-sm text-zinc-400">I am a:</p>
-            <div className="grid grid-cols-2 gap-3">
-              {USER_ROLES.map(role => {
-                const Icon = role.icon;
-                const isSelected = selectedRole === role.id;
-                return (
-                  <button
-                    key={role.id}
-                    onClick={() => setSelectedRole(role.id)}
-                    className={`p-4 rounded-xl border transition-all text-left ${
-                      isSelected
-                        ? 'border-violet-500 bg-violet-500/10'
-                        : 'border-white/10 hover:border-white/20'
-                    }`}
-                    data-testid={`role-${role.id}`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-lg ${isSelected ? 'bg-violet-500/20' : 'bg-zinc-800'}`}>
-                        <Icon className={`w-5 h-5 ${isSelected ? 'text-violet-400' : 'text-zinc-500'}`} />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className={`font-medium ${isSelected ? 'text-white' : 'text-zinc-400'}`}>
-                            {role.label}
-                          </span>
-                          {isSelected && <CheckCircle className="w-4 h-4 text-violet-400" />}
-                        </div>
-                        <p className="text-xs text-zinc-500 mt-1">{role.description}</p>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
+        <div className="space-y-4 mt-4">
+          {/* Course Type Badge */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50">
+            <div className="flex items-center gap-2">
+              <GraduationCap className="w-5 h-5 text-blue-400" />
+              <span className="text-sm">
+                {courseType === 'standard' ? 'Standard Course' : 'Customized Subject'}
+              </span>
             </div>
-
-            <Button
-              onClick={handleContinue}
-              className="w-full bg-violet-500 hover:bg-violet-600 mt-4"
-              data-testid="continue-to-features-btn"
-            >
-              Continue to Features
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
+            <Badge className={courseType === 'standard' ? 'bg-blue-500/20 text-blue-400' : 'bg-violet-500/20 text-violet-400'}>
+              {selectedRole}
+            </Badge>
           </div>
-        )}
 
-        {/* Step 2: AI Features Selection */}
-        {step === 2 && (
-          <div className="space-y-4 mt-4">
-            {/* Course Type Badge */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50">
-              <div className="flex items-center gap-2">
-                <GraduationCap className="w-5 h-5 text-blue-400" />
-                <span className="text-sm">
-                  {courseType === 'standard' ? 'Standard Course' : 'Customized Subject'}
-                </span>
-              </div>
-              <Badge className={courseType === 'standard' ? 'bg-blue-500/20 text-blue-400' : 'bg-violet-500/20 text-violet-400'}>
-                {selectedRole}
-              </Badge>
-            </div>
-
-            {/* Features Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {AI_FEATURES.map(feature => {
-                const Icon = feature.icon;
-                const isEnabled = selectedFeatures[feature.id];
-                return (
-                  <button
-                    key={feature.id}
-                    onClick={() => toggleFeature(feature.id)}
-                    className={`p-4 rounded-xl border transition-all text-left ${
-                      isEnabled
-                        ? `border-${feature.color}-500/50 bg-${feature.color}-500/10`
-                        : 'border-white/10 hover:border-white/20'
-                    }`}
-                    data-testid={`feature-${feature.id}`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-lg ${isEnabled ? `bg-${feature.color}-500/20` : 'bg-zinc-800'}`}>
-                        <Icon className={`w-5 h-5 ${isEnabled ? `text-${feature.color}-400` : 'text-zinc-500'}`} />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className={`font-medium text-sm ${isEnabled ? 'text-white' : 'text-zinc-400'}`}>
-                            {feature.name}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <Badge className={isEnabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-700 text-zinc-400'}>
-                              +${feature.extraFee}
-                            </Badge>
-                            {isEnabled && (
-                              <CheckCircle className={`w-4 h-4 text-${feature.color}-400`} />
-                            )}
-                          </div>
-                        </div>
-                        <p className="text-xs text-zinc-500 mt-1">{feature.description}</p>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Summary */}
-            <div className="p-4 rounded-xl bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-zinc-400">Selected Features</p>
-                  <p className="text-2xl font-bold text-white">{selectedCount} of {AI_FEATURES.length}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-zinc-400">Additional Fee</p>
-                  <p className="text-2xl font-bold text-violet-400">
-                    {totalFee > 0 ? `+$${totalFee.toFixed(2)}` : 'Free'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-3">
-              {showRoleSelection && (
-                <Button
-                  variant="outline"
-                  onClick={() => setStep(1)}
-                  className="border-white/10"
+          {/* Features Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {AI_FEATURES.map(feature => {
+              const Icon = feature.icon;
+              const isEnabled = selectedFeatures[feature.id];
+              return (
+                <button
+                  key={feature.id}
+                  onClick={() => toggleFeature(feature.id)}
+                  className={`p-4 rounded-xl border transition-all text-left ${
+                    isEnabled
+                      ? `border-${feature.color}-500/50 bg-${feature.color}-500/10`
+                      : 'border-white/10 hover:border-white/20'
+                  }`}
+                  data-testid={`feature-${feature.id}`}
                 >
-                  Back
-                </Button>
-              )}
-              <Button
-                onClick={handleContinue}
-                disabled={loading}
-                className="flex-1 bg-violet-500 hover:bg-violet-600"
-                data-testid="confirm-features-btn"
-              >
-                {loading ? 'Saving...' : 'Confirm Selection'}
-                <CheckCircle className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
-
-            <p className="text-xs text-zinc-500 text-center">
-              Selected features will apply to all courses and affect AI Mentor, Assignments, and Assessments.
-            </p>
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${isEnabled ? `bg-${feature.color}-500/20` : 'bg-zinc-800'}`}>
+                      <Icon className={`w-5 h-5 ${isEnabled ? `text-${feature.color}-400` : 'text-zinc-500'}`} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className={`font-medium text-sm ${isEnabled ? 'text-white' : 'text-zinc-400'}`}>
+                          {feature.name}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Badge className={isEnabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-700 text-zinc-400'}>
+                            +${feature.extraFee}
+                          </Badge>
+                          {isEnabled && (
+                            <CheckCircle className={`w-4 h-4 text-${feature.color}-400`} />
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-xs text-zinc-500 mt-1">{feature.description}</p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
-        )}
+
+          {/* Summary */}
+          <div className="p-4 rounded-xl bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-zinc-400">Selected Features</p>
+                <p className="text-2xl font-bold text-white">{selectedCount} of {AI_FEATURES.length}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-zinc-400">Additional Fee</p>
+                <p className="text-2xl font-bold text-violet-400">
+                  {totalFee > 0 ? `+$${totalFee.toFixed(2)}` : 'Free'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <Button
+            onClick={handleConfirm}
+            disabled={loading}
+            className="w-full bg-violet-500 hover:bg-violet-600"
+            data-testid="confirm-features-btn"
+          >
+            {loading ? 'Saving...' : 'Confirm Selection'}
+            <CheckCircle className="w-4 h-4 ml-2" />
+          </Button>
+
+          <p className="text-xs text-zinc-500 text-center">
+            Selected features will apply to all courses and affect AI Mentor, Assignments, and Assessments.
+          </p>
+        </div>
       </DialogContent>
     </Dialog>
   );
