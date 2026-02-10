@@ -48,9 +48,16 @@ import {
 const navItems = {
   student: [
     { path: '/dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
-    { path: '/courses', icon: BookOpen, label: 'Standard Courses' },
-    { path: '/org-catalog', icon: Building2, label: 'Organization Catalog' },
-    { path: '/create-custom-course', icon: FileUp, label: 'Customized Courses' },
+    { 
+      icon: FolderOpen, 
+      label: 'My Courses',
+      subItems: [
+        { path: '/courses', icon: BookOpen, label: 'Standard Courses' },
+        { path: '/create-custom-course', icon: FileUp, label: 'Customized Courses' },
+        { path: '/org-catalog', icon: Building2, label: 'Organization Catalog', orgOnly: true },
+      ]
+    },
+    { path: '/multi-subject', icon: Layers, label: 'Multi-Subject Learning' },
     { path: '/assignments', icon: FileText, labelKey: 'assignments' },
     { path: '/exams', icon: ClipboardList, labelKey: 'exams' },
     { path: '/grades', icon: GraduationCap, labelKey: 'grades' },
@@ -66,7 +73,8 @@ const navItems = {
     { path: '/question-analysis', icon: HelpCircle, label: 'Question Analysis' },
     { path: '/learning-journey', icon: TrendingUp, labelKey: 'learningJourney' },
     { path: '/study-groups', icon: UsersRound, labelKey: 'studyGroups' },
-    { divider: true, label: 'Classes' },
+    { divider: true, label: 'Share & Collaborate' },
+    { path: '/share-content', icon: Share2, label: 'Share Content' },
     { path: '/virtual-classroom', icon: Video, labelKey: 'virtualClassroom' },
     { path: '/live-research', icon: Search, labelKey: 'liveResearch' },
     { path: '/career', icon: Sparkles, labelKey: 'careerGuidance' },
