@@ -43,7 +43,9 @@ import {
 const navItems = {
   student: [
     { path: '/dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
-    { path: '/courses', icon: BookOpen, labelKey: 'myCourses' },
+    { path: '/courses', icon: BookOpen, label: 'Standard Courses' },
+    { path: '/org-catalog', icon: Building2, label: 'Organization Catalog' },
+    { path: '/create-custom-course', icon: FileUp, label: 'Customized Courses' },
     { path: '/assignments', icon: FileText, labelKey: 'assignments' },
     { path: '/exams', icon: ClipboardList, labelKey: 'exams' },
     { path: '/grades', icon: GraduationCap, labelKey: 'grades' },
