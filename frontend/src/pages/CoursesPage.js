@@ -719,6 +719,18 @@ export default function CoursesPage() {
           </div>
         )}
       </div>
+
+      {/* AI Features Selection Modal */}
+      <AIFeaturesGridModal
+        isOpen={showAIFeaturesModal}
+        onClose={() => {
+          setShowAIFeaturesModal(false);
+          setPendingCourseAction(null);
+        }}
+        onComplete={handleAIFeaturesComplete}
+        courseType={pendingCourseAction?.courseType || 'standard'}
+        showRoleSelection={true}
+      />
     </DashboardLayout>
   );
 }
