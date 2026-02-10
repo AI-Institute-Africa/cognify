@@ -17,6 +17,7 @@ import {
   Sparkles,
   Brain,
   Network,
+  Building2,
   FileUp,
   Search,
   Mic,
