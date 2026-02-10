@@ -3,100 +3,134 @@
 ## Overview
 AI-Powered School Management, Learning & Career Intelligence Platform
 
-**Version:** 2.6 (Iteration 19 Complete)
-**Date:** February 6, 2026
+**Version:** 2.8 (Iteration 21 Complete)
+**Date:** February 10, 2026
 
 ---
 
-## LATEST TEST RESULTS - ITERATION 19
+## LATEST TEST RESULTS - ITERATION 21
 
 | Category | Pass Rate | Tests |
 |----------|-----------|-------|
-| Backend | 100% | 20/20 |
-| Frontend | 100% | All verified |
+| Backend | 100% | 19/19 |
+| Frontend | 100% | All 6 features verified |
 
 ---
 
-## FEATURES VERIFIED WORKING
+## NEW FEATURES IMPLEMENTED (Iteration 21)
 
-### Study Groups
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Browse All Groups | ✅ | New section shows all groups to all students |
-| Search Groups | ✅ | Search input filters groups |
-| Join Groups | ✅ | Any student can join any group |
-| Leave Groups | ✅ | Non-creators can leave |
-| Delete Groups | ✅ | Creator can delete |
+### 1. Organization-Specific Login Page ✅
+| Feature | Status | Details |
+|---------|--------|---------|
+| Branded Login | ✅ | Custom login page per organization |
+| Org Stats | ✅ | Shows students, courses, certificates count |
+| Custom Branding | ✅ | Primary/secondary colors, logo support |
+| URL Format | ✅ | `/org/{slug}/login` |
 
-### Organization Settings (NEW PAGE)
-| Tab | Status | Features |
-|-----|--------|----------|
-| Profile | ✅ | Name, website, phone, address, description, logo |
-| Social Media | ✅ | Facebook, Twitter, LinkedIn, Instagram |
-| Documents | ✅ | Upload PDFs, DOCX with text extraction |
-| Database | ✅ | Connect external MongoDB |
+**Test URL:** `/org/test-university-of-zimbabwe/login`
 
-**Access:** `/organization-settings` (org_admin only)
+### 2. Pop-up Quizzes During Lessons ✅
+| Feature | Status | Details |
+|---------|--------|---------|
+| Quiz Modal | ✅ | PopupQuiz component with timer |
+| Question Display | ✅ | Multiple choice with A/B/C/D options |
+| Progress Tracking | ✅ | Shows score and completion |
+| Auto Trigger | ✅ | Triggers every 3rd lesson for students |
+| Result Storage | ✅ | Saves quiz results to database |
 
-### Assignment Generator
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Course Selection | ✅ | Dropdown shows all courses |
-| Course Linking | ✅ | Assignment saved with course_id |
-| Generate | ✅ | Creates assignment (AI budget needed) |
+### 3. Advanced Course Creation with AI Features ✅
+| Feature | Status | Details |
+|---------|--------|---------|
+| Course Types | ✅ | Free, Basic ($49.99), Advanced ($149.99) |
+| AI Features Grid | ✅ | 6 selectable AI capabilities |
+| KTCE | ✅ | Knowledge Time Compression |
+| Adaptive Learning | ✅ | Personalized learning paths |
+| AI Avatar | ✅ | Virtual AI instructor |
+| Real-time Feedback | ✅ | Instant AI feedback |
+| Multilingual | ✅ | Auto-translate content |
+| Micro-Hints | ✅ | Context-aware learning hints |
 
-### Content Display
-| Type | Status | Notes |
-|------|--------|-------|
-| Text | ✅ | Markdown rendering |
-| Video | ✅ | YouTube embed + native video |
-| Images | ✅ | Image display with url field support |
-| Slides | ✅ | Slide presentation |
+### 4. Student Profile File Uploads ✅
+| Feature | Status | Details |
+|---------|--------|---------|
+| My Documents Section | ✅ | In Settings page for students |
+| Upload Button | ✅ | Upload CVs, certificates |
+| File Types | ✅ | PDF, DOC, DOCX, JPG, PNG |
+| Document Management | ✅ | View, download, delete |
+| Document Types | ✅ | Auto-detect CV vs Certificate |
+
+### 5. "Enrolled" Tag on Course Cards ✅
+| Feature | Status | Details |
+|---------|--------|---------|
+| Visual Badge | ✅ | Green badge with CheckCircle icon |
+| Position | ✅ | Top right of course card |
+| Condition | ✅ | Shows only for enrolled courses |
+
+### 6. Export Reports for Org Admins ✅
+| Report Type | Status | Format |
+|-------------|--------|--------|
+| Staff Report | ✅ | CSV with name, email, role, status |
+| Participants Report | ✅ | CSV with name, email, GPA, courses |
+| Enrollments Report | ✅ | CSV with student, course, date |
+| Analytics Summary | ✅ | CSV with key metrics |
 
 ---
 
-## API ENDPOINTS VERIFIED
+## PREVIOUSLY VERIFIED FEATURES (Iteration 19-20)
 
+### Study Groups ✅
+- Browse All Groups (visible to all students)
+- Search, Join, Leave, Delete Groups
+- Chat within groups
+
+### Organization Settings Page ✅
+- Profile management
+- Social media links
+- Document uploads
+- External database connection
+
+### Teacher Messaging ✅
+- Student list by teacher's courses
+- Direct messaging interface
+- Voice Input for AI Mentor (Web Speech API)
+
+### Content Display ✅
+- Text, Video, Image, Slides modes
+- YouTube embed support
+- Course content management
+
+---
+
+## API ENDPOINTS
+
+### New in Iteration 21
 ```
-# Study Groups
-GET  /api/study-groups/all              ✅ All groups visible
-GET  /api/study-groups/all?search=X     ✅ Search groups
+GET  /api/org/public/{org_slug}     - Get org info for branded login
+GET  /api/student/documents         - Get student's uploaded documents
+POST /api/student/documents/upload  - Upload CV/certificate
+DEL  /api/student/documents/{id}    - Delete a document
+GET  /api/lessons/{id}/quiz-questions - Get quiz questions for lesson
+POST /api/lessons/{id}/quiz-result  - Save quiz result
+```
 
-# Organization Settings
-GET  /api/org/profile                   ✅ Get org profile
-PUT  /api/org/profile                   ✅ Update with social media
-GET  /api/org/documents                 ✅ List documents
-POST /api/org/documents/upload          ✅ Upload with text extraction
-GET  /api/org/database/status           ✅ Check DB status
-POST /api/org/database/connect          ✅ Connect MongoDB
-
-# Assignments
-POST /api/advanced/assignment/generate?course_id=X  ✅ Linked to course
+### Existing
+```
+GET  /api/teacher/students          - Get all students for teacher messaging
+POST /api/teacher/send-message      - Send message to student
+GET  /api/study-groups/all          - Browse all study groups
+POST /api/org/upload-document       - Org document upload
+POST /api/org/db/connect            - External DB connection
 ```
 
 ---
 
-## SIDEBAR UPDATES
+## TECH STACK
 
-### Org Admin Menu (Updated)
-1. Dashboard
-2. **Org Dashboard** (Staff/Participants management)
-3. **Organization Settings** (NEW - Profile, Social, Documents, DB)
-4. Participants
-5. Staff
-6. Programs
-7. Finance
-8. AI Tools (Syllabus, Risk, Mentor)
-9. Smart Campus (Virtual, RFID, Biometric, Credentials)
-
----
-
-## BUG FIXES (Iteration 19)
-
-1. **PUT /api/org/profile** - Fixed to check both `org_id` and `organization_id`
-2. **Video Display** - Added support for `url` field (not just `video_url`)
-3. **Image Display** - Added support for `url` field with type check
-4. **Study Groups** - Removed `is_public` filter so all groups visible
+- **Frontend:** React, Tailwind CSS, Shadcn UI
+- **Backend:** FastAPI, Pydantic
+- **Database:** MongoDB
+- **AI:** Emergent LLM Key (GPT-5.2)
+- **Voice:** Web Speech API (browser-native)
 
 ---
 
@@ -104,43 +138,59 @@ POST /api/advanced/assignment/generate?course_id=X  ✅ Linked to course
 
 | Role | Email | Password |
 |------|-------|----------|
-| Student | demo.student@cognify.edu | demo123 |
 | Teacher | demo.teacher@eduos.edu | demo123 |
+| Student | demo.student@cognify.edu | demo123 |
 | Org Admin | test.orgadmin@cognify.edu | admin123 |
 
 ---
 
-## TEST REPORTS
+## REMAINING/FUTURE TASKS (Backlog)
 
-- `/app/test_reports/iteration_19.json` - Latest (100% pass)
-- `/app/backend/tests/test_iteration19_features.py`
+### P1 - High Priority
+- [ ] Fix AI features when budget is available (Avatar Teaching, AI Lesson Planner)
+- [ ] Certificate Generation with QR codes
+- [ ] Google OAuth fix (currently has issues)
 
----
+### P2 - Medium Priority
+- [ ] Bulk enrollment improvements
+- [ ] Source ingestion (external database/document integration for courses)
+- [ ] Advanced analytics dashboard
 
-## REMAINING TASKS
-
-### P1 - Important
-1. Teacher messaging to students
-2. Voice input for AI Mentor
-3. Organization-specific login page (separate URL)
-
-### P2 - Enhancement
-1. AI features (require budget replenishment)
-2. Mobile app
-3. Video conferencing
+### P3 - Low Priority
+- [ ] Refactor server.py into feature-based routers
+- [ ] Clean up OrgAdminDashboardPage.js components
+- [ ] Mobile responsiveness improvements
 
 ---
 
-## FILE CHANGES (Iteration 19)
+## FILE STRUCTURE
 
-### New Files
-- `/app/frontend/src/pages/OrganizationSettingsPage.js`
+```
+/app/
+├── backend/
+│   ├── server.py                 # Main backend (needs refactoring)
+│   ├── services/
+│   │   ├── email_service.py
+│   │   └── payment_service.py
+│   └── tests/
+│       └── test_iteration21_features.py
+├── frontend/
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── OrgLoginPage.js           # NEW: Org branded login
+│   │   │   ├── TeacherMessagingPage.js   # Teacher messaging
+│   │   │   ├── CourseViewPage.js         # Quiz integration
+│   │   │   ├── CoursesPage.js            # Enrolled badge
+│   │   │   ├── SettingsPage.js           # Document uploads
+│   │   │   ├── OrgAdminDashboardPage.js  # Export reports
+│   │   │   └── CreateCustomCoursePage.js # AI features selection
+│   │   └── components/
+│   │       └── PopupQuiz.js              # NEW: Quiz popup
+└── test_reports/
+    ├── iteration_20.json
+    └── iteration_21.json
+```
 
-### Modified Files
-- `/app/frontend/src/pages/StudyGroupsPage.js` - Browse All section
-- `/app/frontend/src/pages/CourseViewPage.js` - Video/Image url support
-- `/app/frontend/src/pages/AssignmentGeneratorPage.js` - Course selection
-- `/app/frontend/src/components/Sidebar.js` - Org admin menu
-- `/app/frontend/src/services/api.js` - Course ID parameter
-- `/app/frontend/src/App.js` - OrganizationSettingsPage route
-- `/app/backend/server.py` - org_id fix
+---
+
+**Last Updated:** February 10, 2026
