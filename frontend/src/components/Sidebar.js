@@ -160,6 +160,7 @@ export const Sidebar = ({ isOpen, onClose, isMobile }) => {
   const { user, logout } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const [expandedMenus, setExpandedMenus] = useState({});
   const items = navItems[user?.role] || navItems.student;
 
   const handleLogout = () => {
@@ -172,6 +173,20 @@ export const Sidebar = ({ isOpen, onClose, isMobile }) => {
     if (isMobile && onClose) {
       onClose();
     }
+  };
+
+  const toggleSubmenu = (index) => {
+    setExpandedMenus(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
+
+  const shouldShowItem = (item) => {
+    if (item.orgOnly && user?.role !== 'org_admin') {
+      return false;
+    }
+    return true;
   };
 
   return (
