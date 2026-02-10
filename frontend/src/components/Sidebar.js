@@ -81,9 +81,16 @@ const navItems = {
   ],
   teacher: [
     { path: '/dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
-    { path: '/courses', icon: BookOpen, label: 'Standard Courses' },
-    { path: '/org-catalog', icon: Building2, label: 'Organization Catalog' },
-    { path: '/create-custom-course', icon: FileUp, label: 'Customized Courses' },
+    { 
+      icon: FolderOpen, 
+      label: 'My Courses',
+      subItems: [
+        { path: '/courses', icon: BookOpen, label: 'Standard Courses' },
+        { path: '/create-custom-course', icon: FileUp, label: 'Customized Courses' },
+        { path: '/org-catalog', icon: Building2, label: 'Organization Catalog', orgOnly: true },
+      ]
+    },
+    { path: '/multi-subject', icon: Layers, label: 'Multi-Subject' },
     { path: '/exams', icon: ClipboardList, labelKey: 'exams' },
     { path: '/students', icon: Users, label: 'Students' },
     { path: '/grades', icon: GraduationCap, label: 'Grading' },
