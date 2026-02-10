@@ -588,6 +588,13 @@ export default function CoursesPage() {
                     <BookOpen className="w-7 h-7 text-blue-400" />
                   </div>
                   <div className="flex flex-col items-end gap-1">
+                    {/* Enrolled Badge */}
+                    {enrolledCourseIds.includes(course.id) && (
+                      <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30" data-testid={`enrolled-badge-${course.id}`}>
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Enrolled
+                      </Badge>
+                    )}
                     <Badge className={`bg-${categoryInfo.color}-500/20 text-${categoryInfo.color}-400 border-${categoryInfo.color}-500/30`}>
                       {categoryInfo.name}
                     </Badge>
