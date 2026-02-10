@@ -61,6 +61,8 @@ import TeacherMessagingPage from './pages/TeacherMessagingPage';
 import OrgLoginPage from './pages/OrgLoginPage';
 import OrganizationCatalogPage from './pages/OrganizationCatalogPage';
 import CertificateViewPage, { CertificateVerifyPage } from './pages/CertificateViewPage';
+import MultiSubjectPage from './pages/MultiSubjectPage';
+import ShareContentPage from './pages/ShareContentPage';
 
 import './App.css';
 
