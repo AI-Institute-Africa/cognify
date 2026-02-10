@@ -3,123 +3,126 @@
 ## Overview
 AI-Powered School Management, Learning & Career Intelligence Platform
 
-**Version:** 2.8 (Iteration 21 Complete)
+**Version:** 3.0 (Iteration 22 Complete)
 **Date:** February 10, 2026
 
 ---
 
-## LATEST TEST RESULTS - ITERATION 21
+## LATEST TEST RESULTS - ITERATION 22
 
 | Category | Pass Rate | Tests |
 |----------|-----------|-------|
-| Backend | 100% | 19/19 |
+| Backend | 100% | 23/23 |
 | Frontend | 100% | All 6 features verified |
 
 ---
 
-## NEW FEATURES IMPLEMENTED (Iteration 21)
+## NEW FEATURES IMPLEMENTED (Iteration 22)
 
-### 1. Organization-Specific Login Page ✅
+### 1. AI Features Selection Grid (Mandatory Gate) ✅
 | Feature | Status | Details |
 |---------|--------|---------|
-| Branded Login | ✅ | Custom login page per organization |
-| Org Stats | ✅ | Shows students, courses, certificates count |
-| Custom Branding | ✅ | Primary/secondary colors, logo support |
-| URL Format | ✅ | `/org/{slug}/login` |
+| Modal Trigger | ✅ | Opens when selecting Standard or Customized Course |
+| Role Selection | ✅ | Step 1: Student, Teacher, Org Admin, Org Staff |
+| Feature Grid | ✅ | Step 2: 7 AI capabilities with pricing |
+| Fee Calculation | ✅ | Dynamic additional fee based on selections |
 
-**Test URL:** `/org/test-university-of-zimbabwe/login`
+**AI Features Available:**
+| Feature | Price | Description |
+|---------|-------|-------------|
+| KTCE | $9.99 | Knowledge Time Compression |
+| Outcome Based Learning | $7.99 | Goal-oriented with measurable outcomes |
+| Adaptive Learning | $12.99 | Personalized learning paths |
+| Avatar Tutor | $14.99 | Virtual AI instructor |
+| Multi-disciplinary | $8.99 | Cross-subject integration |
+| Multilingual Support | $5.99 | Auto-translate content |
+| AI Mentor | $11.99 | Personal AI guidance |
 
-### 2. Pop-up Quizzes During Lessons ✅
+### 2. Organization-Specific Architecture ✅
 | Feature | Status | Details |
 |---------|--------|---------|
-| Quiz Modal | ✅ | PopupQuiz component with timer |
-| Question Display | ✅ | Multiple choice with A/B/C/D options |
-| Progress Tracking | ✅ | Shows score and completion |
-| Auto Trigger | ✅ | Triggers every 3rd lesson for students |
-| Result Storage | ✅ | Saves quiz results to database |
+| Org Catalog Page | ✅ | `/org-catalog` with strict data isolation |
+| Branded Login | ✅ | `/org/{slug}/login` page |
+| Data Isolation | ✅ | Courses not visible outside organization |
+| Course Management | ✅ | "Add Course" for org admins |
+| User Association | ✅ | Auto-associate on first org login |
 
-### 3. Advanced Course Creation with AI Features ✅
+### 3. Certificate Generation & Verification ✅
 | Feature | Status | Details |
 |---------|--------|---------|
-| Course Types | ✅ | Free, Basic ($49.99), Advanced ($149.99) |
-| AI Features Grid | ✅ | 6 selectable AI capabilities |
-| KTCE | ✅ | Knowledge Time Compression |
-| Adaptive Learning | ✅ | Personalized learning paths |
-| AI Avatar | ✅ | Virtual AI instructor |
-| Real-time Feedback | ✅ | Instant AI feedback |
-| Multilingual | ✅ | Auto-translate content |
-| Micro-Hints | ✅ | Context-aware learning hints |
+| Generation | ✅ | POST `/api/certificates/generate` |
+| PDF Download | ✅ | Downloadable PDF certificate |
+| QR Code | ✅ | QR code for verification |
+| Public Verify | ✅ | GET `/api/certificates/verify/{code}` |
+| Shareable Link | ✅ | `/verify-certificate/{code}` |
 
-### 4. Student Profile File Uploads ✅
-| Feature | Status | Details |
-|---------|--------|---------|
-| My Documents Section | ✅ | In Settings page for students |
-| Upload Button | ✅ | Upload CVs, certificates |
-| File Types | ✅ | PDF, DOC, DOCX, JPG, PNG |
-| Document Management | ✅ | View, download, delete |
-| Document Types | ✅ | Auto-detect CV vs Certificate |
+### 4. Navigation Structure ✅
+**Updated Sidebar Order:**
+1. Standard Courses (was "My Courses")
+2. **Organization Catalog** (NEW)
+3. **Customized Courses** (NEW)
+4. Assignments, Exams, Grades...
 
-### 5. "Enrolled" Tag on Course Cards ✅
-| Feature | Status | Details |
-|---------|--------|---------|
-| Visual Badge | ✅ | Green badge with CheckCircle icon |
-| Position | ✅ | Top right of course card |
-| Condition | ✅ | Shows only for enrolled courses |
+**Org Admin Navigation:**
+- "Add Course" (renamed from "Create Course")
+- Organization Settings
+- Content Ingestion
 
-### 6. Export Reports for Org Admins ✅
-| Report Type | Status | Format |
-|-------------|--------|--------|
-| Staff Report | ✅ | CSV with name, email, role, status |
-| Participants Report | ✅ | CSV with name, email, GPA, courses |
-| Enrollments Report | ✅ | CSV with student, course, date |
-| Analytics Summary | ✅ | CSV with key metrics |
+### 5. Terminology Changes ✅
+| Old Term | New Term |
+|----------|----------|
+| Syllabus Ingestion | Content Ingestion |
+| Upload Documents | Upload Sources |
+| Create Course | Add Course (for orgs) |
+
+### 6. Sharing Capabilities ✅
+| Content Type | Shareable |
+|--------------|-----------|
+| AI Responses | ✅ |
+| Assignments | ✅ |
+| Grades | ✅ |
+| Achievements | ✅ |
 
 ---
 
-## PREVIOUSLY VERIFIED FEATURES (Iteration 19-20)
+## PREVIOUSLY VERIFIED FEATURES (Iteration 20-21)
 
-### Study Groups ✅
-- Browse All Groups (visible to all students)
-- Search, Join, Leave, Delete Groups
-- Chat within groups
+### Organization Features ✅
+- Org-specific login pages
+- Enrolled badge on course cards
+- Export Reports (CSV)
+- Staff/Participants management
 
-### Organization Settings Page ✅
-- Profile management
-- Social media links
-- Document uploads
-- External database connection
-
-### Teacher Messaging ✅
-- Student list by teacher's courses
-- Direct messaging interface
+### Learning Features ✅
+- Pop-up quizzes during lessons
+- Teacher-Student Messaging
 - Voice Input for AI Mentor (Web Speech API)
+- Study Groups visibility
 
-### Content Display ✅
-- Text, Video, Image, Slides modes
-- YouTube embed support
-- Course content management
+### Content Features ✅
+- Video/Image display on CourseViewPage
+- Student document uploads (CV, certificates)
+- Advanced course creation
 
 ---
 
 ## API ENDPOINTS
 
-### New in Iteration 21
+### New in Iteration 22
 ```
-GET  /api/org/public/{org_slug}     - Get org info for branded login
-GET  /api/student/documents         - Get student's uploaded documents
-POST /api/student/documents/upload  - Upload CV/certificate
-DEL  /api/student/documents/{id}    - Delete a document
-GET  /api/lessons/{id}/quiz-questions - Get quiz questions for lesson
-POST /api/lessons/{id}/quiz-result  - Save quiz result
-```
-
-### Existing
-```
-GET  /api/teacher/students          - Get all students for teacher messaging
-POST /api/teacher/send-message      - Send message to student
-GET  /api/study-groups/all          - Browse all study groups
-POST /api/org/upload-document       - Org document upload
-POST /api/org/db/connect            - External DB connection
+POST /api/user/ai-preferences       - Save AI feature selections
+GET  /api/user/ai-preferences       - Get saved preferences
+GET  /api/org/my-organization       - Get user's organization
+GET  /api/org/catalog               - Get org-isolated courses
+POST /api/org/courses/add           - Add course to org catalog
+POST /api/certificates/generate     - Generate certificate with QR
+GET  /api/certificates/{id}         - Get certificate details
+GET  /api/certificates/verify/{code} - Public verification
+GET  /api/certificates/{id}/pdf     - Download PDF
+POST /api/share/content             - Create shareable content
+GET  /api/shared/{code}             - Access shared content
+POST /api/knowledge-graph/update    - Update knowledge graph
+GET  /api/knowledge-graph/recommendations - Get recommendations
 ```
 
 ---
@@ -127,10 +130,11 @@ POST /api/org/db/connect            - External DB connection
 ## TECH STACK
 
 - **Frontend:** React, Tailwind CSS, Shadcn UI
-- **Backend:** FastAPI, Pydantic
+- **Backend:** FastAPI, Pydantic, ReportLab (PDF)
 - **Database:** MongoDB
 - **AI:** Emergent LLM Key (GPT-5.2)
 - **Voice:** Web Speech API (browser-native)
+- **QR Code:** qrcode library
 
 ---
 
@@ -144,21 +148,22 @@ POST /api/org/db/connect            - External DB connection
 
 ---
 
-## REMAINING/FUTURE TASKS (Backlog)
+## REMAINING TASKS (Backlog)
 
-### P1 - High Priority
-- [ ] Fix AI features when budget is available (Avatar Teaching, AI Lesson Planner)
-- [ ] Certificate Generation with QR codes
-- [ ] Google OAuth fix (currently has issues)
+### P1 - High Priority (Critical Fixes)
+- [ ] Fix Custom Course Creation "body stream already read" error
+- [ ] Fix LinkedIn analysis failure
+- [ ] Fix AI Mentor audio playback ("Audio Playback failed")
+- [ ] Generated assignments not visible to students
+- [ ] Student messaging system malfunction
 
 ### P2 - Medium Priority
-- [ ] Bulk enrollment improvements
-- [ ] Source ingestion (external database/document integration for courses)
-- [ ] Advanced analytics dashboard
+- [ ] AI Grading synchronization with Knowledge Graph
+- [ ] Avatar voice settings persistence
+- [ ] Multi-Subject support for all roles
 
 ### P3 - Low Priority
 - [ ] Refactor server.py into feature-based routers
-- [ ] Clean up OrgAdminDashboardPage.js components
 - [ ] Mobile responsiveness improvements
 
 ---
@@ -168,27 +173,24 @@ POST /api/org/db/connect            - External DB connection
 ```
 /app/
 ├── backend/
-│   ├── server.py                 # Main backend (needs refactoring)
+│   ├── server.py                 # Main backend (10,000+ lines)
 │   ├── services/
-│   │   ├── email_service.py
-│   │   └── payment_service.py
 │   └── tests/
-│       └── test_iteration21_features.py
+│       └── test_iteration22_features.py
 ├── frontend/
 │   ├── src/
 │   │   ├── pages/
-│   │   │   ├── OrgLoginPage.js           # NEW: Org branded login
-│   │   │   ├── TeacherMessagingPage.js   # Teacher messaging
-│   │   │   ├── CourseViewPage.js         # Quiz integration
-│   │   │   ├── CoursesPage.js            # Enrolled badge
-│   │   │   ├── SettingsPage.js           # Document uploads
-│   │   │   ├── OrgAdminDashboardPage.js  # Export reports
-│   │   │   └── CreateCustomCoursePage.js # AI features selection
+│   │   │   ├── OrgLoginPage.js
+│   │   │   ├── OrganizationCatalogPage.js
+│   │   │   ├── CertificateViewPage.js
+│   │   │   ├── CoursesPage.js (AI Features Modal)
+│   │   │   └── SyllabusIngestionPage.js (Content Ingestion)
 │   │   └── components/
-│   │       └── PopupQuiz.js              # NEW: Quiz popup
+│   │       ├── AIFeaturesGridModal.js (NEW)
+│   │       └── Sidebar.js (updated nav)
 └── test_reports/
-    ├── iteration_20.json
-    └── iteration_21.json
+    ├── iteration_21.json
+    └── iteration_22.json
 ```
 
 ---
