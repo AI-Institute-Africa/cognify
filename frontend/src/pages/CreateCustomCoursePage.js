@@ -510,6 +510,56 @@ export default function CreateCustomCoursePage() {
                 </div>
               </div>
 
+              {/* AI Features Selection (for advanced course types) */}
+              {courseData.courseType !== 'free_custom' && (
+                <div className="pt-4 border-t border-white/10 space-y-4">
+                  <Label className="block">AI Features (Select which features to enable)</Label>
+                  <p className="text-sm text-zinc-500">Choose AI capabilities for your course</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {AI_FEATURES.map(feature => {
+                      const Icon = feature.icon;
+                      const isEnabled = courseData.aiFeatures[feature.id];
+                      return (
+                        <button
+                          key={feature.id}
+                          onClick={() => setCourseData(prev => ({
+                            ...prev,
+                            aiFeatures: {
+                              ...prev.aiFeatures,
+                              [feature.id]: !prev.aiFeatures[feature.id]
+                            }
+                          }))}
+                          className={`p-4 rounded-xl border transition-all text-left ${
+                            isEnabled
+                              ? `border-${feature.color}-500/50 bg-${feature.color}-500/10`
+                              : 'border-white/10 hover:border-white/20'
+                          }`}
+                          data-testid={`ai-feature-${feature.id}`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`p-2 rounded-lg ${isEnabled ? `bg-${feature.color}-500/20` : 'bg-zinc-800'}`}>
+                              <Icon className={`w-5 h-5 ${isEnabled ? `text-${feature.color}-400` : 'text-zinc-500'}`} />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className={`font-medium ${isEnabled ? 'text-white' : 'text-zinc-400'}`}>
+                                  {feature.name}
+                                </span>
+                                {isEnabled && (
+                                  <CheckCircle className={`w-4 h-4 text-${feature.color}-400`} />
+                                )}
+                              </div>
+                              <p className="text-xs text-zinc-500 mt-1">{feature.description}</p>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-4">
                 <Button variant="outline" onClick={() => setStep(1)} className="border-white/10">
                   Back
