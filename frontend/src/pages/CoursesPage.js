@@ -96,6 +96,12 @@ export default function CoursesPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [creating, setCreating] = useState(false);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState([]);
+  
+  // AI Features Modal State
+  const [showAIFeaturesModal, setShowAIFeaturesModal] = useState(false);
+  const [pendingCourseAction, setPendingCourseAction] = useState(null); // { type: 'enroll'|'view', courseId, courseType }
+  const [aiFeatures, setAIFeatures] = useState({});
+  
   const [newCourse, setNewCourse] = useState({
     code: '',
     name: '',
