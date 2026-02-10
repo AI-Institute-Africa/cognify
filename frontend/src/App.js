@@ -57,6 +57,7 @@ import AvatarTrialPage from './pages/AvatarTrialPage';
 import CreateCustomCoursePage from './pages/CreateCustomCoursePage';
 import AcceptInvitePage from './pages/AcceptInvitePage';
 import BulkEnrollmentPage from './pages/BulkEnrollmentPage';
+import TeacherMessagingPage from './pages/TeacherMessagingPage';
 
 import './App.css';
 
@@ -368,6 +369,12 @@ function AppRoutes() {
       <Route path="/bulk-enrollment" element={
         <ProtectedRoute allowedRoles={['org_admin', 'admin', 'teacher']}>
           <BulkEnrollmentPage />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/teacher-messaging" element={
+        <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+          <TeacherMessagingPage />
         </ProtectedRoute>
       } />
       
