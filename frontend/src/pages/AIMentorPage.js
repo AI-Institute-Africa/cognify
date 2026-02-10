@@ -193,76 +193,70 @@ export default function AIMentorPage() {
     }
   };
 
-  // Voice Recording Handler
+  // Voice Recording Handler - Using Web Speech API (free, browser-native)
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+      // Check for browser support
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
+      if (!SpeechRecognition) {
+        toast.error('Speech recognition not supported in this browser. Try Chrome or Edge.');
+        return;
+      }
+      
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = language || 'en-US';
+      
+      mediaRecorderRef.current = recognition;
+      
+      recognition.onstart = () => {
+        setIsRecording(true);
+        toast.success('Listening... Speak now');
+      };
+      
+      recognition.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map(result => result[0].transcript)
+          .join('');
+        
+        // Update input with interim results
+        setInput(transcript);
+      };
+      
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        setIsRecording(false);
+        if (event.error === 'no-speech') {
+          toast.info('No speech detected. Try again.');
+        } else if (event.error === 'not-allowed') {
+          toast.error('Microphone access denied. Please allow microphone access.');
+        } else {
+          toast.error(`Speech recognition error: ${event.error}`);
         }
       };
       
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        stream.getTracks().forEach(track => track.stop());
-        await transcribeAudio(audioBlob);
+      recognition.onend = () => {
+        setIsRecording(false);
+        toast.info('Voice input complete');
       };
       
-      mediaRecorder.start();
-      setIsRecording(true);
-      toast.success('Recording started... Click again to stop');
+      recognition.start();
     } catch (error) {
       console.error('Recording error:', error);
-      toast.error('Could not access microphone. Please check permissions.');
+      toast.error('Could not start voice recognition. Please check permissions.');
     }
   };
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      toast.info('Processing your voice...');
-    }
-  };
-
-  const transcribeAudio = async (audioBlob) => {
-    setLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', audioBlob, 'recording.webm');
-      
-      const token = localStorage.getItem('cognify_token');
-      const API = process.env.REACT_APP_BACKEND_URL;
-      
-      // First transcribe the audio
-      const transcribeResponse = await fetch(`${API}/ai/transcribe`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
-      
-      if (!transcribeResponse.ok) throw new Error('Transcription failed');
-      
-      const { text } = await transcribeResponse.json();
-      
-      if (text && text.trim()) {
-        // Send the transcribed text to the mentor
-        await handleSend(text.trim());
-      } else {
-        toast.error('Could not understand the audio. Please try again.');
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {
+        console.error('Stop recording error:', e);
       }
-    } catch (error) {
-      console.error('Transcription error:', error);
-      toast.error('Failed to process voice input');
-    } finally {
-      setLoading(false);
+      setIsRecording(false);
     }
   };
 
