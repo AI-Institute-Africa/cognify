@@ -215,7 +215,7 @@ class TestOrgAdminDashboard:
     def test_org_admin_dashboard(self, org_admin_token):
         """Test org admin dashboard endpoint"""
         headers = {"Authorization": f"Bearer {org_admin_token}"}
-        response = requests.get(f"{BASE_URL}/api/org/admin/dashboard", headers=headers)
+        response = requests.get(f"{BASE_URL}/api/org-admin/dashboard", headers=headers)
         assert response.status_code == 200
         data = response.json()
         
@@ -230,7 +230,7 @@ class TestOrgAdminDashboard:
     def test_org_teachers_list(self, org_admin_token):
         """Test that Staff tab data (teachers) is returned correctly"""
         headers = {"Authorization": f"Bearer {org_admin_token}"}
-        response = requests.get(f"{BASE_URL}/api/org/teachers", headers=headers)
+        response = requests.get(f"{BASE_URL}/api/org/staff", headers=headers)
         assert response.status_code == 200
         data = response.json()
         
@@ -245,7 +245,7 @@ class TestOrgAdminDashboard:
     def test_org_students_list(self, org_admin_token):
         """Test that Participants tab data (students) is returned correctly"""
         headers = {"Authorization": f"Bearer {org_admin_token}"}
-        response = requests.get(f"{BASE_URL}/api/org/students", headers=headers)
+        response = requests.get(f"{BASE_URL}/api/org/participants", headers=headers)
         assert response.status_code == 200
         data = response.json()
         
