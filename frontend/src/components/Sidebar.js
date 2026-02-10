@@ -71,6 +71,7 @@ const navItems = {
     { path: '/students', icon: Users, label: 'Students' },
     { path: '/grades', icon: GraduationCap, label: 'Grading' },
     { path: '/attendance', icon: Calendar, labelKey: 'attendance' },
+    { path: '/teacher-messaging', icon: MessageSquare, label: 'Messaging' },
     { divider: true, label: 'AI Tools' },
     { path: '/lesson-planner', icon: Sparkles, label: 'AI Planner' },
     { path: '/syllabus-ingestion', icon: FileUp, label: 'Syllabus Ingestion' },
