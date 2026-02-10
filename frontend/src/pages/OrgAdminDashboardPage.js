@@ -283,6 +283,79 @@ export default function OrgAdminDashboardPage() {
     s.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Export Reports Function
+  const handleExportReports = (reportType) => {
+    let data = [];
+    let filename = '';
+    let headers = [];
+
+    switch (reportType) {
+      case 'staff':
+        headers = ['Name', 'Email', 'Role', 'Status', 'Joined Date'];
+        data = teachers.map(t => [
+          t.full_name || 'N/A',
+          t.email || 'N/A',
+          t.role || 'teacher',
+          t.status || 'active',
+          t.created_at ? new Date(t.created_at).toLocaleDateString() : 'N/A'
+        ]);
+        filename = 'staff_report.csv';
+        break;
+      case 'participants':
+        headers = ['Name', 'Email', 'GPA', 'Courses Enrolled', 'Status'];
+        data = students.map(s => [
+          s.full_name || 'N/A',
+          s.email || 'N/A',
+          s.gpa || 'N/A',
+          s.courses_count || 0,
+          s.status || 'active'
+        ]);
+        filename = 'participants_report.csv';
+        break;
+      case 'enrollments':
+        headers = ['Student', 'Course', 'Enrolled Date', 'Status'];
+        data = (dashboard?.recent_enrollments || []).map(e => [
+          e.student_name || 'N/A',
+          e.course_name || 'N/A',
+          e.enrolled_at ? new Date(e.enrolled_at).toLocaleDateString() : 'N/A',
+          'Enrolled'
+        ]);
+        filename = 'enrollments_report.csv';
+        break;
+      case 'analytics':
+        headers = ['Metric', 'Value'];
+        data = [
+          ['Total Staff', dashboard?.statistics?.teachers || 0],
+          ['Total Participants', dashboard?.statistics?.students || 0],
+          ['Total Courses', dashboard?.statistics?.courses || 0],
+          ['Total Revenue', `$${dashboard?.statistics?.revenue || 0}`],
+          ['Average Course Completion', `${analytics?.avg_completion || 0}%`],
+          ['Active Enrollments', analytics?.active_enrollments || 0]
+        ];
+        filename = 'analytics_report.csv';
+        break;
+      default:
+        toast.error('Invalid report type');
+        return;
+    }
+
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    // Download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    
+    toast.success(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} report downloaded!`);
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
