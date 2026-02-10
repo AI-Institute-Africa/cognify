@@ -38,7 +38,11 @@ import {
   ClipboardList,
   Glasses,
   FileText,
-  X
+  X,
+  ChevronDown,
+  FolderOpen,
+  Import,
+  Share2
 } from 'lucide-react';
 
 const navItems = {
