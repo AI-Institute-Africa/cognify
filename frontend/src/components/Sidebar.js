@@ -197,10 +197,68 @@ export const Sidebar = ({ isOpen, onClose, isMobile }) => {
   };
 
   const shouldShowItem = (item) => {
-    if (item.orgOnly && user?.role !== 'org_admin') {
-      return false;
+    // Check if item is org-only and user has organization_id
+    if (item.orgOnly) {
+      return !!user?.organization_id;
     }
     return true;
+  };
+
+  const renderNavItem = (item, index) => {
+    const Icon = item.icon;
+    const label = item.labelKey ? t(item.labelKey) : item.label;
+    
+    // Handle nested subItems (My Courses menu)
+    if (item.subItems) {
+      const isExpanded = expandedMenus[index];
+      const hasOrgCatalog = item.subItems.some(sub => sub.path === '/org-catalog');
+      const visibleSubItems = item.subItems.filter(shouldShowItem);
+      
+      return (
+        <div key={index}>
+          <button
+            onClick={() => toggleSubmenu(index)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
+            data-testid={`nav-submenu-${index}`}
+          >
+            <Icon className="w-5 h-5" />
+            <span className="flex-1 text-left text-sm font-medium">{label}</span>
+            {isExpanded ? (
+              <ChevronDown className="w-4 h-4" />
+            ) : (
+              <ChevronRight className="w-4 h-4" />
+            )}
+          </button>
+          {isExpanded && (
+            <div className="ml-4 pl-4 border-l border-white/10 space-y-1 mt-1">
+              {visibleSubItems.map((subItem, subIndex) => {
+                const SubIcon = subItem.icon;
+                const isActive = window.location.pathname === subItem.path;
+                return (
+                  <NavLink
+                    key={subIndex}
+                    to={subItem.path}
+                    onClick={handleNavClick}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
+                      isActive
+                        ? 'bg-blue-500/10 text-blue-400'
+                        : 'text-zinc-500 hover:text-white hover:bg-white/5'
+                    }`}
+                    data-testid={`nav-link-${subItem.path.replace('/', '')}`}
+                  >
+                    <SubIcon className="w-4 h-4" />
+                    <span className="text-sm">{subItem.label}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    // Regular nav item
+    return null; // Will be handled by existing logic
   };
 
   return (
