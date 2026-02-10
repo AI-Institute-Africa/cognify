@@ -7,7 +7,7 @@ import requests
 import os
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://edusync-34.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://cognify-edu.preview.emergentagent.com')
 
 # Test credentials
 STUDENT_EMAIL = "demo.student@cognify.edu"
