@@ -103,14 +103,12 @@ export default function AIFeaturesGridModal({
   onClose, 
   onComplete,
   courseType = 'standard', // 'standard' or 'customized'
-  initialFeatures = {},
-  showRoleSelection = true
+  initialFeatures = {}
 }) {
   const { user } = useAuth();
   const [selectedFeatures, setSelectedFeatures] = useState(initialFeatures);
-  const [selectedRole, setSelectedRole] = useState(user?.role || 'student');
+  const [selectedRole] = useState(user?.role || 'student'); // System knows the role
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState(showRoleSelection ? 1 : 2); // 1: Role, 2: Features
 
   useEffect(() => {
     if (isOpen) {
