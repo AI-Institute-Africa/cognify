@@ -58,6 +58,7 @@ import CreateCustomCoursePage from './pages/CreateCustomCoursePage';
 import AcceptInvitePage from './pages/AcceptInvitePage';
 import BulkEnrollmentPage from './pages/BulkEnrollmentPage';
 import TeacherMessagingPage from './pages/TeacherMessagingPage';
+import OrgLoginPage from './pages/OrgLoginPage';
 
 import './App.css';
 
@@ -126,6 +127,7 @@ function AppRoutes() {
         </PublicRoute>
       } />
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
+      <Route path="/org/:orgSlug/login" element={<OrgLoginPage />} />
       
       {/* Protected Routes */}
       <Route path="/dashboard" element={
