@@ -113,9 +113,16 @@ const navItems = {
     { path: '/dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
     { path: '/students', icon: Users, label: 'Students' },
     { path: '/teachers', icon: GraduationCap, label: 'Teachers' },
-    { path: '/courses', icon: BookOpen, label: 'Standard Courses' },
-    { path: '/org-catalog', icon: Building2, label: 'Organization Catalog' },
-    { path: '/create-custom-course', icon: FileUp, label: 'Customized Courses' },
+    { 
+      icon: FolderOpen, 
+      label: 'My Courses',
+      subItems: [
+        { path: '/courses', icon: BookOpen, label: 'Standard Courses' },
+        { path: '/create-custom-course', icon: FileUp, label: 'Customized Courses' },
+        { path: '/org-catalog', icon: Building2, label: 'Organization Catalog' },
+      ]
+    },
+    { path: '/multi-subject', icon: Layers, label: 'Multi-Subject' },
     { path: '/fees', icon: CreditCard, label: 'Finance' },
     { path: '/achievements', icon: Trophy, labelKey: 'achievements' },
     { divider: true, label: 'AI Tools' },
@@ -134,9 +141,16 @@ const navItems = {
     { path: '/organization-settings', icon: Settings, label: 'Organization Settings' },
     { path: '/students', icon: Users, labelKey: 'participants' },
     { path: '/teachers', icon: GraduationCap, label: 'Staff' },
-    { path: '/courses', icon: BookOpen, label: 'Standard Courses' },
-    { path: '/org-catalog', icon: Building2, label: 'Organization Catalog' },
-    { path: '/create-custom-course', icon: FileUp, label: 'Add Course' },
+    { 
+      icon: FolderOpen, 
+      label: 'My Courses',
+      subItems: [
+        { path: '/courses', icon: BookOpen, label: 'Standard Courses' },
+        { path: '/create-custom-course', icon: FileUp, label: 'Add Course' },
+        { path: '/org-catalog', icon: Building2, label: 'Organization Catalog' },
+      ]
+    },
+    { path: '/multi-subject', icon: Layers, label: 'Multi-Subject' },
     { path: '/fees', icon: CreditCard, label: 'Finance' },
     { divider: true, label: 'AI Tools' },
     { path: '/syllabus-ingestion', icon: FileUp, label: 'Content Ingestion' },
