@@ -84,6 +84,9 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadSettings();
+    if (user?.role === 'student') {
+      loadDocuments();
+    }
   }, []);
 
   const loadSettings = async () => {
