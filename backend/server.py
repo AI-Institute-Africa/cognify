@@ -10604,6 +10604,215 @@ async def get_knowledge_graph_recommendations(current_user: dict = Depends(get_c
     }
 
 
+# ==================== MULTI-SUBJECT LEARNING ====================
+
+@api_router.get("/multi-subject/my-subjects")
+async def get_my_multi_subjects(current_user: dict = Depends(get_current_user)):
+    """Get user's multi-subject learning paths"""
+    subjects = await db.multi_subjects.find(
+        {"user_id": current_user['id']},
+        {"_id": 0}
+    ).to_list(length=50)
+    return {"subjects": subjects}
+
+
+@api_router.post("/multi-subject/create")
+async def create_multi_subject(
+    name: str = Body(...),
+    description: str = Body(""),
+    subjects: List[str] = Body(...),
+    learning_goals: str = Body(""),
+    estimated_weeks: int = Body(4),
+    ai_features: dict = Body({}),
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a multi-subject learning path"""
+    # Check if user can create (student, org_admin, org_staff, admin, teacher)
+    allowed_roles = ['student', 'org_admin', 'org_staff', 'admin', 'teacher']
+    if current_user.get('role') not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    multi_subject = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user['id'],
+        "organization_id": current_user.get('organization_id'),
+        "name": name,
+        "description": description,
+        "subjects": subjects,
+        "learning_goals": learning_goals,
+        "estimated_weeks": estimated_weeks,
+        "ai_features": ai_features,
+        "progress": 0,
+        "status": "active",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.multi_subjects.insert_one(multi_subject)
+    
+    return {"message": "Multi-subject path created", "id": multi_subject['id']}
+
+
+@api_router.delete("/multi-subject/{subject_id}")
+async def delete_multi_subject(subject_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a multi-subject learning path"""
+    result = await db.multi_subjects.delete_one({
+        "id": subject_id,
+        "user_id": current_user['id']
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found or not authorized")
+    
+    return {"message": "Deleted successfully"}
+
+
+# ==================== SHARING & COLLABORATION ====================
+
+@api_router.get("/user/shares")
+async def get_user_shares(current_user: dict = Depends(get_current_user)):
+    """Get user's shared content links"""
+    shares = await db.shares.find(
+        {"shared_by": current_user['id']},
+        {"_id": 0}
+    ).to_list(length=50)
+    return {"shares": shares}
+
+
+@api_router.get("/user/shareable-content")
+async def get_shareable_content(current_user: dict = Depends(get_current_user)):
+    """Get all content that can be shared by the user"""
+    content = []
+    
+    # AI Mentor conversations
+    conversations = await db.mentor_conversations.find(
+        {"user_id": current_user['id']},
+        {"_id": 0, "id": 1, "title": 1, "created_at": 1}
+    ).limit(10).to_list(length=10)
+    for c in conversations:
+        content.append({
+            "id": c['id'],
+            "type": "ai_response",
+            "title": c.get('title', 'AI Conversation'),
+            "description": "AI Mentor conversation",
+            "created_at": c.get('created_at')
+        })
+    
+    # Assignments
+    assignments = await db.assignment_submissions.find(
+        {"student_id": current_user['id']},
+        {"_id": 0}
+    ).limit(10).to_list(length=10)
+    for a in assignments:
+        content.append({
+            "id": a.get('id', a.get('assignment_id')),
+            "type": "assignment",
+            "title": a.get('title', 'Assignment'),
+            "description": f"Score: {a.get('score', 'N/A')}",
+            "created_at": a.get('submitted_at')
+        })
+    
+    # Grades
+    grades = await db.grades.find(
+        {"student_id": current_user['id']},
+        {"_id": 0}
+    ).limit(10).to_list(length=10)
+    for g in grades:
+        content.append({
+            "id": g.get('id'),
+            "type": "grade",
+            "title": g.get('course_name', 'Grade'),
+            "description": f"Grade: {g.get('grade', 'N/A')}",
+            "created_at": g.get('created_at')
+        })
+    
+    # Achievements
+    achievements = await db.achievements.find(
+        {"user_id": current_user['id']},
+        {"_id": 0}
+    ).limit(10).to_list(length=10)
+    for a in achievements:
+        content.append({
+            "id": a.get('id'),
+            "type": "achievement",
+            "title": a.get('title', 'Achievement'),
+            "description": a.get('description', ''),
+            "created_at": a.get('earned_at')
+        })
+    
+    return {"content": content}
+
+
+@api_router.get("/share/{share_code}/download")
+async def download_shared_content(share_code: str, current_user: dict = Depends(get_current_user)):
+    """Download shared content as PDF"""
+    share = await db.shares.find_one({"share_code": share_code}, {"_id": 0})
+    if not share:
+        raise HTTPException(status_code=404, detail="Share not found")
+    
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    import io
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    styles = getSampleStyleSheet()
+    elements = []
+    
+    elements.append(Paragraph(f"Shared Content: {share['content_type']}", styles['Title']))
+    elements.append(Spacer(1, 20))
+    elements.append(Paragraph(f"Share Code: {share_code}", styles['Normal']))
+    elements.append(Paragraph(f"Created: {share.get('created_at', 'N/A')}", styles['Normal']))
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=shared-{share_code}.pdf"}
+    )
+
+
+# ==================== AVATAR SETTINGS PERSISTENCE ====================
+
+@api_router.get("/user/avatar-settings")
+async def get_avatar_settings(current_user: dict = Depends(get_current_user)):
+    """Get user's saved avatar settings"""
+    settings = await db.avatar_settings.find_one(
+        {"user_id": current_user['id']},
+        {"_id": 0}
+    )
+    return {"settings": settings or {}}
+
+
+@api_router.post("/user/avatar-settings")
+async def save_avatar_settings(
+    avatar_id: str = Body(...),
+    voice_id: str = Body(None),
+    personality: str = Body("friendly"),
+    custom_settings: dict = Body({}),
+    current_user: dict = Depends(get_current_user)
+):
+    """Save user's avatar settings for persistence across sessions"""
+    settings = {
+        "user_id": current_user['id'],
+        "avatar_id": avatar_id,
+        "voice_id": voice_id,
+        "personality": personality,
+        "custom_settings": custom_settings,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.avatar_settings.update_one(
+        {"user_id": current_user['id']},
+        {"$set": settings},
+        upsert=True
+    )
+    
+    return {"message": "Avatar settings saved", "settings": settings}
+
+
 # Include all routers - MUST be after all route definitions
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
