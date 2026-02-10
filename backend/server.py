@@ -9924,6 +9924,226 @@ async def accept_magic_link(token: str, password: str, full_name: str):
         }
     }
 
+
+# ==================== ORGANIZATION PUBLIC LOGIN PAGE ====================
+
+@api_router.get("/org/public/{org_slug}")
+async def get_org_public_info(org_slug: str):
+    """Get public organization info for branded login page"""
+    # Find organization by slug (name converted to slug format)
+    org = await db.organizations.find_one({
+        "$or": [
+            {"slug": org_slug},
+            {"name": {"$regex": f"^{org_slug}$", "$options": "i"}}
+        ]
+    }, {"_id": 0})
+    
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    # Get public stats
+    staff_count = await db.users.count_documents({
+        "organization_id": org['id'],
+        "role": {"$in": ["teacher", "admin"]}
+    })
+    student_count = await db.users.count_documents({
+        "organization_id": org['id'],
+        "role": "student"
+    })
+    course_count = await db.courses.count_documents({
+        "organization_id": org['id']
+    })
+    
+    return {
+        "id": org['id'],
+        "name": org.get('name', 'Organization'),
+        "slug": org.get('slug', org_slug),
+        "description": org.get('description', ''),
+        "logo_url": org.get('logo_url'),
+        "domain": org.get('domain', ''),
+        "branding": org.get('branding', {
+            "primary_color": "#3B82F6",
+            "secondary_color": "#8B5CF6"
+        }),
+        "stats": {
+            "students": student_count,
+            "courses": course_count,
+            "certificates": await db.credentials.count_documents({"organization_id": org['id']})
+        }
+    }
+
+
+# ==================== STUDENT DOCUMENT UPLOADS ====================
+
+@api_router.get("/student/documents")
+async def get_student_documents(current_user: dict = Depends(get_current_user)):
+    """Get documents uploaded by the student"""
+    if current_user.get('role') != 'student':
+        raise HTTPException(status_code=403, detail="Student access required")
+    
+    documents = await db.student_documents.find(
+        {"user_id": current_user['id']},
+        {"_id": 0}
+    ).to_list(length=50)
+    
+    return {"documents": documents}
+
+
+@api_router.post("/student/documents/upload")
+async def upload_student_document(
+    file: UploadFile,
+    document_type: str = Form("certificate"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload CV, certificate, or achievement document"""
+    if current_user.get('role') != 'student':
+        raise HTTPException(status_code=403, detail="Student access required")
+    
+    # Validate file type
+    allowed_types = ['application/pdf', 'application/msword', 
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'image/jpeg', 'image/png']
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Invalid file type")
+    
+    # Save file
+    upload_dir = Path("uploads/student_documents") / current_user['id']
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_id = str(uuid.uuid4())
+    file_ext = Path(file.filename).suffix
+    file_path = upload_dir / f"{file_id}{file_ext}"
+    
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+    
+    # Create document record
+    doc = {
+        "id": file_id,
+        "user_id": current_user['id'],
+        "filename": file.filename,
+        "document_type": document_type,
+        "file_path": str(file_path),
+        "url": f"/api/student/documents/file/{file_id}",
+        "uploaded_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.student_documents.insert_one(doc)
+    
+    return {"message": "Document uploaded", "document_id": file_id}
+
+
+@api_router.get("/student/documents/file/{doc_id}")
+async def get_student_document_file(doc_id: str, current_user: dict = Depends(get_current_user)):
+    """Serve student document file"""
+    doc = await db.student_documents.find_one({"id": doc_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    file_path = Path(doc['file_path'])
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    return FileResponse(file_path, filename=doc['filename'])
+
+
+@api_router.delete("/student/documents/{doc_id}")
+async def delete_student_document(doc_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a student document"""
+    doc = await db.student_documents.find_one({
+        "id": doc_id,
+        "user_id": current_user['id']
+    }, {"_id": 0})
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Delete file
+    file_path = Path(doc['file_path'])
+    if file_path.exists():
+        file_path.unlink()
+    
+    # Delete record
+    await db.student_documents.delete_one({"id": doc_id})
+    
+    return {"message": "Document deleted"}
+
+
+# ==================== QUIZ ENDPOINTS FOR POPUP QUIZZES ====================
+
+@api_router.get("/lessons/{lesson_id}/quiz-questions")
+async def get_lesson_quiz_questions(
+    lesson_id: str,
+    count: int = 3,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get quiz questions for a lesson popup quiz"""
+    # Check if quiz questions exist for this lesson
+    existing_questions = await db.quiz_questions.find(
+        {"lesson_id": lesson_id},
+        {"_id": 0}
+    ).to_list(length=count)
+    
+    if existing_questions:
+        return {"questions": existing_questions}
+    
+    # Get lesson content to generate questions
+    lesson = await db.course_contents.find_one({"id": lesson_id}, {"_id": 0})
+    if not lesson:
+        # Return default engagement questions
+        return {"questions": [
+            {
+                "id": str(uuid.uuid4()),
+                "question": "Are you understanding the lesson content?",
+                "options": ["Yes, completely", "Mostly", "Need to review", "Just started"],
+                "correct_answer": 0
+            }
+        ]}
+    
+    # Generate simple comprehension questions
+    questions = [
+        {
+            "id": str(uuid.uuid4()),
+            "lesson_id": lesson_id,
+            "question": f"What is the main topic of '{lesson.get('title', 'this lesson')}'?",
+            "options": [
+                "Understanding key concepts",
+                "Advanced techniques",
+                "Review and practice",
+                "Introduction to the topic"
+            ],
+            "correct_answer": 0
+        }
+    ]
+    
+    return {"questions": questions}
+
+
+@api_router.post("/lessons/{lesson_id}/quiz-result")
+async def save_lesson_quiz_result(
+    lesson_id: str,
+    course_id: str = Body(...),
+    score: int = Body(...),
+    total: int = Body(...),
+    passed: bool = Body(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Save quiz result for a lesson"""
+    result = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user['id'],
+        "lesson_id": lesson_id,
+        "course_id": course_id,
+        "score": score,
+        "total": total,
+        "passed": passed,
+        "completed_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.quiz_results.insert_one(result)
+    
+    return {"message": "Quiz result saved", "result_id": result['id']}
+
 # Include all routers - MUST be after all route definitions
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
