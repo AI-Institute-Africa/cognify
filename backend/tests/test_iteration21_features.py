@@ -193,7 +193,7 @@ class TestExportReports:
     def test_org_admin_dashboard(self, org_admin_token):
         """Test org admin dashboard endpoint"""
         headers = {"Authorization": f"Bearer {org_admin_token}"}
-        response = requests.get(f"{BASE_URL}/api/org/admin/dashboard", headers=headers)
+        response = requests.get(f"{BASE_URL}/api/org-admin/dashboard", headers=headers)
         
         assert response.status_code == 200
         data = response.json()
@@ -362,7 +362,7 @@ class TestIntegration:
         headers = {"Authorization": f"Bearer {token}"}
         
         # 2. Get dashboard
-        dashboard_response = requests.get(f"{BASE_URL}/api/org/admin/dashboard", headers=headers)
+        dashboard_response = requests.get(f"{BASE_URL}/api/org-admin/dashboard", headers=headers)
         assert dashboard_response.status_code == 200
         
         # 3. Get staff
