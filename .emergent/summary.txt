@@ -1,0 +1,247 @@
+<analysis>**original_problem_statement:**
+The user has provided a comprehensive, platform-level system specification with the explicit instruction that all requirements must be implemented in one integrated system, without mock data or placeholder logic.
+
+The core requirements are:
+1.  **Organization-Specific Architecture:** Implement organization-specific course catalogs (with a dedicated Organization Catalog tab), branded login pages, and strict data isolation. Courses must not be visible across organizations. Invited users must be automatically associated with their organization.
+2.  **Certificate Generation & Credential Issuance:** Implement shareable, printable, and downloadable (PDF) certificates with QR codes that resolve to a public verification page to validate authenticity.
+3.  **AI Features Selection Grid:** This mandatory modal must appear after a user selects a Standard or Customized course. It should capture the user's role and allow them to select from a grid of paid AI features (KTCE, Adaptive Learning, Avatar Tutor, etc.) that influence course behavior.
+4.  **Advanced Custom Course Creation (Organization-Aware):** Each organization must have its own AI course creation pipeline that uses its history, uploaded sources, and internal databases (real connections, no mocks).
+5.  **Critical Error Fixes:** Resolve blocking issues including:
+    *   Custom Course Creation error: 
+    *   LinkedIn analysis failure.
+    *   AI Mentor audio playback failure.
+    *   Generated assignments not being visible to students.
+    *   Certificate not visible upon issuance and errors when copying the verification hash.
+6.  **Voice & Audio Capabilities:** Add a voice recorder to the Create Your Own Questions feature and ensure AI Mentor audio playback is reliable and uses saved avatar voice settings.
+7.  **Dynamic Knowledge Graph & Avatar System:** Ensure the Knowledge Graph updates continuously from all data sources and that avatar settings are saved per user and persist across sessions.
+8.  **Sharing & Collaboration:** Enable students, staff, and participants to share AI outputs, assignments, grades, and achievements via internal platform sharing, downloads, and external links.
+9.  **Multi-Subject Support:** Enable Multi-Subject course creation for Students, Org Admins, and Staff, governed by the AI Features Selection Grid.
+10. **UI/UX & Terminology:** Refactor the sidebar to group courses under a My Courses dropdown. Globally rename Syllabus Ingestion to Content Ingestion and Upload Documents to Upload Sources.
+
+**User's preferred language**: English
+
+**what currently exists?**
+The project is a large-scale AI Learning Platform with a FastAPI backend and React frontend. The agent has just completed a massive feature implementation round, adding an organization-specific login page, pop-up quizzes, an Enrolled tag on courses, student document uploads, an export-to-CSV feature for admins, and an advanced course creation page with AI feature selection.
+
+Prior to that, the agent verified that several previously reported P0 bugs (Content Display, Org Admin Page, Study Group Visibility) were resolved. Core features like Teacher-Student messaging and AI Mentor voice input have also been implemented.
+
+However, the user has provided a new, even more detailed list of requirements and critical bug fixes, indicating that while many components exist, the system is not yet fully integrated or production-ready.
+
+**Last working item**:
+-   **Last item agent was working:** The agent was in the middle of a large-scale implementation and bug-fixing session based on the user's latest detailed specification. The last actions included:
+    1.  Fixing the  error in  by ensuring  is only called once.
+    2.  Creating new pages:  and .
+    3.  Adding their routes to .
+    4.  Adding a large number of new backend endpoints to  to support multi-subject learning, content sharing, and certificate verification.
+    5.  Preparing to fix issues on the .
+-   **Status:** IN PROGRESS
+-   **Agent Testing Done:** N
+-   **Which testing method agent to use?** both. The scope of changes is massive. After completing the implementation of all user requests, a full run of the  is mandatory. Intermediate  and  checks should be used for individual fixes.
+-   **User Testing Done:** N
+
+**All Pending/In progress Issue list**:
+-   **Issue 1: body stream already read error in Custom Course Creation (P0)**
+    -   **Description:** An error occurs when creating a custom course, preventing completion.
+    -   **Attempted fixes:** The agent identified that  was being called twice in an error path within  and applied a fix to prevent this.
+    -   **Next debug checklist:**
+        1.  Attempt to create a custom course again.
+        2.  Verify the fix prevents the crash.
+        3.  Confirm the course is created successfully in the database.
+    -   **Why fix this issue and what will be achieved with the fix?** This is a critical bug blocking a core feature of the platform.
+    -   **Status:** IN PROGRESS (Fix applied, needs verification)
+    -   **Is recurring issue?** Y
+    -   **Should Test frontend/backend/both after fix?** Frontend.
+    -   **Blocked on other issue:** None.
+
+-   **Issue 2: Certificate Not Visible on Issue Credential & Hash Copy Error (P0)**
+    -   **Description:** When an admin issues a credential, the certificate is not displayed, and trying to copy the verification hash throws an error.
+    -   **Attempted fixes:** The agent viewed  to understand the code but has not yet implemented a fix.
+    -   **Next debug checklist:**
+        1.  Examine the  function in .
+        2.  Inspect the backend endpoint  in  to ensure it returns the certificate data and verification hash correctly.
+        3.  Debug the state management that should display the certificate after issuance.
+        4.  Fix the copy-to-clipboard functionality for the hash.
+    -   **Why fix this issue and what will be achieved with the fix?** This breaks the entire credentialing workflow, a key selling point of the platform.
+    -   **Status:** NOT STARTED
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?** Both.
+    -   **Blocked on other issue:** None.
+
+-   **Issue 3: LinkedIn Analysis & AI Mentor Audio Playback Failures (P1)**
+    -   **Description:** Two separate issues: LinkedIn profile analysis is failing, and the AI Mentor's audio playback feature is broken.
+    -   **Attempted fixes:** None.
+    -   **Next debug checklist:**
+        1.  **LinkedIn:** Check the backend endpoint responsible for Proxycurl integration and ensure API keys are correct and the logic handles the response properly.
+        2.  **Audio Playback:** Investigate the  API call in  and the corresponding backend endpoint. Check for console errors related to audio playback APIs (, etc.).
+    -   **Why fix this issue and what will be achieved with the fix?** These are core AI features that need to be functional.
+    -   **Status:** NOT STARTED
+    -   **Is recurring issue?** Y
+    -   **Should Test frontend/backend/both after fix?** Both.
+    -   **Blocked on other issue:** None.
+
+-   **Issue 4: Generated Assignments Not Visible to Students (P1)**
+    -   **Description:** When a teacher generates an assignment, it does not appear on the student's dashboard or assignment list.
+    -   **Attempted fixes:** None.
+    -   **Next debug checklist:**
+        1.  Trace the  flow from the teacher's UI to the backend.
+        2.  Verify the assignment is correctly stored in the  collection with the proper  and .
+        3.  Check the student-facing endpoints that fetch assignments to ensure they are querying correctly.
+    -   **Why fix this issue and what will be achieved with the fix?** This breaks the assignment workflow, a critical part of the learning process.
+    -   **Status:** NOT STARTED
+    -   **Is recurring issue?** Y
+    -   **Should Test frontend/backend/both after fix?** Both.
+    -   **Blocked on other issue:** None.
+
+**In progress Task List**:
+-   **Task 1: Implement User's Full System Specification (P0)**
+    -   **Where to resume:** The agent has laid the groundwork by creating new pages (, ), updating backend endpoints, and applying some fixes. The immediate next steps are:
+        1.  Implement the UI and logic for  and .
+        2.  Add voice input to the Create Your Own Questions feature.
+        3.  Implement the avatar settings persistence logic.
+        4.  Begin the  refactoring into modular routers.
+    -   **What will be achieved with this?** This will continue the implementation of the user's comprehensive list of requirements.
+    -   **Status:** IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?** Both.
+    -   **Blocked on something:** None.
+
+**Upcoming and Future Tasks**
+-   **Upcoming Tasks:**
+    -   **(P0) Refactor :** Break the monolithic  into modular FastAPI routers (e.g., , , ).
+    -   **(P1) Avatar Settings Persistence:** Implement backend logic to save user avatar preferences (voice, style) and auto-load them when the Avatar Tutor is selected.
+    -   **(P1) Sharing & Collaboration:** Build out the UI on  to allow sharing of AI Mentor outputs, assignments, grades, etc., via internal and external links.
+    -   **(P1) Multi-Subject Creation:** Enable Students, Org Admins, and Staff to create and manage multi-subject learning paths via .
+    -   **(P1) Organization-Aware Custom Course Creation:** Enhance the AI course creation pipeline to use organization-specific data sources (history, documents, social media). Requires real database connections.
+    -   **(P2) Import from Standard Courses:** Add functionality to the Customized Courses page to allow users to import and customize an existing standard course.
+-   **Future Tasks:**
+    -   The current list of upcoming tasks represents the entire backlog. There are no other future tasks defined at this time.
+
+**Completed work in this session**
+-   **P0 Bug Fixes (Verified):**
+    -   Content Display: Verified that uploaded videos and slides are now displaying correctly in .
+    -   Organization Admin Page: Verified that the Staff and Participants tabs are functional and display correct data.
+    -   Study Group Visibility: Verified that the Browse All Groups section correctly shows all public study groups to all users.
+-   **Batch 1 Feature Implementation:**
+    -   **Teacher-Student Messaging:** Implemented , linked it in the , and created the  backend endpoint.
+    -   **AI Mentor Voice Input:** Replaced the  API with the browser's native Web Speech API on  as requested.
+-   **Batch 2 Feature Implementation (New Features):**
+    -   **Organization-Specific Login:** Created  for branded, scoped logins (e.g., ).
+    -   **Enrolled Tag:** Added a visual Enrolled badge to course cards on  for enrolled users.
+    -   **Student Document Uploads:** Added a My Documents section to the  for students to upload CVs and certificates.
+    -   **Export Reports (Org Admin):** Added a dropdown menu on  to export staff, participant, and enrollment data as CSV files.
+    -   **Advanced Course Creation UI:** Enhanced  with a multi-step process including a selection grid for paid AI features.
+    -   **Pop-up Quizzes:** Created a  component and integrated it into  to trigger during lessons.
+-   **System Specification Implementation (Started):**
+    -   **Sidebar Refactor:** Updated  to group courses under a My Courses parent menu and restrict Organization Catalog visibility to organization members.
+    -   **AI Features Modal Update:** Removed the Select your role step from  as the system already knows the user's role.
+    -   **Terminology Update:** Renamed Syllabus Ingestion to Content Ingestion in the UI.
+
+**Earlier issues found/mentioned but not fixed**
+-   All known unfixed issues are captured in the **All Pending/In progress Issue list**. The user's most recent message is the source of truth for all current bugs.
+
+**Known issue recurrence from previous fork**
+-   The previous handoff noted recurring issues with **Content Display**, **Organization Admin Pages**, and **Study Group Visibility**. While the agent verified these as fixed in this session, their historical instability means they should be regression-tested carefully after major changes.
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+-   **Frontend:** React, Tailwind CSS, Shadcn UI
+-   **Backend:** FastAPI, Pydantic
+-   **Database:** MongoDB
+-   **Dependencies:**  (new),  (new)
+
+**key DB schema**
+-   **issued_credentials:** (New) To store data for generated certificates, including , , , .
+-   **user_documents:** (New) To store metadata for user-uploaded documents like CVs and certificates.
+-   **shared_content:** (New) To manage shared items with permissions and public access tokens.
+-   **student_multi_subjects:** (New) To store user-created multi-subject learning paths.
+-   **organizations:**  field added to support branded URLs.
+
+**changes in tech stack**
+-   **Frontend:**  library added for certificate generation.
+-   **Backend:**  library added for PDF generation of certificates.
+
+**All files of reference**
+-   
+-   
+-   
+-   
+-   
+-   
+-   
+-   **New Files:** , , , , , .
+
+**Areas that need refactoring**:
+-   **/app/backend/server.py**: This is a top priority. The user has explicitly requested to break this monolith into modular feature-based routers to improve maintainability.
+-   **/app/frontend/src/components/Sidebar.js**: The rendering logic was updated to handle nested menus but could be further simplified to improve readability.
+
+**key api endpoints**
+-    (GET): Retrieves public data for a branded login page.
+-    (POST/GET): For uploading and retrieving student documents.
+-    (GET): Fetches quiz questions for a lesson.
+-    (POST): Issues a new certificate.
+-    (GET): Public endpoint to verify a certificate's authenticity.
+-    (GET): Downloads the certificate as a PDF.
+-    (POST): Creates a shareable link for content.
+-    (GET): Accesses shared content.
+-    (POST/GET): Endpoints for creating and managing multi-subject learning paths.
+
+**Critical Info for New Agent**
+-   **Follow the Specification:** The user's last message is a strict system specification, not a list of suggestions. All points must be implemented fully.
+-   **No Mock Data:** The user has forbidden mock data, especially for database connections. All integrations must be real.
+-   **Prioritize Critical Fixes:** Address the blocking bugs (course creation, auth, assignments) with high priority alongside new feature development.
+-   **Data Isolation is Mandatory:** When implementing organization-specific features, ensure there is no possibility of data leaking between organizations.
+-   **Refactor :** This is a specific technical debt task requested by the user and should be addressed soon.
+
+**documents and test reports created in this job**
+-   
+-   
+-   
+-   
+
+**Last 10 User Messages and any pending HUMAN messages**
+1.  **User (Latest):** Provided a massive, detailed system specification covering bug fixes, new features (sharing, multi-subject), architectural changes (sidebar, server refactoring), and strict constraints (no mock data, data isolation). (IN PROGRESS)
+2.  **Agent:** Finished a large batch of 6 new features and confirmed they passed testing via the testing agent. (COMPLETED)
+3.  **User:** Approved the implementation of the 6 features. (CONFIRMED)
+4.  **Agent:** Proposed a plan to implement the 6 features (Org Login, Pop-up Quiz, Advanced Course Creation, etc.). (CONFIRMED)
+5.  **User:** Approved a plan to fix P0 bugs first, then continue with Batch 1 features. (CONFIRMED)
+6.  **Agent:** Proposed the plan to fix P0 bugs and implement Batch 1 features. (SUPERSEDED by User's approval)
+7.  **User:** Confirmed the agent's understanding from the previous handoff. (ACKNOWLEDGED)
+8.  **Agent:** Asked for confirmation on the initial plan after reading the handoff. (SUPERSEDED by User's response)
+9.  **User (from previous fork):** Approved a long list of 19+ new features and fixes. (SUPERSEDED by more recent, detailed specs)
+10. **Agent (from previous fork):** Proposed a plan to tackle the 19+ items. (SUPERSEDED)
+
+**Project Health Check:**
+-   **Broken:**
+    -   Custom Course Creation ( error).
+    -   AI Mentor audio playback.
+    -   LinkedIn analysis feature.
+    -   Assignment visibility for students.
+    -   Certificate issuance and verification flow.
+-   **Mocked:** User explicitly forbids any mocked data, particularly for external database connections for organizations. The next agent must ensure all implementations use real data and connections.
+
+**3rd Party Integrations**
+-   **Resend:** For email.
+-   **Paynow:** For payments.
+-   **Proxycurl:** For LinkedIn scraping (currently failing).
+-   **Twilio:** For WhatsApp notifications.
+-   **Google (OAuth & Meet):** Via Emergent Managed Auth.
+-   **Emergent LLM Key:** For all AI features.
+-   **reportlab:** (New) For PDF generation.
+
+**Testing status**
+-   **Testing agent used after significant changes:** YES. The agent ran , , and  test suites, which all passed with 100% success for the features they covered.
+-   **Troubleshoot agent used after agent stuck in loop:** NO.
+-   **Test files created:** None.
+-   **Known regressions:** The user's latest message lists several features that are either broken or not functioning as intended, which can be considered regressions or incomplete implementations.
+
+**Credentials to test flow:**
+-   **Resend API Key:**  (Requires user to verify sending domain).
+-   **Google Client ID/Secret:** Available in backend .
+-   **Test Users:** , , . Password for all is .
+
+**What agent forgot to execute**
+The agent has been implementing features at a rapid pace but has not yet addressed all the critical bugs and detailed requirements from the user's latest and most comprehensive message. The highest priorities that were requested but not yet fully implemented are:
+-   Resolving all critical bugs (LinkedIn, Audio, Assignments, Certificates).
+-   The full refactoring of  into modular routers.
+-   Implementing the logic for sharing content, multi-subject learning, and avatar persistence.</analysis>

@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://cognify-edu.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://scholar-port.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 STUDENT_CREDS = {"email": "demo.student@eduos.edu", "password": "demo123"}

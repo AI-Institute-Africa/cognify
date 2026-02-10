@@ -9458,7 +9458,7 @@ async def org_bulk_enroll_participants(
         raise HTTPException(status_code=404, detail="Course not found")
     
     course_name = course.get('title') or course.get('name', 'Course')
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://cognify-edu.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://scholar-port.preview.emergentagent.com')
     
     results = []
     for email in request.emails:
@@ -9614,7 +9614,7 @@ async def resend_invitation(
         }}
     )
     
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://cognify-edu.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://scholar-port.preview.emergentagent.com')
     magic_link = f"{frontend_url}/accept-invite?token={new_token}"
     
     # Resend email
