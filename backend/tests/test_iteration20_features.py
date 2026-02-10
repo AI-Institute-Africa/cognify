@@ -210,7 +210,7 @@ class TestOrgAdminDashboard:
     @pytest.fixture
     def org_admin_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=ORG_ADMIN_CREDS)
-        return response.json()['token']
+        return response.json()['access_token']
     
     def test_org_admin_dashboard(self, org_admin_token):
         """Test org admin dashboard endpoint"""
