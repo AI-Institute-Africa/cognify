@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="16" failures="3" skipped="0" tests="20" time="5.241" timestamp="2026-02-10T08:32:17.876352+00:00" hostname="agent-env-21ac54be-dd6d-4c3c-a173-8408ae3d24bf"><testcase classname="backend.tests.test_iteration20_features.TestHealthCheck" name="test_health_endpoint" time="0.101" /><testcase classname="backend.tests.test_iteration20_features.TestAuthentication" name="test_teacher_login" time="0.264"><failure message="AssertionError: assert 'token' in {'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhN2U1ZDU5My02OTllLTQ0ZGUtYWZlNC0zNWI3NGI5OTNmYmMiLCJyb2xlIjoidGVhY2hlciIsIm9yZ19pZCI6bnVsbCwiZXhwIjoxNzcwNzk4NzM4fQ.uDTYDXygd7gsGQSseFmxv15QRINX6AjON9vwZU-Q8CI', 'token_type': 'bearer', 'user': {'email': 'demo.teacher@eduos.edu', 'full_name': 'Dr. Sarah Williams', 'id': 'a7e5d593-699e-44de-afe4-35b74b993fbc', 'role': 'teacher'}}">backend/tests/test_iteration20_features.py:45: in test_teacher_login
+    assert 'token' in data
+E   AssertionError: assert 'token' in {'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhN2U1ZDU5My02OTllLTQ0ZGUtYWZlNC0zNWI3NGI5OTNmYmMiLCJyb2xlIjoidGVhY2hlciIsIm9yZ19pZCI6bnVsbCwiZXhwIjoxNzcwNzk4NzM4fQ.uDTYDXygd7gsGQSseFmxv15QRINX6AjON9vwZU-Q8CI', 'token_type': 'bearer', 'user': {'email': 'demo.teacher@eduos.edu', 'full_name': 'Dr. Sarah Williams', 'id': 'a7e5d593-699e-44de-afe4-35b74b993fbc', 'role': 'teacher'}}</failure></testcase><testcase classname="backend.tests.test_iteration20_features.TestAuthentication" name="test_student_login" time="0.264"><failure message="AssertionError: assert 'token' in {'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZW1vLXN0dWRlbnQtMDAxIiwicm9sZSI6InN0dWRlbnQiLCJvcmdfaWQiOm51bGwsImV4cCI6MTc3MDc5ODczOH0.MhWVLdroIsnSUuBQ6c8Sx6KbeAnXCHgPR6mMV8u9Ey4', 'token_type': 'bearer', 'user': {'email': 'demo.student@cognify.edu', 'full_name': 'Demo Student Updated', 'id': 'demo-student-001', 'role': 'student'}}">backend/tests/test_iteration20_features.py:54: in test_student_login
+    assert 'token' in data
+E   AssertionError: assert 'token' in {'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZW1vLXN0dWRlbnQtMDAxIiwicm9sZSI6InN0dWRlbnQiLCJvcmdfaWQiOm51bGwsImV4cCI6MTc3MDc5ODczOH0.MhWVLdroIsnSUuBQ6c8Sx6KbeAnXCHgPR6mMV8u9Ey4', 'token_type': 'bearer', 'user': {'email': 'demo.student@cognify.edu', 'full_name': 'Demo Student Updated', 'id': 'demo-student-001', 'role': 'student'}}</failure></testcase><testcase classname="backend.tests.test_iteration20_features.TestAuthentication" name="test_org_admin_login" time="0.262"><failure message="AssertionError: assert 'token' in {'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhOGQwZDlmMy03OTE2LTRlMjAtYTdlZC1hNThjOGY0M2ZmNTYiLCJyb2xlIjoib3JnX2FkbWluIiwib3JnX2lkIjoidGVzdC1vcmctMSIsImV4cCI6MTc3MDc5ODczOH0.XKx8EOxJ9k6taCo8X_uJxrXlsuc7EE3CLQc4gJ43gjQ', 'token_type': 'bearer', 'user': {'email': 'test.orgadmin@cognify.edu', 'full_name': 'Test Org Admin', 'id': 'a8d0d9f3-7916-4e20-a7ed-a58c8f43ff56', 'role': 'org_admin'}}">backend/tests/test_iteration20_features.py:63: in test_org_admin_login
+    assert 'token' in data
+E   AssertionError: assert 'token' in {'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhOGQwZDlmMy03OTE2LTRlMjAtYTdlZC1hNThjOGY0M2ZmNTYiLCJyb2xlIjoib3JnX2FkbWluIiwib3JnX2lkIjoidGVzdC1vcmctMSIsImV4cCI6MTc3MDc5ODczOH0.XKx8EOxJ9k6taCo8X_uJxrXlsuc7EE3CLQc4gJ43gjQ', 'token_type': 'bearer', 'user': {'email': 'test.orgadmin@cognify.edu', 'full_name': 'Test Org Admin', 'id': 'a8d0d9f3-7916-4e20-a7ed-a58c8f43ff56', 'role': 'org_admin'}}</failure></testcase><testcase classname="backend.tests.test_iteration20_features.TestCourseContentDisplay" name="test_get_course_content" time="0.258"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:80: in student_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_iteration20_features.TestCourseContentDisplay" name="test_video_content_has_url" time="0.260"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:80: in student_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_iteration20_features.TestCourseContentDisplay" name="test_image_content_has_url" time="0.260"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:80: in student_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_iteration20_features.TestCourseContentDisplay" name="test_upload_video_content" time="0.263"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:75: in teacher_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_iteration20_features.TestCourseContentDisplay" name="test_upload_image_content" time="0.262"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:75: in teacher_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_iteration20_features.TestOrgAdminDashboard" name="test_org_admin_dashboard" time="0.263"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:213: in org_admin_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_iteration20_features.TestOrgAdminDashboard" name="test_org_teachers_list" time="0.257"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:213: in org_admin_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_iteration20_features.TestOrgAdminDashboard" name="test_org_students_list" time="0.257"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:213: in org_admin_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_iteration20_features.TestStudyGroupsVisibility" name="test_get_all_study_groups" time="0.263"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:267: in student_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_iteration20_features.TestStudyGroupsVisibility" name="test_study_groups_search" time="0.257"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:267: in student_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_iteration20_features.TestStudyGroupsVisibility" name="test_create_and_find_group" time="0.261"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:267: in student_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_iteration20_features.TestTeacherMessaging" name="test_get_teacher_students" time="0.259"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:348: in teacher_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_iteration20_features.TestTeacherMessaging" name="test_get_teacher_students_by_course" time="0.258"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:348: in teacher_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_iteration20_features.TestTeacherMessaging" name="test_send_message_endpoint_exists" time="0.258"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:348: in teacher_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_iteration20_features.TestAIMentorVoiceInput" name="test_mentor_profile_endpoint" time="0.259"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:410: in student_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_iteration20_features.TestAIMentorVoiceInput" name="test_mentor_chat_endpoint" time="0.259"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_iteration20_features.py:410: in student_token
+    return response.json()['token']
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase></testsuite></testsuites>
