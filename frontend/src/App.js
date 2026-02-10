@@ -59,6 +59,8 @@ import AcceptInvitePage from './pages/AcceptInvitePage';
 import BulkEnrollmentPage from './pages/BulkEnrollmentPage';
 import TeacherMessagingPage from './pages/TeacherMessagingPage';
 import OrgLoginPage from './pages/OrgLoginPage';
+import OrganizationCatalogPage from './pages/OrganizationCatalogPage';
+import CertificateViewPage, { CertificateVerifyPage } from './pages/CertificateViewPage';
 
 import './App.css';
 
