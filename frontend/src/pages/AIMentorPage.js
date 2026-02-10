@@ -328,13 +328,31 @@ export default function AIMentorPage() {
 
   const playAudio = async (text) => {
     try {
+      // First try ElevenLabs TTS
       const response = await textToSpeech(text, profile?.voice_id, language);
       if (response.audio_url && audioRef.current) {
         audioRef.current.src = response.audio_url;
-        audioRef.current.play();
+        await audioRef.current.play();
+        return;
       }
     } catch (error) {
-      toast.error('Audio playback failed');
+      console.error('Primary TTS failed:', error);
+      
+      // Fallback to browser's built-in speech synthesis
+      try {
+        if ('speechSynthesis' in window) {
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = language || 'en-US';
+          utterance.rate = 0.9;
+          window.speechSynthesis.speak(utterance);
+          toast.info('Using browser voice (server TTS unavailable)');
+          return;
+        }
+      } catch (fallbackError) {
+        console.error('Fallback TTS failed:', fallbackError);
+      }
+      
+      toast.error('Audio playback unavailable. Try enabling browser speech synthesis.');
     }
   };
 
