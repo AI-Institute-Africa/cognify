@@ -5120,13 +5120,23 @@ async def create_assignment(data: AssignmentCreate, current_user: dict = Depends
     if current_user['role'] not in ['teacher', 'admin', 'org_admin']:
         raise HTTPException(status_code=403, detail="Only teachers can create assignments")
     
+    # Get course title if course_id provided
+    course_title = None
+    if data.course_id:
+        course = await db.courses.find_one({"id": data.course_id}, {"_id": 0, "title": 1})
+        course_title = course.get('title') if course else None
+    
     assignment = {
         "id": str(uuid.uuid4()),
         "title": data.title,
         "course_id": data.course_id,
+        "course_title": course_title,
         "description": data.description,
         "due_date": data.due_date,
+        "max_score": 100,
+        "status": "active",  # Ensure status is set
         "created_by": current_user['id'],
+        "teacher_id": current_user['id'],
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     
