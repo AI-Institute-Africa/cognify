@@ -148,6 +148,21 @@ export default function CoursesPage() {
   };
 
   const handleEnroll = async (course) => {
+    // Check if AI features have been selected for this session
+    const hasSelectedFeatures = Object.keys(aiFeatures).length > 0;
+    
+    // Show AI Features modal first if not already selected
+    if (!hasSelectedFeatures) {
+      setPendingCourseAction({ 
+        type: 'enroll', 
+        courseId: course.id, 
+        courseType: course.course_branch === 'customized' ? 'customized' : 'standard',
+        course 
+      });
+      setShowAIFeaturesModal(true);
+      return;
+    }
+    
     // If course is paid, redirect to payment page
     if (course.is_paid && course.price > 0) {
       navigate(`/payment/${course.id}`);
@@ -161,6 +176,34 @@ export default function CoursesPage() {
       loadCourses();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to enroll');
+    }
+  };
+
+  const handleAIFeaturesComplete = async (result) => {
+    setAIFeatures(result.features || {});
+    
+    // Complete the pending action
+    if (pendingCourseAction) {
+      const { type, course, courseId } = pendingCourseAction;
+      
+      if (type === 'enroll' && course) {
+        // Continue with enrollment
+        if (course.is_paid && course.price > 0) {
+          navigate(`/payment/${courseId}`);
+        } else {
+          try {
+            await enrollCourse(courseId);
+            toast.success('Enrolled successfully!');
+            loadCourses();
+          } catch (error) {
+            toast.error(error.response?.data?.detail || 'Failed to enroll');
+          }
+        }
+      } else if (type === 'view') {
+        navigate(`/course/${courseId}`);
+      }
+      
+      setPendingCourseAction(null);
     }
   };
 
