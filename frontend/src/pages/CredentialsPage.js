@@ -343,17 +343,28 @@ export default function CredentialsPage() {
                   <div 
                     key={credential.credential_id || index}
                     className="p-4 rounded-xl bg-zinc-800/50 border border-white/5 hover:border-white/10 transition-all animate-fadeIn"
+                    data-testid={`credential-card-${index}`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex items-start gap-4">
                         <div className="p-3 rounded-xl bg-violet-500/20">
                           <Award className="w-6 h-6 text-violet-400" />
                         </div>
-                        <div>
-                          <h3 className="font-semibold">Credential Issued</h3>
-                          <p className="text-sm text-zinc-400 mt-1">
-                            Hash: <code className="text-xs bg-zinc-900 px-2 py-0.5 rounded">{credential.hash?.slice(0, 16)}...</code>
+                        <div className="space-y-1">
+                          <h3 className="font-semibold">{credential.title || 'Credential Issued'}</h3>
+                          <p className="text-sm text-zinc-400">
+                            {credential.credential_type && (
+                              <Badge variant="outline" className="mr-2 text-xs capitalize border-white/10">
+                                {credential.credential_type}
+                              </Badge>
+                            )}
+                            {credential.student_name && <span>Issued to: {credential.student_name}</span>}
                           </p>
+                          {credential.hash && (
+                            <p className="text-sm text-zinc-500 mt-2">
+                              Verification Hash: <code className="text-xs bg-zinc-900 px-2 py-0.5 rounded font-mono">{credential.hash.slice(0, 20)}...</code>
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -361,8 +372,21 @@ export default function CredentialsPage() {
                           variant="ghost" 
                           size="sm"
                           onClick={() => copyToClipboard(credential.hash)}
+                          title="Copy verification hash"
+                          data-testid={`copy-hash-btn-${index}`}
                         >
                           <Copy className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setVerifyHash(credential.hash);
+                            setShowVerifyDialog(true);
+                          }}
+                          title="Verify credential"
+                        >
+                          <Search className="w-4 h-4" />
                         </Button>
                         <Badge className="bg-emerald-500/20 text-emerald-400">
                           <CheckCircle className="w-3 h-3 mr-1" />
