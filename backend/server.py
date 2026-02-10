@@ -8660,9 +8660,11 @@ async def get_student_assignments(current_user: dict = Depends(get_current_user)
     
     # ENROLLMENT GATE: Filter to only paid courses
     paid_course_ids = []
+    course_titles = {}  # Cache course titles
     for course_id in enrolled_courses:
         course = await db.courses.find_one({"id": course_id}, {"_id": 0})
         if course:
+            course_titles[course_id] = course.get('title', 'Unknown Course')
             if not course.get('is_paid', False):
                 # Free course - always include
                 paid_course_ids.append(course_id)
@@ -8677,12 +8679,19 @@ async def get_student_assignments(current_user: dict = Depends(get_current_user)
                     paid_course_ids.append(course_id)
     
     # Get assignments for paid/free enrolled courses only
+    # Include assignments without status field (backwards compatibility) or with status=active
     assignments = await db.assignments.find(
-        {"course_id": {"$in": paid_course_ids}},
+        {
+            "course_id": {"$in": paid_course_ids},
+            "$or": [
+                {"status": "active"},
+                {"status": {"$exists": False}}  # Include old assignments without status
+            ]
+        },
         {"_id": 0, "suggested_answer": 0}  # Don't show suggested answer to students
     ).to_list(length=100)
     
-    # Check submission status for each assignment
+    # Check submission status and add course_title for each assignment
     for assignment in assignments:
         submission = await db.assignment_submissions.find_one({
             "assignment_id": assignment['id'],
@@ -8690,6 +8699,9 @@ async def get_student_assignments(current_user: dict = Depends(get_current_user)
         }, {"_id": 0})
         assignment['submitted'] = submission is not None
         assignment['submission'] = submission
+        # Add course_title if not present
+        if not assignment.get('course_title') and assignment.get('course_id'):
+            assignment['course_title'] = course_titles.get(assignment['course_id'], 'Unknown Course')
     
     return assignments
 
