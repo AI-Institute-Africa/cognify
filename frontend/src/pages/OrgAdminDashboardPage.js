@@ -592,10 +592,63 @@ export default function OrgAdminDashboardPage() {
                 </DialogContent>
               </Dialog>
               
-              <Button variant="outline" className="border-white/10">
-                <BarChart3 className="w-4 h-4 mr-2" />
-                Export Reports
-              </Button>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="border-white/10" data-testid="export-reports-btn">
+                    <Download className="w-4 h-4 mr-2" />
+                    Export Reports
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="bg-zinc-900 border-white/10">
+                  <DialogHeader>
+                    <DialogTitle>Export Reports</DialogTitle>
+                    <DialogDescription className="text-zinc-500">
+                      Download organizational data as CSV files
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3 mt-4">
+                    <Button
+                      onClick={() => handleExportReports('staff')}
+                      variant="outline"
+                      className="w-full justify-start border-white/10"
+                      data-testid="export-staff-btn"
+                    >
+                      <Users className="w-4 h-4 mr-3 text-blue-400" />
+                      Staff Report
+                      <span className="ml-auto text-xs text-zinc-500">{teachers.length} records</span>
+                    </Button>
+                    <Button
+                      onClick={() => handleExportReports('participants')}
+                      variant="outline"
+                      className="w-full justify-start border-white/10"
+                      data-testid="export-participants-btn"
+                    >
+                      <GraduationCap className="w-4 h-4 mr-3 text-emerald-400" />
+                      Participants Report
+                      <span className="ml-auto text-xs text-zinc-500">{students.length} records</span>
+                    </Button>
+                    <Button
+                      onClick={() => handleExportReports('enrollments')}
+                      variant="outline"
+                      className="w-full justify-start border-white/10"
+                      data-testid="export-enrollments-btn"
+                    >
+                      <Calendar className="w-4 h-4 mr-3 text-amber-400" />
+                      Enrollments Report
+                      <span className="ml-auto text-xs text-zinc-500">{dashboard?.recent_enrollments?.length || 0} records</span>
+                    </Button>
+                    <Button
+                      onClick={() => handleExportReports('analytics')}
+                      variant="outline"
+                      className="w-full justify-start border-white/10"
+                      data-testid="export-analytics-btn"
+                    >
+                      <BarChart3 className="w-4 h-4 mr-3 text-violet-400" />
+                      Analytics Summary
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
 
