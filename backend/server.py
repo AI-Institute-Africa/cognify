@@ -4413,11 +4413,19 @@ async def create_assignment(
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
     
+    # Get course title if course_id provided
+    course_title = None
+    if course_id:
+        course = await db.courses.find_one({"id": course_id}, {"_id": 0, "title": 1})
+        course_title = course.get('title') if course else None
+    
     # Save assignment to database with course linkage
     assignment = {
         "id": str(uuid.uuid4()),
         "course_id": course_id,
+        "course_title": course_title,
         "teacher_id": current_user['id'],
+        "created_by": current_user['id'],  # For compatibility with other endpoints
         "topic": lesson_topic,
         "title": result.get('title', lesson_topic),
         "description": result.get('description', ''),
@@ -4426,6 +4434,7 @@ async def create_assignment(
         "difficulty": difficulty,
         "max_score": 100,
         "auto_grade": True,
+        "status": "active",  # Important: Set status to active for student visibility
         "content": result,
         "due_date": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
         "created_at": datetime.now(timezone.utc)
