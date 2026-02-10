@@ -32,6 +32,7 @@ import {
   TabsTrigger,
 } from '../components/ui/tabs';
 import { toast } from 'sonner';
+import AIFeaturesGridModal from '../components/AIFeaturesGridModal';
 
 // Course branches
 const COURSE_BRANCHES = {
