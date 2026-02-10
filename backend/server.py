@@ -10145,6 +10145,465 @@ async def save_lesson_quiz_result(
     
     return {"message": "Quiz result saved", "result_id": result['id']}
 
+
+# ==================== AI FEATURES PREFERENCES ====================
+
+@api_router.get("/user/ai-preferences")
+async def get_ai_preferences(current_user: dict = Depends(get_current_user)):
+    """Get user's AI feature preferences"""
+    prefs = await db.ai_preferences.find_one(
+        {"user_id": current_user['id']},
+        {"_id": 0}
+    )
+    return {"preferences": prefs or {}}
+
+
+@api_router.post("/user/ai-preferences")
+async def save_ai_preferences(
+    features: dict = Body(...),
+    role: str = Body(...),
+    course_type: str = Body(None),
+    total_fee: float = Body(0),
+    current_user: dict = Depends(get_current_user)
+):
+    """Save user's AI feature preferences"""
+    prefs = {
+        "user_id": current_user['id'],
+        "features": features,
+        "role": role,
+        "course_type": course_type,
+        "total_fee": total_fee,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.ai_preferences.update_one(
+        {"user_id": current_user['id']},
+        {"$set": prefs},
+        upsert=True
+    )
+    
+    return {"message": "Preferences saved", "preferences": prefs}
+
+
+# ==================== ORGANIZATION CATALOG (Strict Isolation) ====================
+
+@api_router.get("/org/my-organization")
+async def get_my_organization(current_user: dict = Depends(get_current_user)):
+    """Get current user's organization details"""
+    org_id = current_user.get('organization_id')
+    if not org_id:
+        return {"name": None, "id": None}
+    
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        return {"name": None, "id": None}
+    
+    # Get stats
+    staff_count = await db.users.count_documents({
+        "organization_id": org_id,
+        "role": {"$in": ["teacher", "admin", "org_admin", "org_staff"]}
+    })
+    student_count = await db.users.count_documents({
+        "organization_id": org_id,
+        "role": "student"
+    })
+    cert_count = await db.credentials.count_documents({"organization_id": org_id})
+    
+    return {
+        **org,
+        "stats": {
+            "staff": staff_count,
+            "students": student_count,
+            "certificates": cert_count
+        }
+    }
+
+
+@api_router.get("/org/catalog")
+async def get_organization_catalog(current_user: dict = Depends(get_current_user)):
+    """Get courses strictly limited to user's organization"""
+    org_id = current_user.get('organization_id')
+    if not org_id:
+        return {"courses": [], "enrolled_ids": []}
+    
+    # STRICT ISOLATION: Only courses belonging to this organization
+    courses = await db.courses.find(
+        {"organization_id": org_id},
+        {"_id": 0}
+    ).to_list(length=200)
+    
+    # Get enrolled courses for this user
+    profile = await db.student_profiles.find_one(
+        {"user_id": current_user['id']},
+        {"_id": 0, "enrolled_courses": 1}
+    )
+    enrolled_ids = profile.get('enrolled_courses', []) if profile else []
+    
+    return {"courses": courses, "enrolled_ids": enrolled_ids}
+
+
+@api_router.post("/org/courses/add")
+async def add_course_to_organization(
+    course_id: str = Body(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Add an existing course to organization catalog"""
+    if current_user.get('role') not in ['org_admin', 'org_staff', 'admin']:
+        raise HTTPException(status_code=403, detail="Organization access required")
+    
+    org_id = current_user.get('organization_id')
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization associated")
+    
+    # Update course to belong to organization
+    result = await db.courses.update_one(
+        {"id": course_id},
+        {"$set": {"organization_id": org_id}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    return {"message": "Course added to organization catalog"}
+
+
+# ==================== CERTIFICATE GENERATION & VERIFICATION ====================
+
+@api_router.post("/certificates/generate")
+async def generate_certificate(
+    course_id: str = Body(...),
+    student_id: str = Body(None),
+    grade: str = Body("Pass"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate a certificate for course completion"""
+    if current_user.get('role') not in ['teacher', 'org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    # Get course info
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    # Get student info
+    target_student_id = student_id or current_user['id']
+    student = await db.users.find_one({"id": target_student_id}, {"_id": 0, "password_hash": 0})
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Generate unique verification code
+    verification_code = str(uuid.uuid4())[:8].upper()
+    
+    # Get organization info
+    org = None
+    if course.get('organization_id'):
+        org = await db.organizations.find_one({"id": course['organization_id']}, {"_id": 0})
+    
+    certificate = {
+        "id": str(uuid.uuid4()),
+        "verification_code": verification_code,
+        "course_id": course_id,
+        "course_name": course.get('name') or course.get('title'),
+        "student_id": target_student_id,
+        "recipient_name": student.get('full_name', 'Student'),
+        "organization_id": course.get('organization_id'),
+        "organization_name": org.get('name') if org else None,
+        "instructor_name": course.get('teacher_name'),
+        "grade": grade,
+        "duration_weeks": course.get('duration_weeks', 4),
+        "credits": course.get('credits', 3),
+        "issued_by": current_user['id'],
+        "issued_at": datetime.now(timezone.utc).isoformat(),
+        "status": "active"
+    }
+    
+    await db.certificates.insert_one(certificate)
+    
+    # Also add to credentials collection
+    credential = {
+        "id": str(uuid.uuid4()),
+        "user_id": target_student_id,
+        "certificate_id": certificate['id'],
+        "verification_code": verification_code,
+        "course_id": course_id,
+        "course_name": certificate['course_name'],
+        "type": "certificate",
+        "issued_at": certificate['issued_at'],
+        "organization_id": course.get('organization_id')
+    }
+    await db.credentials.insert_one(credential)
+    
+    return {
+        "message": "Certificate generated successfully",
+        "certificate_id": certificate['id'],
+        "verification_code": verification_code,
+        "verification_url": f"/verify-certificate/{verification_code}"
+    }
+
+
+@api_router.get("/certificates/{certificate_id}")
+async def get_certificate(certificate_id: str, current_user: dict = Depends(get_current_user)):
+    """Get certificate details"""
+    cert = await db.certificates.find_one({"id": certificate_id}, {"_id": 0})
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    return cert
+
+
+@api_router.get("/certificates/verify/{verification_code}")
+async def verify_certificate(verification_code: str):
+    """Public endpoint to verify certificate authenticity"""
+    cert = await db.certificates.find_one(
+        {"verification_code": verification_code},
+        {"_id": 0}
+    )
+    
+    if cert:
+        return {
+            "verified": True,
+            "certificate": {
+                "course_name": cert.get('course_name'),
+                "recipient_name": cert.get('recipient_name'),
+                "issued_at": cert.get('issued_at'),
+                "grade": cert.get('grade'),
+                "organization_name": cert.get('organization_name')
+            }
+        }
+    
+    return {"verified": False, "certificate": None}
+
+
+@api_router.get("/certificates/{certificate_id}/pdf")
+async def download_certificate_pdf(certificate_id: str, current_user: dict = Depends(get_current_user)):
+    """Download certificate as PDF"""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER
+    import io
+    
+    cert = await db.certificates.find_one({"id": certificate_id}, {"_id": 0})
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    
+    # Create PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=50, bottomMargin=50)
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('Title', parent=styles['Title'], fontSize=28, textColor=colors.darkblue, alignment=TA_CENTER)
+    subtitle_style = ParagraphStyle('Subtitle', parent=styles['Normal'], fontSize=14, alignment=TA_CENTER, textColor=colors.grey)
+    name_style = ParagraphStyle('Name', parent=styles['Title'], fontSize=32, alignment=TA_CENTER)
+    
+    elements = []
+    
+    elements.append(Paragraph("CERTIFICATE OF COMPLETION", title_style))
+    elements.append(Spacer(1, 20))
+    elements.append(Paragraph("This certifies that", subtitle_style))
+    elements.append(Spacer(1, 20))
+    elements.append(Paragraph(cert.get('recipient_name', 'Student'), name_style))
+    elements.append(Spacer(1, 20))
+    elements.append(Paragraph("has successfully completed", subtitle_style))
+    elements.append(Spacer(1, 20))
+    elements.append(Paragraph(cert.get('course_name', 'Course'), title_style))
+    elements.append(Spacer(1, 30))
+    
+    # Details table
+    data = [
+        ["Issue Date", "Grade", "Duration", "Verification Code"],
+        [
+            cert.get('issued_at', '')[:10] if cert.get('issued_at') else 'N/A',
+            cert.get('grade', 'Pass'),
+            f"{cert.get('duration_weeks', 4)} Weeks",
+            cert.get('verification_code', 'N/A')
+        ]
+    ]
+    
+    table = Table(data, colWidths=[150, 100, 100, 150])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.grey)
+    ]))
+    elements.append(table)
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=certificate-{cert.get('verification_code', certificate_id)}.pdf"}
+    )
+
+
+# ==================== ORGANIZATION USER ASSOCIATION ====================
+
+@api_router.post("/org/associate-user")
+async def associate_user_with_org(
+    org_slug: str = Body(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Associate user with organization on first login through org page"""
+    # Find organization by slug
+    org = await db.organizations.find_one(
+        {"$or": [{"slug": org_slug}, {"name": {"$regex": f"^{org_slug}$", "$options": "i"}}]},
+        {"_id": 0}
+    )
+    
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    # Update user's organization association
+    await db.users.update_one(
+        {"id": current_user['id']},
+        {"$set": {"organization_id": org['id'], "organization_name": org.get('name')}}
+    )
+    
+    return {"message": "Associated with organization", "organization": org.get('name')}
+
+
+# ==================== SHARING CAPABILITIES ====================
+
+@api_router.post("/share/content")
+async def share_content(
+    content_type: str = Body(...),  # 'ai_response', 'assignment', 'grade', 'achievement'
+    content_id: str = Body(...),
+    share_type: str = Body('link'),  # 'link', 'internal', 'download'
+    recipient_ids: List[str] = Body(None),
+    current_user: dict = Depends(get_current_user)
+):
+    """Create shareable content"""
+    share_id = str(uuid.uuid4())
+    share_code = str(uuid.uuid4())[:8].upper()
+    
+    share_record = {
+        "id": share_id,
+        "share_code": share_code,
+        "content_type": content_type,
+        "content_id": content_id,
+        "share_type": share_type,
+        "shared_by": current_user['id'],
+        "recipient_ids": recipient_ids or [],
+        "access_count": 0,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+    }
+    
+    await db.shares.insert_one(share_record)
+    
+    return {
+        "message": "Content shared successfully",
+        "share_id": share_id,
+        "share_code": share_code,
+        "share_url": f"/shared/{share_code}"
+    }
+
+
+@api_router.get("/shared/{share_code}")
+async def get_shared_content(share_code: str):
+    """Access shared content"""
+    share = await db.shares.find_one({"share_code": share_code}, {"_id": 0})
+    if not share:
+        raise HTTPException(status_code=404, detail="Shared content not found")
+    
+    # Check expiration
+    if share.get('expires_at'):
+        expires = datetime.fromisoformat(share['expires_at'].replace('Z', '+00:00'))
+        if datetime.now(timezone.utc) > expires:
+            raise HTTPException(status_code=410, detail="Share link expired")
+    
+    # Update access count
+    await db.shares.update_one(
+        {"share_code": share_code},
+        {"$inc": {"access_count": 1}}
+    )
+    
+    # Fetch actual content based on type
+    content = None
+    if share['content_type'] == 'ai_response':
+        content = await db.mentor_conversations.find_one({"id": share['content_id']}, {"_id": 0})
+    elif share['content_type'] == 'assignment':
+        content = await db.assignments.find_one({"id": share['content_id']}, {"_id": 0})
+    elif share['content_type'] == 'grade':
+        content = await db.grades.find_one({"id": share['content_id']}, {"_id": 0})
+    elif share['content_type'] == 'achievement':
+        content = await db.achievements.find_one({"id": share['content_id']}, {"_id": 0})
+    
+    return {
+        "share": share,
+        "content": content
+    }
+
+
+# ==================== KNOWLEDGE GRAPH UPDATES ====================
+
+@api_router.post("/knowledge-graph/update")
+async def update_knowledge_graph(
+    source_type: str = Body(...),  # 'upload', 'linkedin', 'social', 'behavior', 'performance'
+    data: dict = Body(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Update knowledge graph with new data source"""
+    update_record = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user['id'],
+        "organization_id": current_user.get('organization_id'),
+        "source_type": source_type,
+        "data": data,
+        "processed": False,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.knowledge_graph_updates.insert_one(update_record)
+    
+    # Process update asynchronously (simplified inline processing)
+    # In production, this would be a background job
+    if source_type == 'linkedin':
+        # Extract skills, experience for recommendations
+        skills = data.get('skills', [])
+        await db.user_skills.update_one(
+            {"user_id": current_user['id']},
+            {"$addToSet": {"skills": {"$each": skills}}},
+            upsert=True
+        )
+    
+    return {"message": "Knowledge graph updated", "update_id": update_record['id']}
+
+
+@api_router.get("/knowledge-graph/recommendations")
+async def get_knowledge_graph_recommendations(current_user: dict = Depends(get_current_user)):
+    """Get personalized recommendations based on knowledge graph"""
+    # Get user skills
+    skills = await db.user_skills.find_one({"user_id": current_user['id']}, {"_id": 0})
+    
+    # Get learning history
+    enrollments = await db.student_profiles.find_one(
+        {"user_id": current_user['id']},
+        {"_id": 0, "enrolled_courses": 1}
+    )
+    enrolled_ids = enrollments.get('enrolled_courses', []) if enrollments else []
+    
+    # Find related courses
+    recommended = await db.courses.find(
+        {"id": {"$nin": enrolled_ids}},
+        {"_id": 0}
+    ).limit(10).to_list(length=10)
+    
+    return {
+        "recommendations": recommended,
+        "based_on": {
+            "skills": skills.get('skills', []) if skills else [],
+            "learning_history": len(enrolled_ids)
+        }
+    }
+
+
 # Include all routers - MUST be after all route definitions
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
