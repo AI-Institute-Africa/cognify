@@ -1441,6 +1441,22 @@ export default function CourseViewPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Popup Quiz Component */}
+        <PopupQuiz
+          isOpen={showQuiz}
+          onClose={() => setShowQuiz(false)}
+          lessonId={quizLessonId}
+          courseId={courseId}
+          lessonTitle={currentLesson?.title}
+          onComplete={(score, total) => {
+            setLessonProgress(prev => ({
+              ...prev,
+              [quizLessonId]: { score, total, completed: true }
+            }));
+            toast.success(`Quiz completed! Score: ${score}/${total}`);
+          }}
+        />
       </div>
     </DashboardLayout>
   );
