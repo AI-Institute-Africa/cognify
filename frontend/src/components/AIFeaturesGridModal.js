@@ -127,9 +127,6 @@ export default function AIFeaturesGridModal({
         const data = await response.json();
         if (data.preferences) {
           setSelectedFeatures(data.preferences.features || {});
-          if (data.preferences.role) {
-            setSelectedRole(data.preferences.role);
-          }
         }
       }
     } catch (error) {
@@ -153,12 +150,7 @@ export default function AIFeaturesGridModal({
     }, 0);
   };
 
-  const handleContinue = async () => {
-    if (step === 1) {
-      setStep(2);
-      return;
-    }
-
+  const handleConfirm = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('cognify_token');
