@@ -76,6 +76,11 @@ export default function SettingsPage() {
     confirmPassword: ''
   });
   const [showPasswords, setShowPasswords] = useState(false);
+  
+  // Document uploads state (for students)
+  const [documents, setDocuments] = useState([]);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const docInputRef = useRef(null);
 
   useEffect(() => {
     loadSettings();
