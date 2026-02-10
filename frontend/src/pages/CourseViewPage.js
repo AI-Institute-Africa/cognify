@@ -780,7 +780,14 @@ export default function CourseViewPage() {
                   {content.map((lesson, index) => (
                     <button
                       key={lesson.id}
-                      onClick={() => setCurrentLessonIndex(index)}
+                      onClick={() => {
+                        // Trigger quiz popup when moving to a new lesson (after every 3 lessons for students)
+                        if (!isTeacher && currentLessonIndex !== index && (index + 1) % 3 === 0 && !lessonProgress[lesson.id]?.completed) {
+                          setQuizLessonId(lesson.id);
+                          setShowQuiz(true);
+                        }
+                        setCurrentLessonIndex(index);
+                      }}
                       className={`w-full text-left p-3 rounded-lg transition-all flex items-center gap-3 ${
                         currentLessonIndex === index
                           ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
@@ -789,12 +796,21 @@ export default function CourseViewPage() {
                       data-testid={`lesson-btn-${index}`}
                     >
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                        currentLessonIndex === index ? 'bg-blue-500 text-white' : 'bg-zinc-800'
+                        lessonProgress[lesson.id]?.completed 
+                          ? 'bg-emerald-500 text-white' 
+                          : currentLessonIndex === index 
+                            ? 'bg-blue-500 text-white' 
+                            : 'bg-zinc-800'
                       }`}>
-                        {index + 1}
+                        {lessonProgress[lesson.id]?.completed ? <CheckCircle className="w-4 h-4" /> : index + 1}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="truncate font-medium text-sm">{lesson.title}</p>
+                        {lessonProgress[lesson.id]?.completed && (
+                          <p className="text-xs text-emerald-400">
+                            Quiz: {lessonProgress[lesson.id].score}/{lessonProgress[lesson.id].total}
+                          </p>
+                        )}
                       </div>
                       {currentLessonIndex === index && (
                         <ChevronRight className="w-4 h-4" />
