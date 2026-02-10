@@ -18,7 +18,7 @@ import {
   Building2, Users, GraduationCap, BookOpen, DollarSign,
   Upload, UserPlus, BarChart3, TrendingUp, FileText,
   Loader2, Search, Mail, Phone, CheckCircle, AlertCircle,
-  PieChart, Calendar, Settings, Shield, Trash2
+  PieChart, Calendar, Settings, Shield, Trash2, Download
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
