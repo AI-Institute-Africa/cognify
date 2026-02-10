@@ -42,28 +42,28 @@ class TestAuthentication:
         response = requests.post(f"{BASE_URL}/api/auth/login", json=TEACHER_CREDS)
         assert response.status_code == 200
         data = response.json()
-        assert 'token' in data
+        assert 'access_token' in data
         assert data['user']['role'] in ['teacher', 'admin']
         print(f"✓ Teacher login successful: {data['user']['email']}")
-        return data['token']
+        return data['access_token']
     
     def test_student_login(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
         assert response.status_code == 200
         data = response.json()
-        assert 'token' in data
+        assert 'access_token' in data
         assert data['user']['role'] == 'student'
         print(f"✓ Student login successful: {data['user']['email']}")
-        return data['token']
+        return data['access_token']
     
     def test_org_admin_login(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=ORG_ADMIN_CREDS)
         assert response.status_code == 200
         data = response.json()
-        assert 'token' in data
+        assert 'access_token' in data
         assert data['user']['role'] == 'org_admin'
         print(f"✓ Org admin login successful: {data['user']['email']}")
-        return data['token']
+        return data['access_token']
 
 
 class TestCourseContentDisplay:
@@ -72,12 +72,12 @@ class TestCourseContentDisplay:
     @pytest.fixture
     def teacher_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=TEACHER_CREDS)
-        return response.json()['token']
+        return response.json()['access_token']
     
     @pytest.fixture
     def student_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=STUDENT_CREDS)
-        return response.json()['token']
+        return response.json()['access_token']
     
     def test_get_course_content(self, student_token):
         """Test that course content endpoint returns content with video/image URLs"""
