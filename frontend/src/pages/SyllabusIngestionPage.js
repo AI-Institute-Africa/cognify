@@ -130,7 +130,7 @@ export default function SyllabusIngestionPage() {
   return (
     <DashboardLayout>
       <Header 
-        title="Syllabus Ingestion Engine"
+        title="Content Ingestion Engine"
         subtitle="Transform any curriculum into AI-powered interactive learning"
       />
       
@@ -145,7 +145,7 @@ export default function SyllabusIngestionPage() {
               <div>
                 <h3 className="font-semibold text-lg mb-1">World's First Curriculum Transformer</h3>
                 <p className="text-zinc-400 text-sm">
-                  Upload a syllabus, PDF, textbook chapter, or slide deck and the AI will automatically 
+                  Upload sources (PDF, textbook chapter, slide deck) and the AI will automatically 
                   convert it into interactive lessons, concept maps, adaptive sequences, quizzes, and challenges.
                 </p>
               </div>
@@ -154,7 +154,7 @@ export default function SyllabusIngestionPage() {
 
           <Tabs defaultValue="upload" className="space-y-6">
             <TabsList className="bg-zinc-800/50">
-              <TabsTrigger value="upload">1. Upload Content</TabsTrigger>
+              <TabsTrigger value="upload">1. Upload Sources</TabsTrigger>
               <TabsTrigger value="analysis" disabled={!analysis}>2. Analysis</TabsTrigger>
               <TabsTrigger value="lessons" disabled={!analysis}>3. Generate Lessons</TabsTrigger>
             </TabsList>
@@ -165,7 +165,7 @@ export default function SyllabusIngestionPage() {
                 <div className="glass-card p-6 space-y-6">
                   <h3 className="font-semibold flex items-center gap-2">
                     <Upload className="w-5 h-5 text-blue-400" />
-                    Upload or Paste Content
+                    Upload Sources or Paste Content
                   </h3>
 
                   <div className="space-y-2">
