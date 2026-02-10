@@ -228,6 +228,44 @@ export const Sidebar = ({ isOpen, onClose, isMobile }) => {
                 {item.labelKey ? t(item.labelKey) : item.label}
               </p>
             </div>
+          ) : item.subItems ? (
+            <div key={`submenu-${index}`} className="space-y-1">
+              <button
+                onClick={() => toggleSubmenu(index)}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition-all duration-200"
+                data-testid={`nav-${item.label.toLowerCase().replace(/\s/g, '-')}`}
+              >
+                <item.icon className="w-5 h-5" />
+                <span className="flex-1">{item.label}</span>
+                {expandedMenus[index] ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+              </button>
+              {expandedMenus[index] && (
+                <div className="ml-4 space-y-1">
+                  {item.subItems.filter(shouldShowItem).map((subItem) => (
+                    <NavLink
+                      key={subItem.path}
+                      to={subItem.path}
+                      onClick={handleNavClick}
+                      data-testid={`nav-${subItem.label.toLowerCase().replace(/\s/g, '-')}`}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 group ${
+                          isActive
+                            ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                            : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                        }`
+                      }
+                    >
+                      <subItem.icon className="w-4 h-4" />
+                      <span className="flex-1">{subItem.label}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : (
             <NavLink
               key={item.path}
