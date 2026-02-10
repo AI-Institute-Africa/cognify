@@ -384,6 +384,20 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* Multi-Subject Learning */}
+      <Route path="/multi-subject" element={
+        <ProtectedRoute>
+          <MultiSubjectPage />
+        </ProtectedRoute>
+      } />
+      
+      {/* Share Content */}
+      <Route path="/share-content" element={
+        <ProtectedRoute>
+          <ShareContentPage />
+        </ProtectedRoute>
+      } />
+      
       {/* Organization Catalog */}
       <Route path="/org-catalog" element={
         <ProtectedRoute>
