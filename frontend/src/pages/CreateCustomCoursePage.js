@@ -166,12 +166,12 @@ export default function CreateCustomCoursePage() {
         })
       });
 
+      const result = await response.json();
+      
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to generate course');
+        throw new Error(result.detail || 'Failed to generate course');
       }
 
-      const result = await response.json();
       setGeneratedCourse(result);
       setStep(4);
       toast.success('Course generated successfully!');
