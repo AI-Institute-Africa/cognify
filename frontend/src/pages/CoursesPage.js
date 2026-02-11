@@ -729,7 +729,6 @@ export default function CoursesPage() {
         }}
         onComplete={handleAIFeaturesComplete}
         courseType={pendingCourseAction?.courseType || 'standard'}
-        showRoleSelection={true}
       />
     </DashboardLayout>
   );
