@@ -10845,6 +10845,30 @@ async def get_my_learning_paths(current_user: dict = Depends(get_current_user)):
     return paths
 
 
+@api_router.get("/multi-subject/{path_id}")
+async def get_multi_subject_path(path_id: str, current_user: dict = Depends(get_current_user)):
+    """Get a specific multi-subject learning path"""
+    path = await db.multi_subjects.find_one(
+        {"id": path_id, "user_id": current_user['id']},
+        {"_id": 0}
+    )
+    
+    if not path:
+        raise HTTPException(status_code=404, detail="Learning path not found")
+    
+    # Enrich with course details
+    course_ids = path.get('selected_courses', path.get('subjects', []))
+    courses = []
+    for course_id in course_ids:
+        course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+        if course:
+            courses.append(course)
+    path['courses'] = courses
+    path['duration_weeks'] = path.get('estimated_weeks', path.get('duration_weeks', 8))
+    
+    return path
+
+
 @api_router.post("/multi-subject/create")
 async def create_multi_subject_path(
     name: str = Body(...),
