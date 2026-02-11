@@ -132,6 +132,7 @@ function AppRoutes() {
       } />
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
       <Route path="/org/:orgSlug/login" element={<OrgLoginPage />} />
+      <Route path="/org/:orgSlug" element={<OrgLoginPage />} />
       
       {/* Protected Routes */}
       <Route path="/dashboard" element={
