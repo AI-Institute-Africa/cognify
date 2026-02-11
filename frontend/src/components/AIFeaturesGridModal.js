@@ -194,6 +194,10 @@ export default function AIFeaturesGridModal({
         })
       });
 
+      toast.success('AI features configured successfully!');
+      
+      // Call onComplete - this will handle closing and state updates
+      // Do NOT call onClose() here to avoid race condition with React state updates
       if (onComplete) {
         onComplete({
           features: selectedFeatures,
@@ -201,9 +205,6 @@ export default function AIFeaturesGridModal({
           totalFee: calculateTotalFee()
         });
       }
-
-      toast.success('AI features configured successfully!');
-      onClose();
     } catch (error) {
       console.error('Failed to save preferences:', error);
       toast.error('Failed to save preferences');
