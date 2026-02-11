@@ -3,12 +3,30 @@
 ## Overview
 AI-Powered School Management, Learning & Career Intelligence Platform
 
-**Version:** 3.0 (Iteration 22 Complete)
-**Date:** February 10, 2026
+**Version:** 3.1 (Iteration 23 - Bug Fixes)
+**Date:** February 11, 2026
 
 ---
 
-## LATEST TEST RESULTS - ITERATION 22
+## LATEST BUG FIXES - ITERATION 23
+
+### Fixed Issues:
+| Bug | Status | Fix Applied |
+|-----|--------|-------------|
+| Certificate hash copy error | ✅ FIXED | Updated `copyToClipboard` to handle null/undefined |
+| Credential not visible after issue | ✅ FIXED | `handleIssueCredential` now properly constructs credential object from response |
+| Assignments not visible to students | ✅ FIXED | Added `status: active` to all assignment creation endpoints |
+| Missing course_title in assignments | ✅ FIXED | Student assignments endpoint now includes course_title |
+| AI Mentor audio playback failure | ✅ FIXED | Added browser TTS fallback when ElevenLabs fails |
+
+### Files Modified:
+- `/app/frontend/src/pages/CredentialsPage.js` - Fixed credential issuance and hash copy
+- `/app/frontend/src/pages/AIMentorPage.js` - Added fallback TTS using browser speechSynthesis
+- `/app/backend/server.py` - Fixed assignment creation with status field and course_title
+
+---
+
+## PREVIOUS TEST RESULTS - ITERATION 22
 
 | Category | Pass Rate | Tests |
 |----------|-----------|-------|
