@@ -10702,6 +10702,250 @@ async def delete_multi_subject(subject_id: str, current_user: dict = Depends(get
 
 # ==================== SHARING & COLLABORATION ====================
 
+@api_router.get("/share/my-shared")
+async def get_my_shared_items(current_user: dict = Depends(get_current_user)):
+    """Get all content shared by the current user"""
+    shares = await db.shares.find(
+        {"shared_by": current_user['id']},
+        {"_id": 0}
+    ).to_list(length=100)
+    
+    # Add view counts and format
+    for share in shares:
+        share['view_count'] = share.get('views', 0)
+        share['share_url'] = f"{os.environ.get('FRONTEND_URL', '')}/shared/{share.get('share_code', share.get('id'))}"
+    
+    return shares
+
+
+@api_router.get("/share/available/{content_type}")
+async def get_available_content_to_share(
+    content_type: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get available content of a specific type that can be shared"""
+    content = []
+    
+    if content_type == 'assignment':
+        # Get submitted assignments
+        submissions = await db.assignment_submissions.find(
+            {"student_id": current_user['id']},
+            {"_id": 0}
+        ).to_list(length=50)
+        for sub in submissions:
+            assignment = await db.assignments.find_one({"id": sub['assignment_id']}, {"_id": 0})
+            if assignment:
+                content.append({
+                    "id": sub['id'],
+                    "title": assignment.get('title', 'Assignment'),
+                    "name": assignment.get('title'),
+                    "date": sub.get('submitted_at', sub.get('created_at')),
+                    "score": sub.get('score')
+                })
+    
+    elif content_type == 'grade':
+        # Get grades
+        grades = await db.grades.find(
+            {"student_id": current_user['id']},
+            {"_id": 0}
+        ).to_list(length=50)
+        for grade in grades:
+            content.append({
+                "id": grade['id'],
+                "title": f"{grade.get('course_name', 'Course')} - {grade.get('type', 'Grade')}",
+                "name": grade.get('course_name'),
+                "date": grade.get('date'),
+                "score": grade.get('score')
+            })
+    
+    elif content_type == 'course_progress':
+        # Get enrolled courses with progress
+        profile = await db.student_profiles.find_one(
+            {"user_id": current_user['id']},
+            {"_id": 0}
+        )
+        enrolled = profile.get('enrolled_courses', []) if profile else []
+        for course_id in enrolled:
+            course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+            if course:
+                progress = await db.course_progress.find_one(
+                    {"user_id": current_user['id'], "course_id": course_id},
+                    {"_id": 0}
+                )
+                content.append({
+                    "id": course_id,
+                    "title": course.get('title', 'Course'),
+                    "name": course.get('title'),
+                    "progress": progress.get('percent', 0) if progress else 0
+                })
+    
+    elif content_type == 'ai_output':
+        # Get AI Mentor conversations
+        conversations = await db.mentor_conversations.find(
+            {"user_id": current_user['id']},
+            {"_id": 0}
+        ).sort("timestamp", -1).to_list(length=50)
+        for conv in conversations:
+            content.append({
+                "id": conv.get('id', str(uuid.uuid4())),
+                "title": conv.get('topic', 'AI Conversation')[:50],
+                "name": conv.get('topic'),
+                "date": conv.get('timestamp')
+            })
+    
+    elif content_type == 'certificate':
+        # Get issued certificates
+        certs = await db.issued_credentials.find(
+            {"user_id": current_user['id']},
+            {"_id": 0}
+        ).to_list(length=50)
+        for cert in certs:
+            content.append({
+                "id": cert['id'],
+                "title": cert.get('title', 'Certificate'),
+                "name": cert.get('title'),
+                "date": cert.get('issued_at')
+            })
+    
+    elif content_type == 'achievement':
+        # Get achievements
+        achievements = await db.achievements.find(
+            {"user_id": current_user['id']},
+            {"_id": 0}
+        ).to_list(length=50)
+        for ach in achievements:
+            content.append({
+                "id": ach['id'],
+                "title": ach.get('title', 'Achievement'),
+                "name": ach.get('title'),
+                "date": ach.get('earned_at')
+            })
+    
+    return content
+
+
+@api_router.post("/share/create")
+async def create_share(
+    content_type: str = Body(...),
+    content_id: str = Body(...),
+    content_title: str = Body(""),
+    visibility: str = Body("public"),
+    expires_in_days: int = Body(30),
+    allow_download: bool = Body(True),
+    recipient_emails: List[str] = Body([]),
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a new share link for content"""
+    share_code = str(uuid.uuid4())[:8]
+    
+    expires_at = None
+    if expires_in_days > 0:
+        expires_at = (datetime.now(timezone.utc) + timedelta(days=expires_in_days)).isoformat()
+    
+    share = {
+        "id": str(uuid.uuid4()),
+        "share_code": share_code,
+        "shared_by": current_user['id'],
+        "shared_by_name": current_user.get('full_name', 'User'),
+        "content_type": content_type,
+        "content_id": content_id,
+        "content_title": content_title,
+        "visibility": visibility,
+        "expires_at": expires_at,
+        "allow_download": allow_download,
+        "recipient_emails": recipient_emails,
+        "views": 0,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.shares.insert_one(share)
+    
+    share_url = f"{os.environ.get('FRONTEND_URL', '')}/shared/{share_code}"
+    
+    return {
+        "message": "Content shared successfully",
+        "share_id": share['id'],
+        "share_code": share_code,
+        "share_url": share_url
+    }
+
+
+@api_router.delete("/share/{share_id}")
+async def delete_share(share_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a share link"""
+    result = await db.shares.delete_one({
+        "id": share_id,
+        "shared_by": current_user['id']
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Share not found or not authorized")
+    
+    return {"message": "Share deleted"}
+
+
+# Multi-Subject Learning Paths
+@api_router.get("/multi-subject/my-paths")
+async def get_my_learning_paths(current_user: dict = Depends(get_current_user)):
+    """Get user's multi-subject learning paths with course details"""
+    paths = await db.multi_subjects.find(
+        {"user_id": current_user['id']},
+        {"_id": 0}
+    ).to_list(length=50)
+    
+    # Enrich with course details
+    for path in paths:
+        course_ids = path.get('selected_courses', path.get('subjects', []))
+        courses = []
+        for course_id in course_ids:
+            course = await db.courses.find_one({"id": course_id}, {"_id": 0, "title": 1, "description": 1})
+            if course:
+                courses.append(course)
+        path['courses'] = courses
+        path['duration_weeks'] = path.get('estimated_weeks', path.get('duration_weeks', 8))
+    
+    return paths
+
+
+@api_router.post("/multi-subject/create")
+async def create_multi_subject_path(
+    name: str = Body(...),
+    description: str = Body(""),
+    goal: str = Body(""),
+    selected_courses: List[str] = Body(...),
+    duration_weeks: int = Body(8),
+    ai_features: dict = Body({}),
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a multi-subject learning path"""
+    if len(selected_courses) < 2:
+        raise HTTPException(status_code=400, detail="Select at least 2 courses")
+    
+    # Check if user can create (student, org_admin, org_staff, admin, teacher)
+    allowed_roles = ['student', 'org_admin', 'org_staff', 'admin', 'teacher']
+    if current_user.get('role') not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    multi_subject = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user['id'],
+        "organization_id": current_user.get('organization_id'),
+        "name": name,
+        "description": description,
+        "goal": goal,
+        "selected_courses": selected_courses,
+        "duration_weeks": duration_weeks,
+        "ai_features": ai_features,
+        "progress": 0,
+        "status": "active",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.multi_subjects.insert_one(multi_subject)
+    
+    return {"message": "Multi-subject path created", "id": multi_subject['id']}
+
+
 @api_router.get("/user/shares")
 async def get_user_shares(current_user: dict = Depends(get_current_user)):
     """Get user's shared content links"""
