@@ -2021,6 +2021,39 @@ async def get_course(course_id: str, current_user: dict = Depends(get_current_us
         raise HTTPException(status_code=404, detail="Course not found")
     return serialize_doc(course)
 
+@courses_router.get("/{course_id}/lessons")
+async def get_course_lessons(course_id: str, current_user: dict = Depends(get_current_user)):
+    """Get all lessons for a course - used by MultiSubjectLearningPage"""
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    # Get lessons from lessons collection
+    lessons = await db.lessons.find({"course_id": course_id}, {"_id": 0}).to_list(length=100)
+    
+    # If no lessons in collection, generate from course content
+    if not lessons:
+        # Check if course has embedded lessons
+        if course.get('lessons'):
+            lessons = course['lessons']
+        else:
+            # Generate placeholder lessons based on num_lessons
+            num_lessons = course.get('num_lessons', 5)
+            lessons = [
+                {
+                    "id": f"{course_id}-lesson-{i+1}",
+                    "course_id": course_id,
+                    "title": f"Lesson {i+1}: {course.get('title', 'Course')} - Part {i+1}",
+                    "description": f"Introduction to key concepts in {course.get('title', 'this course')}",
+                    "duration": "15 min",
+                    "order": i + 1,
+                    "completed": False
+                }
+                for i in range(num_lessons)
+            ]
+    
+    return lessons
+
 @courses_router.post("/{course_id}/enroll")
 async def enroll_course(course_id: str, current_user: dict = Depends(get_current_user)):
     if current_user['role'] != 'student':
