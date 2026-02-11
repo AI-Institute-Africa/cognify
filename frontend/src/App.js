@@ -391,6 +391,11 @@ function AppRoutes() {
           <MultiSubjectPage />
         </ProtectedRoute>
       } />
+      <Route path="/multi-subject/:pathId" element={
+        <ProtectedRoute>
+          <MultiSubjectLearningPage />
+        </ProtectedRoute>
+      } />
       
       {/* Share Content */}
       <Route path="/share-content" element={
