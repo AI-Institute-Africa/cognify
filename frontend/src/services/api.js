@@ -1165,10 +1165,10 @@ export const getStudentAssignments = async () => {
   return response.data;
 };
 
-export const submitAndGradeAssignment = async (assignmentId, content) => {
+export const submitAndGradeAssignment = async (assignmentId, content, fileId = null) => {
   const response = await axios.post(
-    `${API}/assignments/${assignmentId}/submit-and-grade?content=${encodeURIComponent(content)}`,
-    {},
+    `${API}/assignments/${assignmentId}/submit-and-grade`,
+    { content, file_id: fileId },
     { headers: getAuthHeaders() }
   );
   return response.data;
