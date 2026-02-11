@@ -3464,8 +3464,9 @@ messages_router = APIRouter(prefix="/messages", tags=["Messages"])
 
 class MessageCreate(BaseModel):
     recipient_id: str
-    subject: str
+    subject: Optional[str] = ""
     content: str
+    message_type: Optional[str] = "text"
 
 @messages_router.get("")
 async def get_messages(current_user: dict = Depends(get_current_user)):
@@ -3495,9 +3496,11 @@ async def send_message(msg: MessageCreate, current_user: dict = Depends(get_curr
         "id": str(uuid.uuid4()),
         "sender_id": current_user['id'],
         "recipient_id": msg.recipient_id,
-        "subject": msg.subject,
+        "subject": msg.subject or "",
         "content": msg.content,
+        "message_type": msg.message_type or "text",
         "is_read": False,
+        "read": False,
         "created_at": datetime.now(timezone.utc)
     }
     await db.messages.insert_one(message)
@@ -3505,7 +3508,7 @@ async def send_message(msg: MessageCreate, current_user: dict = Depends(get_curr
     # Send notification
     await send_notification(msg.recipient_id, {
         "title": f"New message from {current_user.get('full_name', 'Someone')}",
-        "message": msg.subject,
+        "message": msg.content[:100] if msg.content else msg.subject,
         "type": "message",
         "link": f"/messages/{message['id']}"
     })
