@@ -2228,9 +2228,20 @@ async def get_achievements(current_user: dict = Depends(get_current_user)):
     if current_user['role'] == 'student':
         profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
         if profile:
-            achievements = await db.achievements.find({"student_id": profile['id']}, {"_id": 0}).to_list(100)
+            # Query by user_id instead of profile['id']
+            achievements = await db.achievements.find(
+                {"$or": [
+                    {"student_id": current_user['id']},
+                    {"student_id": profile.get('id', current_user['id'])},
+                    {"user_id": current_user['id']}
+                ]},
+                {"_id": 0}
+            ).to_list(100)
         else:
-            achievements = []
+            achievements = await db.achievements.find(
+                {"$or": [{"student_id": current_user['id']}, {"user_id": current_user['id']}]},
+                {"_id": 0}
+            ).to_list(100)
     else:
         achievements = await db.achievements.find({}, {"_id": 0}).to_list(1000)
     return [serialize_doc(a) for a in achievements]
