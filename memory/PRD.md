@@ -169,16 +169,18 @@ GET  /api/knowledge-graph/recommendations - Get recommendations
 ## REMAINING TASKS (Backlog)
 
 ### P1 - High Priority (Critical Fixes)
-- [ ] Fix Custom Course Creation "body stream already read" error
-- [ ] Fix LinkedIn analysis failure
-- [ ] Fix AI Mentor audio playback ("Audio Playback failed")
-- [ ] Generated assignments not visible to students
+- [x] ~~Fix AI Mentor audio playback ("Audio Playback failed")~~ - FIXED: Added browser TTS fallback
+- [x] ~~Generated assignments not visible to students~~ - FIXED: Added status:active and course_title
+- [x] ~~Certificate hash copy error~~ - FIXED: Proper null handling
+- [ ] Fix LinkedIn analysis failure (Proxycurl API key needed)
 - [ ] Student messaging system malfunction
 
 ### P2 - Medium Priority
 - [ ] AI Grading synchronization with Knowledge Graph
 - [ ] Avatar voice settings persistence
 - [ ] Multi-Subject support for all roles
+- [ ] Complete MultiSubjectPage.js implementation
+- [ ] Complete ShareContentPage.js implementation
 
 ### P3 - Low Priority
 - [ ] Refactor server.py into feature-based routers
