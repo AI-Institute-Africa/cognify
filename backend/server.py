@@ -10638,68 +10638,6 @@ async def get_knowledge_graph_recommendations(current_user: dict = Depends(get_c
     }
 
 
-# ==================== MULTI-SUBJECT LEARNING ====================
-
-@api_router.get("/multi-subject/my-subjects")
-async def get_my_multi_subjects(current_user: dict = Depends(get_current_user)):
-    """Get user's multi-subject learning paths"""
-    subjects = await db.multi_subjects.find(
-        {"user_id": current_user['id']},
-        {"_id": 0}
-    ).to_list(length=50)
-    return {"subjects": subjects}
-
-
-@api_router.post("/multi-subject/create")
-async def create_multi_subject(
-    name: str = Body(...),
-    description: str = Body(""),
-    subjects: List[str] = Body(...),
-    learning_goals: str = Body(""),
-    estimated_weeks: int = Body(4),
-    ai_features: dict = Body({}),
-    current_user: dict = Depends(get_current_user)
-):
-    """Create a multi-subject learning path"""
-    # Check if user can create (student, org_admin, org_staff, admin, teacher)
-    allowed_roles = ['student', 'org_admin', 'org_staff', 'admin', 'teacher']
-    if current_user.get('role') not in allowed_roles:
-        raise HTTPException(status_code=403, detail="Permission denied")
-    
-    multi_subject = {
-        "id": str(uuid.uuid4()),
-        "user_id": current_user['id'],
-        "organization_id": current_user.get('organization_id'),
-        "name": name,
-        "description": description,
-        "subjects": subjects,
-        "learning_goals": learning_goals,
-        "estimated_weeks": estimated_weeks,
-        "ai_features": ai_features,
-        "progress": 0,
-        "status": "active",
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
-    
-    await db.multi_subjects.insert_one(multi_subject)
-    
-    return {"message": "Multi-subject path created", "id": multi_subject['id']}
-
-
-@api_router.delete("/multi-subject/{subject_id}")
-async def delete_multi_subject(subject_id: str, current_user: dict = Depends(get_current_user)):
-    """Delete a multi-subject learning path"""
-    result = await db.multi_subjects.delete_one({
-        "id": subject_id,
-        "user_id": current_user['id']
-    })
-    
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Not found or not authorized")
-    
-    return {"message": "Deleted successfully"}
-
-
 # ==================== SHARING & COLLABORATION ====================
 
 @api_router.get("/share/my-shared")
