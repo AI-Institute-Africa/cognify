@@ -10884,6 +10884,20 @@ async def create_multi_subject_path(
     return {"message": "Multi-subject path created", "id": multi_subject['id']}
 
 
+@api_router.delete("/multi-subject/{path_id}")
+async def delete_multi_subject_path(path_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a multi-subject learning path"""
+    result = await db.multi_subjects.delete_one({
+        "id": path_id,
+        "user_id": current_user['id']
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Path not found or not authorized")
+    
+    return {"message": "Deleted successfully"}
+
+
 @api_router.get("/user/shares")
 async def get_user_shares(current_user: dict = Depends(get_current_user)):
     """Get user's shared content links"""
