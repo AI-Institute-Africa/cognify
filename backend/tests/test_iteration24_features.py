@@ -34,7 +34,7 @@ class TestAuthentication:
         })
         assert response.status_code == 200, f"Teacher login failed: {response.text}"
         data = response.json()
-        assert "token" in data
+        assert "access_token" in data, f"No access_token in response: {data}"
         assert data.get("user", {}).get("role") == "teacher"
         print(f"✓ Teacher login successful: {data['user'].get('full_name')}")
     
@@ -46,7 +46,7 @@ class TestAuthentication:
         })
         assert response.status_code == 200, f"Student login failed: {response.text}"
         data = response.json()
-        assert "token" in data
+        assert "access_token" in data, f"No access_token in response: {data}"
         assert data.get("user", {}).get("role") == "student"
         print(f"✓ Student login successful: {data['user'].get('full_name')}")
     
@@ -58,7 +58,7 @@ class TestAuthentication:
         })
         assert response.status_code == 200, f"Org admin login failed: {response.text}"
         data = response.json()
-        assert "token" in data
+        assert "access_token" in data, f"No access_token in response: {data}"
         print(f"✓ Org admin login successful: {data['user'].get('full_name')}")
 
 
@@ -85,7 +85,7 @@ class TestTeacherMessaging:
             "password": TEACHER_PASSWORD
         })
         if response.status_code == 200:
-            return response.json().get("token")
+            return response.json().get("access_token")
         pytest.skip("Teacher login failed")
     
     def test_get_teacher_students(self, teacher_token):
@@ -105,6 +105,8 @@ class TestTeacherMessaging:
             assert "id" in student, "Student should have id"
             assert "full_name" in student or "email" in student, "Student should have name or email"
             print(f"  First student: {student.get('full_name', student.get('email'))}")
+        
+        return students
     
     def test_get_messages(self, teacher_token):
         """Test getting messages"""
@@ -126,7 +128,7 @@ class TestStudentAssignments:
             "password": STUDENT_PASSWORD
         })
         if response.status_code == 200:
-            return response.json().get("token")
+            return response.json().get("access_token")
         pytest.skip("Student login failed")
     
     def test_get_student_assignments(self, student_token):
@@ -172,7 +174,7 @@ class TestMultiSubjectLearning:
             "password": STUDENT_PASSWORD
         })
         if response.status_code == 200:
-            return response.json().get("token")
+            return response.json().get("access_token")
         pytest.skip("Student login failed")
     
     def test_get_my_paths(self, student_token):
@@ -264,7 +266,7 @@ class TestCustomCourseGeneration:
             "password": TEACHER_PASSWORD
         })
         if response.status_code == 200:
-            return response.json().get("token")
+            return response.json().get("access_token")
         pytest.skip("Teacher login failed")
     
     def test_get_courses_for_import(self, teacher_token):
@@ -299,7 +301,7 @@ class TestCourseLessons:
             "password": STUDENT_PASSWORD
         })
         if response.status_code == 200:
-            return response.json().get("token")
+            return response.json().get("access_token")
         pytest.skip("Student login failed")
     
     def test_get_course_lessons(self, student_token):
