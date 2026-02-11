@@ -8719,6 +8719,87 @@ async def get_student_assignments(current_user: dict = Depends(get_current_user)
     return assignments
 
 
+@assignments_router.post("/upload-submission")
+async def upload_assignment_file(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload a file for assignment submission (PDF, Word, TXT)"""
+    if current_user.get('role') != 'student':
+        raise HTTPException(status_code=403, detail="Student access required")
+    
+    # Validate file type
+    allowed_extensions = ['.pdf', '.doc', '.docx', '.txt', '.md']
+    file_ext = '.' + file.filename.split('.')[-1].lower()
+    
+    if file_ext not in allowed_extensions:
+        raise HTTPException(status_code=400, detail="Only PDF, Word, and text files are allowed")
+    
+    # Read file content
+    content = await file.read()
+    
+    if len(content) > 10 * 1024 * 1024:  # 10MB limit
+        raise HTTPException(status_code=400, detail="File size must be less than 10MB")
+    
+    # Save file
+    file_id = str(uuid.uuid4())
+    file_path = f"/app/uploads/assignments/{file_id}{file_ext}"
+    
+    import os
+    os.makedirs("/app/uploads/assignments", exist_ok=True)
+    
+    with open(file_path, "wb") as f:
+        f.write(content)
+    
+    # Extract text from file
+    extracted_text = ""
+    try:
+        if file_ext == '.txt' or file_ext == '.md':
+            extracted_text = content.decode('utf-8', errors='ignore')
+        elif file_ext == '.pdf':
+            try:
+                import PyPDF2
+                import io
+                pdf_reader = PyPDF2.PdfReader(io.BytesIO(content))
+                for page in pdf_reader.pages:
+                    extracted_text += page.extract_text() or ""
+            except Exception as pdf_error:
+                print(f"PDF extraction error: {pdf_error}")
+                extracted_text = "[PDF content - text extraction not available]"
+        elif file_ext in ['.doc', '.docx']:
+            try:
+                import docx
+                import io
+                doc = docx.Document(io.BytesIO(content))
+                extracted_text = "\n".join([para.text for para in doc.paragraphs])
+            except Exception as doc_error:
+                print(f"Word extraction error: {doc_error}")
+                extracted_text = "[Word document - text extraction not available]"
+    except Exception as e:
+        print(f"Text extraction error: {e}")
+        extracted_text = ""
+    
+    # Store file reference in database
+    file_record = {
+        "id": file_id,
+        "user_id": current_user['id'],
+        "filename": file.filename,
+        "file_path": file_path,
+        "file_type": file_ext,
+        "file_size": len(content),
+        "extracted_text": extracted_text[:10000],  # Limit stored text
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.assignment_files.insert_one(file_record)
+    
+    return {
+        "file_id": file_id,
+        "filename": file.filename,
+        "file_url": f"/api/assignments/files/{file_id}",
+        "extracted_text": extracted_text[:5000] if extracted_text else None
+    }
+
+
 @assignments_router.post("/{assignment_id}/submit-and-grade")
 async def submit_assignment_with_auto_grade(
     assignment_id: str,
