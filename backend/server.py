@@ -1881,7 +1881,13 @@ async def login(credentials: UserLogin):
     token = create_token(user['id'], user['role'], user.get('organization_id'))
     return TokenResponse(
         access_token=token,
-        user={"id": user['id'], "email": user['email'], "full_name": user['full_name'], "role": user['role']}
+        user={
+            "id": user['id'], 
+            "email": user['email'], 
+            "full_name": user['full_name'], 
+            "role": user['role'],
+            "organization_id": user.get('organization_id')
+        }
     )
 
 @auth_router.get("/me")
