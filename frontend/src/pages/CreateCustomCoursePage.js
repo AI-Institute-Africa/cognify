@@ -257,18 +257,29 @@ export default function CreateCustomCoursePage() {
         body: JSON.stringify(requestBody)
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to generate course');
+      // Clone the response before reading to avoid "body stream already read" error
+      const responseClone = response.clone();
+      
+      let result;
+      try {
+        result = await response.json();
+      } catch (jsonError) {
+        // If JSON parsing fails, try to get text from the clone
+        const text = await responseClone.text();
+        console.error('Response text:', text);
+        throw new Error('Invalid response from server. Please try again.');
       }
 
-      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.detail || 'Failed to generate course');
+      }
+
       setGeneratedCourse(result);
       setStep(5);
       toast.success('Course generated successfully!');
     } catch (error) {
       console.error('Course generation error:', error);
-      toast.error(error.message || 'Failed to generate course');
+      toast.error(error.message || 'Failed to generate course. Please try again.');
     } finally {
       setLoading(false);
     }
