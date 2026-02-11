@@ -8803,7 +8803,8 @@ async def upload_assignment_file(
 @assignments_router.post("/{assignment_id}/submit-and-grade")
 async def submit_assignment_with_auto_grade(
     assignment_id: str,
-    content: str,
+    content: str = Body(""),
+    file_id: Optional[str] = Body(None),
     current_user: dict = Depends(get_current_user)
 ):
     """Submit assignment and auto-grade using AI"""
@@ -8822,6 +8823,16 @@ async def submit_assignment_with_auto_grade(
     })
     if existing:
         raise HTTPException(status_code=400, detail="Assignment already submitted")
+    
+    # If file was uploaded, get its content
+    submission_content = content
+    if file_id:
+        file_record = await db.assignment_files.find_one({"id": file_id}, {"_id": 0})
+        if file_record and file_record.get('extracted_text'):
+            submission_content = file_record['extracted_text']
+    
+    if not submission_content.strip():
+        raise HTTPException(status_code=400, detail="Please provide content or upload a file")
     
     submission_id = str(uuid.uuid4())
     score = 0
