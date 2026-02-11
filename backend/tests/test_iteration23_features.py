@@ -14,6 +14,16 @@ import os
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://scholar-port.preview.emergentagent.com')
 
+def get_token(email, password):
+    """Helper to get auth token"""
+    response = requests.post(f"{BASE_URL}/api/auth/login", json={
+        "email": email,
+        "password": password
+    })
+    data = response.json()
+    return data.get("access_token") or data.get("token")
+
+
 class TestAuthentication:
     """Test authentication endpoints"""
     
@@ -25,10 +35,9 @@ class TestAuthentication:
         })
         assert response.status_code == 200, f"Teacher login failed: {response.text}"
         data = response.json()
-        assert "token" in data, "No token in response"
+        assert "access_token" in data or "token" in data, "No token in response"
         assert data.get("user", {}).get("role") == "teacher", "User is not a teacher"
         print(f"Teacher login successful: {data.get('user', {}).get('full_name')}")
-        return data["token"]
     
     def test_student_login(self):
         """Test student login"""
@@ -38,9 +47,8 @@ class TestAuthentication:
         })
         assert response.status_code == 200, f"Student login failed: {response.text}"
         data = response.json()
-        assert "token" in data, "No token in response"
+        assert "access_token" in data or "token" in data, "No token in response"
         print(f"Student login successful: {data.get('user', {}).get('full_name')}")
-        return data["token"]
 
 
 class TestOrganizationLogin:
@@ -71,11 +79,7 @@ class TestTeacherMessaging:
     
     @pytest.fixture
     def teacher_token(self):
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "demo.teacher@eduos.edu",
-            "password": "demo123"
-        })
-        return response.json()["token"]
+        return get_token("demo.teacher@eduos.edu", "demo123")
     
     def test_get_teacher_students(self, teacher_token):
         """Test getting students for teacher messaging"""
@@ -137,11 +141,7 @@ class TestAIFeaturesPreferences:
     
     @pytest.fixture
     def student_token(self):
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "demo.student@cognify.edu",
-            "password": "demo123"
-        })
-        return response.json()["token"]
+        return get_token("demo.student@cognify.edu", "demo123")
     
     def test_get_ai_preferences(self, student_token):
         """Test getting AI preferences"""
@@ -183,11 +183,7 @@ class TestMultiSubject:
     
     @pytest.fixture
     def student_token(self):
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "demo.student@cognify.edu",
-            "password": "demo123"
-        })
-        return response.json()["token"]
+        return get_token("demo.student@cognify.edu", "demo123")
     
     def test_get_my_paths(self, student_token):
         """Test getting user's multi-subject paths"""
@@ -220,11 +216,7 @@ class TestShareContent:
     
     @pytest.fixture
     def student_token(self):
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "demo.student@cognify.edu",
-            "password": "demo123"
-        })
-        return response.json()["token"]
+        return get_token("demo.student@cognify.edu", "demo123")
     
     def test_get_my_shared(self, student_token):
         """Test getting user's shared content"""
@@ -256,11 +248,7 @@ class TestCustomCourseCreation:
     
     @pytest.fixture
     def teacher_token(self):
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "demo.teacher@eduos.edu",
-            "password": "demo123"
-        })
-        return response.json()["token"]
+        return get_token("demo.teacher@eduos.edu", "demo123")
     
     def test_get_courses_for_import(self, teacher_token):
         """Test getting courses that can be imported for customization"""
