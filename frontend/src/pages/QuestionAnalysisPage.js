@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
@@ -15,7 +15,9 @@ import {
   Volume2,
   BookOpen,
   TrendingUp,
-  Layers
+  Layers,
+  Mic,
+  MicOff
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
@@ -43,6 +45,91 @@ export default function QuestionAnalysisPage() {
   const [evaluating, setEvaluating] = useState(false);
   const [analysis, setAnalysis] = useState(null);
   const [evaluation, setEvaluation] = useState(null);
+  const [isRecordingQuestion, setIsRecordingQuestion] = useState(false);
+  const [isRecordingAnswer, setIsRecordingAnswer] = useState(false);
+  const questionRecognitionRef = useRef(null);
+  const answerRecognitionRef = useRef(null);
+
+  const startVoiceInput = useCallback((target) => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error('Voice input not supported in this browser. Try Chrome or Edge.');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    if (target === 'question') {
+      questionRecognitionRef.current = recognition;
+      setIsRecordingQuestion(true);
+    } else {
+      answerRecognitionRef.current = recognition;
+      setIsRecordingAnswer(true);
+    }
+
+    let finalTranscript = '';
+
+    recognition.onresult = (event) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript + ' ';
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      if (target === 'question') {
+        setQuestion(prev => {
+          const base = prev.endsWith(' ') ? prev : (prev ? prev + ' ' : '');
+          return finalTranscript + interim;
+        });
+      } else {
+        setAnswer(prev => {
+          const base = prev.endsWith(' ') ? prev : (prev ? prev + ' ' : '');
+          return finalTranscript + interim;
+        });
+      }
+    };
+
+    recognition.onerror = (event) => {
+      if (event.error === 'no-speech') {
+        toast.info('No speech detected. Try again.');
+      } else if (event.error !== 'aborted') {
+        toast.error('Voice recognition error: ' + event.error);
+      }
+      if (target === 'question') setIsRecordingQuestion(false);
+      else setIsRecordingAnswer(false);
+    };
+
+    recognition.onend = () => {
+      if (target === 'question') setIsRecordingQuestion(false);
+      else setIsRecordingAnswer(false);
+    };
+
+    try {
+      recognition.start();
+      toast.success('Listening... Speak now');
+    } catch (e) {
+      toast.error('Could not start voice recognition. Please check microphone permissions.');
+      if (target === 'question') setIsRecordingQuestion(false);
+      else setIsRecordingAnswer(false);
+    }
+  }, []);
+
+  const stopVoiceInput = useCallback((target) => {
+    if (target === 'question' && questionRecognitionRef.current) {
+      questionRecognitionRef.current.stop();
+      questionRecognitionRef.current = null;
+      setIsRecordingQuestion(false);
+    } else if (target === 'answer' && answerRecognitionRef.current) {
+      answerRecognitionRef.current.stop();
+      answerRecognitionRef.current = null;
+      setIsRecordingAnswer(false);
+    }
+  }, []);
 
   const handleAnalyzeQuestion = async () => {
     if (!question.trim()) {
@@ -145,9 +232,21 @@ export default function QuestionAnalysisPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Your Question</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Your Question</Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => isRecordingQuestion ? stopVoiceInput('question') : startVoiceInput('question')}
+                      className={isRecordingQuestion ? 'text-red-400 animate-pulse' : 'text-zinc-400 hover:text-cyan-400'}
+                      data-testid="voice-question-btn"
+                    >
+                      {isRecordingQuestion ? <MicOff className="w-4 h-4 mr-1" /> : <Mic className="w-4 h-4 mr-1" />}
+                      {isRecordingQuestion ? 'Stop' : 'Voice'}
+                    </Button>
+                  </div>
                   <Textarea
-                    placeholder="Write a question about any topic you're learning..."
+                    placeholder="Write or speak a question about any topic you're learning..."
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
                     className="min-h-[120px] bg-zinc-800 border-white/10"
@@ -184,9 +283,21 @@ export default function QuestionAnalysisPage() {
                   </h3>
 
                   <div className="space-y-2">
-                    <Label>Your Answer</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Your Answer</Label>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => isRecordingAnswer ? stopVoiceInput('answer') : startVoiceInput('answer')}
+                        className={isRecordingAnswer ? 'text-red-400 animate-pulse' : 'text-zinc-400 hover:text-emerald-400'}
+                        data-testid="voice-answer-btn"
+                      >
+                        {isRecordingAnswer ? <MicOff className="w-4 h-4 mr-1" /> : <Mic className="w-4 h-4 mr-1" />}
+                        {isRecordingAnswer ? 'Stop' : 'Voice'}
+                      </Button>
+                    </div>
                     <Textarea
-                      placeholder="Now answer your own question..."
+                      placeholder="Write or speak your answer..."
                       value={answer}
                       onChange={(e) => setAnswer(e.target.value)}
                       className="min-h-[150px] bg-zinc-800 border-white/10"

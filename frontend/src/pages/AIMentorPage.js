@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
-import { mentorChat, getMentorProfile, updateMentorProfile, textToSpeech, analyzeLinkedInProfile } from '../services/api';
+import { mentorChat, getMentorProfile, updateMentorProfile, textToSpeech, analyzeLinkedInProfile, analyzeSocialUrl } from '../services/api';
 import { 
   Sparkles, 
   Send, 
@@ -21,7 +21,9 @@ import {
   Lightbulb,
   Linkedin,
   RefreshCw,
-  CheckCircle
+  CheckCircle,
+  Globe,
+  Link2
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
@@ -68,6 +70,9 @@ export default function AIMentorPage() {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [analyzingLinkedin, setAnalyzingLinkedin] = useState(false);
+  const [analyzingSocial, setAnalyzingSocial] = useState(false);
+  const [socialUrl, setSocialUrl] = useState('');
+  const [showSocialUrlInput, setShowSocialUrlInput] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const messagesEndRef = useRef(null);
   const audioRef = useRef(null);
@@ -128,6 +133,44 @@ export default function AIMentorPage() {
       toast.error('Failed to analyze LinkedIn profile');
     } finally {
       setAnalyzingLinkedin(false);
+    }
+  };
+
+  const handleAnalyzeSocialUrl = async () => {
+    if (!socialUrl.trim()) {
+      toast.error('Please enter a social media URL');
+      return;
+    }
+    setAnalyzingSocial(true);
+    try {
+      const result = await analyzeSocialUrl(socialUrl.trim());
+      if (result.success) {
+        toast.success(`URL analyzed successfully (${result.url_type || 'profile'})`);
+        await loadProfile();
+        
+        let analysisMessage = '';
+        if (result.url_type === 'company') {
+          const company = result.company_data || {};
+          analysisMessage = `I've analyzed this company profile!\n\n**Company:** ${company.name || 'Unknown'}\n**Industry:** ${company.industry || result.insights?.industry || 'Unknown'}\n**Description:** ${company.description || ''}\n\n**Key Areas:** ${(result.insights?.key_areas || []).join(', ') || 'N/A'}\n**Recommended Courses:** ${(result.insights?.recommended_courses || []).join(', ') || 'N/A'}`;
+        } else {
+          const lp = result.learner_profile || result.social_data || {};
+          analysisMessage = `I've analyzed this profile!\n\n**Strengths:** ${(lp.strengths || lp.inferred_skills || []).join(', ') || 'Analyzing...'}\n\n**Recommended Topics:** ${(lp.recommended_topics || []).join(', ') || 'Analyzing...'}\n\n**Insight:** ${lp.career_insights || lp.profile_summary || 'Ready to help you grow!'}`;
+        }
+        
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: analysisMessage
+        }]);
+        setSocialUrl('');
+        setShowSocialUrlInput(false);
+      } else {
+        toast.error(result.message || 'Failed to analyze URL');
+      }
+    } catch (error) {
+      toast.error('Failed to analyze URL');
+    } finally {
+      setAnalyzingSocial(false);
     }
   };
 
@@ -437,6 +480,18 @@ export default function AIMentorPage() {
                 </Button>
               )}
               
+              {/* Social URL Analysis Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSocialUrlInput(!showSocialUrlInput)}
+                className="border-violet-500/30 bg-violet-500/10 text-violet-400 gap-2 hover:bg-violet-500/20"
+                data-testid="analyze-social-btn"
+              >
+                <Globe className="w-4 h-4" />
+                Analyze URL
+              </Button>
+              
               {/* Audio Toggle */}
               <Button
                 variant="outline"
@@ -519,6 +574,42 @@ export default function AIMentorPage() {
               </Dialog>
             </div>
           </div>
+
+          {/* Social URL Analysis Input Panel */}
+          {showSocialUrlInput && (
+            <div className="glass-card p-4 mb-4 border-violet-500/20 animate-fadeIn" data-testid="social-url-panel">
+              <div className="flex items-center gap-2 mb-2">
+                <Link2 className="w-4 h-4 text-violet-400" />
+                <span className="text-sm font-medium">Analyze Any Social Media URL</span>
+              </div>
+              <p className="text-xs text-zinc-500 mb-3">
+                Paste a LinkedIn profile, company page, GitHub, Twitter, or any social URL
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={socialUrl}
+                  onChange={(e) => setSocialUrl(e.target.value)}
+                  placeholder="https://linkedin.com/in/username or /company/name..."
+                  className="flex-1 px-3 py-2 text-sm rounded-lg bg-zinc-800 border border-white/10 focus:border-violet-500/50 focus:outline-none"
+                  data-testid="social-url-input"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleAnalyzeSocialUrl}
+                  disabled={analyzingSocial || !socialUrl.trim()}
+                  className="bg-violet-500 hover:bg-violet-600"
+                  data-testid="social-url-submit-btn"
+                >
+                  {analyzingSocial ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Globe className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Chat Container */}
           <div className="glass-card min-h-[600px] flex flex-col">

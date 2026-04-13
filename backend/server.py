@@ -698,6 +698,83 @@ async def enroll_participant(
 
 # ==================== KNOWLEDGE GRAPH ROUTES ====================
 
+async def sync_grade_to_knowledge_graph(student_id: str, course_id: str, score: int, max_score: int, assessment_name: str):
+    """Sync a graded assignment with the knowledge graph by updating concept mastery states"""
+    try:
+        if not course_id:
+            return
+        
+        # Find concepts related to this course
+        concepts = await db.concepts.find({"course_id": course_id}, {"_id": 0}).to_list(50)
+        if not concepts:
+            return
+        
+        percentage = (score / max_score * 100) if max_score > 0 else 0
+        
+        # Determine mastery status based on score
+        if percentage >= 90:
+            status = "mastered"
+            confidence = min(1.0, percentage / 100)
+        elif percentage >= 70:
+            status = "learning"
+            confidence = percentage / 100
+        elif percentage >= 50:
+            status = "developing"
+            confidence = percentage / 100
+        else:
+            status = "needs_review"
+            confidence = max(0.1, percentage / 100)
+        
+        for concept in concepts:
+            existing_state = await db.learner_concept_states.find_one(
+                {"user_id": student_id, "concept_id": concept['id']},
+                {"_id": 0}
+            )
+            
+            if existing_state:
+                # Average the confidence with existing value for gradual progression
+                old_confidence = existing_state.get('confidence', 0.5)
+                new_confidence = (old_confidence + confidence) / 2
+                
+                # Only upgrade status, never downgrade from mastered
+                current_status = existing_state.get('status', 'not_started')
+                status_order = {'not_started': 0, 'needs_review': 1, 'developing': 2, 'learning': 3, 'mastered': 4}
+                if status_order.get(status, 0) > status_order.get(current_status, 0):
+                    update_status = status
+                else:
+                    update_status = current_status
+                
+                await db.learner_concept_states.update_one(
+                    {"user_id": student_id, "concept_id": concept['id']},
+                    {"$set": {
+                        "status": update_status,
+                        "confidence": round(new_confidence, 3),
+                        "last_assessment": assessment_name,
+                        "last_score": score,
+                        "last_max_score": max_score,
+                        "last_accessed": datetime.now(timezone.utc).isoformat(),
+                        "interactions": (existing_state.get('interactions', 0) + 1)
+                    }}
+                )
+            else:
+                await db.learner_concept_states.insert_one({
+                    "user_id": student_id,
+                    "concept_id": concept['id'],
+                    "concept_name": concept.get('name', ''),
+                    "course_id": course_id,
+                    "status": status,
+                    "confidence": round(confidence, 3),
+                    "last_assessment": assessment_name,
+                    "last_score": score,
+                    "last_max_score": max_score,
+                    "last_accessed": datetime.now(timezone.utc).isoformat(),
+                    "interactions": 1
+                })
+        
+        logging.info(f"Knowledge graph synced for student {student_id}, course {course_id}: {len(concepts)} concepts updated")
+    except Exception as e:
+        logging.error(f"Knowledge graph sync error: {e}")
+
 @knowledge_router.get("/concepts")
 async def get_concepts(
     subject: Optional[str] = None,
@@ -2112,7 +2189,7 @@ async def get_attendance(
     if current_user['role'] == 'student':
         profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
         if profile:
-            query['student_id'] = profile['id']
+            query['student_id'] = profile.get('id', profile['user_id'])
     elif student_id:
         query['student_id'] = student_id
     if course_id:
@@ -2143,7 +2220,7 @@ async def get_grades(
     if current_user['role'] == 'student':
         profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
         if profile:
-            query['student_id'] = profile['id']
+            query['student_id'] = profile.get('id', profile['user_id'])
     elif student_id:
         query['student_id'] = student_id
     if course_id:
@@ -2179,7 +2256,7 @@ async def get_fees(current_user: dict = Depends(get_current_user)):
     if current_user['role'] == 'student':
         profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
         if profile:
-            fees = await db.fees.find({"student_id": profile['id']}, {"_id": 0}).to_list(100)
+            fees = await db.fees.find({"student_id": profile.get('id', profile['user_id'])}, {"_id": 0}).to_list(100)
         else:
             fees = []
     elif current_user['role'] == 'parent':
@@ -2228,7 +2305,7 @@ async def get_achievements(current_user: dict = Depends(get_current_user)):
     if current_user['role'] == 'student':
         profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
         if profile:
-            # Query by user_id instead of profile['id']
+            # Query by user_id instead of profile.get('id', profile['user_id'])
             achievements = await db.achievements.find(
                 {"$or": [
                     {"student_id": current_user['id']},
@@ -2409,16 +2486,16 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
             stats['gpa'] = profile.get('gpa', 0)
             stats['enrolled_courses'] = len(profile.get('enrolled_courses', []))
             
-            attendance = await db.attendance.find({"student_id": profile['id']}, {"_id": 0}).to_list(1000)
+            attendance = await db.attendance.find({"student_id": profile.get('id', profile['user_id'])}, {"_id": 0}).to_list(1000)
             if attendance:
                 present = sum(1 for a in attendance if a['status'] == 'present')
                 stats['attendance_rate'] = round((present / len(attendance)) * 100, 1)
             else:
                 stats['attendance_rate'] = 100
             
-            fees = await db.fees.find({"student_id": profile['id'], "status": {"$in": ["pending", "overdue"]}}, {"_id": 0}).to_list(10)
+            fees = await db.fees.find({"student_id": profile.get('id', profile['user_id']), "status": {"$in": ["pending", "overdue"]}}, {"_id": 0}).to_list(10)
             stats['pending_fees'] = sum(f['amount'] - f.get('paid_amount', 0) for f in fees)
-            stats['achievements_count'] = await db.achievements.count_documents({"student_id": profile['id']})
+            stats['achievements_count'] = await db.achievements.count_documents({"student_id": profile.get('id', profile['user_id'])})
             
             # Knowledge graph progress
             concept_states = await db.learner_concept_states.find({"user_id": current_user['id']}, {"_id": 0}).to_list(100)
@@ -3004,7 +3081,7 @@ async def get_child_details(child_id: str, current_user: dict = Depends(get_curr
     for course_id in profile.get('enrolled_courses', []):
         course = await db.courses.find_one({"id": course_id}, {"_id": 0})
         if course:
-            grades = await db.grades.find({"student_id": profile['id'], "course_id": course_id}, {"_id": 0}).to_list(100)
+            grades = await db.grades.find({"student_id": profile.get('id', profile['user_id']), "course_id": course_id}, {"_id": 0}).to_list(100)
             avg_grade = 0
             if grades:
                 avg_grade = sum(g['score']/g['max_score']*100 for g in grades) / len(grades)
@@ -3016,7 +3093,7 @@ async def get_child_details(child_id: str, current_user: dict = Depends(get_curr
             })
     
     # Get attendance rate
-    attendance = await db.attendance.find({"student_id": profile['id']}, {"_id": 0}).to_list(1000)
+    attendance = await db.attendance.find({"student_id": profile.get('id', profile['user_id'])}, {"_id": 0}).to_list(1000)
     attendance_rate = 100
     if attendance:
         present = sum(1 for a in attendance if a['status'] == 'present')
@@ -3024,14 +3101,14 @@ async def get_child_details(child_id: str, current_user: dict = Depends(get_curr
     
     # Get pending fees
     fees = await db.fees.find(
-        {"student_id": profile['id'], "status": {"$in": ["pending", "overdue"]}},
+        {"student_id": profile.get('id', profile['user_id']), "status": {"$in": ["pending", "overdue"]}},
         {"_id": 0}
     ).to_list(100)
     pending_fees = sum(f['amount'] - f.get('paid_amount', 0) for f in fees)
     
     # Get recent activity
     recent_activity = []
-    recent_grades = await db.grades.find({"student_id": profile['id']}, {"_id": 0}).sort("graded_at", -1).to_list(5)
+    recent_grades = await db.grades.find({"student_id": profile.get('id', profile['user_id'])}, {"_id": 0}).sort("graded_at", -1).to_list(5)
     for g in recent_grades:
         recent_activity.append({
             "type": "grade",
@@ -3098,7 +3175,7 @@ async def generate_report_card(student_id: str, current_user: dict = Depends(get
     if current_user['role'] not in ['admin', 'teacher', 'org_admin', 'parent']:
         # Check if student is requesting their own
         profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
-        if not profile or profile['id'] != student_id:
+        if not profile or profile.get('id', profile['user_id']) != student_id:
             raise HTTPException(status_code=403, detail="Not authorized")
     
     # Get student profile
@@ -3767,7 +3844,7 @@ async def find_study_matches(current_user: dict = Depends(get_current_user)):
             raise HTTPException(status_code=400, detail="Student profile not found")
         
         # Get user's grades to determine strengths/weaknesses
-        grades = await db.grades.find({"student_id": profile['id']}, {"_id": 0}).to_list(50)
+        grades = await db.grades.find({"student_id": profile.get('id', profile['user_id'])}, {"_id": 0}).to_list(50)
         
         # Get other students
         other_students = await db.student_profiles.find(
@@ -3852,30 +3929,30 @@ async def get_student_dashboard(current_user: dict = Depends(get_current_user)):
         ).to_list(20)
     
     # Get grades
-    grades = await db.grades.find({"student_id": profile['id']}, {"_id": 0}).to_list(100)
+    grades = await db.grades.find({"student_id": profile.get('id', profile['user_id'])}, {"_id": 0}).to_list(100)
     
     # Calculate GPA
     if grades:
         total_points = sum((g['score'] / g['max_score']) * 4 for g in grades)
         gpa = total_points / len(grades)
-        await db.student_profiles.update_one({"id": profile['id']}, {"$set": {"gpa": round(gpa, 2)}})
+        await db.student_profiles.update_one({"user_id": profile['user_id']}, {"$set": {"gpa": round(gpa, 2)}})
     else:
         gpa = profile.get('gpa', 0)
     
     # Get attendance
-    attendance_records = await db.attendance.find({"student_id": profile['id']}, {"_id": 0}).to_list(100)
+    attendance_records = await db.attendance.find({"student_id": profile.get('id', profile['user_id'])}, {"_id": 0}).to_list(100)
     total_attendance = len(attendance_records)
     present_count = sum(1 for a in attendance_records if a.get('status') == 'present')
     attendance_rate = (present_count / total_attendance * 100) if total_attendance > 0 else 100
     
     # Get fees
-    fees = await db.fees.find({"student_id": profile['id']}, {"_id": 0}).to_list(20)
+    fees = await db.fees.find({"student_id": profile.get('id', profile['user_id'])}, {"_id": 0}).to_list(20)
     total_fees = sum(f.get('amount', 0) for f in fees)
     paid_fees = sum(f.get('paid_amount', 0) for f in fees)
     pending_fees = total_fees - paid_fees
     
     # Get achievements
-    achievements = await db.achievements.find({"student_id": profile['id']}, {"_id": 0}).to_list(20)
+    achievements = await db.achievements.find({"student_id": profile.get('id', profile['user_id'])}, {"_id": 0}).to_list(20)
     
     # Get upcoming assignments/deadlines
     upcoming = []
@@ -5115,7 +5192,7 @@ async def submit_exam(exam_id: str, submission: ExamSubmission, current_user: di
     # Record grade in grades collection (for report cards)
     grade_record = {
         "id": str(uuid.uuid4()),
-        "student_id": profile['id'] if profile else current_user['id'],
+        "student_id": profile.get('id', profile['user_id']) if profile else current_user['id'],
         "course_id": exam.get('course_id'),
         "assessment_type": "exam",
         "assessment_name": exam.get('title', 'Exam'),
@@ -5609,7 +5686,8 @@ async def analyze_linkedin_profile(current_user: dict = Depends(get_current_user
         return {
             "success": True,
             "message": "LinkedIn profile analyzed successfully",
-            "profile": profile_data
+            "profile": profile_data,
+            "profile_data": result.get('profile_data', {})
         }
         
     except Exception as e:
@@ -5617,6 +5695,74 @@ async def analyze_linkedin_profile(current_user: dict = Depends(get_current_user
         return {
             "success": False,
             "message": f"Failed to analyze LinkedIn profile: {str(e)}"
+        }
+
+
+@mentor_router.post("/analyze-social-url")
+async def analyze_social_url(
+    url: str = Body(..., embed=True),
+    current_user: dict = Depends(get_current_user)
+):
+    """Analyze any social media URL (LinkedIn individual/company, GitHub, Twitter, etc.)"""
+    try:
+        from services.linkedin_service import linkedin_scraper
+        
+        if not url or not url.strip():
+            raise HTTPException(status_code=400, detail="Please provide a valid URL")
+        
+        result = await linkedin_scraper.analyze_url(url.strip())
+        
+        if not result.get('success'):
+            return {
+                "success": False,
+                "message": result.get('error', 'Failed to analyze the provided URL')
+            }
+        
+        # Store analysis result
+        analysis_record = {
+            "user_id": current_user['id'],
+            "url": url.strip(),
+            "url_type": result.get('url_type', 'unknown'),
+            "analyzed_at": datetime.now(timezone.utc).isoformat(),
+            "result": result
+        }
+        await db.social_analyses.update_one(
+            {"user_id": current_user['id'], "url": url.strip()},
+            {"$set": analysis_record},
+            upsert=True
+        )
+        
+        # If it's an individual profile, also update learner profile
+        if result.get('url_type') == 'individual' or result.get('url_type') == 'linkedin_individual':
+            profile_data = result.get('learner_profile', {})
+            if profile_data:
+                await db.learner_profiles.update_one(
+                    {"user_id": current_user['id']},
+                    {
+                        "$set": {
+                            "strengths": profile_data.get("strengths", []),
+                            "weaknesses": profile_data.get("weaknesses", []),
+                            "goals": profile_data.get("goals", []),
+                            "learning_style": profile_data.get("learning_style", "visual"),
+                            "social_analysis": analysis_record
+                        }
+                    },
+                    upsert=True
+                )
+        
+        return {
+            "success": True,
+            "message": f"URL analyzed successfully ({result.get('url_type', 'unknown')})",
+            **result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Social URL analysis error: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Failed to analyze URL: {str(e)}"
         }
 
 @mentor_router.post("/upload-document")
@@ -7153,6 +7299,15 @@ async def submit_assignment(
         "percentage": score,
         "submitted_at": datetime.now(timezone.utc).isoformat()
     })
+    
+    # Sync grade with Knowledge Graph
+    await sync_grade_to_knowledge_graph(
+        student_id=current_user['id'],
+        course_id=assignment.get('course_id'),
+        score=score,
+        max_score=assignment.get('max_score', 100),
+        assessment_name=assignment.get('title')
+    )
     
     return {
         "message": "Assignment submitted and graded",

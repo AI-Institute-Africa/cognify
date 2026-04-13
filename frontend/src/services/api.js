@@ -223,6 +223,11 @@ export const analyzeLinkedInProfile = async () => {
   return response.data;
 };
 
+export const analyzeSocialUrl = async (url) => {
+  const response = await axios.post(`${API}/mentor/analyze-social-url`, { url }, { headers: getAuthHeaders() });
+  return response.data;
+};
+
 export const mentorChat = async (message, context = null, language = 'en', includeAudio = false) => {
   const response = await axios.post(
     `${API}/mentor/chat`,
