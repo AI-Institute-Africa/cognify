@@ -257,16 +257,14 @@ export default function CreateCustomCoursePage() {
         body: JSON.stringify(requestBody)
       });
 
-      // Clone the response before reading to avoid "body stream already read" error
-      const responseClone = response.clone();
+      // Read response body as text first, then parse as JSON to avoid clone/stream issues
+      const responseText = await response.text();
       
       let result;
       try {
-        result = await response.json();
+        result = JSON.parse(responseText);
       } catch (jsonError) {
-        // If JSON parsing fails, try to get text from the clone
-        const text = await responseClone.text();
-        console.error('Response text:', text);
+        console.error('Response text:', responseText);
         throw new Error('Invalid response from server. Please try again.');
       }
 

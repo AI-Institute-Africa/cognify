@@ -8737,6 +8737,8 @@ Make the content practical, engaging, and comprehensive. Each lesson should buil
         }
         
         await db.courses.insert_one(course)
+        # Remove _id added by insert_one to avoid ObjectId serialization error
+        course.pop('_id', None)
         
         # Create lessons
         lessons = []
@@ -8754,6 +8756,8 @@ Make the content practical, engaging, and comprehensive. Each lesson should buil
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
             await db.lessons.insert_one(lesson)
+            # Remove _id added by insert_one to avoid ObjectId serialization error
+            lesson.pop('_id', None)
             lessons.append(lesson)
             
             # Create quiz questions if included
@@ -8770,6 +8774,7 @@ Make the content practical, engaging, and comprehensive. Each lesson should buil
                         "order": q_idx + 1
                     }
                     await db.lesson_quizzes.insert_one(quiz_record)
+                    quiz_record.pop('_id', None)
         
         return {
             "message": "Course generated successfully",
