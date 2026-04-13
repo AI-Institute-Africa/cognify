@@ -44,6 +44,7 @@ import {
 } from '../components/ui/select';
 import { toast } from 'sonner';
 import AIFeaturesGridModal from '../components/AIFeaturesGridModal';
+import axios from 'axios';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -118,18 +119,16 @@ export default function CreateCustomCoursePage() {
     loadStandardCourses();
   }, []);
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('cognify_token');
+    return { Authorization: `Bearer ${token}` };
+  };
+
   const loadStandardCourses = async () => {
     try {
-      const token = localStorage.getItem('cognify_token');
-      const response = await fetch(`${API}/api/courses`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        // Filter to only show standard courses
-        const standard = (data || []).filter(c => c.course_branch !== 'customized' && !c.is_user_created);
-        setStandardCourses(standard);
-      }
+      const { data } = await axios.get(`${API}/api/courses`, { headers: getAuthHeaders() });
+      const standard = (data || []).filter(c => c.course_branch !== 'customized' && !c.is_user_created);
+      setStandardCourses(standard);
     } catch (error) {
       console.error('Failed to load courses:', error);
     }
@@ -162,22 +161,15 @@ export default function CreateCustomCoursePage() {
         const formData = new FormData();
         formData.append('file', file);
         
-        const token = localStorage.getItem('cognify_token');
-        const response = await fetch(`${API}/api/content/upload-source`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-          body: formData
+        const { data } = await axios.post(`${API}/api/content/upload-source`, formData, {
+          headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' }
         });
-
-        if (response.ok) {
-          const data = await response.json();
-          uploaded.push({
-            name: file.name,
-            id: data.file_id,
-            type: file.type,
-            extracted_text: data.extracted_text
-          });
-        }
+        uploaded.push({
+          name: file.name,
+          id: data.file_id,
+          type: file.type,
+          extracted_text: data.extracted_text
+        });
       } catch (error) {
         toast.error(`Failed to upload ${file.name}`);
       }
@@ -194,25 +186,18 @@ export default function CreateCustomCoursePage() {
   const handleImportCourse = async (courseId) => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('cognify_token');
-      const response = await fetch(`${API}/api/courses/${courseId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const course = await response.json();
-        setSelectedStandardCourse(course);
-        setCourseData(prev => ({
-          ...prev,
-          title: `${course.title} - Customized`,
-          description: course.description,
-          learningGoal: course.description,
-          targetAudience: course.target_audience || 'beginner',
-          numLessons: course.lessons?.length || 10
-        }));
-        toast.success('Course imported! You can now customize it.');
-        setStep(2);
-      }
+      const { data: course } = await axios.get(`${API}/api/courses/${courseId}`, { headers: getAuthHeaders() });
+      setSelectedStandardCourse(course);
+      setCourseData(prev => ({
+        ...prev,
+        title: `${course.title} - Customized`,
+        description: course.description,
+        learningGoal: course.description,
+        targetAudience: course.target_audience || 'beginner',
+        numLessons: course.lessons?.length || 10
+      }));
+      toast.success('Course imported! You can now customize it.');
+      setStep(2);
     } catch (error) {
       toast.error('Failed to import course');
     } finally {
@@ -228,8 +213,6 @@ export default function CreateCustomCoursePage() {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('cognify_token');
-      
       const requestBody = {
         title: courseData.title,
         description: courseData.description || courseData.learningGoal,
@@ -248,36 +231,18 @@ export default function CreateCustomCoursePage() {
         uploaded_file_ids: uploadedFiles.map(f => f.id)
       };
 
-      const response = await fetch(`${API}/api/courses/generate-custom`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(requestBody)
+      const { data: result } = await axios.post(`${API}/api/courses/generate-custom`, requestBody, {
+        headers: getAuthHeaders(),
+        timeout: 120000
       });
-
-      // Read response body as text first, then parse as JSON to avoid clone/stream issues
-      const responseText = await response.text();
-      
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (jsonError) {
-        console.error('Response text:', responseText);
-        throw new Error('Invalid response from server. Please try again.');
-      }
-
-      if (!response.ok) {
-        throw new Error(result.detail || 'Failed to generate course');
-      }
 
       setGeneratedCourse(result);
       setStep(5);
       toast.success('Course generated successfully!');
     } catch (error) {
       console.error('Course generation error:', error);
-      toast.error(error.message || 'Failed to generate course. Please try again.');
+      const message = error.response?.data?.detail || error.message || 'Failed to generate course. Please try again.';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -291,24 +256,16 @@ export default function CreateCustomCoursePage() {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('cognify_token');
-      const response = await fetch(`${API}/api/courses/${generatedCourse.course_id}/publish`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      await axios.post(`${API}/api/courses/${generatedCourse.course_id}/publish`, {}, {
+        headers: getAuthHeaders()
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to publish course');
-      }
 
       toast.success('Course published successfully!');
       navigate(`/courses/${generatedCourse.course_id}`);
     } catch (error) {
       console.error('Publish error:', error);
-      toast.error(error.message || 'Failed to publish course');
+      const message = error.response?.data?.detail || error.message || 'Failed to publish course';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
