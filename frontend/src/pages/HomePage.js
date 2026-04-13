@@ -613,6 +613,7 @@ export default function HomePage() {
               <a href="#features" className="text-sm text-zinc-400 hover:text-white transition-colors">{t.nav.features}</a>
               <a href="#organizations" className="text-sm text-zinc-400 hover:text-white transition-colors">{t.nav.organizations}</a>
               <a href="#assistant" className="text-sm text-zinc-400 hover:text-white transition-colors">AI Assistant</a>
+              <a href="https://aiinstituteafrica.com/" className="text-sm text-zinc-400 hover:text-white transition-colors">AIIA Portal</a>
             </div>
             
             <div className="flex items-center gap-2 sm:gap-3">

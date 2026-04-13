@@ -10,7 +10,7 @@ import json
 import io
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://scholar-port.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://knowledge-sync-9.preview.emergentagent.com')
 
 # Test credentials
 STUDENT_EMAIL = "demo.student@cognify.edu"
