@@ -8679,11 +8679,35 @@ Target Audience: {request.target_audience}
 
 Make the content practical, engaging, and comprehensive. Each lesson should build on the previous one."""
         
-        response = await chat.send_message(UserMessage(text=prompt))
+        # Use timeout to prevent proxy 502 (Kubernetes ingress ~60s)
+        import asyncio
+        response = None
+        for attempt in range(2):
+            try:
+                response = await asyncio.wait_for(
+                    chat.send_message(UserMessage(text=prompt)),
+                    timeout=50
+                )
+                break
+            except asyncio.TimeoutError:
+                logging.warning(f"LLM timeout on attempt {attempt + 1} for custom course generation")
+                if attempt == 0:
+                    # Reset chat for retry
+                    chat = LlmChat(api_key=api_key, session_id=f"custom-course-retry-{uuid.uuid4()}", system_message=system_message)
+                    chat.with_model("openai", "gpt-5.2")
+            except Exception as llm_err:
+                logging.warning(f"LLM error on attempt {attempt + 1}: {llm_err}")
+                if attempt == 0:
+                    chat = LlmChat(api_key=api_key, session_id=f"custom-course-retry-{uuid.uuid4()}", system_message=system_message)
+                    chat.with_model("openai", "gpt-5.2")
+                else:
+                    raise
         
         # Parse AI response
         import json
         try:
+            if not response:
+                raise ValueError("AI service timed out, using fallback structure")
             json_start = response.find('{')
             json_end = response.rfind('}') + 1
             if json_start >= 0 and json_end > json_start:
