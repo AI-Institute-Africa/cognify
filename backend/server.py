@@ -1594,9 +1594,7 @@ async def upload_source_content(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user)
 ):
-    """Upload a source file (PDF, DOCX, TXT) for custom course creation. Extracts text content."""
-    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    """Upload a source file (PDF, DOCX, TXT) for custom course creation and AI Q&A generation. Extracts text content."""
     
     filename = file.filename.lower()
     allowed_ext = ('.pdf', '.docx', '.doc', '.txt', '.pptx', '.ppt')
