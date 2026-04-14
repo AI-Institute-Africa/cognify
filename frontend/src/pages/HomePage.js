@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   GraduationCap, Brain, Globe, Building2, Users, Shield, Sparkles,
   ArrowRight, CheckCircle, Play, ChevronRight, BookOpen, Award,
-  TrendingUp, Network, Wifi, Video, MessageSquare, Mic, Camera,
+  TrendingUp, Network, Wifi, Video, MessageSquare, Mic, MicOff, Camera,
   Image, Upload, X, Send, Loader2, Volume2, Languages, ChevronDown,
   Zap, User, Layers, Target, Bot
 } from 'lucide-react';
@@ -397,6 +397,38 @@ export default function HomePage() {
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const recognitionRef = useRef(null);
+
+  const toggleVoiceRecording = useCallback(() => {
+    if (isRecording) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      }
+      setIsRecording(false);
+      return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = language || 'en-US';
+    recognitionRef.current = recognition;
+    let finalText = '';
+    recognition.onstart = () => setIsRecording(true);
+    recognition.onresult = (event) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) finalText += event.results[i][0].transcript + ' ';
+        else interim += event.results[i][0].transcript;
+      }
+      setQuery(finalText + interim);
+    };
+    recognition.onerror = () => setIsRecording(false);
+    recognition.onend = () => setIsRecording(false);
+    try { recognition.start(); } catch(e) { setIsRecording(false); }
+  }, [isRecording, language]);
 
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
 
@@ -830,10 +862,11 @@ export default function HomePage() {
                 <Button 
                   variant="outline" 
                   size="icon" 
-                  className="border-white/10"
-                  onClick={() => setIsRecording(!isRecording)}
+                  className={`border-white/10 ${isRecording ? 'bg-red-500/20 border-red-500/50' : ''}`}
+                  onClick={toggleVoiceRecording}
+                  data-testid="voice-record-btn"
                 >
-                  <Mic className={`w-4 h-4 ${isRecording ? 'text-red-500' : ''}`} />
+                  {isRecording ? <MicOff className="w-4 h-4 text-red-400 animate-pulse" /> : <Mic className="w-4 h-4" />}
                 </Button>
                 <Input
                   value={query}

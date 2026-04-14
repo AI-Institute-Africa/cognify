@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { DashboardLayout } from '../components/DashboardLayout';
@@ -45,6 +45,7 @@ import {
 } from '../components/ui/select';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
+import { useVoiceInput } from '../hooks/useVoiceInput';
 
 const STUDENT_PERSONALITIES = [
   { id: 'curious', name: 'Curious Learner', description: 'Asks lots of questions', icon: '🤔' },
@@ -67,6 +68,9 @@ export default function LearnByTeachingPage() {
   const [teachingScore, setTeachingScore] = useState(null);
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [gettingHint, setGettingHint] = useState(false);
+
+  const voiceCallback = useCallback((text) => setExplanation(text), []);
+  const { isRecording, toggleRecording } = useVoiceInput(voiceCallback);
 
   useEffect(() => {
     loadData();
@@ -417,6 +421,20 @@ export default function LearnByTeachingPage() {
 
                 {/* Input Area */}
                 <div className="space-y-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <Label className="text-sm text-zinc-400">Your Explanation</Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={toggleRecording}
+                      disabled={!selectedConcept}
+                      className={isRecording ? 'text-red-400 animate-pulse' : 'text-zinc-400 hover:text-violet-400'}
+                      data-testid="voice-explanation-btn"
+                    >
+                      {isRecording ? <MicOff className="w-4 h-4 mr-1" /> : <Mic className="w-4 h-4 mr-1" />}
+                      {isRecording ? 'Stop' : 'Voice'}
+                    </Button>
+                  </div>
                   <Textarea
                     placeholder={selectedConcept 
                       ? `Explain ${selectedConcept.name} in your own words...`

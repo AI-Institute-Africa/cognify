@@ -1589,7 +1589,114 @@ async def upload_course_file_content(
     }
 
 
-@content_router.get("/files/{course_id}/{filename}")
+@content_router.post("/upload-source")
+async def upload_source_content(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload a source file (PDF, DOCX, TXT) for custom course creation. Extracts text content."""
+    if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    filename = file.filename.lower()
+    allowed_ext = ('.pdf', '.docx', '.doc', '.txt', '.pptx', '.ppt')
+    if not any(filename.endswith(ext) for ext in allowed_ext):
+        raise HTTPException(status_code=400, detail=f"Unsupported file type. Allowed: {', '.join(allowed_ext)}")
+    
+    file_content = await file.read()
+    if len(file_content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Max 10MB allowed.")
+    
+    extracted_text = ""
+    
+    try:
+        if filename.endswith('.txt'):
+            extracted_text = file_content.decode('utf-8', errors='ignore')
+        
+        elif filename.endswith('.pdf'):
+            import tempfile
+            try:
+                from PyPDF2 import PdfReader
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+                    tmp.write(file_content)
+                    tmp_path = tmp.name
+                reader = PdfReader(tmp_path)
+                for page in reader.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        extracted_text += page_text + "\n"
+                os.unlink(tmp_path)
+            except Exception as pdf_err:
+                logging.warning(f"PDF extraction error: {pdf_err}")
+                extracted_text = file_content.decode('utf-8', errors='ignore')[:5000]
+        
+        elif filename.endswith(('.docx', '.doc')):
+            import tempfile
+            try:
+                import docx
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp:
+                    tmp.write(file_content)
+                    tmp_path = tmp.name
+                doc = docx.Document(tmp_path)
+                for para in doc.paragraphs:
+                    extracted_text += para.text + "\n"
+                os.unlink(tmp_path)
+            except Exception as doc_err:
+                logging.warning(f"DOCX extraction error: {doc_err}")
+                extracted_text = file_content.decode('utf-8', errors='ignore')[:5000]
+        
+        elif filename.endswith(('.pptx', '.ppt')):
+            import tempfile
+            try:
+                from pptx import Presentation
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.pptx') as tmp:
+                    tmp.write(file_content)
+                    tmp_path = tmp.name
+                prs = Presentation(tmp_path)
+                for slide in prs.slides:
+                    for shape in slide.shapes:
+                        if hasattr(shape, 'text'):
+                            extracted_text += shape.text + "\n"
+                os.unlink(tmp_path)
+            except Exception as ppt_err:
+                logging.warning(f"PPTX extraction error: {ppt_err}")
+                extracted_text = file_content.decode('utf-8', errors='ignore')[:5000]
+    
+    except Exception as e:
+        logging.error(f"Content extraction error: {e}")
+        extracted_text = "Could not extract text from this file."
+    
+    # Save file to disk
+    upload_dir = Path("/app/source_uploads")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_id = str(uuid.uuid4())
+    file_ext = Path(file.filename).suffix
+    file_path = upload_dir / f"{file_id}{file_ext}"
+    
+    with open(file_path, 'wb') as f:
+        f.write(file_content)
+    
+    # Store metadata in DB
+    source_doc = {
+        "id": file_id,
+        "original_filename": file.filename,
+        "file_path": str(file_path),
+        "file_size": len(file_content),
+        "extracted_text": extracted_text[:50000],
+        "uploaded_by": current_user['id'],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.source_uploads.insert_one(source_doc)
+    source_doc.pop('_id', None)
+    
+    return {
+        "file_id": file_id,
+        "filename": file.filename,
+        "extracted_text": extracted_text[:5000],
+        "text_length": len(extracted_text),
+        "message": "File uploaded and text extracted successfully"
+    }
 async def serve_uploaded_course_file(course_id: str, filename: str):
     """Serve uploaded course files"""
     from fastapi.responses import FileResponse
@@ -2505,6 +2612,337 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     return stats
 
 # AI Routes (Original)
+
+# ==================== AI TRAINING INTELLIGENCE ENGINE ====================
+training_engine_router = APIRouter(prefix="/training-engine", tags=["AI Training Engine"])
+
+@training_engine_router.post("/generate-questions")
+async def generate_questions_from_content(
+    content: str = Body(None),
+    file_id: str = Body(None),
+    course_id: str = Body(None),
+    topic: str = Body("General"),
+    num_questions: int = Body(20),
+    difficulty: str = Body("mixed"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate structured Q&A from uploaded content or course material"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        import asyncio, litellm
+        litellm.num_retries = 0
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        # Get content from various sources
+        source_text = content or ""
+        
+        if file_id and not source_text:
+            source_doc = await db.source_uploads.find_one({"id": file_id}, {"_id": 0})
+            if source_doc:
+                source_text = source_doc.get("extracted_text", "")
+        
+        if course_id and not source_text:
+            lessons = await db.lessons.find({"course_id": course_id}, {"_id": 0}).to_list(50)
+            for lesson in lessons:
+                source_text += f"\n\n## {lesson.get('title', '')}\n{lesson.get('text', lesson.get('content', ''))}"
+        
+        if not source_text.strip():
+            raise HTTPException(status_code=400, detail="No content provided. Upload a file, provide text, or select a course.")
+        
+        system_message = f"""You are an advanced AI Training Intelligence Engine. Analyze the provided educational content and generate structured questions and answers.
+
+Generate exactly {num_questions} questions across these categories:
+- Basic Understanding (definitions, concepts) - ~25%
+- Intermediate Application (how things work, use cases) - ~25%  
+- Advanced/Expert (analysis, comparisons, strategy) - ~20%
+- Scenario-Based (real-world problem solving) - ~15%
+- Multiple Choice (3-5 MCQs with 4 options each) - ~15%
+
+Difficulty: {difficulty}
+
+IMPORTANT: Only generate questions from the provided content. Do not introduce unsupported facts.
+
+Return ONLY valid JSON in this exact format:
+{{
+    "topic": "{topic}",
+    "total_questions": {num_questions},
+    "categories": {{
+        "basic": [
+            {{"q": "Question text", "a": "Answer text", "difficulty": "basic"}}
+        ],
+        "intermediate": [
+            {{"q": "Question text", "a": "Answer text", "difficulty": "intermediate"}}
+        ],
+        "advanced": [
+            {{"q": "Question text", "a": "Detailed answer with examples", "difficulty": "advanced"}}
+        ],
+        "scenario": [
+            {{"q": "Scenario description and question", "a": "Detailed solution", "difficulty": "scenario"}}
+        ],
+        "mcq": [
+            {{"q": "Question text", "options": ["A. Option 1", "B. Option 2", "C. Option 3", "D. Option 4"], "correct": "A", "explanation": "Why this is correct", "difficulty": "mcq"}}
+        ]
+    }},
+    "key_takeaways": ["takeaway1", "takeaway2", "takeaway3"],
+    "knowledge_gaps": ["potential gap 1", "potential gap 2"]
+}}"""
+        
+        chat = LlmChat(api_key=api_key, session_id=f"training-qa-{uuid.uuid4()}", system_message=system_message)
+        chat.with_model("openai", "gpt-5.2")
+        
+        prompt = f"""Analyze this content and generate {num_questions} structured questions and answers:
+
+{source_text[:15000]}"""
+        
+        response = await asyncio.wait_for(
+            chat.send_message(UserMessage(text=prompt)),
+            timeout=55
+        )
+        
+        import json
+        try:
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                result = json.loads(response[json_start:json_end])
+            else:
+                raise ValueError("No JSON found")
+        except (json.JSONDecodeError, ValueError):
+            result = {
+                "topic": topic,
+                "total_questions": 0,
+                "categories": {"basic": [], "intermediate": [], "advanced": [], "scenario": [], "mcq": []},
+                "key_takeaways": ["Content analysis in progress"],
+                "knowledge_gaps": [],
+                "raw_response": response[:2000]
+            }
+        
+        # Store in database
+        record = {
+            "id": str(uuid.uuid4()),
+            "user_id": current_user['id'],
+            "topic": topic,
+            "source_type": "file" if file_id else ("course" if course_id else "text"),
+            "source_id": file_id or course_id or None,
+            "questions": result,
+            "num_questions": num_questions,
+            "difficulty": difficulty,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.training_questions.insert_one(record)
+        record.pop('_id', None)
+        
+        return {
+            "success": True,
+            "id": record["id"],
+            **result
+        }
+        
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="AI service timed out. Please try with shorter content or fewer questions.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Question generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate questions: {str(e)}")
+
+
+@training_engine_router.post("/generate-flashcards")
+async def generate_flashcards(
+    content: str = Body(None),
+    file_id: str = Body(None),
+    course_id: str = Body(None),
+    topic: str = Body("General"),
+    num_cards: int = Body(15),
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate flashcards from content for quick review"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        import asyncio, litellm
+        litellm.num_retries = 0
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        source_text = content or ""
+        if file_id and not source_text:
+            source_doc = await db.source_uploads.find_one({"id": file_id}, {"_id": 0})
+            if source_doc:
+                source_text = source_doc.get("extracted_text", "")
+        if course_id and not source_text:
+            lessons = await db.lessons.find({"course_id": course_id}, {"_id": 0}).to_list(50)
+            for lesson in lessons:
+                source_text += f"\n\n{lesson.get('text', lesson.get('content', ''))}"
+        
+        if not source_text.strip():
+            raise HTTPException(status_code=400, detail="No content provided.")
+        
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"flashcards-{uuid.uuid4()}",
+            system_message=f"""Generate exactly {num_cards} flashcards from the provided content. Return ONLY valid JSON:
+{{
+    "flashcards": [
+        {{"front": "Question or term", "back": "Answer or definition", "category": "category name"}},
+    ]
+}}"""
+        )
+        chat.with_model("openai", "gpt-5.2")
+        
+        response = await asyncio.wait_for(
+            chat.send_message(UserMessage(text=f"Generate {num_cards} flashcards from:\n\n{source_text[:10000]}")),
+            timeout=55
+        )
+        
+        import json
+        try:
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            result = json.loads(response[json_start:json_end])
+        except Exception:
+            result = {"flashcards": []}
+        
+        return {"success": True, "topic": topic, **result}
+        
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="AI service timed out.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Flashcard generation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@training_engine_router.post("/generate-exam")
+async def generate_exam_simulation(
+    content: str = Body(None),
+    file_id: str = Body(None),
+    course_id: str = Body(None),
+    topic: str = Body("General"),
+    exam_duration_minutes: int = Body(30),
+    num_questions: int = Body(15),
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate a timed exam simulation from content"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        import asyncio, litellm
+        litellm.num_retries = 0
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        source_text = content or ""
+        if file_id and not source_text:
+            source_doc = await db.source_uploads.find_one({"id": file_id}, {"_id": 0})
+            if source_doc:
+                source_text = source_doc.get("extracted_text", "")
+        if course_id and not source_text:
+            lessons = await db.lessons.find({"course_id": course_id}, {"_id": 0}).to_list(50)
+            for lesson in lessons:
+                source_text += f"\n\n{lesson.get('text', lesson.get('content', ''))}"
+        
+        if not source_text.strip():
+            raise HTTPException(status_code=400, detail="No content provided.")
+        
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"exam-{uuid.uuid4()}",
+            system_message=f"""Create a {exam_duration_minutes}-minute exam with {num_questions} questions. Mix question types.
+Return ONLY valid JSON:
+{{
+    "exam_title": "Exam title",
+    "duration_minutes": {exam_duration_minutes},
+    "total_marks": 100,
+    "sections": [
+        {{
+            "name": "Section A: Multiple Choice",
+            "marks_per_question": 2,
+            "questions": [
+                {{"q": "Question", "type": "mcq", "options": ["A", "B", "C", "D"], "correct": "A", "explanation": "Why", "marks": 2}}
+            ]
+        }},
+        {{
+            "name": "Section B: Short Answer",
+            "marks_per_question": 5,
+            "questions": [
+                {{"q": "Question", "type": "short_answer", "model_answer": "Answer", "marks": 5}}
+            ]
+        }},
+        {{
+            "name": "Section C: Scenario Analysis",
+            "marks_per_question": 10,
+            "questions": [
+                {{"q": "Scenario and question", "type": "scenario", "model_answer": "Detailed answer", "marks": 10}}
+            ]
+        }}
+    ]
+}}"""
+        )
+        chat.with_model("openai", "gpt-5.2")
+        
+        response = await asyncio.wait_for(
+            chat.send_message(UserMessage(text=f"Create exam from:\n\n{source_text[:12000]}")),
+            timeout=55
+        )
+        
+        import json
+        try:
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            result = json.loads(response[json_start:json_end])
+        except Exception:
+            result = {"exam_title": topic, "duration_minutes": exam_duration_minutes, "sections": []}
+        
+        # Store exam
+        exam_record = {
+            "id": str(uuid.uuid4()),
+            "user_id": current_user['id'],
+            "exam_data": result,
+            "source_type": "file" if file_id else ("course" if course_id else "text"),
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.training_exams.insert_one(exam_record)
+        exam_record.pop('_id', None)
+        
+        return {"success": True, "id": exam_record["id"], **result}
+        
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="AI service timed out.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Exam generation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@training_engine_router.get("/history")
+async def get_generation_history(current_user: dict = Depends(get_current_user)):
+    """Get user's question generation history"""
+    try:
+        questions = await db.training_questions.find(
+            {"user_id": current_user['id']},
+            {"_id": 0}
+        ).sort("created_at", -1).to_list(20)
+        
+        exams = await db.training_exams.find(
+            {"user_id": current_user['id']},
+            {"_id": 0}
+        ).sort("created_at", -1).to_list(20)
+        
+        return {"questions": questions, "exams": exams}
+    except Exception as e:
+        logging.error(f"History fetch error: {e}")
+        return {"questions": [], "exams": []}
+
+# ==================== END AI TRAINING ENGINE ====================
+
 @ai_router.post("/career-chat")
 async def career_chat(chat_data: ChatMessage, current_user: dict = Depends(get_current_user)):
     try:
@@ -8680,28 +9118,24 @@ Target Audience: {request.target_audience}
 Make the content practical, engaging, and comprehensive. Each lesson should build on the previous one."""
         
         # Use timeout to prevent proxy 502 (Kubernetes ingress ~60s)
+        # Disable litellm internal retries to avoid blocking for 3+ minutes
         import asyncio
+        import litellm
+        litellm.num_retries = 0
+        
         response = None
         for attempt in range(2):
             try:
                 response = await asyncio.wait_for(
                     chat.send_message(UserMessage(text=prompt)),
-                    timeout=50
+                    timeout=55
                 )
                 break
-            except asyncio.TimeoutError:
-                logging.warning(f"LLM timeout on attempt {attempt + 1} for custom course generation")
-                if attempt == 0:
-                    # Reset chat for retry
-                    chat = LlmChat(api_key=api_key, session_id=f"custom-course-retry-{uuid.uuid4()}", system_message=system_message)
-                    chat.with_model("openai", "gpt-5.2")
-            except Exception as llm_err:
-                logging.warning(f"LLM error on attempt {attempt + 1}: {llm_err}")
+            except (asyncio.TimeoutError, Exception) as err:
+                logging.warning(f"LLM attempt {attempt + 1} failed: {err}")
                 if attempt == 0:
                     chat = LlmChat(api_key=api_key, session_id=f"custom-course-retry-{uuid.uuid4()}", system_message=system_message)
                     chat.with_model("openai", "gpt-5.2")
-                else:
-                    raise
         
         # Parse AI response
         import json
@@ -11404,6 +11838,7 @@ api_router.include_router(grades_router)
 api_router.include_router(fees_router)
 api_router.include_router(achievements_router)
 api_router.include_router(ai_router)
+api_router.include_router(training_engine_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(notifications_router)
 api_router.include_router(orgs_router)

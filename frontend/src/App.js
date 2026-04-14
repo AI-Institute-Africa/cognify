@@ -64,6 +64,7 @@ import CertificateViewPage, { CertificateVerifyPage } from './pages/CertificateV
 import MultiSubjectPage from './pages/MultiSubjectPage';
 import MultiSubjectLearningPage from './pages/MultiSubjectLearningPage';
 import ShareContentPage from './pages/ShareContentPage';
+import AITrainingEnginePage from './pages/AITrainingEnginePage';
 
 import './App.css';
 
@@ -402,6 +403,13 @@ function AppRoutes() {
       <Route path="/share-content" element={
         <ProtectedRoute>
           <ShareContentPage />
+        </ProtectedRoute>
+      } />
+      
+      {/* AI Training Intelligence Engine */}
+      <Route path="/ai-training-engine" element={
+        <ProtectedRoute>
+          <AITrainingEnginePage />
         </ProtectedRoute>
       } />
       

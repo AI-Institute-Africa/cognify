@@ -1,0 +1,2 @@
+This is a test document for Cognify AI Learning Platform.
+It contains sample text for extraction testing.

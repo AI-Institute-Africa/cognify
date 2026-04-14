@@ -42,7 +42,8 @@ import {
   ChevronDown,
   FolderOpen,
   Import,
-  Share2
+  Share2,
+  Zap
 } from 'lucide-react';
 
 const navItems = {
@@ -71,6 +72,7 @@ const navItems = {
     { path: '/knowledge-graph', icon: Network, labelKey: 'knowledgeGraph' },
     { path: '/learn-by-teaching', icon: Mic, labelKey: 'learnByTeaching' },
     { path: '/question-analysis', icon: HelpCircle, label: 'Question Analysis' },
+    { path: '/ai-training-engine', icon: Zap, label: 'AI Q&A Generator' },
     { path: '/learning-journey', icon: TrendingUp, labelKey: 'learningJourney' },
     { path: '/study-groups', icon: UsersRound, labelKey: 'studyGroups' },
     { divider: true, label: 'Share & Collaborate' },
@@ -100,6 +102,7 @@ const navItems = {
     { path: '/lesson-planner', icon: Sparkles, label: 'AI Planner' },
     { path: '/syllabus-ingestion', icon: FileUp, label: 'Content Ingestion' },
     { path: '/assignment-generator', icon: FileCheck, label: 'Assignment Gen' },
+    { path: '/ai-training-engine', icon: Zap, label: 'AI Q&A Generator' },
     { path: '/multidisciplinary', icon: Layers, label: 'Multi-Subject' },
     { path: '/student-risk', icon: AlertTriangle, labelKey: 'riskPrediction' },
     { path: '/ai-mentor', icon: Brain, labelKey: 'aiMentor' },
