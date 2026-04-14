@@ -9,18 +9,14 @@ import {
   Award,
   Download,
   Share2,
-  QrCode,
   CheckCircle,
   Calendar,
-  User,
-  BookOpen,
   Shield,
   Printer,
-  ExternalLink,
-  Copy,
   Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import axios from 'axios';
 import QRCode from 'qrcode';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -43,32 +39,24 @@ export default function CertificateViewPage() {
   const loadCertificate = async () => {
     try {
       const token = localStorage.getItem('cognify_token');
-      const response = await fetch(`${API}/api/certificates/${certificateId}`, {
+      const { data } = await axios.get(`${API}/api/certificates/${certificateId}`, {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setCertificate(data);
-        
-        // Generate QR code for verification
-        const verificationUrl = `${window.location.origin}/verify-certificate/${data.verification_code}`;
-        const qr = await QRCode.toDataURL(verificationUrl, {
-          width: 150,
-          margin: 2,
-          color: {
-            dark: '#000000',
-            light: '#ffffff'
-          }
-        });
-        setQrCodeUrl(qr);
-      } else {
-        toast.error('Certificate not found');
-        navigate('/credentials');
-      }
+      setCertificate(data);
+      
+      // Generate QR code for verification
+      const verificationUrl = `${window.location.origin}/verify-certificate/${data.verification_code}`;
+      const qr = await QRCode.toDataURL(verificationUrl, {
+        width: 150,
+        margin: 2,
+        color: { dark: '#000000', light: '#ffffff' }
+      });
+      setQrCodeUrl(qr);
     } catch (error) {
       console.error('Failed to load certificate:', error);
-      toast.error('Failed to load certificate');
+      toast.error('Certificate not found');
+      navigate('/credentials');
     } finally {
       setLoading(false);
     }
@@ -77,24 +65,20 @@ export default function CertificateViewPage() {
   const handleDownloadPDF = async () => {
     try {
       const token = localStorage.getItem('cognify_token');
-      const response = await fetch(`${API}/api/certificates/${certificateId}/pdf`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await axios.get(`${API}/api/certificates/${certificateId}/pdf`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        responseType: 'blob'
       });
 
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `certificate-${certificate?.verification_code || certificateId}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        toast.success('Certificate downloaded!');
-      } else {
-        toast.error('Failed to download certificate');
-      }
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `certificate-${certificate?.verification_code || certificateId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('Certificate downloaded!');
     } catch (error) {
       console.error('Download error:', error);
       toast.error('Failed to download certificate');
@@ -323,6 +307,10 @@ export default function CertificateViewPage() {
       {/* Print Styles */}
       <style>{`
         @media print {
+          @page {
+            size: landscape;
+            margin: 0.5in;
+          }
           body * {
             visibility: hidden;
           }
@@ -334,6 +322,11 @@ export default function CertificateViewPage() {
             left: 0;
             top: 0;
             width: 100%;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+          }
+          .print\\:hidden {
+            display: none !important;
           }
         }
       `}</style>
@@ -354,13 +347,9 @@ export function CertificateVerifyPage() {
 
   const verifyCertificate = async () => {
     try {
-      const response = await fetch(`${API}/api/certificates/verify/${verificationCode}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        setCertificate(data.certificate);
-        setVerified(data.verified);
-      }
+      const { data } = await axios.get(`${API}/api/certificates/verify/${verificationCode}`);
+      setCertificate(data.certificate);
+      setVerified(data.verified);
     } catch (error) {
       console.error('Verification error:', error);
     } finally {

@@ -572,6 +572,66 @@ async def register_organization(org_data: OrganizationCreate):
         "user": {"id": admin_user['id'], "email": admin_user['email'], "full_name": admin_user['full_name'], "role": admin_user['role']}
     }
 
+@orgs_router.get("/pending-users")
+async def get_pending_org_users(current_user: dict = Depends(get_current_user)):
+    """Get list of users pending approval for the org admin's organization"""
+    if current_user['role'] not in ['org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    org_id = current_user.get('organization_id')
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization associated")
+    
+    pending = await db.users.find(
+        {"organization_id": org_id, "org_status": "pending"},
+        {"_id": 0, "password_hash": 0}
+    ).to_list(100)
+    
+    return {"pending_users": [serialize_doc(u) for u in pending]}
+
+
+class ApproveUserRequest(BaseModel):
+    user_id: str
+    action: str
+
+@orgs_router.post("/approve-user")
+async def approve_org_user(
+    request: ApproveUserRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Approve or reject a pending user registration"""
+    if current_user['role'] not in ['org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    org_id = current_user.get('organization_id')
+    
+    pending_user = await db.users.find_one(
+        {"id": request.user_id, "organization_id": org_id, "org_status": "pending"},
+        {"_id": 0}
+    )
+    if not pending_user:
+        raise HTTPException(status_code=404, detail="Pending user not found")
+    
+    if request.action not in ["approve", "reject"]:
+        raise HTTPException(status_code=400, detail="Action must be 'approve' or 'reject'")
+    
+    new_status = "approved" if request.action == "approve" else "rejected"
+    
+    await db.users.update_one(
+        {"id": request.user_id},
+        {"$set": {
+            "org_status": new_status,
+            "approved_by": current_user['id'],
+            "approved_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    return {
+        "message": f"User {pending_user['full_name']} has been {new_status}",
+        "user_id": request.user_id,
+        "status": new_status
+    }
+
 @orgs_router.post("/{org_id}/upload-verification")
 async def upload_verification_docs(
     org_id: str,
@@ -2060,6 +2120,12 @@ async def login(credentials: UserLogin):
     if not user or not verify_password(credentials.password, user.get('password_hash', '')):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
+    # Block login for pending/rejected org users
+    if user.get('org_status') == 'pending':
+        raise HTTPException(status_code=403, detail="Your account is pending approval by the organization administrator. Please wait for approval.")
+    if user.get('org_status') == 'rejected':
+        raise HTTPException(status_code=403, detail="Your registration was not approved. Contact the organization administrator.")
+    
     token = create_token(user['id'], user['role'], user.get('organization_id'))
     return TokenResponse(
         access_token=token,
@@ -2071,6 +2137,74 @@ async def login(credentials: UserLogin):
             "organization_id": user.get('organization_id')
         }
     )
+
+
+class OrgRegisterRequest(BaseModel):
+    email: str
+    password: str
+    full_name: str
+    role: str = "student"
+    org_slug: str
+
+
+@auth_router.post("/org-register")
+async def register_org_user(request: OrgRegisterRequest):
+    """Register a new user under an organization — requires org admin approval"""
+    # Find the organization
+    org = await db.organizations.find_one({"slug": request.org_slug}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    existing = await db.users.find_one({"email": request.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Validate role
+    allowed_roles = ["student", "teacher"]
+    if request.role not in allowed_roles:
+        raise HTTPException(status_code=400, detail=f"Invalid role. Allowed: {', '.join(allowed_roles)}")
+    
+    user_id = str(uuid.uuid4())
+    user_dict = {
+        "id": user_id,
+        "email": request.email,
+        "full_name": request.full_name,
+        "password_hash": hash_password(request.password),
+        "role": request.role,
+        "organization_id": org['id'],
+        "org_status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "is_active": True
+    }
+    
+    await db.users.insert_one(user_dict)
+    user_dict.pop('_id', None)
+    
+    # Create profile
+    if request.role == "student":
+        await db.student_profiles.insert_one({
+            "user_id": user_id,
+            "student_id": f"STU{str(uuid.uuid4())[:8].upper()}",
+            "grade_level": "Grade 10",
+            "section": "A",
+            "enrolled_courses": [],
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+    elif request.role == "teacher":
+        await db.teacher_profiles.insert_one({
+            "user_id": user_id,
+            "employee_id": f"TCH{str(uuid.uuid4())[:8].upper()}",
+            "department": "General",
+            "subjects": [],
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+    
+    return {
+        "message": "Registration submitted. Your account is pending approval by the organization administrator.",
+        "status": "pending",
+        "organization": org.get('name')
+    }
+
 
 @auth_router.get("/me")
 async def get_me(current_user: dict = Depends(get_current_user)):
@@ -2152,22 +2286,36 @@ async def update_user_profile(
 # Course Routes
 @courses_router.get("")
 async def get_courses(current_user: dict = Depends(get_current_user)):
+    user_org_id = current_user.get('organization_id')
+    
     if current_user['role'] == 'student':
-        # Show ALL active courses so students can discover and enroll
-        courses = await db.courses.find({"is_active": True}, {"_id": 0}).to_list(100)
-        # Also include any courses they're enrolled in (even if marked inactive)
+        query = {"is_active": True}
+        # Strict org isolation: only show org courses if user belongs to an org
+        if user_org_id:
+            query["$or"] = [
+                {"organization_id": user_org_id},
+                {"organization_id": None},
+                {"organization_id": {"$exists": False}}
+            ]
+        courses = await db.courses.find(query, {"_id": 0}).to_list(100)
+        # Also include enrolled courses
         profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
         if profile and profile.get('enrolled_courses'):
             enrolled = await db.courses.find({"id": {"$in": profile['enrolled_courses']}}, {"_id": 0}).to_list(100)
-            # Merge without duplicates
             existing_ids = {c['id'] for c in courses}
             for c in enrolled:
                 if c['id'] not in existing_ids:
-                    courses.append(c)
+                    # Only add if same org or no org
+                    if not user_org_id or c.get('organization_id') in [user_org_id, None]:
+                        courses.append(c)
     elif current_user['role'] == 'teacher':
-        # Teachers see courses they created
-        courses = await db.courses.find({"teacher_id": current_user['id']}, {"_id": 0}).to_list(100)
-        # Also check assigned_courses in profile
+        query = {"teacher_id": current_user['id']}
+        if user_org_id:
+            query = {"$or": [
+                {"teacher_id": current_user['id']},
+                {"organization_id": user_org_id}
+            ]}
+        courses = await db.courses.find(query, {"_id": 0}).to_list(100)
         profile = await db.teacher_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
         if profile and profile.get('assigned_courses'):
             assigned = await db.courses.find({"id": {"$in": profile['assigned_courses']}}, {"_id": 0}).to_list(100)
@@ -2175,6 +2323,12 @@ async def get_courses(current_user: dict = Depends(get_current_user)):
             for c in assigned:
                 if c['id'] not in existing_ids:
                     courses.append(c)
+    elif current_user['role'] == 'org_admin':
+        # Org admin sees only their org's courses
+        if user_org_id:
+            courses = await db.courses.find({"organization_id": user_org_id}, {"_id": 0}).to_list(100)
+        else:
+            courses = await db.courses.find({}, {"_id": 0}).to_list(100)
     else:
         courses = await db.courses.find({}, {"_id": 0}).to_list(100)
     return [serialize_doc(c) for c in courses]
@@ -2183,6 +2337,12 @@ async def get_courses(current_user: dict = Depends(get_current_user)):
 async def create_course(course_data: CourseCreate, current_user: dict = Depends(get_current_user)):
     if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
         raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Enforce staff rights for org teachers
+    if current_user.get('role') == 'teacher' and (current_user.get('org_id') or current_user.get('organization_id')):
+        has_perm = await check_staff_permission(current_user, 'can_create_courses')
+        if not has_perm:
+            raise HTTPException(status_code=403, detail="You do not have permission to create courses. Contact your organization admin.")
     
     course = Course(**course_data.model_dump())
     course.organization_id = current_user.get('organization_id')
@@ -5257,6 +5417,12 @@ async def upload_course_content(
     if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
+    # Enforce staff rights for org teachers
+    if current_user.get('role') == 'teacher' and (current_user.get('org_id') or current_user.get('organization_id')):
+        has_perm = await check_staff_permission(current_user, 'can_upload_content')
+        if not has_perm:
+            raise HTTPException(status_code=403, detail="You do not have permission to upload content. Contact your organization admin.")
+    
     course = await db.courses.find_one({"id": course_id}, {"_id": 0})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -5289,6 +5455,12 @@ async def upload_course_file(
     """Upload a file directly to course content (PDF, DOCX, MP4, images)"""
     if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
         raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Enforce staff rights for org teachers
+    if current_user.get('role') == 'teacher' and (current_user.get('org_id') or current_user.get('organization_id')):
+        has_perm = await check_staff_permission(current_user, 'can_upload_content')
+        if not has_perm:
+            raise HTTPException(status_code=403, detail="You do not have permission to upload content. Contact your organization admin.")
     
     course = await db.courses.find_one({"id": course_id}, {"_id": 0})
     if not course:
@@ -8983,6 +9155,12 @@ async def create_course_with_details(
     if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
         raise HTTPException(status_code=403, detail="Teacher access required")
     
+    # Enforce staff rights for org teachers
+    if current_user.get('role') == 'teacher' and (current_user.get('org_id') or current_user.get('organization_id')):
+        has_perm = await check_staff_permission(current_user, 'can_create_courses')
+        if not has_perm:
+            raise HTTPException(status_code=403, detail="You do not have permission to create courses. Contact your organization admin.")
+    
     # Get price and branch from course type
     course_type = next((ct for ct in COURSE_TYPES if ct['code'] == category), None)
     price = course_type['price'] if course_type else 0
@@ -9076,32 +9254,28 @@ async def generate_custom_course(
         price = pricing.get(request.course_type, 0)
         
         # Generate course structure using AI
-        system_message = f"""You are an expert curriculum designer. Create a structured course based on the user's learning goal.
-        
-        Return a JSON object with:
+        system_message = f"""You are a curriculum designer. Create a JSON course structure.
+Return ONLY valid JSON:
+{{
+    "course_title": "title",
+    "description": "description",
+    "lessons": [
         {{
-            "course_title": "title",
-            "description": "comprehensive description",
-            "lessons": [
-                {{
-                    "title": "Lesson title",
-                    "description": "What this lesson covers",
-                    "duration": "estimated time (e.g., 30 min)",
-                    "content": "detailed lesson content (500+ words)",
-                    "key_points": ["point1", "point2", "point3"],
-                    "quiz_questions": [
-                        {{"question": "...", "options": ["a", "b", "c", "d"], "correct": 0}}
-                    ]
-                }}
-            ],
-            "learning_objectives": ["objective1", "objective2"],
-            "prerequisites": ["prereq1", "prereq2"] or []
+            "title": "Lesson title",
+            "description": "What this covers",
+            "duration": "30 min",
+            "content": "lesson content (200+ words)",
+            "key_points": ["point1", "point2"]
         }}
+    ],
+    "learning_objectives": ["obj1", "obj2"],
+    "prerequisites": []
+}}
+Create exactly {request.num_lessons} lessons for {request.target_audience} in {request.language}."""
         
-        Create exactly {request.num_lessons} lessons.
-        Target audience: {request.target_audience}
-        Language: {request.language}
-        """
+        import litellm
+        litellm.num_retries = 0
+        litellm.request_timeout = 50
         
         chat = LlmChat(api_key=api_key, session_id=f"custom-course-{uuid.uuid4()}", system_message=system_message)
         chat.with_model("openai", "gpt-5.2")
@@ -9964,7 +10138,7 @@ async def get_org_participants(current_user: dict = Depends(get_current_user)):
 
 @api_router.get("/org/staff")
 async def get_org_staff(current_user: dict = Depends(get_current_user)):
-    """Get all staff (teachers) in the organization"""
+    """Get all staff (teachers) in the organization with their rights"""
     if current_user.get('role') != 'org_admin':
         raise HTTPException(status_code=403, detail="Org admin access required")
     
@@ -9982,6 +10156,19 @@ async def get_org_staff(current_user: dict = Depends(get_current_user)):
         },
         {"_id": 0, "password_hash": 0}
     ).to_list(length=100)
+    
+    # Attach rights for each staff member
+    for s in staff:
+        rights_doc = await db.staff_rights.find_one(
+            {"user_id": s.get("id"), "org_id": org_id},
+            {"_id": 0}
+        )
+        s["rights"] = {
+            "can_create_courses": rights_doc.get("can_create_courses", False) if rights_doc else False,
+            "can_manage_participants": rights_doc.get("can_manage_participants", False) if rights_doc else False,
+            "can_upload_content": rights_doc.get("can_upload_content", False) if rights_doc else False,
+            "can_invite_participants": rights_doc.get("can_invite_participants", False) if rights_doc else False
+        }
     
     return staff
 
@@ -10090,6 +10277,48 @@ async def assign_staff_rights(
     )
     
     return {"message": "Staff rights updated", "staff_id": rights.staff_id}
+
+
+@api_router.get("/org/staff/{staff_id}/rights")
+async def get_staff_rights(staff_id: str, current_user: dict = Depends(get_current_user)):
+    """Get rights for a specific staff member"""
+    if current_user.get('role') != 'org_admin':
+        raise HTTPException(status_code=403, detail="Org admin access required")
+    
+    org_id = current_user.get('org_id') or current_user.get('organization_id')
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization associated")
+    
+    rights_doc = await db.staff_rights.find_one(
+        {"user_id": staff_id, "org_id": org_id},
+        {"_id": 0}
+    )
+    
+    return {
+        "staff_id": staff_id,
+        "can_create_courses": rights_doc.get("can_create_courses", False) if rights_doc else False,
+        "can_manage_participants": rights_doc.get("can_manage_participants", False) if rights_doc else False,
+        "can_upload_content": rights_doc.get("can_upload_content", False) if rights_doc else False,
+        "can_invite_participants": rights_doc.get("can_invite_participants", False) if rights_doc else False
+    }
+
+
+async def check_staff_permission(user: dict, permission: str) -> bool:
+    """Check if a teacher has the required staff permission. Org admins and admins always pass."""
+    if user.get('role') in ['org_admin', 'admin']:
+        return True
+    if user.get('role') != 'teacher':
+        return False
+    org_id = user.get('org_id') or user.get('organization_id')
+    if not org_id:
+        return False
+    rights_doc = await db.staff_rights.find_one(
+        {"user_id": user.get('id'), "org_id": org_id},
+        {"_id": 0}
+    )
+    if not rights_doc:
+        return True  # No rights record = default allow for teachers
+    return rights_doc.get(permission, False)
 
 
 @api_router.post("/org/invite-staff")
@@ -10237,6 +10466,12 @@ async def org_bulk_enroll_participants(
     # Allow org_admin OR teachers to bulk enroll
     if current_user.get('role') not in ['org_admin', 'teacher', 'admin']:
         raise HTTPException(status_code=403, detail="Admin/Teacher access required")
+    
+    # Enforce staff rights for org teachers
+    if current_user.get('role') == 'teacher' and (current_user.get('org_id') or current_user.get('organization_id')):
+        has_perm = await check_staff_permission(current_user, 'can_manage_participants')
+        if not has_perm:
+            raise HTTPException(status_code=403, detail="You do not have permission to manage participants. Contact your organization admin.")
     
     org_id = current_user.get('organization_id') or current_user.get('org_id')
     

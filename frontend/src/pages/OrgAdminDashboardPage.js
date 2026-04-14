@@ -14,11 +14,13 @@ import {
   uploadOrgDocument,
   getOrgDocuments
 } from '../services/api';
+import axios from 'axios';
 import { 
   Building2, Users, GraduationCap, BookOpen, DollarSign,
   Upload, UserPlus, BarChart3, TrendingUp, FileText,
   Loader2, Search, Mail, Phone, CheckCircle, AlertCircle,
-  PieChart, Calendar, Settings, Shield, Trash2, Download
+  PieChart, Calendar, Settings, Shield, Trash2, Download,
+  UserCheck, XCircle, Clock
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -109,9 +111,15 @@ export default function OrgAdminDashboardPage() {
   });
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [pendingUsers, setPendingUsers] = useState([]);
+  const [approvingUser, setApprovingUser] = useState(null);
+
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const getAuth = () => ({ Authorization: `Bearer ${localStorage.getItem('cognify_token')}` });
 
   useEffect(() => {
     loadDashboardData();
+    loadPendingUsers();
   }, []);
 
   const loadDashboardData = async () => {
@@ -133,6 +141,32 @@ export default function OrgAdminDashboardPage() {
       toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPendingUsers = async () => {
+    try {
+      const { data } = await axios.get(`${API}/api/organizations/pending-users`, { headers: getAuth() });
+      setPendingUsers(data.pending_users || []);
+    } catch (err) {
+      console.error('Failed to load pending users:', err);
+    }
+  };
+
+  const handleUserApproval = async (userId, action) => {
+    setApprovingUser(userId);
+    try {
+      const { data } = await axios.post(`${API}/api/organizations/approve-user`, 
+        { user_id: userId, action },
+        { headers: getAuth() }
+      );
+      toast.success(data.message);
+      setPendingUsers(prev => prev.filter(u => u.id !== userId));
+      if (action === 'approve') loadDashboardData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || `Failed to ${action} user`);
+    } finally {
+      setApprovingUser(null);
     }
   };
 
@@ -675,6 +709,13 @@ export default function OrgAdminDashboardPage() {
                 <TrendingUp className="w-4 h-4 mr-2" />
                 Analytics
               </TabsTrigger>
+              <TabsTrigger value="approvals" className="data-[state=active]:bg-amber-500/20">
+                <UserCheck className="w-4 h-4 mr-2" />
+                Approvals
+                {pendingUsers.length > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-amber-500/20 text-amber-400 rounded-full">{pendingUsers.length}</span>
+                )}
+              </TabsTrigger>
             </TabsList>
 
             {/* Organization Profile Tab */}
@@ -925,6 +966,73 @@ export default function OrgAdminDashboardPage() {
                     <p className="text-zinc-500 text-center py-8">No revenue data available</p>
                   )}
                 </div>
+              </div>
+            </TabsContent>
+
+            {/* Approvals Tab */}
+            <TabsContent value="approvals">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">Pending Registrations</h3>
+                    <p className="text-sm text-zinc-500">Approve or reject new user registrations for your organization</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={loadPendingUsers} className="border-white/10">
+                    <Loader2 className="w-4 h-4 mr-2" /> Refresh
+                  </Button>
+                </div>
+
+                {pendingUsers.length === 0 ? (
+                  <div className="glass-card p-12 text-center">
+                    <UserCheck className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
+                    <h4 className="font-semibold mb-1">No Pending Registrations</h4>
+                    <p className="text-sm text-zinc-500">All registration requests have been processed.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {pendingUsers.map((pu) => (
+                      <div key={pu.id} className="glass-card p-4 flex items-center gap-4" data-testid={`pending-user-${pu.id}`}>
+                        <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                          <Clock className="w-5 h-5 text-amber-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{pu.full_name}</p>
+                          <p className="text-sm text-zinc-500">{pu.email}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
+                              {pu.role === 'student' ? 'Student' : 'Staff'}
+                            </span>
+                            <span className="text-xs text-zinc-600">
+                              {pu.created_at ? new Date(pu.created_at).toLocaleDateString() : ''}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <Button
+                            size="sm"
+                            onClick={() => handleUserApproval(pu.id, 'approve')}
+                            disabled={approvingUser === pu.id}
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white"
+                            data-testid={`approve-user-${pu.id}`}
+                          >
+                            {approvingUser === pu.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-1" />}
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleUserApproval(pu.id, 'reject')}
+                            disabled={approvingUser === pu.id}
+                            className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                            data-testid={`reject-user-${pu.id}`}
+                          >
+                            <XCircle className="w-4 h-4 mr-1" /> Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </TabsContent>
           </Tabs>
