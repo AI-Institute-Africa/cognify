@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
@@ -7,7 +7,7 @@ import {
   Zap, Upload, FileText, Brain, BookOpen, ClipboardList,
   ChevronDown, ChevronRight, CheckCircle, AlertCircle,
   Layers, RefreshCw, Download, Mic, MicOff, Lightbulb,
-  Target, Award, HelpCircle, Star
+  Target, Award, HelpCircle, Star, GraduationCap
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
@@ -160,6 +160,9 @@ export default function AITrainingEnginePage() {
   const [flashcards, setFlashcards] = useState(null);
   const [exam, setExam] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [courses, setCourses] = useState([]);
+  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [loadingCourses, setLoadingCourses] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState({
     basic: true, intermediate: true, advanced: true, scenario: true, mcq: true
   });
@@ -167,6 +170,53 @@ export default function AITrainingEnginePage() {
 
   const voiceCallback = useCallback((text) => setContent(text), []);
   const { isRecording, toggleRecording } = useVoiceInput(voiceCallback);
+
+  useEffect(() => {
+    const loadCourses = async () => {
+      setLoadingCourses(true);
+      try {
+        const { data } = await axios.get(`${API}/api/courses`, { headers: getAuth() });
+        setCourses(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Failed to load courses:', err);
+      } finally {
+        setLoadingCourses(false);
+      }
+    };
+    loadCourses();
+  }, []);
+
+  const handleCourseSelect = async (courseId) => {
+    if (!courseId || courseId === 'none') {
+      setSelectedCourse(null);
+      return;
+    }
+    const course = courses.find(c => c.id === courseId);
+    if (!course) return;
+
+    setSelectedCourse(course);
+    setTopic(course.title || '');
+
+    // Load lesson content for this course
+    try {
+      const { data } = await axios.get(`${API}/api/courses/${courseId}`, { headers: getAuth() });
+      const lessons = data.lessons || [];
+      let courseText = `Course: ${data.title || ''}\n${data.description || ''}\n\n`;
+      for (const lesson of lessons) {
+        courseText += `## ${lesson.title || ''}\n${lesson.text || lesson.content || lesson.description || ''}\n\n`;
+      }
+      if (courseText.trim().length > 50) {
+        setContent(courseText.trim());
+        toast.success(`Loaded ${lessons.length} lesson(s) from "${course.title}"`);
+      } else {
+        setContent('');
+        toast.info('Course loaded but has minimal text content. You can supplement with your own text.');
+      }
+    } catch (err) {
+      toast.error('Failed to load course content');
+      setContent('');
+    }
+  };
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -203,6 +253,7 @@ export default function AITrainingEnginePage() {
       const { data } = await axios.post(`${API}/api/training-engine/generate-questions`, {
         content: content.trim(),
         file_id: uploadedFile?.id || null,
+        course_id: selectedCourse?.id || null,
         topic: topic || 'General',
         num_questions: numQuestions,
         difficulty
@@ -229,6 +280,7 @@ export default function AITrainingEnginePage() {
       const { data } = await axios.post(`${API}/api/training-engine/generate-flashcards`, {
         content: content.trim(),
         file_id: uploadedFile?.id || null,
+        course_id: selectedCourse?.id || null,
         topic: topic || 'General',
         num_cards: 15
       }, { headers: getAuth(), timeout: 65000 });
@@ -254,6 +306,7 @@ export default function AITrainingEnginePage() {
       const { data } = await axios.post(`${API}/api/training-engine/generate-exam`, {
         content: content.trim(),
         file_id: uploadedFile?.id || null,
+        course_id: selectedCourse?.id || null,
         topic: topic || 'General',
         exam_duration_minutes: 30,
         num_questions: 15
@@ -312,7 +365,7 @@ export default function AITrainingEnginePage() {
     <DashboardLayout>
       <Header
         title="AI Training Intelligence Engine"
-        subtitle="Upload content and generate structured Q&A, flashcards, and exam simulations"
+        subtitle="Select a course, upload content, or paste text to generate structured Q&A, flashcards, and exams"
       />
 
       <div className="max-w-6xl mx-auto space-y-6 p-4 sm:p-6">
@@ -324,12 +377,37 @@ export default function AITrainingEnginePage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold">Content Input</h2>
-              <p className="text-sm text-zinc-500">Paste text, upload a document, or use voice input</p>
+              <p className="text-sm text-zinc-500">Select a course, paste text, upload a document, or use voice input</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2 space-y-3">
+              {/* Generate from Course */}
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-violet-500/5 to-cyan-500/5 border border-white/5">
+                <GraduationCap className="w-5 h-5 text-violet-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <Select onValueChange={handleCourseSelect} value={selectedCourse?.id || 'none'}>
+                    <SelectTrigger className="bg-zinc-800 border-white/10 h-9" data-testid="course-select">
+                      <SelectValue placeholder={loadingCourses ? "Loading courses..." : "Generate from an enrolled course..."} />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[250px]">
+                      <SelectItem value="none">-- No course (use text/upload) --</SelectItem>
+                      {courses.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.title}{c.course_branch === 'customized' ? ' (Custom)' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {selectedCourse && (
+                  <Badge className="bg-violet-500/20 text-violet-300 border-violet-500/30 text-xs shrink-0">
+                    Course loaded
+                  </Badge>
+                )}
+              </div>
+
               <div className="flex items-center justify-between">
                 <Label>Content / Training Material</Label>
                 <div className="flex gap-2">
