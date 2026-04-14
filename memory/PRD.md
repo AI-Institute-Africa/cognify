@@ -3,36 +3,37 @@
 ## Overview
 AI-Powered School Management, Learning & Career Intelligence Platform
 
-**Version:** 3.3 (Iteration 25 Complete)
-**Date:** April 13, 2026
+**Version:** 3.5 (Iteration 26 Complete)
+**Date:** April 14, 2026
 
 ---
 
-## LATEST UPDATES - ITERATION 25
+## LATEST UPDATES - ITERATION 26
 
-### Features Implemented:
-
-| Feature | Status | Description |
-|---------|--------|-------------|
-| Dashboard Stats KeyError Fix | DONE | Fixed profile['id'] KeyError across 19 locations using profile.get('id', profile['user_id']) |
-| AI Grading Knowledge Graph Sync | DONE | Graded assignments now update learner_concept_states for adaptive learning |
-| Social URL Analysis | DONE | New endpoint /api/mentor/analyze-social-url supports LinkedIn individual/company, GitHub, Twitter URLs |
-| LinkedIn Company Scraping | DONE | Enhanced linkedin_service.py to scrape company pages via Proxycurl + AI fallback |
-| Voice Input for Questions | DONE | Web Speech API added to QuestionAnalysisPage for both question and answer textareas |
-| Social URL Analysis UI | DONE | AI Mentor page has "Analyze URL" button with inline URL input panel |
-
-### Previous Iteration (23-24) Features:
-
+### AI Training Intelligence Engine (NEW)
 | Feature | Status |
 |---------|--------|
-| AI Features Selection Canvas | DONE |
-| Custom Course Creation (3 methods) | DONE |
-| Organization Login Page | DONE |
-| Student Messaging Fix | DONE |
-| Multi-Subject Learning Fix | DONE |
-| Assignment Visibility + File Uploads | DONE |
-| Certificate Hash Copy Fix | DONE |
-| AI Mentor Audio Playback Fix | DONE |
+| Q&A Generation from content (Basic/Intermediate/Advanced/Scenario/MCQ) | DONE |
+| Flashcard generation with front/back/category | DONE |
+| Exam Simulation generation (MCQ, Short Answer, Scenario sections) | DONE |
+| Generation history tracking | DONE |
+| Content upload via /api/content/upload-source (.pdf, .docx, .txt, .pptx) | DONE |
+| Key Takeaways and Knowledge Gaps detection | DONE |
+| Export questions to Markdown | DONE |
+| Voice input for content entry | DONE |
+| Interactive MCQ with instant feedback | DONE |
+| Flashcard flip UI with navigation | DONE |
+
+### Bug Fixes (Iteration 25-26)
+| Fix | Status |
+|-----|--------|
+| Custom course "body stream already read" - switched fetch to axios | DONE |
+| Custom course 502 timeout - disabled litellm retries | DONE |
+| .docx upload failing - created /api/content/upload-source endpoint | DONE |
+| Voice input missing on LearnByTeachingPage, HomePage | DONE |
+| Dashboard KeyError profile['id'] (19 locations) | DONE |
+| AI Grading Knowledge Graph sync | DONE |
+| Social URL Analysis (LinkedIn + company + GitHub + Twitter) | DONE |
 
 ---
 
@@ -41,28 +42,13 @@ AI-Powered School Management, Learning & Career Intelligence Platform
 - **Frontend:** React, Tailwind CSS, Shadcn UI
 - **Backend:** FastAPI, Pydantic
 - **Database:** MongoDB
-- **AI Integration:** Emergent LLM Key (GPT-5.2)
+- **AI:** Emergent LLM Key (GPT-5.2)
 - **Email:** Resend
 - **Payments:** Paynow
-- **Authentication:** JWT, Google OAuth via Emergent
-- **PDF Generation:** ReportLab
-- **QR Codes:** react-qr-code, qrcode (Python)
+- **Auth:** JWT, Google OAuth via Emergent
+- **PDF:** ReportLab, PyPDF2
+- **Docs:** python-docx
 - **LinkedIn/Social:** Proxycurl API + AI Fallback
-- **Document Parsing:** PyPDF2, python-docx
-
----
-
-## REMAINING TASKS (Backlog)
-
-### P0 - Critical
-- [ ] Refactor server.py monolith into modular FastAPI routers (courses.py, users.py, assignments.py, orgs.py etc.)
-
-### P1 - High Priority
-- [ ] Full certificate visual verification (visual render confirmation needed)
-- [ ] Org Admin Staff Rights Verification
-
-### P2 - Medium Priority
-- [ ] Mobile responsiveness improvements
 
 ---
 
@@ -70,15 +56,29 @@ AI-Powered School Management, Learning & Career Intelligence Platform
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/dashboard/stats` | GET | Dashboard stats for all roles |
+| `/api/training-engine/generate-questions` | POST | Generate structured Q&A from content |
+| `/api/training-engine/generate-flashcards` | POST | Generate flashcards from content |
+| `/api/training-engine/generate-exam` | POST | Generate exam simulation |
+| `/api/training-engine/history` | GET | Get generation history |
+| `/api/content/upload-source` | POST | Upload & extract text from docs |
+| `/api/courses/generate-custom` | POST | Generate custom course |
+| `/api/dashboard/stats` | GET | Dashboard stats |
+| `/api/mentor/analyze-social-url` | POST | Analyze social media URLs |
 | `/api/achievements` | GET | User achievements |
-| `/api/mentor/analyze-linkedin` | POST | Analyze user's linked LinkedIn |
-| `/api/mentor/analyze-social-url` | POST | Analyze any social media URL |
-| `/api/assignments/{id}/submit` | POST | Submit and auto-grade assignment |
-| `/api/certificates/generate` | POST | Generate certificate |
-| `/api/certificates/{id}` | GET | Get certificate details |
-| `/api/certificates/{id}/pdf` | GET | Download certificate PDF |
-| `/api/credentials/verify/{hash}` | GET | Verify credential |
+
+---
+
+## REMAINING TASKS (Backlog)
+
+### P0 - Critical
+- [ ] Refactor server.py monolith (~11,500 lines) into modular FastAPI routers
+
+### P1 - High Priority
+- [ ] Certificate visual verification (visual render confirmation)
+- [ ] Org Admin Staff Rights Verification
+
+### P2 - Medium Priority
+- [ ] Mobile responsiveness improvements
 
 ---
 
@@ -87,23 +87,23 @@ AI-Powered School Management, Learning & Career Intelligence Platform
 ```
 /app/
 ├── backend/
-│   ├── server.py                 # Main API server (~11,400 lines)
+│   ├── server.py                    # Main API (~11,500 lines)
 │   └── services/
-│       ├── linkedin_service.py   # Enhanced: company + individual + social URLs
-│       ├── email_service.py
-│       ├── ai_service.py
-│       ├── advanced_ai.py
+│       ├── linkedin_service.py      # Enhanced social URL analysis
 │       └── ...
 ├── frontend/
 │   ├── src/
+│   │   ├── hooks/
+│   │   │   └── useVoiceInput.js     # Shared voice recording hook
 │   │   ├── pages/
+│   │   │   ├── AITrainingEnginePage.js  # NEW - Q&A/Flashcards/Exam generator
+│   │   │   ├── CreateCustomCoursePage.js # Fixed - uses axios
 │   │   │   ├── QuestionAnalysisPage.js  # Voice input added
-│   │   │   ├── AIMentorPage.js          # Social URL analysis UI
-│   │   │   ├── CredentialsPage.js       # Certificate issuance/verification
-│   │   │   ├── CertificateViewPage.js   # Certificate visual display
-│   │   │   └── ...
+│   │   │   ├── LearnByTeachingPage.js   # Voice input added
+│   │   │   ├── HomePage.js              # Voice recording fixed
+│   │   │   └── AIMentorPage.js          # Social URL analysis
 │   │   └── services/
-│   │       └── api.js                   # analyzeSocialUrl added
+│   │       └── api.js
 └── memory/
     ├── PRD.md
     └── test_credentials.md
@@ -119,8 +119,4 @@ AI-Powered School Management, Learning & Career Intelligence Platform
 | Teacher | demo.teacher@eduos.edu | demo123 |
 | Org Admin | test.orgadmin@cognify.edu | admin123 |
 
-**Organization:** Cognify University (slug: `cognify`)
-
----
-
-**Last Updated:** April 13, 2026
+**Last Updated:** April 14, 2026
