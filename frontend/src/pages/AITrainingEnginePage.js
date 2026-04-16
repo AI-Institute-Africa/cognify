@@ -559,22 +559,55 @@ export default function AITrainingEnginePage() {
                 <Download className="w-4 h-4 mr-2" /> Export
               </Button>
             )}
-            {questions && selectedCourse && (user?.role === 'teacher' || user?.role === 'org_admin' || user?.role === 'admin') && (
-              <Button onClick={publishAsAssignment} className="bg-emerald-600 hover:bg-emerald-700"
-                data-testid="publish-assignment-btn"
-              >
-                <Send className="w-4 h-4 mr-2" /> Publish as Assignment
-              </Button>
-            )}
-            {exam && selectedCourse && (user?.role === 'teacher' || user?.role === 'org_admin' || user?.role === 'admin') && (
-              <Button onClick={publishAsExam} className="bg-orange-600 hover:bg-orange-700"
-                data-testid="publish-exam-btn"
-              >
-                <Send className="w-4 h-4 mr-2" /> Publish as Exam
-              </Button>
-            )}
           </div>
         </div>
+
+        {/* Publish Section - Always visible for teachers/org_admin */}
+        {(user?.role === 'teacher' || user?.role === 'org_admin' || user?.role === 'admin') && (
+          <div className="glass-card p-5 border-emerald-500/20" data-testid="publish-section">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                <Send className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm">Publish to Students</h3>
+                <p className="text-xs text-zinc-500">
+                  {!selectedCourse && !questions && !exam
+                    ? '1. Select a course  2. Generate Q&A or Exam  3. Publish as Assignment or Exam'
+                    : selectedCourse
+                      ? `Ready to publish to "${selectedCourse.title || selectedCourse.name}"`
+                      : 'Select a course from the dropdown above to enable publishing'}
+                </p>
+              </div>
+            </div>
+            {!questions && !exam ? (
+              <p className="text-xs text-zinc-500 bg-zinc-800/50 p-3 rounded-lg">
+                Generate Q&A or an Exam above first. The generated content will be publishable as a formal graded assignment or exam for enrolled students.
+              </p>
+            ) : !selectedCourse ? (
+              <p className="text-xs text-amber-400 bg-amber-500/10 p-3 rounded-lg">
+                Select a course from the dropdown above to enable publishing.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {questions && (
+                  <Button onClick={publishAsAssignment} className="bg-emerald-600 hover:bg-emerald-700"
+                    data-testid="publish-assignment-btn"
+                  >
+                    <Send className="w-4 h-4 mr-2" /> Publish Q&A as Assignment
+                  </Button>
+                )}
+                {exam && (
+                  <Button onClick={publishAsExam} className="bg-orange-600 hover:bg-orange-700"
+                    data-testid="publish-exam-btn"
+                  >
+                    <Send className="w-4 h-4 mr-2" /> Publish as Exam
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Results Section */}
         {(questions || flashcards || exam) && (

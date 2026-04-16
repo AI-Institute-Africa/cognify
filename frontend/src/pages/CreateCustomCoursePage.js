@@ -233,7 +233,7 @@ export default function CreateCustomCoursePage() {
 
       const { data: result } = await axios.post(`${API}/api/courses/generate-custom`, requestBody, {
         headers: getAuthHeaders(),
-        timeout: 120000
+        timeout: 90000
       });
 
       setGeneratedCourse(result);
@@ -241,7 +241,10 @@ export default function CreateCustomCoursePage() {
       toast.success('Course generated successfully!');
     } catch (error) {
       console.error('Course generation error:', error);
-      const message = error.response?.data?.detail || error.message || 'Failed to generate course. Please try again.';
+      let message = error.response?.data?.detail || error.message || 'Failed to generate course.';
+      if (error.code === 'ECONNABORTED' || message.includes('timeout') || message.includes('502')) {
+        message = 'Generation is taking longer than expected. Try reducing the number of lessons (5-6 is recommended) or simplify the topic.';
+      }
       toast.error(message);
     } finally {
       setLoading(false);

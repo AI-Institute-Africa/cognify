@@ -447,30 +447,8 @@ export default function AvatarSettingsPage() {
             </div>
           </div>
 
-          {/* Tutor Style Selection */}
-          <div className="glass-card p-6 mt-8">
-            <h3 className="text-lg font-semibold mb-4">Teaching Style</h3>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              {AI_STYLES.map((style) => (
-                <button
-                  key={style.id}
-                  onClick={() => setSelectedStyle(style.id)}
-                  className={`p-4 rounded-xl border-2 text-left transition-all ${
-                    selectedStyle === style.id
-                      ? 'border-blue-500 bg-blue-500/10'
-                      : 'border-white/10 hover:border-white/20'
-                  }`}
-                  data-testid={`style-${style.id}`}
-                >
-                  <p className="font-medium">{style.label}</p>
-                  <p className="text-xs text-zinc-500 mt-1">{style.description}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Voice Cloning Section */}
-          <div className="glass-card p-6 mt-8" data-testid="voice-clone-section">
+          {/* Voice Cloning Section - Prominent placement */}
+          <div className="glass-card p-6 mt-8 border-amber-500/20" data-testid="voice-clone-section">
             <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
               <Mic className="w-5 h-5 text-amber-400" />
               Voice Cloning
@@ -550,6 +528,28 @@ export default function AvatarSettingsPage() {
                   )}
                 </Button>
               </div>
+            </div>
+          </div>
+
+          {/* Tutor Style Selection */}
+          <div className="glass-card p-6 mt-8">
+            <h3 className="text-lg font-semibold mb-4">Teaching Style</h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {AI_STYLES.map((style) => (
+                <button
+                  key={style.id}
+                  onClick={() => setSelectedStyle(style.id)}
+                  className={`p-4 rounded-xl border-2 text-left transition-all ${
+                    selectedStyle === style.id
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-white/10 hover:border-white/20'
+                  }`}
+                  data-testid={`style-${style.id}`}
+                >
+                  <p className="font-medium">{style.label}</p>
+                  <p className="text-xs text-zinc-500 mt-1">{style.description}</p>
+                </button>
+              ))}
             </div>
           </div>
         </div>

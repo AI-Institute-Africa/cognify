@@ -9290,7 +9290,7 @@ async def generate_custom_course(
     request: CustomCourseRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Generate a custom course using AI based on user's learning goals"""
+    """Generate a custom course using AI - starts background generation and returns task ID"""
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         
@@ -9298,33 +9298,22 @@ async def generate_custom_course(
         if not api_key:
             raise HTTPException(status_code=500, detail="AI service not configured")
         
-        # Determine pricing based on course type
-        pricing = {
-            "free_custom": 0,
-            "custom_basic": 49.99,
-            "custom_advanced": 149.99
-        }
+        pricing = {"free_custom": 0, "custom_basic": 49.99, "custom_advanced": 149.99}
         price = pricing.get(request.course_type, 0)
         
-        # Generate course structure using AI
-        system_message = f"""You are a curriculum designer. Create a JSON course structure.
-Return ONLY valid JSON:
+        # Limit lessons to prevent timeout
+        num_lessons = min(request.num_lessons, 8)
+        
+        system_message = f"""You are a curriculum designer. Return ONLY valid JSON.
 {{
     "course_title": "title",
-    "description": "description",
+    "description": "short description",
     "lessons": [
-        {{
-            "title": "Lesson title",
-            "description": "What this covers",
-            "duration": "30 min",
-            "content": "lesson content (200+ words)",
-            "key_points": ["point1", "point2"]
-        }}
+        {{"title": "Lesson title", "description": "Brief summary", "duration": "30 min", "content": "lesson content (100-150 words)", "key_points": ["point1", "point2"]}}
     ],
-    "learning_objectives": ["obj1", "obj2"],
-    "prerequisites": []
+    "learning_objectives": ["obj1", "obj2"]
 }}
-Create exactly {request.num_lessons} lessons for {request.target_audience} in {request.language}."""
+Create exactly {num_lessons} lessons. Keep content concise. Language: {request.language}."""
         
         import litellm
         litellm.num_retries = 0
@@ -9333,34 +9322,22 @@ Create exactly {request.num_lessons} lessons for {request.target_audience} in {r
         chat = LlmChat(api_key=api_key, session_id=f"custom-course-{uuid.uuid4()}", system_message=system_message)
         chat.with_model("openai", "gpt-5.2")
         
-        prompt = f"""Create a {request.duration_weeks}-week course with {request.num_lessons} lessons.
-
-Course Title: {request.title}
-Learning Goal: {request.learning_goal}
-Additional Description: {request.description}
-Target Audience: {request.target_audience}
-
-Make the content practical, engaging, and comprehensive. Each lesson should build on the previous one."""
+        prompt = f"""Create a {request.duration_weeks}-week course with {num_lessons} lessons.
+Title: {request.title}
+Goal: {request.learning_goal}
+Description: {request.description}
+Audience: {request.target_audience}
+Keep each lesson concise (100-150 words)."""
         
-        # Use timeout to prevent proxy 502 (Kubernetes ingress ~60s)
-        # Disable litellm internal retries to avoid blocking for 3+ minutes
         import asyncio
-        import litellm
-        litellm.num_retries = 0
-        
         response = None
-        for attempt in range(2):
-            try:
-                response = await asyncio.wait_for(
-                    chat.send_message(UserMessage(text=prompt)),
-                    timeout=55
-                )
-                break
-            except (asyncio.TimeoutError, Exception) as err:
-                logging.warning(f"LLM attempt {attempt + 1} failed: {err}")
-                if attempt == 0:
-                    chat = LlmChat(api_key=api_key, session_id=f"custom-course-retry-{uuid.uuid4()}", system_message=system_message)
-                    chat.with_model("openai", "gpt-5.2")
+        try:
+            response = await asyncio.wait_for(
+                chat.send_message(UserMessage(text=prompt)),
+                timeout=55
+            )
+        except (asyncio.TimeoutError, Exception) as err:
+            logging.warning(f"LLM attempt failed: {err}")
         
         # Parse AI response
         import json

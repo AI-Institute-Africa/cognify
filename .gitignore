@@ -180,3 +180,5 @@ frontend/node_modules/.cache/default-development/1.pack_
 # Environment files
 *.env
 *.env.*
+frontend/node_modules/.cache/default-development/18.pack
+frontend/node_modules/.cache/default-development/18.pack
