@@ -3,72 +3,68 @@
 ## Overview
 AI-Powered School Management, Learning & Career Intelligence Platform
 
-**Version:** 4.0 (Iteration 29 Complete)
-**Date:** April 14, 2026
+**Version:** 5.0 (Iteration 31 Complete)
+**Date:** April 16, 2026
 
 ---
 
-## LATEST UPDATES - ITERATION 28-29
+## LATEST UPDATES - ITERATION 30-31
 
-### Certificate Visual Verification (P0) - COMPLETE
+### Certificate Gallery (NEW)
 | Feature | Status |
 |---------|--------|
-| Certificate view page with full details (recipient, course, grade, duration, credits) | DONE |
-| QR code generation for verification | DONE |
-| Print layout with @page landscape CSS | DONE |
-| PDF download via ReportLab | DONE |
-| Public verification page at /verify-certificate/:code | DONE |
-| Share button with Web Share API | DONE |
-| fetch -> axios migration (3 instances fixed) | DONE |
+| Certificate Gallery page at /certificate-gallery | DONE |
+| Shows all earned certificates with gradient cards | DONE |
+| Share button with verification links | DONE |
+| View other user's gallery (same org) | DONE |
+| Sidebar link for students | DONE |
 
-### Org Admin Staff Rights Enforcement (P0) - COMPLETE
+### Publish from AI Q&A Generator (NEW)
 | Feature | Status |
 |---------|--------|
-| Staff rights assignment POST /api/org/staff/assign-rights | DONE |
-| Staff rights retrieval GET /api/org/staff/{id}/rights | DONE |
-| GET /api/org/staff returns rights field for each member | DONE |
-| check_staff_permission helper function | DONE |
-| Enforcement on course creation (create_course, create_course_with_details) | DONE |
-| Enforcement on content upload (upload_course_content, upload_course_file) | DONE |
-| Enforcement on bulk enrollment (org_bulk_enroll_participants) | DONE |
-| 4-checkbox UI in Org Admin Dashboard | DONE |
+| "Publish as Assignment" button for teacher/org_admin | DONE |
+| "Publish as Exam" button for teacher/org_admin | DONE |
+| Published assignments visible to enrolled students | DONE |
+| Published exams visible to enrolled students | DONE |
 
-### Server.py Refactoring (P1) - IN PROGRESS
-| Change | Status |
-|--------|--------|
-| Created shared database.py module | DONE |
-| Created shared config.py module | DONE |
-| Created shared auth_utils.py module | DONE |
-| Extracted certificate routes to routes/certificates.py | DONE |
-| Extract organization routes to routes/organizations.py | TODO |
-| Extract teacher routes to routes/teacher.py | TODO |
-| Extract AI tool routes to routes/ai_tools.py | TODO |
+### Avatar Voice Cloning (NEW)
+| Feature | Status |
+|---------|--------|
+| Voice upload (5-second sample) via /api/avatar/upload-voice | DONE |
+| Voice recording with 5-second timer | DONE |
+| Voice status check via /api/avatar/voice-status | DONE |
+| TTS with cloned voice via /api/avatar/tts-with-clone | DONE |
+| OpenAI TTS integration via Emergent LLM Key | DONE |
 
-### Previous Bug Fixes (Iterations 25-27)
+### Audio Pause/Stop Controls (NEW)
+| Feature | Status |
+|---------|--------|
+| Floating pause/stop controls on AI Mentor page | DONE |
+| Pause/Stop buttons on Avatar Settings test voice | DONE |
+
+### Bug Fixes (Iteration 31)
 | Fix | Status |
 |-----|--------|
-| Custom course "body stream already read" - switched fetch to axios | DONE |
-| Custom course 502 timeout - disabled litellm retries | DONE |
-| .docx upload failing - created /api/content/upload-source endpoint | DONE |
-| Voice input missing on LearnByTeachingPage, HomePage | DONE |
-| Dashboard KeyError profile['id'] (19 locations) | DONE |
-| AI Grading Knowledge Graph sync | DONE |
-| Social URL Analysis (LinkedIn + company + GitHub + Twitter) | DONE |
+| Org admin seeing 0 courses — fixed query to include global active courses | DONE |
+| Org admin seeing 0 assignments — fixed get_assignments for org_admin role | DONE |
+| Org admin seeing 0 exams — fixed get_exams for org_admin role | DONE |
+| Custom course not displaying — added is_active=true, is_published=true, organization_id, name | DONE |
+| serialize_doc ObjectId crash — added _id removal | DONE |
+| StudentAssignmentsPage 403 for org_admin — added role-based API call | DONE |
+| Org dashboard stats showing 0 courses — fixed count query | DONE |
 
 ---
 
 ## TECH STACK
 
-- **Frontend:** React, Tailwind CSS, Shadcn UI, axios (standardized)
-- **Backend:** FastAPI, Pydantic
-- **Database:** MongoDB (motor async driver)
-- **AI:** Emergent LLM Key (GPT-5.2)
+- **Frontend:** React, Tailwind CSS, Shadcn UI, axios
+- **Backend:** FastAPI, Pydantic, MongoDB (motor)
+- **AI:** Emergent LLM Key (GPT-5.2, OpenAI TTS)
 - **Email:** Resend
-- **Payments:** Paynow
 - **Auth:** JWT, Google OAuth via Emergent
 - **PDF:** ReportLab, PyPDF2
 - **Docs:** python-docx
-- **LinkedIn/Social:** Proxycurl API + AI Fallback
+- **Social:** Proxycurl API
 
 ---
 
@@ -76,20 +72,15 @@ AI-Powered School Management, Learning & Career Intelligence Platform
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/certificates/generate` | POST | Generate course completion certificate |
-| `/api/certificates/verify/{code}` | GET | Public certificate verification |
-| `/api/certificates/{id}` | GET | Get certificate details |
-| `/api/certificates/{id}/pdf` | GET | Download certificate as PDF |
-| `/api/org/staff` | GET | Get org staff with rights |
+| `/api/certificates/gallery/my` | GET | User's certificate gallery |
+| `/api/certificates/gallery/user/{id}` | GET | Other user's gallery (same org) |
+| `/api/training-engine/publish-assignment` | POST | Publish Q&A as assignment |
+| `/api/training-engine/publish-exam` | POST | Publish exam simulation |
+| `/api/avatar/upload-voice` | POST | Upload voice sample |
+| `/api/avatar/voice-status` | GET | Check voice clone status |
+| `/api/avatar/tts-with-clone` | POST | TTS with user's voice |
 | `/api/org/staff/assign-rights` | POST | Assign staff permissions |
-| `/api/org/staff/{id}/rights` | GET | Get individual staff rights |
-| `/api/training-engine/generate-questions` | POST | Generate Q&A from content |
-| `/api/training-engine/generate-flashcards` | POST | Generate flashcards |
-| `/api/training-engine/generate-exam` | POST | Generate exam simulation |
-| `/api/content/upload-source` | POST | Upload & extract text from docs |
-| `/api/courses/generate-custom` | POST | Generate custom AI course |
-| `/api/organizations/register` | POST | Org portal user registration |
-| `/api/organizations/approve-user` | POST | Approve pending org users |
+| `/api/org/staff/{id}/rights` | GET | Get staff rights |
 
 ---
 
@@ -100,7 +91,7 @@ AI-Powered School Management, Learning & Career Intelligence Platform
 
 ### P2 - Medium Priority
 - [ ] Mobile responsiveness verification
-- [ ] Async background task queues for AI Course Generation (if 120s timeout recurs)
+- [ ] Async background tasks for AI Course Generation
 
 ---
 
@@ -109,29 +100,24 @@ AI-Powered School Management, Learning & Career Intelligence Platform
 ```
 /app/
 ├── backend/
-│   ├── server.py                    # Main API (~11,930 lines - reduced from 12,100)
-│   ├── config.py                    # Shared configuration
-│   ├── database.py                  # Shared DB connection
-│   ├── auth_utils.py                # Shared auth utilities
+│   ├── server.py                    # Main API (~12,200 lines)
+│   ├── config.py
+│   ├── database.py
+│   ├── auth_utils.py
 │   ├── routes/
-│   │   ├── __init__.py
-│   │   └── certificates.py          # Certificate CRUD & PDF (extracted)
+│   │   └── certificates.py
 │   └── services/
-│       ├── linkedin_service.py
-│       └── email_service.py
 ├── frontend/
 │   ├── src/
-│   │   ├── hooks/
-│   │   │   └── useVoiceInput.js
 │   │   ├── pages/
-│   │   │   ├── AITrainingEnginePage.js
-│   │   │   ├── CreateCustomCoursePage.js
-│   │   │   ├── CertificateViewPage.js    # Updated - uses axios
-│   │   │   ├── OrgAdminDashboardPage.js  # Staff rights UI
-│   │   │   ├── OrgLoginPage.js
-│   │   │   └── ...
-│   │   └── services/
-│   │       └── api.js
+│   │   │   ├── CertificateGalleryPage.js   # NEW
+│   │   │   ├── AITrainingEnginePage.js      # + Publish buttons
+│   │   │   ├── AvatarSettingsPage.js        # + Voice cloning
+│   │   │   ├── AIMentorPage.js              # + Audio controls
+│   │   │   ├── OrgAdminDashboardPage.js     # + Courses tab
+│   │   │   └── OrgLoginPage.js              # Login/Register
+│   │   └── components/
+│   │       └── Sidebar.js                   # + Gallery link
 └── memory/
     ├── PRD.md
     └── test_credentials.md
@@ -155,10 +141,10 @@ AI-Powered School Management, Learning & Career Intelligence Platform
 
 | Iteration | Result | Focus |
 |-----------|--------|-------|
-| 25 | 18/18 PASS | AI Training Engine, voice input |
-| 26 | 18/18 PASS | Org portals, user approvals |
-| 27 | 17/17 PASS | Cross-org isolation, course generation |
+| 25-27 | ALL PASS | AI Training Engine, org portals |
 | 28 | 18/18 PASS | Certificate verification, staff rights |
 | 29 | 15/15 PASS | Post-refactoring verification |
+| 30 | 22/22 PASS | New features (gallery, voice, publish) |
+| 31 | 23/23 PASS | Bug fixes (courses/assignments/exams for org_admin) |
 
-**Last Updated:** April 14, 2026
+**Last Updated:** April 16, 2026

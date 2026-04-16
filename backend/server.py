@@ -7039,7 +7039,13 @@ async def get_org_admin_dashboard(current_user: dict = Depends(get_current_user)
     # Get statistics
     teachers_count = await db.users.count_documents({"organization_id": org_id, "role": "teacher"})
     students_count = await db.users.count_documents({"organization_id": org_id, "role": "student"})
-    courses_count = await db.courses.count_documents({"organization_id": org_id})
+    courses_count = await db.courses.count_documents({
+        "$or": [
+            {"organization_id": org_id},
+            {"org_id": org_id},
+            {"created_by": current_user['id']}
+        ]
+    }) if org_id else 0
     
     # Get recent enrollments
     recent_enrollments = await db.course_enrollments.find(
