@@ -716,6 +716,10 @@ export default function OrgAdminDashboardPage() {
                   <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-amber-500/20 text-amber-400 rounded-full">{pendingUsers.length}</span>
                 )}
               </TabsTrigger>
+              <TabsTrigger value="courses" className="data-[state=active]:bg-violet-500/20">
+                <BookOpen className="w-4 h-4 mr-2" />
+                Courses
+              </TabsTrigger>
             </TabsList>
 
             {/* Organization Profile Tab */}
@@ -1034,6 +1038,11 @@ export default function OrgAdminDashboardPage() {
                   </div>
                 )}
               </div>
+            </TabsContent>
+
+            {/* Courses Tab */}
+            <TabsContent value="courses">
+              <OrgCoursesSection />
             </TabsContent>
           </Tabs>
         </div>
@@ -1461,6 +1470,77 @@ function OrgProfileSection({ dashboard, onUpdate }) {
               <p className="text-sm text-zinc-500">Revenue</p>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+// Organization Courses Section Component
+function OrgCoursesSection() {
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const getAuth = () => ({ Authorization: `Bearer ${localStorage.getItem('cognify_token')}` });
+
+  useEffect(() => {
+    loadCourses();
+  }, []);
+
+  const loadCourses = async () => {
+    try {
+      const { data } = await axios.get(`${API}/api/org/courses`, { headers: getAuth() });
+      setCourses(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load courses:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-violet-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4" data-testid="org-courses-tab">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Organization Courses</h3>
+          <p className="text-sm text-zinc-500">{courses.length} course{courses.length !== 1 ? 's' : ''} in your organization</p>
+        </div>
+      </div>
+
+      {courses.length === 0 ? (
+        <div className="glass-card p-12 text-center">
+          <BookOpen className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+          <h4 className="font-semibold mb-1">No Courses Yet</h4>
+          <p className="text-sm text-zinc-500">Create courses from the Courses section or upload PDFs.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {courses.map((course) => (
+            <div key={course.id} className="glass-card p-5 hover:border-violet-500/30 transition-all" data-testid={`org-course-${course.id}`}>
+              <div className="flex items-start justify-between mb-3">
+                <h4 className="font-semibold text-sm leading-tight">{course.name || course.title}</h4>
+                <Badge className={course.is_active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-500/20 text-zinc-400'}>
+                  {course.is_active ? 'Active' : 'Draft'}
+                </Badge>
+              </div>
+              <p className="text-xs text-zinc-500 mb-3 line-clamp-2">{course.description || 'No description'}</p>
+              <div className="flex items-center justify-between text-xs text-zinc-400">
+                <span>{course.category || 'General'}</span>
+                <span>${course.price || 0}</span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

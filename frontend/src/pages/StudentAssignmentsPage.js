@@ -25,7 +25,7 @@ import {
   Download
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getStudentAssignments, submitAndGradeAssignment } from '../services/api';
+import { getStudentAssignments, getAssignments, submitAndGradeAssignment } from '../services/api';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -42,12 +42,16 @@ export default function StudentAssignmentsPage() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    fetchAssignments();
-  }, []);
+    if (user) {
+      fetchAssignments();
+    }
+  }, [user]);
 
   const fetchAssignments = async () => {
     try {
-      const data = await getStudentAssignments();
+      // Use different API based on user role
+      const isTeacherOrAdmin = user?.role === 'teacher' || user?.role === 'org_admin' || user?.role === 'admin';
+      const data = isTeacherOrAdmin ? await getAssignments() : await getStudentAssignments();
       setAssignments(data);
     } catch (error) {
       console.error('Failed to fetch assignments:', error);

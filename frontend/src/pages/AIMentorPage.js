@@ -23,7 +23,10 @@ import {
   RefreshCw,
   CheckCircle,
   Globe,
-  Link2
+  Link2,
+  Pause,
+  Play,
+  Square
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
@@ -69,6 +72,7 @@ export default function AIMentorPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [analyzingLinkedin, setAnalyzingLinkedin] = useState(false);
   const [analyzingSocial, setAnalyzingSocial] = useState(false);
   const [socialUrl, setSocialUrl] = useState('');
@@ -79,6 +83,41 @@ export default function AIMentorPage() {
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      const onPlay = () => setIsAudioPlaying(true);
+      const onPause = () => setIsAudioPlaying(false);
+      const onEnded = () => setIsAudioPlaying(false);
+      audio.addEventListener('play', onPlay);
+      audio.addEventListener('pause', onPause);
+      audio.addEventListener('ended', onEnded);
+      return () => {
+        audio.removeEventListener('play', onPlay);
+        audio.removeEventListener('pause', onPause);
+        audio.removeEventListener('ended', onEnded);
+      };
+    }
+  }, []);
+
+  const toggleAudioPlayback = () => {
+    if (audioRef.current) {
+      if (isAudioPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play().catch(() => {});
+      }
+    }
+  };
+
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setIsAudioPlaying(false);
+    }
+  };
 
   useEffect(() => {
     loadProfile();
@@ -754,8 +793,22 @@ export default function AIMentorPage() {
             </div>
           </div>
           
-          {/* Hidden audio element */}
+          {/* Audio player with controls */}
           <audio ref={audioRef} className="hidden" />
+          {isAudioPlaying && (
+            <div className="fixed bottom-24 right-8 z-50 glass-card p-3 flex items-center gap-2 shadow-xl border border-violet-500/30 rounded-xl animate-in slide-in-from-right" data-testid="audio-controls">
+              <div className="w-8 h-8 rounded-full bg-violet-500/20 flex items-center justify-center">
+                <Volume2 className="w-4 h-4 text-violet-400 animate-pulse" />
+              </div>
+              <span className="text-xs text-zinc-400">Playing...</span>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={toggleAudioPlayback} data-testid="pause-audio-btn">
+                <Pause className="w-4 h-4" />
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-400" onClick={stopAudio} data-testid="stop-audio-btn">
+                <Square className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </DashboardLayout>

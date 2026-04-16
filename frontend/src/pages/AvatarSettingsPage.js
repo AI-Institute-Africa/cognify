@@ -1,10 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
 import { 
   User, Upload, Sparkles, Check, Camera, Mic, Volume2, 
-  Loader2, Play, Pause, RefreshCw
+  Loader2, Play, Pause, RefreshCw, Square
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -50,6 +50,101 @@ export default function AvatarSettingsPage() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [audioUrl, setAudioUrl] = useState(null);
   const fileInputRef = useRef(null);
+  const voiceInputRef = useRef(null);
+  const [voiceStatus, setVoiceStatus] = useState({ has_voice: false, filename: null });
+  const [uploadingVoice, setUploadingVoice] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    loadVoiceStatus();
+  }, []);
+
+  const loadVoiceStatus = async () => {
+    try {
+      const token = localStorage.getItem('cognify_token');
+      const response = await fetch(`${API_URL}/api/avatar/voice-status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setVoiceStatus(data);
+      }
+    } catch (err) {
+      console.error('Failed to load voice status:', err);
+    }
+  };
+
+  const handleVoiceUpload = async (file) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File too large. Max 5MB for voice sample.');
+      return;
+    }
+    setUploadingVoice(true);
+    try {
+      const token = localStorage.getItem('cognify_token');
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch(`${API_URL}/api/avatar/upload-voice`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      if (response.ok) {
+        toast.success('Voice sample uploaded! Your cloned voice will be used with your avatar.');
+        setVoiceStatus({ has_voice: true, filename: file.name, voice_cloned: true });
+      } else {
+        const err = await response.json();
+        toast.error(err.detail || 'Failed to upload voice');
+      }
+    } catch (err) {
+      toast.error('Failed to upload voice sample');
+    } finally {
+      setUploadingVoice(false);
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const file = new File([blob], 'voice_sample.webm', { type: 'audio/webm' });
+        handleVoiceUpload(file);
+      };
+      recorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => {
+          if (prev >= 5) {
+            stopRecording();
+            return 5;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    } catch (err) {
+      toast.error('Microphone access denied');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    clearInterval(timerRef.current);
+    setIsRecording(false);
+  };
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -129,6 +224,8 @@ export default function AvatarSettingsPage() {
     }
   };
 
+  const activeAudioRef = useRef(null);
+
   const handleTestVoice = async () => {
     setIsSpeaking(true);
     try {
@@ -144,8 +241,9 @@ export default function AvatarSettingsPage() {
         const data = await response.json();
         if (data.audio_url) {
           const audio = new Audio(data.audio_url);
+          activeAudioRef.current = audio;
           audio.play();
-          audio.onended = () => setIsSpeaking(false);
+          audio.onended = () => { setIsSpeaking(false); activeAudioRef.current = null; };
           setAudioUrl(data.audio_url);
         }
       } else {
@@ -156,6 +254,25 @@ export default function AvatarSettingsPage() {
       console.error('TTS error:', error);
       toast.info('Voice preview will be available with API key');
       setIsSpeaking(false);
+    }
+  };
+
+  const handleStopVoice = () => {
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current.currentTime = 0;
+      activeAudioRef.current = null;
+    }
+    setIsSpeaking(false);
+  };
+
+  const handlePauseVoice = () => {
+    if (activeAudioRef.current) {
+      if (activeAudioRef.current.paused) {
+        activeAudioRef.current.play();
+      } else {
+        activeAudioRef.current.pause();
+      }
     }
   };
 
@@ -199,14 +316,14 @@ export default function AvatarSettingsPage() {
             <div className="flex justify-center gap-3 mt-6">
               <Button 
                 variant="outline" 
-                onClick={handleTestVoice}
-                disabled={isSpeaking}
+                onClick={isSpeaking ? handlePauseVoice : handleTestVoice}
                 className="border-white/10"
+                data-testid="test-voice-btn"
               >
                 {isSpeaking ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Speaking...
+                    <Pause className="w-4 h-4 mr-2" />
+                    Pause
                   </>
                 ) : (
                   <>
@@ -215,6 +332,12 @@ export default function AvatarSettingsPage() {
                   </>
                 )}
               </Button>
+              {isSpeaking && (
+                <Button variant="outline" onClick={handleStopVoice} className="border-red-500/30 text-red-400" data-testid="stop-voice-btn">
+                  <Square className="w-4 h-4 mr-2" />
+                  Stop
+                </Button>
+              )}
               <Button onClick={handleSaveAvatar} className="bg-blue-500 hover:bg-blue-600">
                 <Check className="w-4 h-4 mr-2" />
                 Save Settings
@@ -343,6 +466,90 @@ export default function AvatarSettingsPage() {
                   <p className="text-xs text-zinc-500 mt-1">{style.description}</p>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Voice Cloning Section */}
+          <div className="glass-card p-6 mt-8" data-testid="voice-clone-section">
+            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+              <Mic className="w-5 h-5 text-amber-400" />
+              Voice Cloning
+            </h3>
+            <p className="text-sm text-zinc-400 mb-6">
+              Upload or record a 5-second voice sample. Your cloned voice will be used with your avatar throughout your learning journey.
+            </p>
+
+            {voiceStatus.has_voice ? (
+              <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 mb-4 flex items-center gap-3">
+                <Volume2 className="w-5 h-5 text-emerald-400" />
+                <div>
+                  <p className="font-medium text-emerald-400">Voice Cloned</p>
+                  <p className="text-xs text-zinc-400">{voiceStatus.filename || 'Voice sample uploaded'}</p>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Record Voice */}
+              <div className="p-4 rounded-xl bg-zinc-800/50 border border-white/5">
+                <p className="text-sm font-medium mb-3">Record Voice (5 seconds)</p>
+                {isRecording ? (
+                  <div className="text-center space-y-3">
+                    <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto animate-pulse">
+                      <Mic className="w-8 h-8 text-red-400" />
+                    </div>
+                    <p className="text-sm text-red-400">{recordingTime}s / 5s</p>
+                    <div className="w-full bg-zinc-700 rounded-full h-1.5">
+                      <div className="bg-red-500 h-1.5 rounded-full transition-all" style={{ width: `${(recordingTime / 5) * 100}%` }} />
+                    </div>
+                    <Button size="sm" variant="destructive" onClick={stopRecording} data-testid="stop-recording-btn">
+                      Stop Recording
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={startRecording}
+                    variant="outline"
+                    className="w-full border-dashed border-amber-500/30 text-amber-400 hover:bg-amber-500/10 h-20 flex-col gap-2"
+                    disabled={uploadingVoice}
+                    data-testid="start-recording-btn"
+                  >
+                    <Mic className="w-6 h-6" />
+                    <span className="text-xs">Tap to record 5 seconds</span>
+                  </Button>
+                )}
+              </div>
+
+              {/* Upload Voice File */}
+              <div className="p-4 rounded-xl bg-zinc-800/50 border border-white/5">
+                <p className="text-sm font-medium mb-3">Upload Audio File</p>
+                <input
+                  type="file"
+                  ref={voiceInputRef}
+                  className="hidden"
+                  accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg"
+                  onChange={(e) => e.target.files?.[0] && handleVoiceUpload(e.target.files[0])}
+                />
+                <Button
+                  onClick={() => voiceInputRef.current?.click()}
+                  variant="outline"
+                  className="w-full border-dashed border-white/20 h-20 flex-col gap-2"
+                  disabled={uploadingVoice}
+                  data-testid="upload-voice-btn"
+                >
+                  {uploadingVoice ? (
+                    <>
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                      <span className="text-xs">Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-6 h-6" />
+                      <span className="text-xs">Upload .mp3, .wav, .m4a</span>
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

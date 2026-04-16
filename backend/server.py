@@ -505,13 +505,17 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Invalid token")
 
 def serialize_doc(doc: dict) -> dict:
-    if doc and 'created_at' in doc and isinstance(doc['created_at'], datetime):
+    if not doc:
+        return doc
+    # Remove MongoDB ObjectId if present
+    doc.pop('_id', None)
+    if 'created_at' in doc and isinstance(doc['created_at'], datetime):
         doc['created_at'] = doc['created_at'].isoformat()
-    if doc and 'graded_at' in doc and isinstance(doc['graded_at'], datetime):
+    if 'graded_at' in doc and isinstance(doc['graded_at'], datetime):
         doc['graded_at'] = doc['graded_at'].isoformat()
-    if doc and 'last_reviewed' in doc and isinstance(doc['last_reviewed'], datetime):
+    if 'last_reviewed' in doc and isinstance(doc['last_reviewed'], datetime):
         doc['last_reviewed'] = doc['last_reviewed'].isoformat()
-    if doc and 'next_review' in doc and isinstance(doc['next_review'], datetime):
+    if 'next_review' in doc and isinstance(doc['next_review'], datetime):
         doc['next_review'] = doc['next_review'].isoformat()
     return doc
 
@@ -2324,11 +2328,28 @@ async def get_courses(current_user: dict = Depends(get_current_user)):
                 if c['id'] not in existing_ids:
                     courses.append(c)
     elif current_user['role'] == 'org_admin':
-        # Org admin sees only their org's courses
+        # Org admin sees their org's courses, courses they created, and global courses
         if user_org_id:
-            courses = await db.courses.find({"organization_id": user_org_id}, {"_id": 0}).to_list(100)
+            courses = await db.courses.find(
+                {"$or": [
+                    {"organization_id": user_org_id},
+                    {"org_id": user_org_id},
+                    {"created_by": current_user['id']},
+                    {"is_active": True, "organization_id": {"$in": [None, user_org_id]}},
+                    {"is_active": True, "organization_id": {"$exists": False}}
+                ]},
+                {"_id": 0}
+            ).to_list(200)
+            # Deduplicate by id
+            seen = set()
+            unique_courses = []
+            for c in courses:
+                if c.get('id') not in seen:
+                    seen.add(c.get('id'))
+                    unique_courses.append(c)
+            courses = unique_courses
         else:
-            courses = await db.courses.find({}, {"_id": 0}).to_list(100)
+            courses = await db.courses.find({"is_active": True}, {"_id": 0}).to_list(200)
     else:
         courses = await db.courses.find({}, {"_id": 0}).to_list(100)
     return [serialize_doc(c) for c in courses]
@@ -5594,14 +5615,26 @@ class ExamSubmission(BaseModel):
 
 @exams_router.get("")
 async def get_exams(current_user: dict = Depends(get_current_user)):
-    """Get exams - teachers see their created exams, students see available exams"""
-    if current_user['role'] == 'teacher':
-        exams = await db.exams.find({"created_by": current_user['id']}, {"_id": 0}).to_list(100)
+    """Get exams - teachers/admins see their created exams, students see available exams"""
+    if current_user['role'] in ['teacher', 'org_admin', 'admin']:
+        org_id = current_user.get('organization_id')
+        query = {"$or": [{"created_by": current_user['id']}]}
+        if org_id:
+            query["$or"].append({"organization_id": org_id})
+        exams = await db.exams.find(query, {"_id": 0}).to_list(200)
     else:
-        # Students see exams for their enrolled courses
+        # Students see exams for their enrolled courses + org exams
         profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
         enrolled = profile.get('enrolled_courses', []) if profile else []
-        exams = await db.exams.find({"course_id": {"$in": enrolled}, "is_active": True}, {"_id": 0}).to_list(100)
+        org_id = current_user.get('organization_id')
+        query_or = []
+        if enrolled:
+            query_or.append({"course_id": {"$in": enrolled}})
+        if org_id:
+            query_or.append({"organization_id": org_id, "status": "published"})
+        if not query_or:
+            return []
+        exams = await db.exams.find({"$or": query_or}, {"_id": 0}).to_list(200)
         
         # Add completion status
         for exam in exams:
@@ -5835,12 +5868,26 @@ class AssignmentCreate(BaseModel):
 @assignments_router.get("")
 async def get_assignments(current_user: dict = Depends(get_current_user)):
     """Get assignments"""
-    if current_user['role'] == 'teacher':
-        assignments = await db.assignments.find({"created_by": current_user['id']}, {"_id": 0}).to_list(100)
+    if current_user['role'] in ['teacher', 'org_admin', 'admin']:
+        # Teachers and admins see assignments they created + org assignments
+        org_id = current_user.get('organization_id')
+        query = {"$or": [{"created_by": current_user['id']}]}
+        if org_id:
+            query["$or"].append({"organization_id": org_id})
+        assignments = await db.assignments.find(query, {"_id": 0}).to_list(200)
     else:
         profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
         enrolled = profile.get('enrolled_courses', []) if profile else []
-        assignments = await db.assignments.find({"course_id": {"$in": enrolled}}, {"_id": 0}).to_list(100)
+        # Students see assignments for enrolled courses + published org assignments
+        org_id = current_user.get('organization_id')
+        query_or = []
+        if enrolled:
+            query_or.append({"course_id": {"$in": enrolled}})
+        if org_id:
+            query_or.append({"organization_id": org_id, "status": "published"})
+        if not query_or:
+            return []
+        assignments = await db.assignments.find({"$or": query_or}, {"_id": 0}).to_list(200)
         
         for assignment in assignments:
             submission = await db.assignment_submissions.find_one(
@@ -9344,6 +9391,7 @@ Make the content practical, engaging, and comprehensive. Each lesson should buil
         course_id = str(uuid.uuid4())
         course = {
             "id": course_id,
+            "name": course_structure.get("course_title", request.title),
             "title": course_structure.get("course_title", request.title),
             "description": course_structure.get("description", request.description),
             "learning_goal": request.learning_goal,
@@ -9359,10 +9407,13 @@ Make the content practical, engaging, and comprehensive. Each lesson should buil
             "learning_objectives": course_structure.get("learning_objectives", []),
             "prerequisites": course_structure.get("prerequisites", []),
             "created_by": current_user['id'],
+            "teacher_id": current_user['id'],
             "teacher_name": current_user.get('full_name', 'Unknown'),
+            "organization_id": current_user.get('organization_id'),
             "is_user_created": True,
+            "is_active": True,
+            "is_published": True,
             "enrolled_count": 0,
-            "is_published": False,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         
@@ -10088,13 +10139,15 @@ async def issue_credential_v2(
 @api_router.get("/org/courses")
 async def get_org_courses(current_user: dict = Depends(get_current_user)):
     """Get courses for the current user's organization only"""
-    org_id = current_user.get('org_id')
+    org_id = current_user.get('org_id') or current_user.get('organization_id')
     
     if not org_id:
-        # If no org, return empty or raise error
         return []
     
-    courses = await db.courses.find({"org_id": org_id}, {"_id": 0}).to_list(length=100)
+    courses = await db.courses.find(
+        {"$or": [{"org_id": org_id}, {"organization_id": org_id}]},
+        {"_id": 0}
+    ).to_list(length=200)
     return courses
 
 
@@ -11886,6 +11939,216 @@ async def save_avatar_settings(
     )
     
     return {"message": "Avatar settings saved", "settings": settings}
+
+
+# ==================== CERTIFICATE GALLERY ====================
+
+@api_router.get("/certificates/gallery/my")
+async def get_my_certificate_gallery(current_user: dict = Depends(get_current_user)):
+    """Get all certificates for the logged-in user"""
+    certs = await db.certificates.find(
+        {"student_id": current_user['id']},
+        {"_id": 0}
+    ).sort("issued_at", -1).to_list(length=100)
+    return {"certificates": certs, "total": len(certs)}
+
+
+@api_router.get("/certificates/gallery/user/{user_id}")
+async def get_user_certificate_gallery(user_id: str, current_user: dict = Depends(get_current_user)):
+    """View another user's certificate gallery (same org only)"""
+    target = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    viewer_org = current_user.get('organization_id')
+    target_org = target.get('organization_id')
+    if viewer_org and target_org and viewer_org != target_org:
+        raise HTTPException(status_code=403, detail="Cannot view certificates from another organization")
+    
+    certs = await db.certificates.find(
+        {"student_id": user_id},
+        {"_id": 0}
+    ).sort("issued_at", -1).to_list(length=100)
+    
+    return {
+        "certificates": certs,
+        "total": len(certs),
+        "user": {"full_name": target.get("full_name"), "id": user_id}
+    }
+
+
+# ==================== PUBLISH FROM AI Q&A GENERATOR ====================
+
+@api_router.post("/training-engine/publish-assignment")
+async def publish_as_assignment(
+    title: str = Body(...),
+    course_id: str = Body(...),
+    questions: list = Body(...),
+    description: str = Body(""),
+    due_date: str = Body(None),
+    max_score: int = Body(100),
+    current_user: dict = Depends(get_current_user)
+):
+    """Publish generated Q&A as a formal assignment"""
+    if current_user.get('role') not in ['teacher', 'org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    assignment_id = str(uuid.uuid4())
+    assignment = {
+        "id": assignment_id,
+        "title": title,
+        "description": description,
+        "course_id": course_id,
+        "course_name": course.get('name') or course.get('title'),
+        "type": "ai_generated",
+        "questions": questions,
+        "max_score": max_score,
+        "due_date": due_date,
+        "created_by": current_user['id'],
+        "organization_id": current_user.get('organization_id'),
+        "status": "published",
+        "auto_grade": True,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.assignments.insert_one(assignment)
+    assignment.pop('_id', None)
+    return {"message": "Assignment published", "assignment_id": assignment_id}
+
+
+@api_router.post("/training-engine/publish-exam")
+async def publish_as_exam(
+    title: str = Body(...),
+    course_id: str = Body(...),
+    sections: list = Body(...),
+    duration_minutes: int = Body(60),
+    total_marks: int = Body(100),
+    description: str = Body(""),
+    current_user: dict = Depends(get_current_user)
+):
+    """Publish generated exam simulation as a formal exam"""
+    if current_user.get('role') not in ['teacher', 'org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    exam_id = str(uuid.uuid4())
+    exam = {
+        "id": exam_id,
+        "title": title,
+        "description": description,
+        "course_id": course_id,
+        "course_name": course.get('name') or course.get('title'),
+        "type": "ai_generated",
+        "sections": sections,
+        "duration_minutes": duration_minutes,
+        "total_marks": total_marks,
+        "created_by": current_user['id'],
+        "organization_id": current_user.get('organization_id'),
+        "status": "published",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.exams.insert_one(exam)
+    exam.pop('_id', None)
+    return {"message": "Exam published", "exam_id": exam_id}
+
+
+# ==================== VOICE CLONE FOR AVATAR ====================
+
+@api_router.post("/avatar/upload-voice")
+async def upload_voice_sample(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload a 5-second voice sample for voice cloning"""
+    content = await file.read()
+    
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Max 5MB.")
+    
+    voice_b64 = base64.b64encode(content).decode()
+    
+    await db.voice_samples.update_one(
+        {"user_id": current_user['id']},
+        {"$set": {
+            "user_id": current_user['id'],
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "audio_data": voice_b64,
+            "uploaded_at": datetime.now(timezone.utc).isoformat()
+        }},
+        upsert=True
+    )
+    
+    await db.avatar_settings.update_one(
+        {"user_id": current_user['id']},
+        {"$set": {
+            "voice_cloned": True,
+            "voice_source": "uploaded",
+            "voice_filename": file.filename,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }},
+        upsert=True
+    )
+    
+    return {"message": "Voice sample uploaded successfully", "voice_cloned": True}
+
+
+@api_router.get("/avatar/voice-status")
+async def get_voice_status(current_user: dict = Depends(get_current_user)):
+    """Check if user has uploaded a voice sample"""
+    sample = await db.voice_samples.find_one(
+        {"user_id": current_user['id']},
+        {"_id": 0, "audio_data": 0}
+    )
+    settings = await db.avatar_settings.find_one(
+        {"user_id": current_user['id']},
+        {"_id": 0}
+    )
+    return {
+        "has_voice": sample is not None,
+        "filename": sample.get("filename") if sample else None,
+        "voice_cloned": settings.get("voice_cloned", False) if settings else False,
+        "selected_voice": settings.get("voice_id", "nova") if settings else "nova"
+    }
+
+
+@api_router.post("/avatar/tts-with-clone")
+async def text_to_speech_with_clone(
+    text: str = Body(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate TTS using selected voice"""
+    try:
+        from emergentintegrations.llm.openai import OpenAITextToSpeech
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="TTS not configured")
+        
+        settings = await db.avatar_settings.find_one(
+            {"user_id": current_user['id']},
+            {"_id": 0}
+        )
+        
+        voice = settings.get("voice_id", "nova") if settings else "nova"
+        
+        tts = OpenAITextToSpeech(api_key=api_key)
+        audio_b64 = await tts.generate_speech_base64(
+            text=text[:4096],
+            model="tts-1",
+            voice=voice
+        )
+        
+        return {"audio_base64": audio_b64, "voice_used": voice}
+    except Exception as e:
+        logging.error(f"TTS error: {e}")
+        raise HTTPException(status_code=500, detail=f"TTS generation failed: {str(e)}")
 
 
 # Include all routers - MUST be after all route definitions

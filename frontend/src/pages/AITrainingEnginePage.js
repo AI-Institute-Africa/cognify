@@ -7,7 +7,7 @@ import {
   Zap, Upload, FileText, Brain, BookOpen, ClipboardList,
   ChevronDown, ChevronRight, CheckCircle, AlertCircle,
   Layers, RefreshCw, Download, Mic, MicOff, Lightbulb,
-  Target, Award, HelpCircle, Star, GraduationCap
+  Target, Award, HelpCircle, Star, GraduationCap, Send
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
@@ -361,6 +361,51 @@ export default function AITrainingEnginePage() {
     toast.success('Questions exported!');
   };
 
+  const publishAsAssignment = async () => {
+    if (!questions || !selectedCourse) {
+      toast.error('Generate questions and select a course first.');
+      return;
+    }
+    const allQuestions = [];
+    for (const [cat, items] of Object.entries(questions.categories || {})) {
+      if (Array.isArray(items)) {
+        items.forEach(item => allQuestions.push({ ...item, category: cat }));
+      }
+    }
+    try {
+      await axios.post(`${API}/api/training-engine/publish-assignment`, {
+        title: `${questions.topic || topic || 'AI Generated'} - Assignment`,
+        course_id: selectedCourse.id,
+        questions: allQuestions,
+        description: `Auto-generated from AI Q&A Generator. ${allQuestions.length} questions.`,
+        max_score: allQuestions.length * 5
+      }, { headers: getAuth() });
+      toast.success('Published as Assignment!');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to publish assignment');
+    }
+  };
+
+  const publishAsExam = async () => {
+    if (!exam || !selectedCourse) {
+      toast.error('Generate an exam and select a course first.');
+      return;
+    }
+    try {
+      await axios.post(`${API}/api/training-engine/publish-exam`, {
+        title: exam.exam_title || `${topic || 'AI Generated'} - Exam`,
+        course_id: selectedCourse.id,
+        sections: exam.sections || [],
+        duration_minutes: exam.duration_minutes || 60,
+        total_marks: exam.total_marks || 100,
+        description: `Auto-generated exam simulation from AI Q&A Generator.`
+      }, { headers: getAuth() });
+      toast.success('Published as Exam!');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to publish exam');
+    }
+  };
+
   return (
     <DashboardLayout>
       <Header
@@ -512,6 +557,20 @@ export default function AITrainingEnginePage() {
                 data-testid="export-btn"
               >
                 <Download className="w-4 h-4 mr-2" /> Export
+              </Button>
+            )}
+            {questions && selectedCourse && (user?.role === 'teacher' || user?.role === 'org_admin' || user?.role === 'admin') && (
+              <Button onClick={publishAsAssignment} className="bg-emerald-600 hover:bg-emerald-700"
+                data-testid="publish-assignment-btn"
+              >
+                <Send className="w-4 h-4 mr-2" /> Publish as Assignment
+              </Button>
+            )}
+            {exam && selectedCourse && (user?.role === 'teacher' || user?.role === 'org_admin' || user?.role === 'admin') && (
+              <Button onClick={publishAsExam} className="bg-orange-600 hover:bg-orange-700"
+                data-testid="publish-exam-btn"
+              >
+                <Send className="w-4 h-4 mr-2" /> Publish as Exam
               </Button>
             )}
           </div>

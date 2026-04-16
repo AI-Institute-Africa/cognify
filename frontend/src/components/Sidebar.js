@@ -43,7 +43,8 @@ import {
   FolderOpen,
   Import,
   Share2,
-  Zap
+  Zap,
+  Award
 } from 'lucide-react';
 
 const navItems = {
@@ -77,6 +78,7 @@ const navItems = {
     { path: '/study-groups', icon: UsersRound, labelKey: 'studyGroups' },
     { divider: true, label: 'Share & Collaborate' },
     { path: '/share-content', icon: Share2, label: 'Share Content' },
+    { path: '/certificate-gallery', icon: Award, label: 'Certificate Gallery' },
     { path: '/virtual-classroom', icon: Video, labelKey: 'virtualClassroom' },
     { path: '/live-research', icon: Search, labelKey: 'liveResearch' },
     { path: '/career', icon: Sparkles, labelKey: 'careerGuidance' },
