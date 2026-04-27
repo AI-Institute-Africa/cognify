@@ -3,84 +3,59 @@
 ## Overview
 AI-Powered School Management, Learning & Career Intelligence Platform
 
-**Version:** 5.0 (Iteration 31 Complete)
-**Date:** April 16, 2026
+**Version:** 6.0 (Iteration 33 Complete)
+**Date:** April 27, 2026
 
 ---
 
-## LATEST UPDATES - ITERATION 30-31
+## LATEST UPDATES - ITERATION 33
 
-### Certificate Gallery (NEW)
-| Feature | Status |
-|---------|--------|
-| Certificate Gallery page at /certificate-gallery | DONE |
-| Shows all earned certificates with gradient cards | DONE |
-| Share button with verification links | DONE |
-| View other user's gallery (same org) | DONE |
-| Sidebar link for students | DONE |
-
-### Publish from AI Q&A Generator (NEW)
-| Feature | Status |
-|---------|--------|
-| "Publish as Assignment" button for teacher/org_admin | DONE |
-| "Publish as Exam" button for teacher/org_admin | DONE |
-| Published assignments visible to enrolled students | DONE |
-| Published exams visible to enrolled students | DONE |
-
-### Avatar Voice Cloning (NEW)
-| Feature | Status |
-|---------|--------|
-| Voice upload (5-second sample) via /api/avatar/upload-voice | DONE |
-| Voice recording with 5-second timer | DONE |
-| Voice status check via /api/avatar/voice-status | DONE |
-| TTS with cloned voice via /api/avatar/tts-with-clone | DONE |
-| OpenAI TTS integration via Emergent LLM Key | DONE |
-
-### Audio Pause/Stop Controls (NEW)
-| Feature | Status |
-|---------|--------|
-| Floating pause/stop controls on AI Mentor page | DONE |
-| Pause/Stop buttons on Avatar Settings test voice | DONE |
-
-### Bug Fixes (Iteration 31)
+### Course Enrollment Fix (BUG FIX)
 | Fix | Status |
 |-----|--------|
-| Org admin seeing 0 courses — fixed query to include global active courses | DONE |
-| Org admin seeing 0 assignments — fixed get_assignments for org_admin role | DONE |
-| Org admin seeing 0 exams — fixed get_exams for org_admin role | DONE |
-| Custom course not displaying — added is_active=true, is_published=true, organization_id, name | DONE |
-| serialize_doc ObjectId crash — added _id removal | DONE |
-| StudentAssignmentsPage 403 for org_admin — added role-based API call | DONE |
-| Org dashboard stats showing 0 courses — fixed count query | DONE |
+| Org admin/teacher can now enroll in courses (was "Only students can enroll") | DONE |
+| Auto-creates student_profile for non-student roles when enrolling | DONE |
+| Teachers/org_admin bypass payment for courses they created | DONE |
+
+### Bulk Enrollment Rewrite (BUG FIX + FEATURE)
+| Fix | Status |
+|-----|--------|
+| Bulk enroll no longer requires course_id | DONE |
+| Enrolls participants into ORGANIZATION with temp passwords | DONE |
+| Sends welcome email with temp password | DONE |
+| Role selector (student/teacher) in enrollment dialog | DONE |
+| Removed course selector from bulk enroll dialog | DONE |
+
+### Course Management (NEW)
+| Feature | Status |
+|---------|--------|
+| PUT /api/courses/{id} - edit course details | DONE |
+| DELETE /api/courses/{id} - delete course + lessons | DONE |
+| POST /api/courses/{id}/lessons - add lesson | DONE |
+| POST /api/courses/{id}/generate-lessons-from-content - AI lesson gen from docs | DONE |
+| CourseManagePage with edit/delete/upload UI | DONE |
+| "Manage Course" button for org_admin on courses page | DONE |
+
+### AI Lesson Generation from Documents (NEW)
+| Feature | Status |
+|---------|--------|
+| Upload PDF/DOCX/TXT to generate real lessons | DONE |
+| AI structures document into 3-8 lessons with actual content | DONE |
+| Lessons have title, description, content (200-400 words), key points | DONE |
+| Source filename tracked per lesson | DONE |
 
 ---
 
-## TECH STACK
-
-- **Frontend:** React, Tailwind CSS, Shadcn UI, axios
-- **Backend:** FastAPI, Pydantic, MongoDB (motor)
-- **AI:** Emergent LLM Key (GPT-5.2, OpenAI TTS)
-- **Email:** Resend
-- **Auth:** JWT, Google OAuth via Emergent
-- **PDF:** ReportLab, PyPDF2
-- **Docs:** python-docx
-- **Social:** Proxycurl API
-
----
-
-## KEY API ENDPOINTS
+## KEY API ENDPOINTS (New/Updated)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/certificates/gallery/my` | GET | User's certificate gallery |
-| `/api/certificates/gallery/user/{id}` | GET | Other user's gallery (same org) |
-| `/api/training-engine/publish-assignment` | POST | Publish Q&A as assignment |
-| `/api/training-engine/publish-exam` | POST | Publish exam simulation |
-| `/api/avatar/upload-voice` | POST | Upload voice sample |
-| `/api/avatar/voice-status` | GET | Check voice clone status |
-| `/api/avatar/tts-with-clone` | POST | TTS with user's voice |
-| `/api/org/staff/assign-rights` | POST | Assign staff permissions |
-| `/api/org/staff/{id}/rights` | GET | Get staff rights |
+| `/api/courses/{id}/enroll` | POST | Enroll (all roles) |
+| `/api/courses/{id}` | PUT | Update course |
+| `/api/courses/{id}` | DELETE | Delete course |
+| `/api/courses/{id}/lessons` | POST | Add lesson |
+| `/api/courses/{id}/generate-lessons-from-content` | POST | AI lesson gen from doc |
+| `/api/org/bulk-enroll` | POST | Bulk enroll into org |
 
 ---
 
@@ -95,56 +70,13 @@ AI-Powered School Management, Learning & Career Intelligence Platform
 
 ---
 
-## FILE STRUCTURE
-
-```
-/app/
-├── backend/
-│   ├── server.py                    # Main API (~12,200 lines)
-│   ├── config.py
-│   ├── database.py
-│   ├── auth_utils.py
-│   ├── routes/
-│   │   └── certificates.py
-│   └── services/
-├── frontend/
-│   ├── src/
-│   │   ├── pages/
-│   │   │   ├── CertificateGalleryPage.js   # NEW
-│   │   │   ├── AITrainingEnginePage.js      # + Publish buttons
-│   │   │   ├── AvatarSettingsPage.js        # + Voice cloning
-│   │   │   ├── AIMentorPage.js              # + Audio controls
-│   │   │   ├── OrgAdminDashboardPage.js     # + Courses tab
-│   │   │   └── OrgLoginPage.js              # Login/Register
-│   │   └── components/
-│   │       └── Sidebar.js                   # + Gallery link
-└── memory/
-    ├── PRD.md
-    └── test_credentials.md
-```
-
----
-
-## TEST CREDENTIALS
-
-| Role | Email | Password |
-|------|-------|----------|
-| Student | demo.student@cognify.edu | demo123 |
-| Teacher | demo.teacher@eduos.edu | demo123 |
-| Org Admin | test.orgadmin@cognify.edu | admin123 |
-
-**Organization:** Cognify University (slug: `cognify`)
-
----
-
 ## TEST REPORTS
 
 | Iteration | Result | Focus |
 |-----------|--------|-------|
-| 25-27 | ALL PASS | AI Training Engine, org portals |
-| 28 | 18/18 PASS | Certificate verification, staff rights |
-| 29 | 15/15 PASS | Post-refactoring verification |
-| 30 | 22/22 PASS | New features (gallery, voice, publish) |
-| 31 | 23/23 PASS | Bug fixes (courses/assignments/exams for org_admin) |
+| 25-29 | ALL PASS | Core features, refactoring |
+| 30-31 | ALL PASS | Gallery, voice clone, publish |
+| 32 | ALL PASS | Publish visibility, voice placement |
+| 33 | 16/16 PASS | Enrollment fix, bulk enroll, course management |
 
-**Last Updated:** April 16, 2026
+**Last Updated:** April 27, 2026
