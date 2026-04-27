@@ -846,10 +846,10 @@ export const createCourseFromPDF = async (file, title, category = 'certificate',
   return response.data;
 };
 
-export const bulkEnrollStudents = async (courseId, studentEmails) => {
-  const response = await axios.post(`${API}/org-admin/bulk-enroll`, {
-    course_id: courseId,
-    student_emails: studentEmails
+export const bulkEnrollStudents = async (emails, role = 'student') => {
+  const response = await axios.post(`${API}/org/bulk-enroll`, {
+    emails,
+    role
   }, { headers: getAuthHeaders() });
   return response.data;
 };

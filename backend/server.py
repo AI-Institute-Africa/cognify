@@ -458,7 +458,8 @@ class TTSRequest(BaseModel):
 
 class BulkEnrollmentRequest(BaseModel):
     emails: List[str]
-    course_id: str
+    course_id: Optional[str] = None
+    role: str = "student"
 
 class MagicLinkEnrollment(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -2373,6 +2374,7 @@ async def create_course(course_data: CourseCreate, current_user: dict = Depends(
     course_dict = course.model_dump()
     course_dict['created_at'] = course_dict['created_at'].isoformat()
     course_dict['is_active'] = True  # Make course visible to students
+    course_dict['created_by'] = current_user['id']  # Track who created the course
     await db.courses.insert_one(course_dict)
     course_dict.pop('_id', None)
     return serialize_doc(course_dict)
@@ -2417,20 +2419,244 @@ async def get_course_lessons(course_id: str, current_user: dict = Depends(get_cu
     
     return lessons
 
-@courses_router.post("/{course_id}/enroll")
-async def enroll_course(course_id: str, current_user: dict = Depends(get_current_user)):
-    if current_user['role'] != 'student':
-        raise HTTPException(status_code=403, detail="Only students can enroll")
+
+@courses_router.put("/{course_id}")
+async def update_course(course_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    """Update course details - only creator or org_admin"""
+    if current_user['role'] not in ['teacher', 'org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
     
     course = await db.courses.find_one({"id": course_id}, {"_id": 0})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
-    # Check if course requires payment
+    if current_user['role'] != 'admin':
+        is_creator = course.get('created_by') == current_user['id'] or course.get('teacher_id') == current_user['id']
+        is_org_match = (current_user.get('organization_id') and 
+                       course.get('organization_id') == current_user.get('organization_id'))
+        if not is_creator and not (current_user['role'] == 'org_admin' and is_org_match):
+            raise HTTPException(status_code=403, detail="Only course creator or org admin can update")
+    
+    body = await request.json()
+    allowed_fields = ['name', 'title', 'description', 'category', 'price', 'is_active', 
+                      'is_published', 'target_audience', 'duration_weeks', 'language']
+    update = {k: v for k, v in body.items() if k in allowed_fields}
+    if 'title' in update:
+        update['name'] = update['title']
+    
+    if update:
+        await db.courses.update_one({"id": course_id}, {"$set": update})
+    
+    updated = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    return updated
+
+
+@courses_router.delete("/{course_id}")
+async def delete_course(course_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a course - only creator or org_admin"""
+    if current_user['role'] not in ['teacher', 'org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    if current_user['role'] != 'admin':
+        is_creator = course.get('created_by') == current_user['id'] or course.get('teacher_id') == current_user['id']
+        is_org_match = (current_user.get('organization_id') and 
+                       course.get('organization_id') == current_user.get('organization_id'))
+        if not is_creator and not (current_user['role'] == 'org_admin' and is_org_match):
+            raise HTTPException(status_code=403, detail="Only course creator or org admin can delete")
+    
+    await db.courses.delete_one({"id": course_id})
+    await db.lessons.delete_many({"course_id": course_id})
+    await db.course_contents.delete_many({"course_id": course_id})
+    return {"message": "Course deleted successfully"}
+
+
+@courses_router.post("/{course_id}/lessons")
+async def add_lesson_to_course(course_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    """Add a lesson to a course"""
+    if current_user['role'] not in ['teacher', 'org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    body = await request.json()
+    lesson_count = await db.lessons.count_documents({"course_id": course_id})
+    
+    lesson = {
+        "id": str(uuid.uuid4()),
+        "course_id": course_id,
+        "title": body.get("title", f"Lesson {lesson_count + 1}"),
+        "description": body.get("description", ""),
+        "content": body.get("content", ""),
+        "key_points": body.get("key_points", []),
+        "duration": body.get("duration", "30 min"),
+        "order": body.get("order", lesson_count + 1),
+        "created_by": current_user['id'],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.lessons.insert_one(lesson)
+    lesson.pop('_id', None)
+    return lesson
+
+
+@courses_router.post("/{course_id}/generate-lessons-from-content")
+async def generate_lessons_from_content(
+    course_id: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload a document and generate real lessons from its content using AI"""
+    if current_user['role'] not in ['teacher', 'org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    file_content = await file.read()
+    filename = file.filename.lower()
+    extracted_text = ""
+    
+    if filename.endswith('.txt'):
+        extracted_text = file_content.decode('utf-8', errors='ignore')
+    elif filename.endswith('.pdf'):
+        import tempfile
+        try:
+            from PyPDF2 import PdfReader
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+                tmp.write(file_content)
+                tmp_path = tmp.name
+            reader = PdfReader(tmp_path)
+            for page in reader.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    extracted_text += page_text + "\n"
+            os.unlink(tmp_path)
+        except Exception as e:
+            logging.error(f"PDF extract error: {e}")
+    elif filename.endswith(('.docx', '.doc')):
+        import tempfile
+        try:
+            import docx
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp:
+                tmp.write(file_content)
+                tmp_path = tmp.name
+            doc_file = docx.Document(tmp_path)
+            for para in doc_file.paragraphs:
+                extracted_text += para.text + "\n"
+            os.unlink(tmp_path)
+        except Exception as e:
+            logging.error(f"DOCX extract error: {e}")
+    
+    if not extracted_text.strip():
+        raise HTTPException(status_code=400, detail="Could not extract text from the uploaded file")
+    
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        import litellm
+        litellm.num_retries = 0
+        litellm.request_timeout = 50
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        content_for_ai = extracted_text[:12000]
+        
+        system_msg = """You are a curriculum designer. Given document text, create structured lessons.
+Return ONLY valid JSON array:
+[
+  {
+    "title": "Lesson title",
+    "description": "Brief description",
+    "content": "Full lesson content from the ACTUAL document text, structured into paragraphs. 200-400 words.",
+    "key_points": ["point1", "point2", "point3"],
+    "duration": "20 min"
+  }
+]
+Create 3-8 lessons. Use REAL content from the document. Do not invent facts."""
+        
+        chat = LlmChat(api_key=api_key, session_id=f"lesson-gen-{uuid.uuid4()}", system_message=system_msg)
+        chat.with_model("openai", "gpt-5.2")
+        
+        import asyncio
+        response = await asyncio.wait_for(
+            chat.send_message(UserMessage(text=f"Create structured lessons from this document:\n\n{content_for_ai}")),
+            timeout=55
+        )
+        
+        response_text = response.text.strip()
+        if response_text.startswith("```"):
+            response_text = response_text.split("```")[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+        
+        import json
+        lessons_data = json.loads(response_text)
+        
+        # Delete old lessons and store new ones
+        await db.lessons.delete_many({"course_id": course_id})
+        
+        created_lessons = []
+        for i, ld in enumerate(lessons_data):
+            lesson = {
+                "id": str(uuid.uuid4()),
+                "course_id": course_id,
+                "title": ld.get("title", f"Lesson {i+1}"),
+                "description": ld.get("description", ""),
+                "content": ld.get("content", ""),
+                "key_points": ld.get("key_points", []),
+                "duration": ld.get("duration", "30 min"),
+                "order": i + 1,
+                "source": "uploaded_document",
+                "source_filename": file.filename,
+                "created_by": current_user['id'],
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.lessons.insert_one(lesson)
+            lesson.pop('_id', None)
+            created_lessons.append(lesson)
+        
+        await db.courses.update_one(
+            {"id": course_id},
+            {"$set": {"num_lessons": len(created_lessons), "has_content": True}}
+        )
+        
+        return {
+            "message": f"Generated {len(created_lessons)} lessons from {file.filename}",
+            "lessons": created_lessons,
+            "total": len(created_lessons)
+        }
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="AI returned invalid lesson structure. Please try again.")
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Lesson generation timed out. Try a smaller document.")
+    except Exception as e:
+        logging.error(f"Lesson generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate lessons: {str(e)}")
+
+
+@courses_router.post("/{course_id}/enroll")
+async def enroll_course(course_id: str, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] not in ['student', 'teacher', 'org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    # Check if course requires payment (bypass for teachers/org_admin who created it)
     course_price = course.get('price', 0)
     is_free = course.get('is_free', course_price == 0)
+    is_creator = course.get('created_by') == current_user['id'] or course.get('teacher_id') == current_user['id']
+    is_admin_role = current_user['role'] in ['teacher', 'org_admin', 'admin']
     
-    if not is_free and course_price > 0:
+    if not is_free and course_price > 0 and not (is_admin_role and is_creator):
         # Check if user has paid for this course
         payment = await db.payments.find_one({
             "user_id": current_user['id'],
@@ -2451,7 +2677,19 @@ async def enroll_course(course_id: str, current_user: dict = Depends(get_current
     
     # Check if already enrolled
     profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
-    if profile and course_id in profile.get('enrolled_courses', []):
+    if not profile:
+        # Create a profile for non-student roles too
+        profile = {
+            "user_id": current_user['id'],
+            "enrolled_courses": [],
+            "completed_courses": [],
+            "quiz_scores": [],
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.student_profiles.insert_one(profile)
+        profile.pop('_id', None)
+    
+    if course_id in profile.get('enrolled_courses', []):
         return {"message": "Already enrolled", "already_enrolled": True}
     
     await db.student_profiles.update_one(
@@ -7696,51 +7934,11 @@ async def get_teacher_courses(current_user: dict = Depends(get_current_user)):
     
     return courses
 
-@api_router.delete("/courses/{course_id}")
-async def delete_course(course_id: str, current_user: dict = Depends(get_current_user)):
-    """Delete a course (teacher only)"""
-    if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
-        raise HTTPException(status_code=403, detail="Teacher access required")
-    
-    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
-    
-    if course.get('teacher_id') != current_user['id'] and current_user.get('role') != 'admin':
-        raise HTTPException(status_code=403, detail="You can only delete your own courses")
-    
-    # Delete course and related content
-    await db.courses.delete_one({"id": course_id})
-    await db.course_content.delete_many({"course_id": course_id})
-    
-    return {"message": "Course deleted successfully"}
+# NOTE: DELETE /courses/{course_id} is handled by courses_router with proper org_admin support
+# The duplicate endpoint was removed to avoid conflicts
 
-@api_router.put("/courses/{course_id}")
-async def update_course(
-    course_id: str,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-    status: Optional[str] = None,
-    current_user: dict = Depends(get_current_user)
-):
-    """Update course details"""
-    if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
-        raise HTTPException(status_code=403, detail="Teacher access required")
-    
-    update_data = {}
-    if name:
-        update_data['name'] = name
-    if description:
-        update_data['description'] = description
-    if status:
-        update_data['status'] = status
-    
-    if update_data:
-        update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
-        await db.courses.update_one({"id": course_id}, {"$set": update_data})
-    
-    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
-    return course
+# NOTE: PUT /courses/{course_id} is handled by courses_router with proper org_admin support
+# The duplicate endpoint was removed to avoid conflicts
 
 # ==================== TEACHER VIDEO UPLOAD ====================
 
@@ -10498,112 +10696,98 @@ async def org_bulk_enroll_participants(
     request: BulkEnrollmentRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Bulk enroll participants via email list with magic links"""
-    # Allow org_admin OR teachers to bulk enroll
+    """Bulk enroll participants into the organization with temp passwords and email notifications"""
     if current_user.get('role') not in ['org_admin', 'teacher', 'admin']:
         raise HTTPException(status_code=403, detail="Admin/Teacher access required")
     
-    # Enforce staff rights for org teachers
     if current_user.get('role') == 'teacher' and (current_user.get('org_id') or current_user.get('organization_id')):
         has_perm = await check_staff_permission(current_user, 'can_manage_participants')
         if not has_perm:
-            raise HTTPException(status_code=403, detail="You do not have permission to manage participants. Contact your organization admin.")
+            raise HTTPException(status_code=403, detail="You do not have permission to manage participants.")
     
     org_id = current_user.get('organization_id') or current_user.get('org_id')
-    
-    # Get organization info
     org = await db.organizations.find_one({"id": org_id}, {"_id": 0}) if org_id else None
     org_name = org.get('name', 'Organization') if org else 'Cognify'
+    org_slug = org.get('slug', '') if org else ''
     
-    # Get course info
-    course = await db.courses.find_one({"id": request.course_id}, {"_id": 0})
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
-    
-    course_name = course.get('title') or course.get('name', 'Course')
     frontend_url = os.environ.get('FRONTEND_URL', 'https://knowledge-sync-9.preview.emergentagent.com')
+    role = request.role if request.role in ['student', 'teacher'] else 'student'
     
     results = []
     for email in request.emails:
+        email_lower = email.strip().lower()
+        if not email_lower:
+            continue
         try:
-            # Check if already enrolled or has pending invitation
-            existing_enrollment = await db.magic_link_enrollments.find_one({
-                "email": email.lower(),
-                "course_id": request.course_id,
-                "status": "pending"
-            })
-            
-            if existing_enrollment:
-                results.append({
-                    "email": email,
-                    "success": False,
-                    "error": "Pending invitation already exists"
-                })
+            existing_user = await db.users.find_one({"email": email_lower}, {"_id": 0, "password_hash": 0})
+            if existing_user:
+                # Already exists - just associate with org if needed
+                if not existing_user.get('organization_id'):
+                    await db.users.update_one(
+                        {"email": email_lower},
+                        {"$set": {"organization_id": org_id, "org_status": "approved"}}
+                    )
+                results.append({"email": email_lower, "success": True, "status": "existing_user_linked"})
                 continue
             
-            # Check if user already exists and is enrolled
-            existing_user = await db.users.find_one({"email": email.lower()})
-            if existing_user:
-                # Check if already enrolled in course
-                profile = await db.student_profiles.find_one({"user_id": existing_user['id']})
-                if profile and request.course_id in profile.get('enrolled_courses', []):
-                    results.append({
-                        "email": email,
-                        "success": False,
-                        "error": "User already enrolled in course"
-                    })
-                    continue
+            # Generate temp password
+            import secrets
+            import string
+            temp_password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
+            hashed = hash_password(temp_password)
             
-            # Generate magic link token (72 hours expiry)
-            token = generate_reset_token(length=48)
-            expires_at = datetime.now(timezone.utc) + timedelta(hours=72)
+            user_id = str(uuid.uuid4())
+            new_user = {
+                "id": user_id,
+                "email": email_lower,
+                "full_name": email_lower.split('@')[0].replace('.', ' ').title(),
+                "password_hash": hashed,
+                "role": role,
+                "organization_id": org_id,
+                "org_status": "approved",
+                "is_active": True,
+                "must_change_password": True,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.users.insert_one(new_user)
+            new_user.pop('_id', None)
             
-            # Create enrollment record
-            enrollment = MagicLinkEnrollment(
-                email=email.lower(),
-                token=token,
-                org_id=org_id or "",
-                course_id=request.course_id,
-                course_name=course_name,
-                org_name=org_name,
-                expires_at=expires_at
-            )
+            # Create student profile if role is student
+            if role == 'student':
+                profile = {
+                    "user_id": user_id,
+                    "enrolled_courses": [],
+                    "completed_courses": [],
+                    "quiz_scores": [],
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }
+                await db.student_profiles.insert_one(profile)
             
-            enrollment_dict = enrollment.model_dump()
-            enrollment_dict['expires_at'] = enrollment_dict['expires_at'].isoformat()
-            enrollment_dict['created_at'] = enrollment_dict['created_at'].isoformat()
+            # Send welcome email with temp password
+            login_url = f"{frontend_url}/org/{org_slug}" if org_slug else f"{frontend_url}/login"
+            try:
+                from services.email_service import send_enrollment_confirmation_email
+                await send_enrollment_confirmation_email(
+                    to_email=email_lower,
+                    user_name=new_user['full_name'],
+                    org_name=org_name,
+                    role=role,
+                    temp_password=temp_password
+                )
+            except Exception as email_err:
+                logging.warning(f"Email send failed for {email_lower}: {email_err}")
             
-            await db.magic_link_enrollments.insert_one(enrollment_dict)
-            
-            # Generate magic link URL
-            magic_link = f"{frontend_url}/accept-invite?token={token}"
-            
-            # Send email
-            email_result = await send_magic_link_email(
-                to_email=email.lower(),
-                magic_link=magic_link,
-                org_name=org_name,
-                course_name=course_name,
-                expires_hours=72
-            )
-            
-            results.append({
-                "email": email,
-                "success": email_result.get('success', True),
-                "error": None if email_result.get('success') else email_result.get('message')
-            })
-            
+            results.append({"email": email_lower, "success": True, "status": "created", "temp_password": temp_password})
         except Exception as e:
-            results.append({
-                "email": email,
-                "success": False,
-                "error": str(e)
-            })
+            logging.error(f"Bulk enroll error for {email}: {e}")
+            results.append({"email": email_lower, "success": False, "error": str(e)})
     
+    successful = sum(1 for r in results if r.get('success'))
     return {
+        "message": f"Enrolled {successful}/{len(results)} participants into {org_name}",
         "results": results,
-        "total": len(request.emails),
-        "successful": len([r for r in results if r.get('success')])
+        "total": len(results),
+        "successful": successful
     }
 
 

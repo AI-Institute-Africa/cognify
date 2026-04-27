@@ -76,8 +76,8 @@ export default function OrgAdminDashboardPage() {
   const [showEnrollDialog, setShowEnrollDialog] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollmentData, setEnrollmentData] = useState({
-    courseId: '',
-    emails: ''
+    emails: '',
+    role: 'student'
   });
   
   // Staff Invitation
@@ -198,8 +198,8 @@ export default function OrgAdminDashboardPage() {
   };
 
   const handleBulkEnroll = async () => {
-    if (!enrollmentData.courseId || !enrollmentData.emails.trim()) {
-      toast.error('Please select a course and enter student emails');
+    if (!enrollmentData.emails.trim()) {
+      toast.error('Please enter participant emails');
       return;
     }
     
@@ -215,19 +215,20 @@ export default function OrgAdminDashboardPage() {
     
     setEnrolling(true);
     try {
-      const result = await bulkEnrollStudents(enrollmentData.courseId, emailList);
+      const result = await bulkEnrollStudents(emailList, enrollmentData.role || 'student');
       
-      toast.success(`Enrolled ${result.enrolled_count} students!`);
-      if (result.failed_emails?.length > 0) {
-        toast.warning(`${result.failed_emails.length} emails could not be enrolled`);
+      toast.success(result.message || `Enrolled ${result.successful} participants!`);
+      if (result.results?.some(r => !r.success)) {
+        const failed = result.results.filter(r => !r.success);
+        toast.warning(`${failed.length} emails could not be enrolled`);
       }
       
       setShowEnrollDialog(false);
-      setEnrollmentData({ courseId: '', emails: '' });
+      setEnrollmentData({ emails: '', role: 'student' });
       loadDashboardData();
     } catch (error) {
       console.error('Bulk enrollment failed:', error);
-      toast.error('Bulk enrollment failed');
+      toast.error(error.response?.data?.detail || 'Bulk enrollment failed');
     } finally {
       setEnrolling(false);
     }
@@ -559,44 +560,44 @@ export default function OrgAdminDashboardPage() {
                 <DialogTrigger asChild>
                   <Button variant="outline" className="border-white/10" data-testid="bulk-enroll-btn">
                     <UserPlus className="w-4 h-4 mr-2" />
-                    Bulk Enroll Students
+                    Bulk Enroll
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="bg-zinc-900 border-white/10">
                   <DialogHeader>
-                    <DialogTitle>Bulk Student Enrollment</DialogTitle>
+                    <DialogTitle>Bulk Enrollment</DialogTitle>
                     <DialogDescription className="text-zinc-500">
-                      Enroll multiple students in a course at once
+                      Enroll participants into your organization. They will receive an email with login credentials.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 mt-4">
                     <div>
-                      <Label>Select Course</Label>
+                      <Label>Role</Label>
                       <Select 
-                        value={enrollmentData.courseId}
-                        onValueChange={(v) => setEnrollmentData({...enrollmentData, courseId: v})}
+                        value={enrollmentData.role}
+                        onValueChange={(v) => setEnrollmentData({...enrollmentData, role: v})}
                       >
-                        <SelectTrigger className="bg-zinc-800 border-white/10 mt-1">
-                          <SelectValue placeholder="Choose a course" />
+                        <SelectTrigger className="bg-zinc-800 border-white/10 mt-1" data-testid="enroll-role-select">
+                          <SelectValue placeholder="Select role" />
                         </SelectTrigger>
                         <SelectContent className="bg-zinc-800 border-white/10">
-                          {/* Would need to fetch courses list */}
-                          <SelectItem value="course-1">Course 1</SelectItem>
+                          <SelectItem value="student">Student / Participant</SelectItem>
+                          <SelectItem value="teacher">Teacher / Staff</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     
                     <div>
-                      <Label>Student Emails</Label>
+                      <Label>Participant Emails</Label>
                       <Textarea
-                        placeholder="Enter student emails (one per line, or comma/semicolon separated)"
+                        placeholder="Enter emails (one per line, or comma/semicolon separated)"
                         value={enrollmentData.emails}
                         onChange={(e) => setEnrollmentData({...enrollmentData, emails: e.target.value})}
                         className="bg-zinc-800 border-white/10 mt-1 min-h-[120px]"
                         data-testid="bulk-emails-input"
                       />
                       <p className="text-xs text-zinc-500 mt-1">
-                        Example: student1@example.com, student2@example.com
+                        Each participant will get a temp password and can browse courses after login.
                       </p>
                     </div>
                     

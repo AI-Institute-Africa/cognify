@@ -704,9 +704,9 @@ export default function CoursesPage() {
                   )
                 )}
                 
-                {(user?.role === 'teacher' || user?.role === 'admin') && (
+                {(user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'org_admin') && (
                   <Button
-                    onClick={() => navigate(`/course/${course.id}`)}
+                    onClick={() => navigate(`/course-manage/${course.id}`)}
                     data-testid={`manage-course-btn-${course.id}`}
                     className="w-full mt-4 bg-violet-500/10 text-violet-400 hover:bg-violet-500 hover:text-white border border-violet-500/30 transition-all"
                   >

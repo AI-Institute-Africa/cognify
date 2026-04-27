@@ -66,6 +66,7 @@ import MultiSubjectLearningPage from './pages/MultiSubjectLearningPage';
 import ShareContentPage from './pages/ShareContentPage';
 import AITrainingEnginePage from './pages/AITrainingEnginePage';
 import CertificateGalleryPage from './pages/CertificateGalleryPage';
+import CourseManagePage from './pages/CourseManagePage';
 
 import './App.css';
 
@@ -437,6 +438,13 @@ function AppRoutes() {
       <Route path="/certificate-gallery/:userId" element={
         <ProtectedRoute>
           <CertificateGalleryPage />
+        </ProtectedRoute>
+      } />
+      
+      {/* Course Management */}
+      <Route path="/course-manage/:courseId" element={
+        <ProtectedRoute>
+          <CourseManagePage />
         </ProtectedRoute>
       } />
       
