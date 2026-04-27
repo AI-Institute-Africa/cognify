@@ -79,6 +79,7 @@ export default function OrgAdminDashboardPage() {
     emails: '',
     role: 'student'
   });
+  const [enrollmentResults, setEnrollmentResults] = useState(null);
   
   // Staff Invitation
   const [showInviteStaffDialog, setShowInviteStaffDialog] = useState(false);
@@ -218,12 +219,16 @@ export default function OrgAdminDashboardPage() {
       const result = await bulkEnrollStudents(emailList, enrollmentData.role || 'student');
       
       toast.success(result.message || `Enrolled ${result.successful} participants!`);
+      if (result.results?.some(r => r.temp_password)) {
+        setEnrollmentResults(result.results);
+      } else {
+        setShowEnrollDialog(false);
+      }
       if (result.results?.some(r => !r.success)) {
         const failed = result.results.filter(r => !r.success);
         toast.warning(`${failed.length} emails could not be enrolled`);
       }
       
-      setShowEnrollDialog(false);
       setEnrollmentData({ emails: '', role: 'student' });
       loadDashboardData();
     } catch (error) {
@@ -601,27 +606,47 @@ export default function OrgAdminDashboardPage() {
                       </p>
                     </div>
                     
+                    {/* Enrollment Results with Temp Passwords */}
+                    {enrollmentResults && (
+                      <div className="bg-zinc-800/50 rounded-lg p-4 max-h-[200px] overflow-y-auto" data-testid="enrollment-results">
+                        <p className="text-xs font-semibold text-emerald-400 mb-2">Enrollment Results — Save these credentials:</p>
+                        {enrollmentResults.filter(r => r.success).map((r, i) => (
+                          <div key={i} className="flex justify-between items-center text-xs py-1.5 border-b border-white/5">
+                            <span className="text-zinc-300">{r.email}</span>
+                            {r.temp_password && (
+                              <code className="bg-zinc-700 px-2 py-0.5 rounded text-amber-400 font-mono">{r.temp_password}</code>
+                            )}
+                            {r.status === 'existing_user_linked' && (
+                              <Badge className="bg-blue-500/20 text-blue-400 text-[10px]">Existing</Badge>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
                     <div className="flex justify-end gap-3 pt-4">
-                      <Button variant="ghost" onClick={() => setShowEnrollDialog(false)}>
-                        Cancel
+                      <Button variant="ghost" onClick={() => { setShowEnrollDialog(false); setEnrollmentResults(null); }}>
+                        {enrollmentResults ? 'Close' : 'Cancel'}
                       </Button>
-                      <Button 
-                        onClick={handleBulkEnroll}
-                        disabled={enrolling}
-                        data-testid="submit-bulk-enroll-btn"
-                      >
-                        {enrolling ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Enrolling...
-                          </>
-                        ) : (
-                          <>
-                            <UserPlus className="w-4 h-4 mr-2" />
-                            Enroll Students
-                          </>
-                        )}
-                      </Button>
+                      {!enrollmentResults && (
+                        <Button 
+                          onClick={handleBulkEnroll}
+                          disabled={enrolling}
+                          data-testid="submit-bulk-enroll-btn"
+                        >
+                          {enrolling ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Enrolling...
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="w-4 h-4 mr-2" />
+                              Enroll Participants
+                            </>
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </DialogContent>

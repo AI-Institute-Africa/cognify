@@ -194,19 +194,19 @@ function AppRoutes() {
       } />
       
       <Route path="/students" element={
-        <ProtectedRoute allowedRoles={['admin', 'teacher']}>
+        <ProtectedRoute allowedRoles={['admin', 'teacher', 'org_admin']}>
           <StudentsPage />
         </ProtectedRoute>
       } />
       
       <Route path="/lesson-planner" element={
-        <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+        <ProtectedRoute allowedRoles={['teacher', 'admin', 'org_admin']}>
           <LessonPlannerPage />
         </ProtectedRoute>
       } />
       
       <Route path="/teachers" element={
-        <ProtectedRoute allowedRoles={['admin']}>
+        <ProtectedRoute allowedRoles={['admin', 'org_admin']}>
           <TeachersPage />
         </ProtectedRoute>
       } />

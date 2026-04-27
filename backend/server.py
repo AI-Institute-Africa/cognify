@@ -2556,6 +2556,8 @@ async def generate_lessons_from_content(
     if not extracted_text.strip():
         raise HTTPException(status_code=400, detail="Could not extract text from the uploaded file")
     
+    import json as json_mod
+    import asyncio
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         import litellm
@@ -2584,20 +2586,18 @@ Create 3-8 lessons. Use REAL content from the document. Do not invent facts."""
         chat = LlmChat(api_key=api_key, session_id=f"lesson-gen-{uuid.uuid4()}", system_message=system_msg)
         chat.with_model("openai", "gpt-5.2")
         
-        import asyncio
         response = await asyncio.wait_for(
             chat.send_message(UserMessage(text=f"Create structured lessons from this document:\n\n{content_for_ai}")),
             timeout=55
         )
         
-        response_text = response.text.strip()
+        response_text = (response.text if hasattr(response, 'text') else str(response)).strip()
         if response_text.startswith("```"):
             response_text = response_text.split("```")[1]
             if response_text.startswith("json"):
                 response_text = response_text[4:]
         
-        import json
-        lessons_data = json.loads(response_text)
+        lessons_data = json_mod.loads(response_text)
         
         # Delete old lessons and store new ones
         await db.lessons.delete_many({"course_id": course_id})
@@ -2632,7 +2632,7 @@ Create 3-8 lessons. Use REAL content from the document. Do not invent facts."""
             "lessons": created_lessons,
             "total": len(created_lessons)
         }
-    except json.JSONDecodeError:
+    except json_mod.JSONDecodeError:
         raise HTTPException(status_code=500, detail="AI returned invalid lesson structure. Please try again.")
     except asyncio.TimeoutError:
         raise HTTPException(status_code=504, detail="Lesson generation timed out. Try a smaller document.")
@@ -3767,16 +3767,35 @@ async def get_students(current_user: dict = Depends(get_current_user)):
     if current_user['role'] not in ['admin', 'teacher', 'org_admin']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    query = {}
-    if current_user.get('organization_id'):
-        query['organization_id'] = current_user['organization_id']
+    org_id = current_user.get('organization_id')
     
-    students = await db.student_profiles.find(query, {"_id": 0}).to_list(1000)
-    for student in students:
-        user = await db.users.find_one({"id": student['user_id']}, {"_id": 0, "password_hash": 0})
-        if user:
-            student['user'] = serialize_doc(user)
-    return [serialize_doc(s) for s in students]
+    # Get users with student role in the organization
+    user_query = {"role": "student"}
+    if org_id:
+        user_query["organization_id"] = org_id
+    
+    users = await db.users.find(user_query, {"_id": 0, "password_hash": 0}).to_list(500)
+    
+    result = []
+    for u in users:
+        profile = await db.student_profiles.find_one({"user_id": u['id']}, {"_id": 0})
+        enrolled = profile.get('enrolled_courses', []) if profile else []
+        result.append({
+            "id": u.get('id'),
+            "user_id": u.get('id'),
+            "user": serialize_doc(u),
+            "student_id": u.get('id', '')[:8].upper(),
+            "full_name": u.get('full_name', ''),
+            "email": u.get('email', ''),
+            "grade_level": profile.get('grade_level', 'N/A') if profile else 'N/A',
+            "section": profile.get('section', '-') if profile else '-',
+            "gpa": profile.get('gpa', 0) if profile else 0,
+            "enrolled_courses": enrolled,
+            "org_status": u.get('org_status', 'approved'),
+            "created_at": u.get('created_at', '')
+        })
+    
+    return result
 
 @students_router.get("/at-risk")
 async def get_at_risk_students_route(current_user: dict = Depends(get_current_user)):
@@ -3848,16 +3867,42 @@ async def get_teachers(current_user: dict = Depends(get_current_user)):
     if current_user['role'] not in ['admin', 'org_admin']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    query = {}
-    if current_user.get('organization_id'):
-        query['organization_id'] = current_user['organization_id']
+    org_id = current_user.get('organization_id')
     
-    teachers = await db.teacher_profiles.find(query, {"_id": 0}).to_list(100)
-    for teacher in teachers:
-        user = await db.users.find_one({"id": teacher['user_id']}, {"_id": 0, "password_hash": 0})
-        if user:
-            teacher['user'] = serialize_doc(user)
-    return [serialize_doc(t) for t in teachers]
+    # Get users with teacher/org_admin role in the organization
+    user_query = {"role": {"$in": ["teacher", "org_admin"]}}
+    if org_id:
+        user_query["organization_id"] = org_id
+    
+    users = await db.users.find(user_query, {"_id": 0, "password_hash": 0}).to_list(200)
+    
+    result = []
+    for u in users:
+        # Get staff rights
+        rights = await db.staff_rights.find_one({"user_id": u['id'], "org_id": org_id}, {"_id": 0}) if org_id else None
+        # Count courses created
+        courses_count = await db.courses.count_documents({"$or": [{"created_by": u['id']}, {"teacher_id": u['id']}]})
+        
+        result.append({
+            "id": u.get('id'),
+            "user_id": u.get('id'),
+            "user": serialize_doc(u),
+            "full_name": u.get('full_name', ''),
+            "email": u.get('email', ''),
+            "role": u.get('role', 'teacher'),
+            "department": u.get('department', 'General'),
+            "courses_count": courses_count,
+            "rights": {
+                "can_create_courses": rights.get("can_create_courses", True) if rights else True,
+                "can_manage_participants": rights.get("can_manage_participants", False) if rights else False,
+                "can_upload_content": rights.get("can_upload_content", True) if rights else True,
+                "can_invite_participants": rights.get("can_invite_participants", False) if rights else False
+            },
+            "org_status": u.get('org_status', 'approved'),
+            "created_at": u.get('created_at', '')
+        })
+    
+    return result
 
 # Health check
 @api_router.get("/health")
