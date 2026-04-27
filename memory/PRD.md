@@ -3,70 +3,74 @@
 ## Overview
 AI-Powered School Management, Learning & Career Intelligence Platform
 
-**Version:** 6.0 (Iteration 33 Complete)
+**Version:** 7.0 (Iteration 34 Complete)
 **Date:** April 27, 2026
 
 ---
 
-## LATEST UPDATES - ITERATION 33
+## LATEST UPDATES - ITERATION 34
 
-### Course Enrollment Fix (BUG FIX)
-| Fix | Status |
-|-----|--------|
-| Org admin/teacher can now enroll in courses (was "Only students can enroll") | DONE |
-| Auto-creates student_profile for non-student roles when enrolling | DONE |
-| Teachers/org_admin bypass payment for courses they created | DONE |
+### Email Fix (BUG FIX)
+- SENDER_EMAIL changed from gmail.com to onboarding@resend.dev — emails now send successfully
+- Bulk enroll dialog shows temp passwords in results so admin can share manually
 
-### Bulk Enrollment Rewrite (BUG FIX + FEATURE)
-| Fix | Status |
-|-----|--------|
-| Bulk enroll no longer requires course_id | DONE |
-| Enrolls participants into ORGANIZATION with temp passwords | DONE |
-| Sends welcome email with temp password | DONE |
-| Role selector (student/teacher) in enrollment dialog | DONE |
-| Removed course selector from bulk enroll dialog | DONE |
+### Lesson Generation Fix (BUG FIX)
+- Fixed `UnboundLocalError: cannot access local variable 'json'` — moved import outside try block
+- Fixed `'str' object has no attribute 'text'` — added hasattr check on LLM response
+- AI now generates 3-8 real lessons with actual document content (200-400 words each)
 
-### Course Management (NEW)
-| Feature | Status |
-|---------|--------|
-| PUT /api/courses/{id} - edit course details | DONE |
-| DELETE /api/courses/{id} - delete course + lessons | DONE |
-| POST /api/courses/{id}/lessons - add lesson | DONE |
-| POST /api/courses/{id}/generate-lessons-from-content - AI lesson gen from docs | DONE |
-| CourseManagePage with edit/delete/upload UI | DONE |
-| "Manage Course" button for org_admin on courses page | DONE |
-
-### AI Lesson Generation from Documents (NEW)
-| Feature | Status |
-|---------|--------|
-| Upload PDF/DOCX/TXT to generate real lessons | DONE |
-| AI structures document into 3-8 lessons with actual content | DONE |
-| Lessons have title, description, content (200-400 words), key points | DONE |
-| Source filename tracked per lesson | DONE |
+### Participants & Staff Pages (REWRITTEN)
+- `/students` (Participants): Stats cards (Total, Active, With Courses, Pending) + table with name, email, status badges, courses, join date
+- `/teachers` (Staff): Stats cards (Total, Teachers, Admins, Courses) + table with name, role badges, course count, permission badges, join date
+- Fixed App.js route permissions — org_admin was missing from allowedRoles causing dashboard redirect
 
 ---
 
-## KEY API ENDPOINTS (New/Updated)
+## COMPLETED FEATURES (All Sessions)
+- Custom course creation with AI
+- AI Mentor with voice TTS
+- Knowledge Graph syncing & AI grading
+- Multi-subject learning
+- Voice input (global hook)
+- Cross-org data isolation
+- Org portal registration with admin approval
+- AI Training Intelligence Engine (Q&A, flashcards, exam generation)
+- Certificate generation, verification, PDF download, gallery
+- Staff rights enforcement (RBAC)
+- Publish assignments & exams from AI Q&A Generator
+- Avatar voice cloning (5-second recording)
+- Audio pause/stop controls
+- Course management (edit/delete/upload content)
+- Bulk enrollment into organization with temp passwords
+- AI lesson generation from uploaded documents
+- Org-specific Participants and Staff pages
+
+---
+
+## KEY API ENDPOINTS
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/courses/{id}/enroll` | POST | Enroll (all roles) |
-| `/api/courses/{id}` | PUT | Update course |
-| `/api/courses/{id}` | DELETE | Delete course |
-| `/api/courses/{id}/lessons` | POST | Add lesson |
 | `/api/courses/{id}/generate-lessons-from-content` | POST | AI lesson gen from doc |
+| `/api/courses/{id}` | PUT/DELETE | Edit/delete course |
 | `/api/org/bulk-enroll` | POST | Bulk enroll into org |
+| `/api/students` | GET | Org participants list |
+| `/api/teachers` | GET | Org staff list |
+| `/api/training-engine/publish-assignment` | POST | Publish Q&A as assignment |
+| `/api/training-engine/publish-exam` | POST | Publish exam |
+| `/api/avatar/upload-voice` | POST | Voice clone upload |
+| `/api/certificates/gallery/my` | GET | Certificate gallery |
 
 ---
 
-## REMAINING TASKS (Backlog)
+## REMAINING TASKS
 
 ### P1 - High Priority
-- [ ] Continue server.py refactoring (extract org, teacher, AI routes)
+- [ ] server.py refactoring (~12,400 lines)
 
 ### P2 - Medium Priority
-- [ ] Mobile responsiveness verification
-- [ ] Async background tasks for AI Course Generation
+- [ ] Mobile responsiveness
+- [ ] Async background tasks for AI generation
 
 ---
 
@@ -74,9 +78,9 @@ AI-Powered School Management, Learning & Career Intelligence Platform
 
 | Iteration | Result | Focus |
 |-----------|--------|-------|
-| 25-29 | ALL PASS | Core features, refactoring |
-| 30-31 | ALL PASS | Gallery, voice clone, publish |
-| 32 | ALL PASS | Publish visibility, voice placement |
-| 33 | 16/16 PASS | Enrollment fix, bulk enroll, course management |
+| 25-29 | ALL PASS | Core features |
+| 30-32 | ALL PASS | Gallery, voice, publish |
+| 33 | 16/16 PASS | Enrollment, course mgmt |
+| 34 | 15/15 PASS | Email, lessons, participants/staff pages |
 
 **Last Updated:** April 27, 2026
