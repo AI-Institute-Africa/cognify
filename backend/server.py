@@ -1543,17 +1543,57 @@ async def get_course_content_list(
     content_type: str = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get course contents"""
+    """Get course contents - merges course_contents and lessons collections"""
     query = {"course_id": course_id}
     if content_type:
         query["type"] = content_type
     
-    contents = await db.course_contents.find(query, {"_id": 0}).to_list(100)
+    contents = await db.course_contents.find(query, {"_id": 0}).to_list(200)
+    
+    # Also fetch lessons from the lessons collection and merge
+    lessons = await db.lessons.find({"course_id": course_id}, {"_id": 0}).sort("order", 1).to_list(100)
+    existing_ids = {c.get('id') for c in contents}
+    for lesson in lessons:
+        if lesson.get('id') not in existing_ids:
+            # Convert lesson to content format
+            contents.append({
+                "id": lesson.get('id'),
+                "course_id": course_id,
+                "type": "text",
+                "title": lesson.get('title', 'Lesson'),
+                "description": lesson.get('description', ''),
+                "text": lesson.get('content', ''),
+                "key_points": lesson.get('key_points', []),
+                "order": lesson.get('order', len(contents) + 1),
+                "duration": lesson.get('duration', '30 min'),
+                "source": lesson.get('source', ''),
+                "source_filename": lesson.get('source_filename', ''),
+                "created_at": lesson.get('created_at', '')
+            })
+    
+    # Also check embedded course lessons
+    if not contents:
+        course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+        if course and course.get('lessons'):
+            for i, cl in enumerate(course['lessons']):
+                contents.append({
+                    "id": cl.get('id', f"{course_id}-lesson-{i+1}"),
+                    "course_id": course_id,
+                    "type": "text",
+                    "title": cl.get('title', f'Lesson {i+1}'),
+                    "description": cl.get('description', ''),
+                    "text": cl.get('content', ''),
+                    "key_points": cl.get('key_points', []),
+                    "order": i + 1,
+                    "duration": cl.get('duration', '30 min')
+                })
+    
+    # Sort by order
+    contents.sort(key=lambda x: x.get('order', 999))
     
     # ENROLLMENT GATE: Check if student has access to paid course content
     course = await db.courses.find_one({"id": course_id}, {"_id": 0})
     if course and course.get('is_paid', False) and current_user.get('role') == 'student':
-        # Check if student has paid for this course
         enrollment = await db.enrollments.find_one({
             "course_id": course_id,
             "student_id": current_user['id'],
@@ -1561,7 +1601,6 @@ async def get_course_content_list(
         })
         
         if not enrollment:
-            # Return only preview content (first item) for unpaid courses
             preview_contents = [c for c in contents if c.get('order', 0) <= 1]
             return {
                 "contents": [serialize_doc(c) for c in preview_contents],
@@ -12268,6 +12307,116 @@ async def publish_as_exam(
     await db.exams.insert_one(exam)
     exam.pop('_id', None)
     return {"message": "Exam published", "exam_id": exam_id}
+
+
+@api_router.post("/courses/{course_id}/generate-assignment-from-lessons")
+async def generate_assignment_from_lessons(
+    course_id: str,
+    title: str = Body(None),
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate an assignment from course lessons using AI"""
+    if current_user.get('role') not in ['teacher', 'org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    # Get all lessons for this course
+    lessons = await db.lessons.find({"course_id": course_id}, {"_id": 0}).sort("order", 1).to_list(50)
+    
+    # Also check course_contents and embedded lessons
+    if not lessons:
+        contents = await db.course_contents.find({"course_id": course_id}, {"_id": 0}).to_list(50)
+        for c in contents:
+            lessons.append({"title": c.get("title", ""), "content": c.get("text", c.get("content", ""))})
+    
+    if not lessons and course.get('lessons'):
+        lessons = course['lessons']
+    
+    if not lessons:
+        raise HTTPException(status_code=400, detail="No lessons found for this course. Upload content first.")
+    
+    # Build lesson text for AI
+    lesson_text = ""
+    for i, l in enumerate(lessons):
+        lesson_text += f"Lesson {i+1}: {l.get('title', '')}\n{l.get('content', '')}\n\n"
+    
+    lesson_text = lesson_text[:8000]  # Limit context
+    
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        import litellm
+        litellm.num_retries = 0
+        litellm.request_timeout = 50
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        system_msg = """You are an educator creating assignments. Given lesson content, generate questions.
+Return ONLY valid JSON array:
+[
+  {"question": "question text", "type": "short_answer", "points": 5, "expected_answer": "brief answer"},
+  {"question": "question text", "type": "mcq", "points": 3, "options": ["A", "B", "C", "D"], "correct": "A"},
+  {"question": "question text", "type": "essay", "points": 10, "expected_answer": "key points to cover"}
+]
+Generate 8-12 questions. Mix types: 4 short_answer, 4 mcq, 2-4 essay. Base ALL questions on the actual lesson content."""
+        
+        chat = LlmChat(api_key=api_key, session_id=f"assign-gen-{uuid.uuid4()}", system_message=system_msg)
+        chat.with_model("openai", "gpt-5.2")
+        
+        import asyncio
+        response = await asyncio.wait_for(
+            chat.send_message(UserMessage(text=f"Generate assignment questions from these lessons:\n\n{lesson_text}")),
+            timeout=55
+        )
+        
+        response_text = (response.text if hasattr(response, 'text') else str(response)).strip()
+        if response_text.startswith("```"):
+            response_text = response_text.split("```")[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+        
+        import json as json_mod2
+        questions = json_mod2.loads(response_text)
+        
+        course_name = course.get('name') or course.get('title', 'Course')
+        assignment_title = title or f"{course_name} - Assignment"
+        total_points = sum(q.get('points', 5) for q in questions)
+        
+        assignment_id = str(uuid.uuid4())
+        assignment = {
+            "id": assignment_id,
+            "title": assignment_title,
+            "description": f"Auto-generated from {len(lessons)} course lessons. {len(questions)} questions.",
+            "course_id": course_id,
+            "course_name": course_name,
+            "type": "ai_generated",
+            "questions": questions,
+            "max_score": total_points,
+            "created_by": current_user['id'],
+            "organization_id": current_user.get('organization_id'),
+            "status": "published",
+            "auto_grade": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.assignments.insert_one(assignment)
+        assignment.pop('_id', None)
+        
+        return {
+            "message": f"Assignment generated with {len(questions)} questions ({total_points} points)",
+            "assignment_id": assignment_id,
+            "questions_count": len(questions),
+            "total_points": total_points
+        }
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Assignment generation timed out. Try again.")
+    except Exception as e:
+        logging.error(f"Assignment generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate assignment: {str(e)}")
+
 
 
 # ==================== VOICE CLONE FOR AVATAR ====================

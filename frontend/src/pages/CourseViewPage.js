@@ -960,6 +960,20 @@ export default function CourseViewPage() {
                           return line ? <p key={i} className="my-2">{line}</p> : <br key={i} />;
                         })}
                       </div>
+                      {/* Key Points from generated lessons */}
+                      {currentLesson?.key_points && currentLesson.key_points.length > 0 && (
+                        <div className="mt-6 p-4 rounded-xl bg-violet-500/10 border border-violet-500/20">
+                          <h3 className="text-sm font-semibold text-violet-400 mb-2">Key Points</h3>
+                          <ul className="space-y-1.5">
+                            {currentLesson.key_points.map((kp, i) => (
+                              <li key={i} className="text-sm text-zinc-300 flex items-start gap-2">
+                                <CheckCircle className="w-4 h-4 text-violet-400 mt-0.5 shrink-0" />
+                                {kp}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   </TabsContent>
 

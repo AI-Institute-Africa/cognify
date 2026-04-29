@@ -33,6 +33,7 @@ export default function CourseManagePage() {
   const [editMode, setEditMode] = useState(false);
   const [expandedLesson, setExpandedLesson] = useState(null);
   const [editForm, setEditForm] = useState({});
+  const [generatingAssignment, setGeneratingAssignment] = useState(false);
 
   useEffect(() => { loadCourse(); }, [courseId]);
 
@@ -83,6 +84,27 @@ export default function CourseManagePage() {
       toast.error(err.response?.data?.detail || 'Failed to delete course');
     }
   };
+
+  const handleGenerateAssignment = async () => {
+    if (lessons.length === 0) {
+      toast.error('No lessons available. Upload content first.');
+      return;
+    }
+    setGeneratingAssignment(true);
+    try {
+      const { data } = await axios.post(
+        `${API}/api/courses/${courseId}/generate-assignment-from-lessons`,
+        { title: `${course?.title || course?.name} - Assignment` },
+        { headers: getAuth(), timeout: 90000 }
+      );
+      toast.success(data.message || 'Assignment generated!');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to generate assignment');
+    } finally {
+      setGeneratingAssignment(false);
+    }
+  };
+
 
   const handleUploadContent = async (file) => {
     if (!file) return;
@@ -233,6 +255,20 @@ export default function CourseManagePage() {
               <BookOpen className="w-5 h-5 text-violet-400" />
               Lessons ({lessons.length})
             </h3>
+            {lessons.length > 0 && (
+              <Button
+                onClick={handleGenerateAssignment}
+                disabled={generatingAssignment}
+                className="bg-emerald-600 hover:bg-emerald-700"
+                data-testid="generate-assignment-btn"
+              >
+                {generatingAssignment ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating...</>
+                ) : (
+                  <><Plus className="w-4 h-4 mr-2" /> Generate Assignment from Lessons</>
+                )}
+              </Button>
+            )}
           </div>
 
           {lessons.length === 0 ? (
