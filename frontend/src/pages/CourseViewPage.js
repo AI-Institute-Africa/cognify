@@ -112,6 +112,9 @@ export default function CourseViewPage() {
   const [generatingContent, setGeneratingContent] = useState(false);
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [generateType, setGenerateType] = useState('video');
+  const [generatingVideo, setGeneratingVideo] = useState(false);
+  const [generatingSlides, setGeneratingSlides] = useState(false);
+  const [avatarVideoId, setAvatarVideoId] = useState(null);
   
   // Popup quiz state
   const [showQuiz, setShowQuiz] = useState(false);
@@ -1003,8 +1006,8 @@ export default function CourseViewPage() {
                         <div className="text-center">
                           <Video className="w-16 h-16 text-zinc-600 mx-auto mb-4" />
                           <p className="text-zinc-500 mb-4">No video uploaded for this lesson</p>
-                          {isTeacher ? (
-                            <div className="flex gap-3 justify-center">
+                          <div className="flex gap-3 justify-center flex-wrap">
+                            {isTeacher && (
                               <Button 
                                 onClick={() => setShowUploadDialog(true)}
                                 className="bg-blue-500 hover:bg-blue-600"
@@ -1012,23 +1015,66 @@ export default function CourseViewPage() {
                                 <Upload className="w-4 h-4 mr-2" />
                                 Upload Video
                               </Button>
-                              <Button 
-                                onClick={() => {
-                                  setGenerateType('video');
-                                  setShowGenerateDialog(true);
-                                }}
-                                variant="outline"
-                                className="border-violet-500/30 text-violet-400"
-                                data-testid="generate-video-btn"
-                              >
-                                <Wand2 className="w-4 h-4 mr-2" />
-                                AI Generate Video
+                            )}
+                            <Button 
+                              onClick={async () => {
+                                setGeneratingVideo(true);
+                                try {
+                                  const token = localStorage.getItem('cognify_token');
+                                  const resp = await fetch(`${API}/api/avatar-orchestrator/generate-video`, {
+                                    method: 'POST',
+                                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      course_id: courseId,
+                                      lesson_content: currentLesson?.text || displayText,
+                                      lesson_title: currentLesson?.title || course?.name,
+                                      user_level: 'intermediate',
+                                      language: selectedLanguage
+                                    })
+                                  });
+                                  const data = await resp.json();
+                                  if (data.video_id) {
+                                    toast.success('Avatar video is being generated! Check back in 1-2 minutes.');
+                                    setAvatarVideoId(data.video_id);
+                                  } else {
+                                    toast.error(data.detail || 'Failed to generate video');
+                                  }
+                                } catch (e) {
+                                  toast.error('Failed to start video generation');
+                                } finally {
+                                  setGeneratingVideo(false);
+                                }
+                              }}
+                              disabled={generatingVideo}
+                              className="bg-violet-500 hover:bg-violet-600"
+                              data-testid="generate-avatar-video-btn"
+                            >
+                              {generatingVideo ? (
+                                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating...</>
+                              ) : (
+                                <><Wand2 className="w-4 h-4 mr-2" /> Generate Avatar Video</>
+                              )}
+                            </Button>
+                          </div>
+                          {avatarVideoId && (
+                            <div className="mt-4 p-3 bg-violet-500/10 rounded-lg border border-violet-500/20">
+                              <p className="text-sm text-violet-400">Video ID: {avatarVideoId}</p>
+                              <Button size="sm" variant="ghost" className="mt-1 text-violet-400" onClick={async () => {
+                                const token = localStorage.getItem('cognify_token');
+                                const resp = await fetch(`${API}/api/avatar-orchestrator/video-status/${avatarVideoId}`, {
+                                  headers: { 'Authorization': `Bearer ${token}` }
+                                });
+                                const data = await resp.json();
+                                if (data.video_url) {
+                                  window.open(data.video_url, '_blank');
+                                  toast.success('Video ready!');
+                                } else {
+                                  toast.info(`Status: ${data.status}. Video is still processing.`);
+                                }
+                              }} data-testid="check-video-status-btn">
+                                Check Status
                               </Button>
                             </div>
-                          ) : (
-                            <p className="text-sm text-zinc-600">
-                              Video will be available once uploaded by teacher
-                            </p>
                           )}
                         </div>
                       </div>
@@ -1129,8 +1175,8 @@ export default function CourseViewPage() {
                             <p className="text-zinc-400 text-lg mb-6">
                               {currentLesson?.description || displayText.substring(0, 200)}
                             </p>
-                            {isTeacher && (
-                              <div className="flex gap-3 justify-center">
+                            <div className="flex gap-3 justify-center flex-wrap">
+                              {isTeacher && (
                                 <Button 
                                   onClick={() => {
                                     setNewContent({ ...newContent, type: 'image' });
@@ -1141,20 +1187,47 @@ export default function CourseViewPage() {
                                   <Upload className="w-4 h-4 mr-2" />
                                   Upload Slides
                                 </Button>
-                                <Button 
-                                  onClick={() => {
-                                    setGenerateType('slides');
-                                    setShowGenerateDialog(true);
-                                  }}
-                                  variant="outline"
-                                  className="border-cyan-500/30 text-cyan-400"
-                                  data-testid="generate-slides-btn"
-                                >
-                                  <Wand2 className="w-4 h-4 mr-2" />
-                                  AI Generate Slides
-                                </Button>
-                              </div>
-                            )}
+                              )}
+                              <Button 
+                                onClick={async () => {
+                                  setGeneratingSlides(true);
+                                  try {
+                                    const token = localStorage.getItem('cognify_token');
+                                    const resp = await fetch(`${API}/api/avatar-orchestrator/generate-slides`, {
+                                      method: 'POST',
+                                      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        lesson_content: currentLesson?.text || displayText,
+                                        lesson_title: currentLesson?.title || course?.name
+                                      })
+                                    });
+                                    const data = await resp.json();
+                                    if (data.slides) {
+                                      // Update the current lesson with generated slides
+                                      const updated = [...content];
+                                      updated[currentLessonIndex] = { ...updated[currentLessonIndex], slides: data.slides };
+                                      setContent(updated);
+                                      toast.success(`Generated ${data.slides.length} slides!`);
+                                    } else {
+                                      toast.error(data.detail || 'Failed to generate slides');
+                                    }
+                                  } catch (e) {
+                                    toast.error('Failed to generate slides');
+                                  } finally {
+                                    setGeneratingSlides(false);
+                                  }
+                                }}
+                                disabled={generatingSlides}
+                                className="bg-cyan-600 hover:bg-cyan-700"
+                                data-testid="auto-generate-slides-btn"
+                              >
+                                {generatingSlides ? (
+                                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating Slides...</>
+                                ) : (
+                                  <><Wand2 className="w-4 h-4 mr-2" /> AI Generate Slides</>
+                                )}
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       )}

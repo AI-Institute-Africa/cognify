@@ -8377,11 +8377,15 @@ async def link_child(child_email: str, current_user: dict = Depends(get_current_
 
 @api_router.post("/research/search")
 async def live_research_search(
-    query: str,
+    request: Request,
     current_user: dict = Depends(get_current_user)
 ):
     """Search for real academic publications using web search"""
     try:
+        body = await request.json()
+        query = body.get('query', '')
+        if not query:
+            raise HTTPException(status_code=400, detail="Query is required")
         api_key = os.environ.get('EMERGENT_LLM_KEY')
         if not api_key:
             raise HTTPException(status_code=500, detail="Search service not configured")
@@ -8450,6 +8454,8 @@ async def live_research_search(
             "search_timestamp": datetime.now(timezone.utc).isoformat()
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Research search error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -12514,7 +12520,9 @@ async def text_to_speech_with_clone(
 
 # Include all routers - MUST be after all route definitions
 from routes.certificates import certificates_api_router
+from routes.avatar_orchestrator import avatar_router
 api_router.include_router(certificates_api_router)
+api_router.include_router(avatar_router)
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
 api_router.include_router(students_router)
