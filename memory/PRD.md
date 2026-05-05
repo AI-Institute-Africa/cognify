@@ -1,86 +1,54 @@
 # Cognify - Product Requirements Document
 
 ## Overview
-AI-Powered School Management, Learning & Career Intelligence Platform
+AI-Powered School Management, Learning & Career Intelligence Platform with HeyGen Avatar Integration
 
-**Version:** 7.0 (Iteration 34 Complete)
-**Date:** April 27, 2026
-
----
-
-## LATEST UPDATES - ITERATION 34
-
-### Email Fix (BUG FIX)
-- SENDER_EMAIL changed from gmail.com to onboarding@resend.dev — emails now send successfully
-- Bulk enroll dialog shows temp passwords in results so admin can share manually
-
-### Lesson Generation Fix (BUG FIX)
-- Fixed `UnboundLocalError: cannot access local variable 'json'` — moved import outside try block
-- Fixed `'str' object has no attribute 'text'` — added hasattr check on LLM response
-- AI now generates 3-8 real lessons with actual document content (200-400 words each)
-
-### Participants & Staff Pages (REWRITTEN)
-- `/students` (Participants): Stats cards (Total, Active, With Courses, Pending) + table with name, email, status badges, courses, join date
-- `/teachers` (Staff): Stats cards (Total, Teachers, Admins, Courses) + table with name, role badges, course count, permission badges, join date
-- Fixed App.js route permissions — org_admin was missing from allowedRoles causing dashboard redirect
+**Version:** 8.0 (Iteration 36 Complete)
+**Date:** May 5, 2026
 
 ---
 
-## COMPLETED FEATURES (All Sessions)
-- Custom course creation with AI
-- AI Mentor with voice TTS
-- Knowledge Graph syncing & AI grading
-- Multi-subject learning
-- Voice input (global hook)
-- Cross-org data isolation
-- Org portal registration with admin approval
-- AI Training Intelligence Engine (Q&A, flashcards, exam generation)
-- Certificate generation, verification, PDF download, gallery
-- Staff rights enforcement (RBAC)
-- Publish assignments & exams from AI Q&A Generator
-- Avatar voice cloning (5-second recording)
-- Audio pause/stop controls
-- Course management (edit/delete/upload content)
-- Bulk enrollment into organization with temp passwords
-- AI lesson generation from uploaded documents
-- Org-specific Participants and Staff pages
+## LATEST - ITERATION 36: Avatar Learning Orchestrator
+
+### Avatar Orchestrator (HeyGen Integration) - NEW
+| Feature | Endpoint | Status |
+|---------|----------|--------|
+| Get HeyGen avatars (1281 available) | GET /api/avatar-orchestrator/avatars | DONE |
+| Get HeyGen voices (2386 available) | GET /api/avatar-orchestrator/voices | DONE |
+| Generate avatar teaching video | POST /api/avatar-orchestrator/generate-video | DONE |
+| Check video status | GET /api/avatar-orchestrator/video-status/{id} | DONE |
+| Interactive tutor Q&A | POST /api/avatar-orchestrator/interactive-tutor | DONE |
+| Translate teaching script | POST /api/avatar-orchestrator/translate-script | DONE |
+| Generate assessment/quiz | POST /api/avatar-orchestrator/generate-assessment | DONE |
+| Adaptive difficulty rewrite | POST /api/avatar-orchestrator/adaptive-rewrite | DONE |
+| Generate slides from lessons | POST /api/avatar-orchestrator/generate-slides | DONE |
+
+### Bug Fixes
+| Fix | Status |
+|-----|--------|
+| Live Research search (query param → JSON body) | DONE |
+| Video/Slides generation available to ALL users (not just teachers) | DONE |
+| Key Points display in CourseViewPage for generated lessons | DONE |
 
 ---
 
-## KEY API ENDPOINTS
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/courses/{id}/generate-lessons-from-content` | POST | AI lesson gen from doc |
-| `/api/courses/{id}` | PUT/DELETE | Edit/delete course |
-| `/api/org/bulk-enroll` | POST | Bulk enroll into org |
-| `/api/students` | GET | Org participants list |
-| `/api/teachers` | GET | Org staff list |
-| `/api/training-engine/publish-assignment` | POST | Publish Q&A as assignment |
-| `/api/training-engine/publish-exam` | POST | Publish exam |
-| `/api/avatar/upload-voice` | POST | Voice clone upload |
-| `/api/certificates/gallery/my` | GET | Certificate gallery |
-
----
-
-## REMAINING TASKS
-
-### P1 - High Priority
-- [ ] server.py refactoring (~12,400 lines)
-
-### P2 - Medium Priority
-- [ ] Mobile responsiveness
-- [ ] Async background tasks for AI generation
-
----
+## ARCHITECTURE
+```
+/app/backend/
+├── server.py (~12,500 lines)
+├── routes/
+│   ├── certificates.py
+│   └── avatar_orchestrator.py   # NEW: HeyGen + AI pipeline
+├── services/
+│   └── email_service.py
+```
 
 ## TEST REPORTS
-
 | Iteration | Result | Focus |
 |-----------|--------|-------|
-| 25-29 | ALL PASS | Core features |
-| 30-32 | ALL PASS | Gallery, voice, publish |
-| 33 | 16/16 PASS | Enrollment, course mgmt |
-| 34 | 15/15 PASS | Email, lessons, participants/staff pages |
+| 33 | 16/16 | Enrollment, course mgmt |
+| 34 | 15/15 | Email, participants/staff pages |
+| 35 | 13/13 | Lesson generation, content merge |
+| 36 | 31/31 | Avatar orchestrator, HeyGen, research fix |
 
-**Last Updated:** April 27, 2026
+**Last Updated:** May 5, 2026
