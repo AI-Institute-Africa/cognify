@@ -100,6 +100,18 @@ webpackConfig.devServer = (devServerConfig) => {
     };
   }
 
+  // Proxy API traffic to the backend server during development and preview.
+  devServerConfig.proxy = {
+    '/api': {
+      target: 'http://localhost:3001',
+      changeOrigin: true,
+      secure: false,
+      ws: true,
+      // Rewrite path if needed; keep /api prefix for backend routing.
+      pathRewrite: { '^/api': '/api' }
+    }
+  };
+
   return devServerConfig;
 };
 

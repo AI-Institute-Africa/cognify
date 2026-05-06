@@ -67,6 +67,7 @@ import ShareContentPage from './pages/ShareContentPage';
 import AITrainingEnginePage from './pages/AITrainingEnginePage';
 import CertificateGalleryPage from './pages/CertificateGalleryPage';
 import CourseManagePage from './pages/CourseManagePage';
+import PremadeCoursesPage from './pages/PremadeCoursesPage';
 
 import './App.css';
 
@@ -445,6 +446,13 @@ function AppRoutes() {
       <Route path="/course-manage/:courseId" element={
         <ProtectedRoute>
           <CourseManagePage />
+        </ProtectedRoute>
+      } />
+      
+      {/* Premade Courses */}
+      <Route path="/premade-courses" element={
+        <ProtectedRoute>
+          <PremadeCoursesPage />
         </ProtectedRoute>
       } />
       

@@ -12564,6 +12564,151 @@ async def text_to_speech_with_clone(
         raise HTTPException(status_code=500, detail=f"TTS generation failed: {str(e)}")
 
 
+# ==================== PREMADE COURSES (Document Library) ====================
+
+@api_router.post("/premade-courses/upload")
+async def upload_premade_course(
+    file: UploadFile = File(...),
+    title: str = Form(...),
+    description: str = Form(""),
+    category: str = Form("general"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload a document to the Premade Courses library"""
+    if current_user['role'] not in ['student', 'teacher', 'org_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    content = await file.read()
+    if len(content) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Max 50MB.")
+    
+    # Extract text for preview
+    extracted_text = ""
+    filename = file.filename.lower()
+    if filename.endswith('.txt'):
+        extracted_text = content.decode('utf-8', errors='ignore')[:2000]
+    elif filename.endswith('.pdf'):
+        try:
+            import tempfile
+            from PyPDF2 import PdfReader
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+                tmp.write(content)
+                tmp_path = tmp.name
+            reader = PdfReader(tmp_path)
+            for page in reader.pages[:5]:
+                t = page.extract_text()
+                if t:
+                    extracted_text += t + "\n"
+            extracted_text = extracted_text[:2000]
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+    elif filename.endswith(('.docx', '.doc')):
+        try:
+            import tempfile, docx
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp:
+                tmp.write(content)
+                tmp_path = tmp.name
+            doc_file = docx.Document(tmp_path)
+            for para in doc_file.paragraphs[:50]:
+                extracted_text += para.text + "\n"
+            extracted_text = extracted_text[:2000]
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+    
+    doc_id = str(uuid.uuid4())
+    document = {
+        "id": doc_id,
+        "title": title,
+        "description": description,
+        "category": category,
+        "filename": file.filename,
+        "content_type": file.content_type,
+        "file_size": len(content),
+        "file_data": base64.b64encode(content).decode(),
+        "preview_text": extracted_text[:500],
+        "uploaded_by": current_user['id'],
+        "uploader_name": current_user.get('full_name', 'Unknown'),
+        "organization_id": current_user.get('organization_id'),
+        "is_public": True,
+        "download_count": 0,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.premade_courses.insert_one(document)
+    document.pop('_id', None)
+    document.pop('file_data', None)
+    
+    return {"message": "Document uploaded successfully", "document": document}
+
+
+@api_router.get("/premade-courses")
+async def get_premade_courses(
+    category: str = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all premade course documents"""
+    query = {}
+    org_id = current_user.get('organization_id')
+    if org_id:
+        query["$or"] = [{"organization_id": org_id}, {"is_public": True}, {"organization_id": None}]
+    
+    if category and category != 'all':
+        query["category"] = category
+    
+    docs = await db.premade_courses.find(
+        query,
+        {"_id": 0, "file_data": 0}
+    ).sort("created_at", -1).to_list(length=200)
+    
+    return {"documents": docs, "total": len(docs)}
+
+
+@api_router.get("/premade-courses/{doc_id}")
+async def get_premade_course(doc_id: str, current_user: dict = Depends(get_current_user)):
+    """Get a single premade course document (without file data)"""
+    doc = await db.premade_courses.find_one({"id": doc_id}, {"_id": 0, "file_data": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return doc
+
+
+@api_router.get("/premade-courses/{doc_id}/download")
+async def download_premade_course(doc_id: str, current_user: dict = Depends(get_current_user)):
+    """Download a premade course document"""
+    doc = await db.premade_courses.find_one({"id": doc_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    await db.premade_courses.update_one(
+        {"id": doc_id},
+        {"$inc": {"download_count": 1}}
+    )
+    
+    file_data = base64.b64decode(doc['file_data'])
+    
+    return StreamingResponse(
+        io.BytesIO(file_data),
+        media_type=doc.get('content_type', 'application/octet-stream'),
+        headers={"Content-Disposition": f"attachment; filename={doc.get('filename', 'document')}"}
+    )
+
+
+@api_router.delete("/premade-courses/{doc_id}")
+async def delete_premade_course(doc_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a premade course document"""
+    doc = await db.premade_courses.find_one({"id": doc_id}, {"_id": 0, "file_data": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    if doc.get('uploaded_by') != current_user['id'] and current_user['role'] not in ['admin', 'org_admin']:
+        raise HTTPException(status_code=403, detail="Only uploader or admin can delete")
+    
+    await db.premade_courses.delete_one({"id": doc_id})
+    return {"message": "Document deleted"}
+
+
+
 # Include all routers - MUST be after all route definitions
 from routes.certificates import certificates_api_router
 from routes.avatar_orchestrator import avatar_router

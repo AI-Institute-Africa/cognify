@@ -79,6 +79,7 @@ const navItems = {
     { divider: true, label: 'Share & Collaborate' },
     { path: '/share-content', icon: Share2, label: 'Share Content' },
     { path: '/certificate-gallery', icon: Award, label: 'Certificate Gallery' },
+    { path: '/premade-courses', icon: FolderOpen, label: 'Premade Courses' },
     { path: '/virtual-classroom', icon: Video, labelKey: 'virtualClassroom' },
     { path: '/live-research', icon: Search, labelKey: 'liveResearch' },
     { path: '/career', icon: Sparkles, labelKey: 'careerGuidance' },

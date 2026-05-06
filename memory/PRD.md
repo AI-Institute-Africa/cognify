@@ -3,52 +3,48 @@
 ## Overview
 AI-Powered School Management, Learning & Career Intelligence Platform with HeyGen Avatar Integration
 
-**Version:** 8.0 (Iteration 36 Complete)
-**Date:** May 5, 2026
+**Version:** 9.0 (Iteration 38 Complete)
+**Date:** May 6, 2026
 
 ---
 
-## LATEST - ITERATION 36: Avatar Learning Orchestrator
+## LATEST - ITERATION 38
 
-### Avatar Orchestrator (HeyGen Integration) - NEW
-| Feature | Endpoint | Status |
-|---------|----------|--------|
-| Get HeyGen avatars (1281 available) | GET /api/avatar-orchestrator/avatars | DONE |
-| Get HeyGen voices (2386 available) | GET /api/avatar-orchestrator/voices | DONE |
-| Generate avatar teaching video | POST /api/avatar-orchestrator/generate-video | DONE |
-| Check video status | GET /api/avatar-orchestrator/video-status/{id} | DONE |
-| Interactive tutor Q&A | POST /api/avatar-orchestrator/interactive-tutor | DONE |
-| Translate teaching script | POST /api/avatar-orchestrator/translate-script | DONE |
-| Generate assessment/quiz | POST /api/avatar-orchestrator/generate-assessment | DONE |
-| Adaptive difficulty rewrite | POST /api/avatar-orchestrator/adaptive-rewrite | DONE |
-| Generate slides from lessons | POST /api/avatar-orchestrator/generate-slides | DONE |
+### Critical Fix: Backend Crash (Import Error)
+- All `from .services.*` relative imports in server.py caused `ImportError: attempted relative import with no known parent package`
+- Fixed ALL relative imports across server.py, routes/, database.py, auth_utils.py to use absolute imports
+- Backend was completely down — now restored
 
-### Bug Fixes
+### Premade Courses (Document Library) - NEW
+| Feature | Status |
+|---------|--------|
+| Upload documents (PDF, DOCX, TXT, PPTX) up to 50MB | DONE |
+| Browse documents with search and category filter | DONE |
+| Download documents with counter | DONE |
+| Preview document content (extracted text) | DONE |
+| Delete by uploader or admin | DONE |
+| Sidebar link for all roles | DONE |
+| Category system (Science, Math, Tech, Business, etc.) | DONE |
+
+### Bug Fixes (Production Issues)
 | Fix | Status |
 |-----|--------|
-| Live Research search (query param → JSON body) | DONE |
-| Video/Slides generation available to ALL users (not just teachers) | DONE |
-| Key Points display in CourseViewPage for generated lessons | DONE |
+| Backend import crash (relative imports) | DONE |
+| Avatar video default avatar ID not in user's HeyGen account | DONE |
+| Research search frontend sending query as URL param instead of JSON body | DONE |
+| Teacher messaging endpoint restricted to teacher/admin (missing org_admin) | DONE |
+| Share content using fetch instead of axios, wrong endpoint | DONE |
+| Certificates share endpoint using wrong collection | DONE |
+| Teacher messaging route missing org_admin in allowedRoles | DONE |
 
 ---
-
-## ARCHITECTURE
-```
-/app/backend/
-├── server.py (~12,500 lines)
-├── routes/
-│   ├── certificates.py
-│   └── avatar_orchestrator.py   # NEW: HeyGen + AI pipeline
-├── services/
-│   └── email_service.py
-```
 
 ## TEST REPORTS
 | Iteration | Result | Focus |
 |-----------|--------|-------|
-| 33 | 16/16 | Enrollment, course mgmt |
-| 34 | 15/15 | Email, participants/staff pages |
-| 35 | 13/13 | Lesson generation, content merge |
-| 36 | 31/31 | Avatar orchestrator, HeyGen, research fix |
+| 33-34 | ALL PASS | Enrollment, course mgmt, participants |
+| 35-36 | ALL PASS | Lessons, avatar orchestrator |
+| 37 | 16/16 | Bug fixes (HeyGen, research, messaging, share) |
+| 38 | Manual | Import fix, premade courses |
 
-**Last Updated:** May 5, 2026
+**Last Updated:** May 6, 2026
