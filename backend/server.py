@@ -8794,27 +8794,44 @@ async def get_teacher_students_by_course(current_user: dict = Depends(get_curren
 @api_router.get("/teacher/students")
 async def get_all_teacher_students(current_user: dict = Depends(get_current_user)):
     """Get all unique students enrolled in the teacher's courses (flat list for messaging)"""
-    if current_user.get('role') not in ['teacher', 'admin']:
+    if current_user.get('role') not in ['teacher', 'admin', 'org_admin']:
         raise HTTPException(status_code=403, detail="Teacher access required")
     
     teacher_id = current_user['id']
+    org_id = current_user.get('organization_id')
     
-    # Get all courses by this teacher
-    courses = await db.courses.find({"created_by": teacher_id}, {"_id": 0}).to_list(length=100)
+    # Get courses by this teacher/admin
+    course_query = {"$or": [{"created_by": teacher_id}, {"teacher_id": teacher_id}]}
+    if org_id and current_user['role'] == 'org_admin':
+        course_query = {"$or": [{"created_by": teacher_id}, {"organization_id": org_id}]}
+    
+    courses = await db.courses.find(course_query, {"_id": 0}).to_list(length=200)
     course_ids = [c['id'] for c in courses]
     
-    # Get unique students enrolled in any of these courses
-    enrolled_profiles = await db.student_profiles.find(
-        {"enrolled_courses": {"$in": course_ids}},
-        {"_id": 0}
-    ).to_list(length=500)
+    # Get students enrolled in any course or in the org
+    student_query = {}
+    if course_ids:
+        student_query = {"enrolled_courses": {"$in": course_ids}}
     
-    # Get unique student user IDs
+    enrolled_profiles = await db.student_profiles.find(
+        student_query, {"_id": 0}
+    ).to_list(length=500) if course_ids else []
+    
     student_ids = list(set([p['user_id'] for p in enrolled_profiles]))
     
+    # Also include org students for org_admin
+    if org_id:
+        org_users = await db.users.find(
+            {"organization_id": org_id, "role": "student"},
+            {"_id": 0, "password_hash": 0}
+        ).to_list(length=500)
+        for u in org_users:
+            if u['id'] not in student_ids:
+                student_ids.append(u['id'])
+    
     students = []
-    for student_id in student_ids:
-        user = await db.users.find_one({"id": student_id}, {"_id": 0, "password_hash": 0})
+    for sid in student_ids:
+        user = await db.users.find_one({"id": sid}, {"_id": 0, "password_hash": 0})
         if user:
             students.append({
                 "id": user['id'],
@@ -11864,16 +11881,17 @@ async def get_available_content_to_share(
     
     elif content_type == 'certificate':
         # Get issued certificates
-        certs = await db.issued_credentials.find(
-            {"user_id": current_user['id']},
+        certs = await db.certificates.find(
+            {"student_id": current_user['id']},
             {"_id": 0}
         ).to_list(length=50)
         for cert in certs:
             content.append({
-                "id": cert['id'],
-                "title": cert.get('title', 'Certificate'),
-                "name": cert.get('title'),
-                "date": cert.get('issued_at')
+                "id": cert.get('id'),
+                "title": f"Certificate: {cert.get('course_name', 'Course')}",
+                "name": cert.get('course_name'),
+                "date": cert.get('issued_at'),
+                "verification_code": cert.get('verification_code')
             })
     
     elif content_type == 'achievement':
@@ -12123,6 +12141,34 @@ async def get_shareable_content(current_user: dict = Depends(get_current_user)):
             "description": a.get('description', ''),
             "created_at": a.get('earned_at')
         })
+    
+    # Certificates
+    certificates = await db.certificates.find(
+        {"student_id": current_user['id']},
+        {"_id": 0}
+    ).limit(10).to_list(length=10)
+    for cert in certificates:
+        content.append({
+            "id": cert.get('id'),
+            "type": "certificate",
+            "title": f"Certificate: {cert.get('course_name', 'Course')}",
+            "description": f"Grade: {cert.get('grade', 'Pass')} | Verification: {cert.get('verification_code', '')}",
+            "created_at": cert.get('issued_at')
+        })
+    
+    # Course Progress
+    profile = await db.student_profiles.find_one({"user_id": current_user['id']}, {"_id": 0})
+    if profile and profile.get('enrolled_courses'):
+        for cid in profile['enrolled_courses'][:10]:
+            course = await db.courses.find_one({"id": cid}, {"_id": 0, "id": 1, "name": 1, "title": 1})
+            if course:
+                content.append({
+                    "id": cid,
+                    "type": "course_progress",
+                    "title": f"Course: {course.get('name') or course.get('title', 'Course')}",
+                    "description": "Enrolled course progress",
+                    "created_at": profile.get('created_at')
+                })
     
     return {"content": content}
 

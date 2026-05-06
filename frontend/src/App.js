@@ -384,7 +384,7 @@ function AppRoutes() {
       } />
       
       <Route path="/teacher-messaging" element={
-        <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+        <ProtectedRoute allowedRoles={['teacher', 'admin', 'org_admin']}>
           <TeacherMessagingPage />
         </ProtectedRoute>
       } />

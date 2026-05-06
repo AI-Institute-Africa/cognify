@@ -8,6 +8,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
+import axios from 'axios';
 import {
   Dialog,
   DialogContent,
@@ -83,13 +84,10 @@ export default function ShareContentPage() {
   const loadSharedItems = async () => {
     try {
       const token = localStorage.getItem('cognify_token');
-      const response = await fetch(`${API}/api/share/my-shared`, {
+      const { data } = await axios.get(`${API}/api/share/my-shared`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (response.ok) {
-        const data = await response.json();
-        setSharedItems(data || []);
-      }
+      setSharedItems(Array.isArray(data) ? data : data.shares || []);
     } catch (error) {
       console.error('Failed to load shared items:', error);
     } finally {
@@ -101,13 +99,22 @@ export default function ShareContentPage() {
     setSelectedType(type);
     try {
       const token = localStorage.getItem('cognify_token');
-      const response = await fetch(`${API}/api/share/available/${type}`, {
+      const { data } = await axios.get(`${API}/api/user/shareable-content`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (response.ok) {
-        const data = await response.json();
-        setShareableContent(data || []);
-      }
+      const allContent = data.content || [];
+      // Filter by selected type
+      const typeMap = {
+        'assignment': ['assignment'],
+        'grade': ['grade'],
+        'course_progress': ['course_progress'],
+        'ai_output': ['ai_response'],
+        'certificate': ['certificate'],
+        'achievement': ['achievement']
+      };
+      const allowedTypes = typeMap[type] || [type];
+      const filtered = allContent.filter(c => allowedTypes.includes(c.type));
+      setShareableContent(filtered);
     } catch (error) {
       console.error('Failed to load content:', error);
       setShareableContent([]);
@@ -123,49 +130,28 @@ export default function ShareContentPage() {
     setCreating(true);
     try {
       const token = localStorage.getItem('cognify_token');
-      const response = await fetch(`${API}/api/share/create`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          content_type: selectedType,
-          content_id: selectedContent.id,
-          content_title: selectedContent.title || selectedContent.name,
-          visibility: shareSettings.visibility,
-          expires_in_days: shareSettings.expires_in_days,
-          allow_download: shareSettings.allow_download,
-          recipient_emails: shareSettings.recipients.split(',').map(e => e.trim()).filter(Boolean)
-        })
-      });
+      const { data } = await axios.post(`${API}/api/share/create`, {
+        content_type: selectedType,
+        content_id: selectedContent.id,
+        content_title: selectedContent.title || selectedContent.name,
+        visibility: shareSettings.visibility,
+        expires_in_days: shareSettings.expires_in_days,
+        allow_download: shareSettings.allow_download,
+        recipient_emails: shareSettings.recipients.split(',').map(e => e.trim()).filter(Boolean)
+      }, { headers: { 'Authorization': `Bearer ${token}` } });
 
-      if (response.ok) {
-        const data = await response.json();
-        toast.success('Content shared successfully!');
-        
-        // Copy link to clipboard
-        if (data.share_url) {
-          navigator.clipboard.writeText(data.share_url);
-          toast.info('Share link copied to clipboard!');
-        }
-
-        setShowShareDialog(false);
-        setSelectedContent(null);
-        setSelectedType(null);
-        setShareSettings({
-          visibility: 'public',
-          expires_in_days: 30,
-          allow_download: true,
-          recipients: ''
-        });
-        loadSharedItems();
-      } else {
-        const error = await response.json();
-        toast.error(error.detail || 'Failed to share content');
+      toast.success('Content shared successfully!');
+      if (data.share_url) {
+        navigator.clipboard.writeText(data.share_url);
+        toast.info('Share link copied to clipboard!');
       }
+
+      setShowShareDialog(false);
+      setSelectedContent(null);
+      setSelectedType(null);
+      loadSharedItems();
     } catch (error) {
-      toast.error('Failed to share content');
+      toast.error(error.response?.data?.detail || 'Failed to share content');
     } finally {
       setCreating(false);
     }

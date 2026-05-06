@@ -23,10 +23,10 @@ HEYGEN_BASE = "https://api.heygen.com"
 
 # Default avatars for teaching
 DEFAULT_AVATARS = [
-    {"id": "Angela-inTshirt-20220820", "name": "Angela", "style": "normal"},
+    {"id": "Abigail_expressive_2024112501", "name": "Abigail", "style": "normal"},
+    {"id": "Aditya_public_4", "name": "Aditya", "style": "normal"},
     {"id": "josh_lite3_20230714", "name": "Josh", "style": "normal"},
     {"id": "Kayla-incasualsuit-20220818", "name": "Kayla", "style": "normal"},
-    {"id": "Abigail_expressive_2024112501", "name": "Abigail", "style": "normal"},
 ]
 
 
@@ -155,7 +155,7 @@ async def generate_avatar_video(
 
     # Step 2: Resolve voice
     if not voice_id:
-        voice_id = "1bd001e7e50f421d891986aad5158bc8"  # Default HeyGen voice
+        voice_id = "f38a635bee7a4d1f9b0a654a31d050d2"  # Chill Brian English voice
 
     # Step 3: Create HeyGen video
     payload = {
@@ -184,10 +184,16 @@ async def generate_avatar_video(
                 json=payload
             )
             result = resp.json()
+            if result is None:
+                raise HTTPException(status_code=502, detail="Empty response from HeyGen API")
+
+        if result.get("error"):
+            error_msg = result["error"].get("message", "Unknown HeyGen error")
+            raise HTTPException(status_code=502, detail=f"HeyGen error: {error_msg}")
 
         video_id = result.get("data", {}).get("video_id")
         if not video_id:
-            raise HTTPException(status_code=500, detail=f"HeyGen error: {result.get('message', 'Unknown error')}")
+            raise HTTPException(status_code=500, detail="No video_id in HeyGen response")
 
         # Store video record
         video_record = {

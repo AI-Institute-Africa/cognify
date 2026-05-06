@@ -1028,7 +1028,7 @@ export const getStudentAttendance = async (studentId) => {
 
 // ==================== LIVE RESEARCH ====================
 export const searchResearch = async (query) => {
-  const response = await axios.post(`${API}/research/search?query=${encodeURIComponent(query)}`, {}, { headers: getAuthHeaders() });
+  const response = await axios.post(`${API}/research/search`, { query }, { headers: getAuthHeaders() });
   return response.data;
 };
 
