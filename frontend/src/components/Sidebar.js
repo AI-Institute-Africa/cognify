@@ -56,6 +56,7 @@ const navItems = {
       subItems: [
         { path: '/courses', icon: BookOpen, label: 'Standard Courses' },
         { path: '/create-custom-course', icon: FileUp, label: 'Customized Courses' },
+        { path: '/premade-courses', icon: FolderOpen, label: 'Premade Courses' },
         { path: '/org-catalog', icon: Building2, label: 'Organization Catalog', orgOnly: true },
       ]
     },
@@ -79,7 +80,6 @@ const navItems = {
     { divider: true, label: 'Share & Collaborate' },
     { path: '/share-content', icon: Share2, label: 'Share Content' },
     { path: '/certificate-gallery', icon: Award, label: 'Certificate Gallery' },
-    { path: '/premade-courses', icon: FolderOpen, label: 'Premade Courses' },
     { path: '/virtual-classroom', icon: Video, labelKey: 'virtualClassroom' },
     { path: '/live-research', icon: Search, labelKey: 'liveResearch' },
     { path: '/career', icon: Sparkles, labelKey: 'careerGuidance' },
@@ -92,6 +92,7 @@ const navItems = {
       subItems: [
         { path: '/courses', icon: BookOpen, label: 'Standard Courses' },
         { path: '/create-custom-course', icon: FileUp, label: 'Customized Courses' },
+        { path: '/premade-courses', icon: FolderOpen, label: 'Premade Courses' },
         { path: '/org-catalog', icon: Building2, label: 'Organization Catalog', orgOnly: true },
       ]
     },
@@ -125,6 +126,7 @@ const navItems = {
       subItems: [
         { path: '/courses', icon: BookOpen, label: 'Standard Courses' },
         { path: '/create-custom-course', icon: FileUp, label: 'Customized Courses' },
+        { path: '/premade-courses', icon: FolderOpen, label: 'Premade Courses' },
         { path: '/org-catalog', icon: Building2, label: 'Organization Catalog' },
       ]
     },
@@ -163,6 +165,7 @@ const navItems = {
       subItems: [
         { path: '/courses', icon: BookOpen, label: 'Standard Courses' },
         { path: '/create-custom-course', icon: FileUp, label: 'Add Course' },
+        { path: '/premade-courses', icon: FolderOpen, label: 'Premade Courses' },
         { path: '/org-catalog', icon: Building2, label: 'Organization Catalog' },
       ]
     },
