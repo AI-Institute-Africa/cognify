@@ -38,6 +38,8 @@ import { toast } from 'sonner';
 import axios from 'axios';
 import PopupQuiz from '../components/PopupQuiz';
 
+const API = process.env.REACT_APP_BACKEND_URL;
+
 const LEARNING_MODES = [
   { id: 'text', icon: FileText, label: 'Text', description: 'Read at your own pace' },
   { id: 'video', icon: Video, label: 'Video', description: 'Watch video lessons' },
