@@ -68,6 +68,7 @@ import AITrainingEnginePage from './pages/AITrainingEnginePage';
 import CertificateGalleryPage from './pages/CertificateGalleryPage';
 import CourseManagePage from './pages/CourseManagePage';
 import PremadeCoursesPage from './pages/PremadeCoursesPage';
+import CourseAnalyticsDashboardPage from './pages/CourseAnalyticsDashboardPage';
 
 import './App.css';
 
@@ -387,6 +388,12 @@ function AppRoutes() {
       <Route path="/teacher-messaging" element={
         <ProtectedRoute allowedRoles={['teacher', 'admin', 'org_admin']}>
           <TeacherMessagingPage />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/course-analytics" element={
+        <ProtectedRoute allowedRoles={['teacher', 'admin', 'org_admin']}>
+          <CourseAnalyticsDashboardPage />
         </ProtectedRoute>
       } />
       

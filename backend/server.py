@@ -7645,6 +7645,231 @@ async def get_org_analytics(current_user: dict = Depends(get_current_user)):
         "total_payments": len(payments)
     }
 
+
+# ==================== COURSE ANALYTICS DASHBOARD ====================
+
+@api_router.get("/analytics/course-dashboard")
+async def get_course_analytics_dashboard(current_user: dict = Depends(get_current_user)):
+    """
+    Comprehensive Course Analytics Dashboard.
+    - Org Admin/Admin: all courses in their org
+    - Teacher: only courses they teach (teacher_id or created_by == them)
+    Returns:
+      - summary (totals)
+      - per-course stats (enrolled, completion %, pass rate, avg grade)
+      - at-risk students (low progress, low grades, inactive 7+ days)
+      - engagement_trend (daily lessons completed last 14 days)
+      - top_students (highest avg grade)
+    """
+    if current_user.get('role') not in ['org_admin', 'admin', 'teacher']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    role = current_user.get('role')
+    org_id = current_user.get('organization_id')
+    user_id = current_user['id']
+
+    # Scope courses
+    if role == 'teacher':
+        course_query = {
+            "$or": [
+                {"teacher_id": user_id},
+                {"created_by": user_id},
+            ]
+        }
+    else:
+        course_query = {}
+        if org_id:
+            course_query['organization_id'] = org_id
+
+    courses = await db.courses.find(course_query, {"_id": 0}).to_list(length=500)
+    course_ids = [c['id'] for c in courses]
+
+    # Aggregate per-course stats
+    per_course = []
+    total_enrolled = 0
+    total_completed = 0
+    grand_grades_sum = 0.0
+    grand_grades_count = 0
+    pass_total = 0
+    pass_count = 0
+
+    for course in courses:
+        cid = course['id']
+        enrolled_ids = course.get('enrolled_students', []) or []
+        enrolled = len(enrolled_ids)
+        total_enrolled += enrolled
+
+        completed = await db.course_completions.count_documents({"course_id": cid})
+        total_completed += completed
+
+        # Quiz results -> pass rate, avg grade
+        results = await db.quiz_results.find({"course_id": cid}, {"_id": 0}).to_list(length=2000)
+        avg_grade = 0.0
+        pass_rate = 0.0
+        if results:
+            scores = [(r.get('score', 0) / r.get('total', 1) * 100) for r in results if r.get('total')]
+            if scores:
+                avg_grade = sum(scores) / len(scores)
+                grand_grades_sum += sum(scores)
+                grand_grades_count += len(scores)
+            passed = sum(1 for r in results if r.get('passed'))
+            pass_rate = (passed / len(results) * 100) if results else 0
+            pass_total += len(results)
+            pass_count += passed
+
+        per_course.append({
+            "course_id": cid,
+            "course_name": course.get('title') or course.get('name', 'Untitled'),
+            "subject": course.get('subject', ''),
+            "enrolled": enrolled,
+            "completed": completed,
+            "completion_rate": round((completed / enrolled * 100), 1) if enrolled > 0 else 0.0,
+            "pass_rate": round(pass_rate, 1),
+            "avg_grade": round(avg_grade, 1),
+            "quiz_attempts": len(results),
+        })
+
+    # Collect all student IDs across courses
+    all_student_ids = set()
+    for c in courses:
+        for sid in (c.get('enrolled_students') or []):
+            all_student_ids.add(sid)
+
+    # At-risk students
+    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    fourteen_days_ago = datetime.now(timezone.utc) - timedelta(days=14)
+
+    at_risk = []
+    top_students = []
+    student_grade_map = {}
+
+    for sid in list(all_student_ids):
+        user = await db.users.find_one({"id": sid}, {"_id": 0, "password_hash": 0})
+        if not user:
+            continue
+
+        # Quiz results for this student in our courses
+        sresults = await db.quiz_results.find(
+            {"user_id": sid, "course_id": {"$in": course_ids}}, {"_id": 0}
+        ).to_list(length=500)
+
+        s_avg = 0.0
+        if sresults:
+            sscores = [(r.get('score', 0) / r.get('total', 1) * 100) for r in sresults if r.get('total')]
+            if sscores:
+                s_avg = sum(sscores) / len(sscores)
+        student_grade_map[sid] = s_avg
+
+        # Completions
+        s_completions = await db.course_completions.count_documents(
+            {"user_id": sid, "course_id": {"$in": course_ids}}
+        )
+        enrolled_in = sum(1 for c in courses if sid in (c.get('enrolled_students') or []))
+        progress_pct = (s_completions / enrolled_in * 100) if enrolled_in > 0 else 0
+
+        # Last activity = max(updated_at on user, last quiz_result completed_at)
+        def _to_str(v):
+            if not v:
+                return ''
+            if isinstance(v, datetime):
+                return v.isoformat()
+            return str(v)
+        last_quiz = max(
+            (_to_str(r.get('completed_at', '')) for r in sresults),
+            default=''
+        )
+        last_user_active = _to_str(user.get('last_login') or user.get('updated_at') or user.get('created_at') or '')
+        last_activity = max(last_quiz, last_user_active) if (last_quiz or last_user_active) else ''
+
+        # Parse last_activity to datetime
+        inactive_days = None
+        try:
+            if isinstance(last_activity, str) and last_activity:
+                la_dt = datetime.fromisoformat(last_activity.replace('Z', '+00:00'))
+                if la_dt.tzinfo is None:
+                    la_dt = la_dt.replace(tzinfo=timezone.utc)
+                inactive_days = (datetime.now(timezone.utc) - la_dt).days
+        except Exception:
+            inactive_days = None
+
+        risk_reasons = []
+        if sresults and s_avg < 60:
+            risk_reasons.append(f"Low average grade: {s_avg:.0f}%")
+        if enrolled_in > 0 and progress_pct < 30 and (not sresults):
+            risk_reasons.append("No quiz attempts yet")
+        if inactive_days is not None and inactive_days >= 7:
+            risk_reasons.append(f"Inactive for {inactive_days} days")
+
+        if risk_reasons:
+            at_risk.append({
+                "student_id": sid,
+                "name": user.get('full_name', 'Unknown'),
+                "email": user.get('email', ''),
+                "avg_grade": round(s_avg, 1),
+                "progress_pct": round(progress_pct, 1),
+                "inactive_days": inactive_days,
+                "enrolled_courses": enrolled_in,
+                "reasons": risk_reasons,
+            })
+
+        if sresults and s_avg >= 70:
+            top_students.append({
+                "student_id": sid,
+                "name": user.get('full_name', 'Unknown'),
+                "avg_grade": round(s_avg, 1),
+                "quiz_attempts": len(sresults),
+            })
+
+    # Sort
+    at_risk.sort(key=lambda x: (-len(x['reasons']), x['avg_grade']))
+    top_students.sort(key=lambda x: x['avg_grade'], reverse=True)
+    top_students = top_students[:10]
+
+    # Engagement trend - last 14 days
+    trend_results = await db.quiz_results.find(
+        {"course_id": {"$in": course_ids}, "completed_at": {"$gte": fourteen_days_ago.isoformat()}},
+        {"_id": 0, "completed_at": 1, "passed": 1}
+    ).to_list(length=10000)
+
+    daily_buckets = {}
+    for i in range(14):
+        d = (datetime.now(timezone.utc) - timedelta(days=13 - i)).strftime('%Y-%m-%d')
+        daily_buckets[d] = {"date": d, "attempts": 0, "passes": 0}
+
+    for r in trend_results:
+        ca = r.get('completed_at', '')
+        if isinstance(ca, str) and len(ca) >= 10:
+            day = ca[:10]
+            if day in daily_buckets:
+                daily_buckets[day]['attempts'] += 1
+                if r.get('passed'):
+                    daily_buckets[day]['passes'] += 1
+
+    engagement_trend = list(daily_buckets.values())
+
+    overall_avg = round(grand_grades_sum / grand_grades_count, 1) if grand_grades_count else 0.0
+    overall_pass = round((pass_count / pass_total * 100), 1) if pass_total else 0.0
+    overall_completion = round((total_completed / total_enrolled * 100), 1) if total_enrolled else 0.0
+
+    return {
+        "scope": "teacher" if role == 'teacher' else "organization",
+        "summary": {
+            "total_courses": len(courses),
+            "total_enrolled": total_enrolled,
+            "total_completed": total_completed,
+            "completion_rate": overall_completion,
+            "avg_grade": overall_avg,
+            "pass_rate": overall_pass,
+            "at_risk_count": len(at_risk),
+            "active_students": len(all_student_ids),
+        },
+        "per_course": per_course,
+        "at_risk": at_risk[:50],
+        "top_students": top_students,
+        "engagement_trend": engagement_trend,
+    }
+
+
 # NOTE: Router inclusion moved to end of file after all route definitions
 
 app.add_middleware(

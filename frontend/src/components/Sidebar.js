@@ -44,7 +44,8 @@ import {
   Import,
   Share2,
   Zap,
-  Award
+  Award,
+  BarChart3
 } from 'lucide-react';
 
 const navItems = {
@@ -102,6 +103,7 @@ const navItems = {
     { path: '/grades', icon: GraduationCap, label: 'Grading' },
     { path: '/attendance', icon: Calendar, labelKey: 'attendance' },
     { path: '/teacher-messaging', icon: MessageSquare, label: 'Messaging' },
+    { path: '/course-analytics', icon: BarChart3, label: 'Course Analytics' },
     { divider: true, label: 'AI Tools' },
     { path: '/lesson-planner', icon: Sparkles, label: 'AI Planner' },
     { path: '/syllabus-ingestion', icon: FileUp, label: 'Content Ingestion' },
@@ -137,6 +139,7 @@ const navItems = {
     { path: '/fees', icon: CreditCard, label: 'Finance' },
     { path: '/achievements', icon: Trophy, labelKey: 'achievements' },
     { path: '/credentials', icon: FileCheck, labelKey: 'credentials' },
+    { path: '/course-analytics', icon: BarChart3, label: 'Course Analytics' },
     { divider: true, label: 'AI Tools' },
     { path: '/ai-training-engine', icon: Zap, label: 'AI Q&A Generator' },
     { path: '/lesson-planner', icon: Sparkles, label: 'AI Planner' },
@@ -175,6 +178,7 @@ const navItems = {
     { path: '/grades', icon: GraduationCap, label: 'Grading' },
     { path: '/attendance', icon: Calendar, label: 'Attendance' },
     { path: '/teacher-messaging', icon: MessageSquare, label: 'Messaging' },
+    { path: '/course-analytics', icon: BarChart3, label: 'Course Analytics' },
     { path: '/fees', icon: CreditCard, label: 'Finance' },
     { path: '/credentials', icon: FileCheck, labelKey: 'credentials' },
     { divider: true, label: 'AI Tools' },
