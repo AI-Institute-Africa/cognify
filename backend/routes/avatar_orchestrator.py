@@ -146,9 +146,24 @@ async def generate_avatar_video(
             if contents:
                 lesson_content = contents[0].get("text", "")
                 lesson_title = contents[0].get("title", lesson_title)
+            # Also check lessons collection
+            if not lesson_content:
+                lessons = await db.lessons.find({"course_id": course_id}, {"_id": 0}).to_list(5)
+                if lessons:
+                    lesson_content = lessons[0].get("content", "")
+                    lesson_title = lessons[0].get("title", lesson_title)
 
     if not lesson_content:
         raise HTTPException(status_code=400, detail="No lesson content available")
+
+    # Load user's avatar settings if avatar/voice not specified
+    if not avatar_id or avatar_id == 'Abigail_expressive_2024112501':
+        user_settings = await db.avatar_settings.find_one({"user_id": current_user['id']}, {"_id": 0})
+        if user_settings:
+            if user_settings.get('heygen_avatar_id'):
+                avatar_id = user_settings['heygen_avatar_id']
+            if not voice_id and user_settings.get('heygen_voice_id'):
+                voice_id = user_settings['heygen_voice_id']
 
     # Step 1: Generate teaching script
     script = await generate_teaching_script(lesson_content, lesson_title, user_level, language)
@@ -238,6 +253,7 @@ async def check_video_status(video_id: str, current_user: dict = Depends(get_cur
 
         status = data.get("status", "unknown")
         video_url = data.get("video_url")
+        error_info = data.get("error")
 
         # Update DB record
         if video_url:
@@ -251,10 +267,11 @@ async def check_video_status(video_id: str, current_user: dict = Depends(get_cur
             "status": status,
             "video_url": video_url,
             "thumbnail_url": data.get("thumbnail_url"),
-            "duration": data.get("duration")
+            "duration": data.get("duration"),
+            "error": error_info
         }
     except Exception as e:
-        return {"video_id": video_id, "status": "error", "error": str(e)}
+        return {"video_id": video_id, "status": "error", "error": {"message": str(e)}}
 
 
 @avatar_router.post("/interactive-tutor")

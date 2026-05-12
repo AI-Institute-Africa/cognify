@@ -6890,7 +6890,7 @@ async def generate_video_content(
     duration: int = 4,
     current_user: dict = Depends(get_current_user)
 ):
-    """Generate educational video using Sora 2"""
+    """Generate educational video using Sora 2 (async - starts generation and returns immediately)"""
     try:
         from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
         
@@ -6898,13 +6898,45 @@ async def generate_video_content(
         if not api_key:
             raise HTTPException(status_code=500, detail="Video generation service not configured")
         
-        # Generate a descriptive prompt for educational video
         prompt = f"Educational explainer video about {topic}. Professional, engaging visuals with clear diagrams and animations. Suitable for students learning this concept."
         
-        video_gen = OpenAIVideoGeneration(api_key=api_key)
+        video_id = str(uuid.uuid4())
         
-        # Generate video (this is synchronous but we're in async context)
+        # Store pending record
+        video_record = {
+            "id": video_id,
+            "topic": topic,
+            "course_id": course_id,
+            "user_id": current_user['id'],
+            "prompt": prompt,
+            "status": "processing",
+            "type": "sora2",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.generated_videos.insert_one(video_record)
+        video_record.pop('_id', None)
+        
+        # Start background generation
         import asyncio
+        asyncio.create_task(_generate_video_background(video_id, api_key, prompt, course_id, duration))
+        
+        return {
+            "video_id": video_id,
+            "status": "processing",
+            "message": "Video generation started. It may take 2-5 minutes."
+        }
+    except Exception as e:
+        logging.error(f"Video generation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _generate_video_background(video_id: str, api_key: str, prompt: str, course_id: str, duration: int):
+    """Background task to generate video with Sora 2"""
+    try:
+        from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+        import asyncio
+        
+        video_gen = OpenAIVideoGeneration(api_key=api_key)
         video_bytes = await asyncio.to_thread(
             video_gen.text_to_video,
             prompt=prompt,
@@ -6915,52 +6947,53 @@ async def generate_video_content(
         )
         
         if video_bytes:
-            # Save video to a file
-            video_id = str(uuid.uuid4())
             video_path = f"/app/generated_videos/{video_id}.mp4"
             os.makedirs("/app/generated_videos", exist_ok=True)
             video_gen.save_video(video_bytes, video_path)
             
-            # Store record in database
-            video_record = {
-                "id": video_id,
-                "topic": topic,
-                "course_id": course_id,
-                "user_id": current_user['id'],
-                "video_path": video_path,
-                "video_url": f"/api/content/video/{video_id}",
-                "duration": duration,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-            await db.generated_videos.insert_one(video_record)
+            video_url = f"/api/content/video/{video_id}"
+            await db.generated_videos.update_one(
+                {"id": video_id},
+                {"$set": {"status": "completed", "video_path": video_path, "video_url": video_url}}
+            )
             
-            # Also save to course_content for display in CourseViewPage
+            # Also save as course content
             if course_id:
-                content_record = {
-                    "id": f"content-{video_id}",
+                content = {
+                    "id": str(uuid.uuid4()),
                     "course_id": course_id,
                     "type": "video",
-                    "title": topic,
-                    "description": f"AI-generated video about {topic}",
-                    "text": f"# {topic}\n\nThis is an AI-generated educational video covering the key concepts of {topic}.\n\nWatch the video above to learn more about this topic.",
-                    "video_url": f"/api/content/video/{video_id}",
-                    "created_by": current_user['id'],
+                    "title": f"AI Generated: {prompt[:50]}",
+                    "url": video_url,
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }
-                await db.course_contents.insert_one(content_record)
-            
-            return {
-                "message": "Video generated successfully",
-                "video_id": video_id,
-                "video_url": f"/api/content/video/{video_id}"
-            }
+                await db.course_contents.insert_one(content)
         else:
-            raise HTTPException(status_code=500, detail="Video generation failed")
-            
+            await db.generated_videos.update_one(
+                {"id": video_id},
+                {"$set": {"status": "failed", "error": "No video bytes returned"}}
+            )
     except Exception as e:
-        logging.error(f"Video generation error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Background video gen failed: {e}")
+        await db.generated_videos.update_one(
+            {"id": video_id},
+            {"$set": {"status": "failed", "error": str(e)}}
+        )
 
+
+@content_router.get("/video-status/{video_id}")
+async def get_video_generation_status(video_id: str, current_user: dict = Depends(get_current_user)):
+    """Check status of video generation"""
+    record = await db.generated_videos.find_one({"id": video_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Video not found")
+    return {
+        "video_id": video_id,
+        "status": record.get("status", "unknown"),
+        "video_url": record.get("video_url"),
+        "error": record.get("error")
+    }
+            
 @content_router.get("/video/{video_id}")
 async def get_generated_video(video_id: str):
     """Serve generated video file"""
@@ -7129,22 +7162,21 @@ async def get_preset_voices():
 
 @voice_router.post("/save-avatar-settings")
 async def save_avatar_settings(
-    avatar_image: Optional[str] = None,
-    avatar_name: str = "My Tutor",
-    voice_id: str = "nova",
-    teaching_style: str = "friendly",
-    is_custom_voice: bool = False,
+    request: Request,
     current_user: dict = Depends(get_current_user)
 ):
-    """Save user's avatar settings"""
+    """Save user's avatar settings including HeyGen preferences"""
     try:
+        body = await request.json()
         settings = {
             "user_id": current_user['id'],
-            "avatar_image": avatar_image,
-            "avatar_name": avatar_name,
-            "voice_id": voice_id,
-            "teaching_style": teaching_style,
-            "is_custom_voice": is_custom_voice,
+            "avatar_image": body.get("avatar_image"),
+            "avatar_name": body.get("avatar_name", "My Tutor"),
+            "voice_id": body.get("voice_id", "nova"),
+            "teaching_style": body.get("teaching_style", "friendly"),
+            "is_custom_voice": body.get("is_custom_voice", False),
+            "heygen_avatar_id": body.get("heygen_avatar_id"),
+            "heygen_voice_id": body.get("heygen_voice_id"),
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
@@ -8393,35 +8425,37 @@ async def live_research_search(
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         from urllib.parse import quote
         
-        # Enhanced system prompt for better research results
-        system_msg = """You are an academic research assistant. When given a search query, research and provide REAL academic publications.
-        
-        For each result, provide:
-        - title: The actual paper/article title
-        - authors: Real author names if known
-        - year: Publication year
-        - abstract: Brief summary (2-3 sentences)
-        - url: REAL working URL (use actual links from Google Scholar, arXiv, ResearchGate, PubMed, IEEE, ACM, etc.)
-        - source: The source platform
-        - citations: Approximate citation count if known
-        
-        IMPORTANT: Only provide results that you're confident have real, working URLs.
-        Return as a JSON array."""
+        # Enhanced system prompt for better research results with news
+        system_msg = """You are a research and news assistant. When given a search query, provide REAL academic publications AND recent news articles.
+
+For each result, provide:
+- title: The actual paper/article/news title
+- authors: Real author names if known
+- year: Publication year
+- abstract: Brief summary (2-3 sentences)
+- url: REAL working URL from Google Scholar, arXiv, Reuters, BBC, Nature, Science, IEEE, etc.
+- source: The source platform
+- type: "research" or "news"
+
+IMPORTANT: Include a MIX of academic papers AND recent news/industry articles.
+Return as a JSON array of 6-10 results."""
         
         chat = LlmChat(api_key=api_key, session_id=f"research-{uuid.uuid4()}", system_message=system_msg)
         chat.with_model("openai", "gpt-5.2")
         
-        response = await chat.send_message(UserMessage(
+        response_raw = await chat.send_message(UserMessage(
             text=f"Find real academic papers, research articles, and publications about: {query}\n\nProvide 5-8 results with verified URLs from academic databases."
         ))
         
         import json
         
+        response_text = (response_raw.text if hasattr(response_raw, 'text') else str(response_raw))
+        
         # Try to parse JSON response
         results = []
         try:
             # Clean response
-            cleaned = response.strip()
+            cleaned = response_text.strip()
             if "```json" in cleaned:
                 cleaned = cleaned.split("```json")[1].split("```")[0]
             elif "```" in cleaned:
@@ -12627,7 +12661,7 @@ async def upload_premade_course(
         "content_type": file.content_type,
         "file_size": len(content),
         "file_data": base64.b64encode(content).decode(),
-        "preview_text": extracted_text[:500],
+        "preview_text": extracted_text[:2000],
         "uploaded_by": current_user['id'],
         "uploader_name": current_user.get('full_name', 'Unknown'),
         "organization_id": current_user.get('organization_id'),

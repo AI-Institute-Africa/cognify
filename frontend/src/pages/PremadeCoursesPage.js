@@ -282,10 +282,7 @@ export default function PremadeCoursesPage() {
 
                 <div className="flex gap-2 mt-4 pt-3 border-t border-white/5">
                   <Button size="sm" variant="ghost" className="flex-1 h-8 text-xs" onClick={() => setViewDoc(doc)} data-testid={`view-${doc.id}`}>
-                    <Eye className="w-3 h-3 mr-1" /> Preview
-                  </Button>
-                  <Button size="sm" variant="ghost" className="flex-1 h-8 text-xs" onClick={() => handleDownload(doc)} data-testid={`download-${doc.id}`}>
-                    <Download className="w-3 h-3 mr-1" /> Download
+                    <Eye className="w-3 h-3 mr-1" /> View
                   </Button>
                   {(doc.uploaded_by === user?.id || user?.role === 'org_admin' || user?.role === 'admin') && (
                     <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-400" onClick={() => handleDelete(doc.id)}>
@@ -312,14 +309,17 @@ export default function PremadeCoursesPage() {
               </div>
               {viewDoc?.description && <p className="text-sm text-zinc-400">{viewDoc.description}</p>}
               {viewDoc?.preview_text && (
-                <div className="bg-zinc-800/50 rounded-lg p-4 max-h-[300px] overflow-y-auto">
-                  <p className="text-xs font-semibold text-zinc-500 mb-2">Content Preview:</p>
+                <div className="bg-zinc-800/50 rounded-lg p-4 max-h-[400px] overflow-y-auto">
+                  <p className="text-xs font-semibold text-zinc-500 mb-2">Document Content:</p>
                   <p className="text-sm text-zinc-300 whitespace-pre-wrap">{viewDoc.preview_text}</p>
                 </div>
               )}
-              <Button onClick={() => { handleDownload(viewDoc); setViewDoc(null); }} className="w-full bg-violet-600 hover:bg-violet-700">
-                <Download className="w-4 h-4 mr-2" /> Download Full Document
-              </Button>
+              {viewDoc?.filename?.endsWith('.pdf') && (
+                <div className="bg-zinc-800/50 rounded-lg p-6 text-center">
+                  <FileText className="w-12 h-12 text-violet-400 mx-auto mb-2" />
+                  <p className="text-sm text-zinc-400">PDF document - content preview shown above</p>
+                </div>
+              )}
             </div>
           </DialogContent>
         </Dialog>
