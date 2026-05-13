@@ -321,13 +321,14 @@ export default function CourseViewPage() {
   const handleGenerateAudio = async (text) => {
     setGeneratingAudio(true);
     try {
-      // Send full text (up to 4096 chars for TTS)
-      const fullText = text.substring(0, 4096);
+      // Send full text - backend chunks & concatenates as needed for long-form audio
+      const fullText = (text || '').toString();
       const voiceId = avatarSettings?.voice_id || 'nova';
       const result = await generateTTS(fullText, voiceId);
       if (result.audio_url) {
         setAudioUrl(result.audio_url);
-        toast.success('Audio generated successfully!');
+        const chunks = result.chunks || 1;
+        toast.success(`Audio generated${chunks > 1 ? ` (${chunks} segments combined)` : ''}!`);
       }
     } catch (error) {
       console.error('TTS failed:', error);
@@ -344,7 +345,9 @@ export default function CourseViewPage() {
         setAudioPlaying(false);
         return;
       }
-      const audio = new Audio(audioUrl);
+      // Prefix relative /api/... URLs with the backend base
+      const fullUrl = audioUrl.startsWith('/api/') ? `${API}${audioUrl}` : audioUrl;
+      const audio = new Audio(fullUrl);
       activeAudioRef.current = audio;
       audio.play();
       setAudioPlaying(true);
@@ -519,7 +522,8 @@ export default function CourseViewPage() {
         setAvatarPlaying(false);
         return;
       }
-      const audio = new Audio(avatarAudioUrl);
+      const fullAvatarUrl = avatarAudioUrl.startsWith('/api/') ? `${API}${avatarAudioUrl}` : avatarAudioUrl;
+      const audio = new Audio(fullAvatarUrl);
       setActiveAvatarAudio(audio);
       audio.play();
       setAvatarPlaying(true);
@@ -1142,7 +1146,7 @@ export default function CourseViewPage() {
                                     params: {
                                       topic: lessonTitle,
                                       course_id: courseId,
-                                      duration: 10
+                                      duration: 12
                                     },
                                     headers: { Authorization: `Bearer ${localStorage.getItem('cognify_token')}` },
                                     timeout: 30000

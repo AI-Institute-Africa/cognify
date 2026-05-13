@@ -14,7 +14,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger
 } from '../components/ui/dialog';
 import {
-  FileText, Upload, Download, Trash2, Search, Loader2,
+  FileText, Upload, Trash2, Search, Loader2,
   BookOpen, Plus, Eye, Calendar, User, FolderOpen
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -89,26 +89,6 @@ export default function PremadeCoursesPage() {
       toast.error(err.response?.data?.detail || 'Upload failed');
     } finally {
       setUploading(false);
-    }
-  };
-
-  const handleDownload = async (doc) => {
-    try {
-      const response = await axios.get(`${API}/api/premade-courses/${doc.id}/download`, {
-        headers: getAuth(),
-        responseType: 'blob'
-      });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = doc.filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      toast.success('Download started!');
-    } catch (err) {
-      toast.error('Download failed');
     }
   };
 
@@ -233,8 +213,8 @@ export default function PremadeCoursesPage() {
             <p className="text-xs text-zinc-500">Categories</p>
           </div>
           <div className="glass-card p-4 text-center">
-            <p className="text-2xl font-bold text-emerald-400">{documents.reduce((s, d) => s + (d.download_count || 0), 0)}</p>
-            <p className="text-xs text-zinc-500">Downloads</p>
+            <p className="text-2xl font-bold text-emerald-400">{documents.filter(d => d.is_view_only !== false).length}</p>
+            <p className="text-xs text-zinc-500">View-Only Documents</p>
           </div>
         </div>
 
@@ -295,31 +275,43 @@ export default function PremadeCoursesPage() {
           </div>
         )}
 
-        {/* Preview Dialog */}
+        {/* Preview Dialog - view only, no download */}
         <Dialog open={!!viewDoc} onOpenChange={() => setViewDoc(null)}>
-          <DialogContent className="bg-zinc-900 border-white/10 max-w-lg">
+          <DialogContent className="bg-zinc-900 border-white/10 max-w-3xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{viewDoc?.title}</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <Eye className="w-5 h-5 text-violet-400" />
+                {viewDoc?.title}
+              </DialogTitle>
             </DialogHeader>
-            <div className="space-y-3 mt-4">
+            <div
+              className="space-y-3 mt-4"
+              onContextMenu={(e) => e.preventDefault()}
+              onCopy={(e) => e.preventDefault()}
+              style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+              data-testid="premade-view-content"
+            >
               <div className="flex gap-2 flex-wrap">
                 <Badge>{viewDoc?.category}</Badge>
                 <Badge className="bg-zinc-700/50">{viewDoc?.filename}</Badge>
                 <Badge className="bg-zinc-700/50">{formatFileSize(viewDoc?.file_size || 0)}</Badge>
+                <Badge className="bg-emerald-500/20 text-emerald-300">View Only</Badge>
               </div>
               {viewDoc?.description && <p className="text-sm text-zinc-400">{viewDoc.description}</p>}
-              {viewDoc?.preview_text && (
-                <div className="bg-zinc-800/50 rounded-lg p-4 max-h-[400px] overflow-y-auto">
-                  <p className="text-xs font-semibold text-zinc-500 mb-2">Document Content:</p>
-                  <p className="text-sm text-zinc-300 whitespace-pre-wrap">{viewDoc.preview_text}</p>
+              {viewDoc?.preview_text ? (
+                <div className="bg-zinc-800/50 rounded-lg p-4 max-h-[55vh] overflow-y-auto select-none">
+                  <p className="text-xs font-semibold text-zinc-500 mb-2 uppercase tracking-wide">Document Content (View Only)</p>
+                  <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">{viewDoc.preview_text}</p>
                 </div>
-              )}
-              {viewDoc?.filename?.endsWith('.pdf') && (
+              ) : (
                 <div className="bg-zinc-800/50 rounded-lg p-6 text-center">
                   <FileText className="w-12 h-12 text-violet-400 mx-auto mb-2" />
-                  <p className="text-sm text-zinc-400">PDF document - content preview shown above</p>
+                  <p className="text-sm text-zinc-400">No preview text available for this document</p>
                 </div>
               )}
+              <p className="text-[11px] text-zinc-500 text-center pt-2">
+                This document is view-only. Downloading, copying and printing are disabled.
+              </p>
             </div>
           </DialogContent>
         </Dialog>

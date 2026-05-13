@@ -77,10 +77,27 @@ export default function LiveResearchPage() {
     setSearched(true);
 
     try {
-      const response = await searchResearch(query);
-      setResults(response.ai_results || []);
+      const response = await searchResearch(query, category);
+      // Normalize backend results: backend returns {title, authors, year, abstract, url, source, type}
+      // Frontend reads {id, title, snippet, category, source, date, relevance, url}
+      const normalized = (response.ai_results || []).map((r, idx) => {
+        const cat = r.category || r.type || 'research';
+        const isNews = String(cat).toLowerCase().includes('news');
+        return {
+          id: r.id || `r-${idx}`,
+          title: r.title || 'Untitled',
+          snippet: r.snippet || r.abstract || r.summary || '',
+          source: r.source || 'Web',
+          category: isNews ? 'news' : (cat === 'tutorial' ? 'tutorials' : (cat === 'tool' ? 'tools' : 'research')),
+          date: r.date || r.year || '',
+          authors: r.authors || [],
+          url: r.url || '#',
+          relevance: r.relevance || (90 - idx * 5),
+        };
+      });
+      setResults(normalized);
       setDirectLinks(response.direct_search_links || []);
-      toast.success(`Found results for "${query}"`);
+      toast.success(`Found ${normalized.length} results for "${query}"`);
     } catch (error) {
       console.error('Search failed:', error);
       toast.error('Search failed. Please try again.');
@@ -111,6 +128,16 @@ export default function LiveResearchPage() {
       case 'tools': return 'text-emerald-400 bg-emerald-500/20';
       case 'tutorials': return 'text-amber-400 bg-amber-500/20';
       default: return 'text-zinc-400 bg-zinc-500/20';
+    }
+  };
+
+  const getCategoryIcon = (cat) => {
+    switch (cat) {
+      case 'research': return FileText;
+      case 'news': return Newspaper;
+      case 'tools': return Briefcase;
+      case 'tutorials': return BookOpen;
+      default: return Globe;
     }
   };
 

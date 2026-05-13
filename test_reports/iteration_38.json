@@ -1,0 +1,50 @@
+{
+  "summary": "Iteration 38 - Tested all 5 user-reported bug fixes. Premade Courses view-only (403 + no UI button) WORKING. AI video duration=12 endpoint accepts/clamps correctly WORKING. Live Research black-screen fix VERIFIED - page renders gracefully with direct_search_links even when AI returns 500. Long-form TTS code path is correct (JSON body accepted, splitter, /api/content/audio/ URL) but cannot be validated end-to-end because the Emergent LLM Key has BUDGET EXCEEDED. Also surfaced a missed-fix: CourseViewPage.js line 543 still calls generateVideoContent(..., 4) and services/api.js default duration=4 - the user-facing 'Generate Video' from the Upload dialog still requests 4-second videos.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "/api/advanced/tts (long text)", "issue": "Emergent LLM key budget exceeded ('Budget has been exceeded! Current cost: 29.78, Max budget: 29.77'). Returns 503 immediately. Affects long-form TTS, Live Research AI results, possibly other LLM features.", "priority": "CRITICAL"},
+      {"endpoint": "/api/research/search", "issue": "Returns 500 in browser (due to same LLM budget cap) -> ai_results empty. UI handles it gracefully (no crash) but live news/research items unavailable.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "/api/premade-courses (list)", "issue": "Returns {documents:[...], total:N} not a flat list. Frontend appears to handle it but inconsistent with other list endpoints."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "CourseViewPage.js (line 543 - main 'Generate' dialog)", "issue": "Still calls generateVideoContent(topic, courseId, 4). Spec says default 12. Only the in-tab fallback button (line 1145) uses 12.", "selector": "Generate dialog (video) -> Generate button", "priority": "HIGH"},
+      {"component": "services/api.js generateVideoContent", "issue": "Signature default duration=4 instead of 12. Any caller that omits duration argument will still request 4s videos.", "selector": "n/a", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Live Research search", "issue": "AI search returns 500 (LLM budget exceeded). Page does NOT crash (good - black-screen fix verified) but '0 Results' is shown. Only academic direct-search-links render in UI; Reuters/BBC/AP/Google News links from backend payload were not visible in the rendered Direct Search Links section (UI may cap to 5 entries).", "affected_selectors": ["[data-testid='research-search-btn']", "[data-testid^='direct-link-']"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration38_bug_fixes.py",
+    "/app/test_reports/pytest/pytest_iteration38.xml"
+  ],
+  "action_items": [
+    "URGENT: Increase Emergent LLM Key budget or rotate key. Currently TTS-long and research/search AI calls fail with 503/500 ('Budget has been exceeded'). This blocks two of the iteration-38 fixes from working in production.",
+    "Fix CourseViewPage.js line 543: pass duration=12 to generateVideoContent (currently 4).",
+    "Fix services/api.js generateVideoContent default param from duration=4 to duration=12 to match spec.",
+    "Verify LiveResearchPage renders Reuters/BBC/AP/Google News direct_search_links from backend response (UI appears to display only first 5 academic links; backend returns 9 incl. news links).",
+    "(Optional) Move long-form TTS to async background generation. With 3+ chunks the synchronous request can exceed Kubernetes ingress timeout (~80s) producing 502 even when backend succeeds; observed during testing."
+  ],
+  "critical_code_review_comments": [
+    "Backend code for all 5 fixes is correctly implemented: /api/premade-courses/{id}/download unconditionally raises 403; LongTTSRequest accepts JSON body; _split_text_for_tts splits at sentence boundaries; /api/content/generate-video clamps duration to [4..12] with default 12; LiveResearchPage has getCategoryIcon helper preventing ReferenceError.",
+    "MISS in frontend rollout: services/api.js export generateVideoContent default is still 4 and CourseViewPage line 543 hardcodes 4. The 'fix' that 'Frontend passes duration=12' is only partial (only the in-Video-tab inline button uses 12).",
+    "Long TTS implementation correctly concatenates raw MP3 bytes and serves via /api/content/audio/{id}; the design risk is synchronous wait time exceeding ingress timeout for very long inputs.",
+    "Research search system prompt forces verified news sources via allow-list; ai_results parsing is defensive (JSON-fence cleanup, fallback to empty). Direct search links include Reuters/BBC/AP/Google News at indices 5-8; verify frontend doesn't truncate the list before display.",
+    "Premade-courses list endpoint returns {documents,total} envelope while download is correctly disabled with 403."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration38_bug_fixes.py"
+  ],
+  "success_rate": {"backend": "80% (8/10 pytest cases; 2 TTS cases blocked by LLM budget)", "frontend": "75% (live-research no-black-screen + premade-courses view-only verified; video-mode role-gating not fully verified due to course-enrollment navigation)"},
+  "test_credentials": "Org Admin: test.orgadmin@cognify.edu/admin123, Teacher: demo.teacher@eduos.edu/demo123, Student: demo.student@cognify.edu/demo123 - all working.",
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest test_iteration38_bug_fixes.py has 8/10 passing. The 2 failing TTS tests (long_text_multi_chunk, rejects_empty_text) fail because of Emergent LLM key BUDGET EXCEEDED (status 503 with 'Budget has been exceeded' message), not because of code defects. Once budget is restored, rerun pytest. Frontend Live Research search also depends on the same key - it currently returns 500 on AI search but does NOT cause a black-screen anymore (graceful fallback to direct_search_links UI). The video-tab Upload Video role-gating could not be observed end-to-end because the test student/teacher couldn't enter a course view via the course-cards (cards use Enroll Now buttons not direct links). Main agent should self-verify via View Course on an enrolled course.",
+  "rca of the issue": "Live Research black-screen RCA: getCategoryIcon was referenced inside JSX (line 354) but not defined; React threw ReferenceError during render which unmounts the tree -> black screen. Fix adding the helper at line 134 resolves it. Verified in browser: search executes, error path now renders 'No AI-generated results' message instead of crashing. Long TTS RCA: backend code is correct; failure is environmental (LLM budget cap) plus a latent risk that 3+ sequential TTS chunks may exceed proxy timeout. Recommend converting to async/background generation similar to Sora 2 video pipeline."
+}

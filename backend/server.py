@@ -5151,19 +5151,105 @@ async def detect_text_language(text: str):
         raise HTTPException(status_code=500, detail=error)
     return {"language_code": code}
 
-# TTS with Emergent LLM Key
+# TTS with Emergent LLM Key (supports long text via chunking + MP3 concatenation)
+def _split_text_for_tts(text: str, max_chunk: int = 3500):
+    """Split text into TTS-friendly chunks at sentence/paragraph boundaries."""
+    text = (text or "").strip()
+    if len(text) <= max_chunk:
+        return [text] if text else []
+    
+    chunks = []
+    remaining = text
+    while len(remaining) > max_chunk:
+        # Look for sentence boundary within the last 800 chars of the window
+        window = remaining[:max_chunk]
+        split_idx = -1
+        for sep in ['\n\n', '. ', '? ', '! ', '\n', '; ', ', ']:
+            idx = window.rfind(sep)
+            if idx > max_chunk - 800:
+                split_idx = idx + len(sep)
+                break
+        if split_idx <= 0:
+            split_idx = max_chunk
+        chunks.append(remaining[:split_idx].strip())
+        remaining = remaining[split_idx:].strip()
+    if remaining:
+        chunks.append(remaining)
+    return [c for c in chunks if c]
+
+
+class LongTTSRequest(BaseModel):
+    text: str
+    voice: str = "nova"
+    speed: float = 1.0
+
+
 @advanced_router.post("/tts")
 async def text_to_speech_advanced(
-    text: str,
-    voice: str = "nova",
-    speed: float = 1.0,
+    req: LongTTSRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Generate TTS audio using Emergent LLM Key"""
-    audio, error = await advanced_tts(text, voice=voice, speed=speed)
-    if error:
-        raise HTTPException(status_code=503, detail={"message": "TTS failed", "error": error})
-    return {"audio_url": audio, "text": text, "voice": voice}
+    """Generate TTS audio for arbitrary-length text using Emergent LLM Key.
+    Long text is split into ~3500-char chunks and concatenated into one MP3.
+    """
+    text = (req.text or "").strip()
+    voice = req.voice or "nova"
+    speed = req.speed or 1.0
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+    
+    chunks = _split_text_for_tts(text, max_chunk=3500)
+    
+    # Single chunk -> use the existing helper (returns data: URL)
+    if len(chunks) <= 1:
+        audio, error = await advanced_tts(chunks[0] if chunks else text, voice=voice, speed=speed)
+        if error:
+            raise HTTPException(status_code=503, detail={"message": "TTS failed", "error": error})
+        return {"audio_url": audio, "text": text, "voice": voice, "chunks": 1}
+    
+    # Multi-chunk: generate raw MP3 bytes per chunk and concatenate
+    try:
+        from emergentintegrations.llm.openai import OpenAITextToSpeech
+        api_key = os.environ.get("EMERGENT_LLM_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY not configured")
+        
+        tts = OpenAITextToSpeech(api_key=api_key)
+        combined = b""
+        for chunk in chunks:
+            # generate_speech_base64 returns base64 string of mp3 bytes
+            b64 = await tts.generate_speech_base64(
+                text=chunk,
+                model="tts-1",
+                voice=voice,
+                speed=speed
+            )
+            if b64:
+                combined += base64.b64decode(b64)
+        
+        if not combined:
+            raise HTTPException(status_code=503, detail={"message": "TTS produced no audio"})
+        
+        # Save combined audio so the response payload stays small (data URLs of MBs cause UI issues)
+        audio_id = str(uuid.uuid4())
+        os.makedirs("/app/generated_audio", exist_ok=True)
+        audio_path = f"/app/generated_audio/{audio_id}.mp3"
+        with open(audio_path, "wb") as f:
+            f.write(combined)
+        
+        audio_url = f"/api/content/audio/{audio_id}"
+        return {
+            "audio_url": audio_url,
+            "text": text,
+            "voice": voice,
+            "chunks": len(chunks),
+            "size_bytes": len(combined),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Long TTS failed: {e}")
+        raise HTTPException(status_code=503, detail={"message": "TTS failed", "error": str(e)})
 
 # Avatar Generation
 @advanced_router.post("/avatar/generate")
@@ -6887,7 +6973,7 @@ async def mentor_upload_document(
 async def generate_video_content(
     topic: str,
     course_id: Optional[str] = None,
-    duration: int = 4,
+    duration: int = 12,
     current_user: dict = Depends(get_current_user)
 ):
     """Generate educational video using Sora 2 (async - starts generation and returns immediately)"""
@@ -6897,6 +6983,9 @@ async def generate_video_content(
         api_key = os.environ.get('EMERGENT_LLM_KEY')
         if not api_key:
             raise HTTPException(status_code=500, detail="Video generation service not configured")
+        
+        # Sora 2 supports up to ~12 seconds; clamp to safe range
+        duration = max(4, min(int(duration or 12), 12))
         
         prompt = f"Educational explainer video about {topic}. Professional, engaging visuals with clear diagrams and animations. Suitable for students learning this concept."
         
@@ -8637,10 +8726,11 @@ async def live_research_search(
     request: Request,
     current_user: dict = Depends(get_current_user)
 ):
-    """Search for real academic publications using web search"""
+    """Search for real academic publications and verified news using web search"""
     try:
         body = await request.json()
         query = body.get('query', '')
+        category = (body.get('category') or 'all').lower()
         if not query:
             raise HTTPException(status_code=400, detail="Query is required")
         api_key = os.environ.get('EMERGENT_LLM_KEY')
@@ -8650,27 +8740,48 @@ async def live_research_search(
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         from urllib.parse import quote
         
-        # Enhanced system prompt for better research results with news
-        system_msg = """You are a research and news assistant. When given a search query, provide REAL academic publications AND recent news articles.
+        # Enhanced system prompt for verified news + research
+        if category == 'news':
+            system_msg = """You are a news intelligence assistant. Return ONLY real, recent news articles from VERIFIED sources.
 
-For each result, provide:
-- title: The actual paper/article/news title
-- authors: Real author names if known
-- year: Publication year
-- abstract: Brief summary (2-3 sentences)
-- url: REAL working URL from Google Scholar, arXiv, Reuters, BBC, Nature, Science, IEEE, etc.
-- source: The source platform
+Allowed sources ONLY: Reuters, Associated Press (AP), BBC, The New York Times, The Washington Post, The Guardian, Bloomberg, CNBC, CNN, Al Jazeera, Wall Street Journal, Financial Times, NPR, ABC News, NBC News, CBS News, Forbes, TechCrunch, The Verge, Wired, Nature News, Science Magazine, MIT Technology Review.
+
+Each item:
+- title (verbatim article headline)
+- snippet (1-2 sentence summary)
+- url (REAL working URL on that publisher's domain)
+- source (publisher name)
+- date (YYYY-MM-DD or YYYY)
+- type: "news"
+
+Return STRICT JSON array of 8-12 items. No prose. No markdown fences."""
+        else:
+            system_msg = """You are a research + verified news assistant. Return a balanced mix of:
+1. Real academic publications (Google Scholar, arXiv, IEEE, ACM, Nature, Science, PubMed)
+2. Recent news from VERIFIED publishers ONLY: Reuters, AP, BBC, NYT, Washington Post, Guardian, Bloomberg, CNBC, WSJ, FT, NPR, Al Jazeera, Forbes, TechCrunch, The Verge, Wired, Nature News, Science Magazine, MIT Technology Review.
+
+Each item (JSON):
+- title
+- snippet (1-2 sentence summary)
+- url (REAL working URL)
+- source (publisher / journal)
+- date (YYYY-MM-DD or YYYY)
+- authors (array, optional)
 - type: "research" or "news"
+- relevance: 60-99
 
-IMPORTANT: Include a MIX of academic papers AND recent news/industry articles.
-Return as a JSON array of 6-10 results."""
+Return STRICT JSON array of 8-12 items. No prose. No markdown fences."""
         
         chat = LlmChat(api_key=api_key, session_id=f"research-{uuid.uuid4()}", system_message=system_msg)
         chat.with_model("openai", "gpt-5.2")
         
-        response_raw = await chat.send_message(UserMessage(
-            text=f"Find real academic papers, research articles, and publications about: {query}\n\nProvide 5-8 results with verified URLs from academic databases."
-        ))
+        user_prompt = (
+            f"Find recent verified news articles about: {query}\n\nReturn ONLY the JSON array."
+            if category == 'news'
+            else f"Find real academic papers AND recent verified news about: {query}\n\nReturn ONLY the JSON array."
+        )
+        
+        response_raw = await chat.send_message(UserMessage(text=user_prompt))
         
         import json
         
@@ -8693,20 +8804,23 @@ Return as a JSON array of 6-10 results."""
         except Exception as parse_err:
             logging.warning(f"Research JSON parse error: {parse_err}")
         
-        # Always provide direct search links to real academic search engines
+        # Always provide direct search links to real academic search engines + news
         encoded_query = quote(query)
         real_links = [
             {"title": f"Search '{query}' on Google Scholar", "url": f"https://scholar.google.com/scholar?q={encoded_query}", "source": "Google Scholar", "icon": "scholar"},
             {"title": f"Search '{query}' on arXiv", "url": f"https://arxiv.org/search/?query={encoded_query}&searchtype=all", "source": "arXiv", "icon": "arxiv"},
-            {"title": f"Search '{query}' on ResearchGate", "url": f"https://www.researchgate.net/search/publication?q={encoded_query}", "source": "ResearchGate", "icon": "researchgate"},
             {"title": f"Search '{query}' on PubMed", "url": f"https://pubmed.ncbi.nlm.nih.gov/?term={encoded_query}", "source": "PubMed", "icon": "pubmed"},
             {"title": f"Search '{query}' on Semantic Scholar", "url": f"https://www.semanticscholar.org/search?q={encoded_query}", "source": "Semantic Scholar", "icon": "semantic"},
             {"title": f"Search '{query}' on IEEE Xplore", "url": f"https://ieeexplore.ieee.org/search/searchresult.jsp?queryText={encoded_query}", "source": "IEEE Xplore", "icon": "ieee"},
-            {"title": f"Search '{query}' on ACM Digital Library", "url": f"https://dl.acm.org/action/doSearch?AllField={encoded_query}", "source": "ACM", "icon": "acm"},
+            {"title": f"Search '{query}' on Reuters", "url": f"https://www.reuters.com/site-search/?query={encoded_query}", "source": "Reuters", "icon": "news"},
+            {"title": f"Search '{query}' on BBC News", "url": f"https://www.bbc.co.uk/search?q={encoded_query}", "source": "BBC News", "icon": "news"},
+            {"title": f"Search '{query}' on AP News", "url": f"https://apnews.com/hub/{encoded_query}", "source": "AP News", "icon": "news"},
+            {"title": f"Search '{query}' on Google News", "url": f"https://news.google.com/search?q={encoded_query}", "source": "Google News", "icon": "news"},
         ]
         
         return {
             "query": query,
+            "category": category,
             "ai_results": results,
             "direct_search_links": real_links,
             "total_results": len(results),
@@ -12934,22 +13048,10 @@ async def get_premade_course(doc_id: str, current_user: dict = Depends(get_curre
 
 @api_router.get("/premade-courses/{doc_id}/download")
 async def download_premade_course(doc_id: str, current_user: dict = Depends(get_current_user)):
-    """Download a premade course document"""
-    doc = await db.premade_courses.find_one({"id": doc_id}, {"_id": 0})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    await db.premade_courses.update_one(
-        {"id": doc_id},
-        {"$inc": {"download_count": 1}}
-    )
-    
-    file_data = base64.b64decode(doc['file_data'])
-    
-    return StreamingResponse(
-        io.BytesIO(file_data),
-        media_type=doc.get('content_type', 'application/octet-stream'),
-        headers={"Content-Disposition": f"attachment; filename={doc.get('filename', 'document')}"}
+    """Downloads are disabled. Premade courses are view-only."""
+    raise HTTPException(
+        status_code=403,
+        detail="Downloads are disabled. Premade courses are view-only."
     )
 
 

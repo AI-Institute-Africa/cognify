@@ -501,8 +501,11 @@ export const detectLanguage = async (text) => {
 
 // TTS with Emergent LLM Key
 export const generateTTS = async (text, voice = 'nova', speed = 1.0) => {
-  const params = new URLSearchParams({ text, voice, speed: speed.toString() });
-  const response = await axios.post(`${API}/advanced/tts?${params}`, {}, { headers: getAuthHeaders() });
+  const response = await axios.post(
+    `${API}/advanced/tts`,
+    { text, voice, speed },
+    { headers: getAuthHeaders() }
+  );
   return response.data;
 };
 
@@ -1027,8 +1030,8 @@ export const getStudentAttendance = async (studentId) => {
 };
 
 // ==================== LIVE RESEARCH ====================
-export const searchResearch = async (query) => {
-  const response = await axios.post(`${API}/research/search`, { query }, { headers: getAuthHeaders() });
+export const searchResearch = async (query, category = 'all') => {
+  const response = await axios.post(`${API}/research/search`, { query, category }, { headers: getAuthHeaders() });
   return response.data;
 };
 
