@@ -11,7 +11,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '../components/ui/select';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription
 } from '../components/ui/dialog';
 import {
   FileText, Upload, Trash2, Search, Loader2,
@@ -379,6 +379,9 @@ export default function PremadeCoursesPage() {
                 <Eye className="w-5 h-5 text-violet-400" />
                 <span className="truncate">{viewDoc?.title}</span>
               </DialogTitle>
+              <DialogDescription className="sr-only">
+                View-only document preview. Downloading, copying and printing are disabled.
+              </DialogDescription>
               <div className="flex gap-2 flex-wrap pt-2">
                 <Badge>{viewDoc?.category}</Badge>
                 <Badge className="bg-zinc-700/50">{viewDoc?.filename}</Badge>
