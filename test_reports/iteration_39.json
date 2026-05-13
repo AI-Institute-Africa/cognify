@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 39 - Verified premade-courses inline viewing (PDF, DOCX, PPTX, TXT) and audio TTS browser-fallback. Backend: 9/9 pytest cases pass. Frontend: all 4 document types render in the correct viewer (react-pdf canvas, docx-preview, LibreOffice-converted PDF canvas), no download links anywhere, 'View Only' badge + 'Downloading, copying and printing are disabled' footer present. Audio TTS fallback proved: backend /api/advanced/tts returned 503 (LLM budget exceeded), code path automatically called window.speechSynthesis.speak() with the lesson text, button flipped to 'Pause' state, and the 'Failed to generate audio' toast was NOT shown.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "/api/advanced/tts", "issue": "Still returns 503 due to Emergent LLM key budget exceeded. The frontend now handles this gracefully via browser-TTS fallback so this is no longer a user-blocking issue, but cloud-quality TTS is still unavailable until the key budget is refilled.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Premade Courses preview Dialog", "issues": ["React warning: 'Missing Description or aria-describedby for DialogContent'. Cosmetic a11y warning only."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration39_premade_view_and_tts.py",
+    "/app/test_reports/pytest/pytest_iteration39.xml"
+  ],
+  "action_items": [
+    "(Optional, low-priority) Add DialogDescription / aria-describedby to PremadeCoursesPage view dialog to clear the React a11y warning.",
+    "(Environmental) Refill the Emergent LLM key budget so cloud TTS works again. Browser-TTS fallback masks this from end users but cloud voices are still nicer."
+  ],
+  "critical_code_review_comments": [
+    "Backend /api/premade-courses/{doc_id}/view is well structured: PDF / images / TXT / DOCX served as-is, legacy Office formats converted to PDF via LibreOffice on-demand and cached at /app/generated_pdf_cache/. soffice binary path is dynamically resolved with sensible fallback.",
+    "Frontend speakWithBrowserTTS picks higher-quality voice when available (Google/Natural/Samantha/Microsoft) before falling back to the default English voice — good polish.",
+    "handleGenerateAudio detects /budget|quota/ in the backend error and shows a different toast ('Cloud audio quota reached — using browser voice instead.') — graceful UX.",
+    "playAudio correctly handles both cloud (HTMLAudioElement) and browser (speechSynthesis pause/resume) paths.",
+    "PremadeCoursesPage uses local /pdf.worker.min.mjs (verified, 1MB present) so react-pdf does not hit a CDN; good for offline/airgapped deployments.",
+    "View dialog shows 'View Only' badge and 'This document is view-only. Downloading, copying and printing are disabled.' footer; matches the spec's 'no download links anywhere' requirement.",
+    "Minor: a11y warning 'Missing Description or aria-describedby for DialogContent' — should add a hidden DialogDescription element."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration39_premade_view_and_tts.py"
+  ],
+  "success_rate": {"backend": "100% (9/9 pytest)", "frontend": "100% (all 4 premade-courses doc types rendered correctly + audio fallback verified end-to-end)"},
+  "test_credentials": "Teacher demo.teacher@eduos.edu/demo123 and Student demo.student@cognify.edu/demo123 both working.",
+  "seed_data_creation": "Test relies on existing premade-courses (PPTX Test, DOCX Conversion Test, AU NOTES 2026.pdf, premade_test.txt). Test fixtures upload synthetic PDF/DOCX/PPTX if absent.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All iteration-39 fixes are working as designed. Premade-courses /view endpoint serves correct MIME types (application/pdf inline for pdf+converted office, wordprocessingml for docx, original for txt/images). Frontend uses react-pdf for PDFs (canvas), docx-preview for DOCX (preserves Word styling), and react-pdf again for converted office docs. Audio mode: backend 503 → browser TTS fallback triggers, UI shows 'Pause', no error toast. The pause/resume programmatic verification could not assert paused=True because in headless Chromium speechSynthesis.speak does not actually start without an audio device — but the UI button transitions ('Generate Audio' → 'Pause' → 'Play Audio') were verified visually.",
+  "rca of the issue": "User complaint 1 (documents not in original format) RCA: previous implementation extracted text from documents. New implementation streams raw bytes for PDF/DOCX and uses LibreOffice headless conversion for legacy Office formats, then renders client-side (react-pdf / docx-preview). User complaint 2 ('Failed to generate audio') RCA: backend /api/advanced/tts intermittently returns 503 (Emergent LLM key budget exceeded). Fix: handleGenerateAudio now wraps the cloud call in a try/catch and on failure invokes window.speechSynthesis.speak() with the full lesson text; audioPlaying state hooks to utter.onstart/onend so the UI flips to 'Pause' correctly. Verified live: backend returned 503 during test, browser-TTS fallback executed, button changed to 'Pause', no failure toast surfaced to user."
+}

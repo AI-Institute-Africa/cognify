@@ -318,27 +318,80 @@ export default function CourseViewPage() {
     }
   };
 
+  // Web Speech API fallback (works offline, no API key, reads any length)
+  const speakWithBrowserTTS = (text) => {
+    if (!('speechSynthesis' in window)) {
+      toast.error('Audio not supported on this browser.');
+      return false;
+    }
+    try {
+      window.speechSynthesis.cancel();
+      const utter = new window.SpeechSynthesisUtterance((text || '').toString());
+      utter.rate = 1.0;
+      utter.pitch = 1.0;
+      utter.volume = 1.0;
+      utter.lang = 'en-US';
+      // Pick a higher quality voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const preferred = voices.find(v => /en[-_]US/i.test(v.lang) && /google|natural|samantha|microsoft/i.test(v.name))
+        || voices.find(v => v.default && /en/i.test(v.lang))
+        || voices.find(v => /en/i.test(v.lang));
+      if (preferred) utter.voice = preferred;
+      utter.onstart = () => setAudioPlaying(true);
+      utter.onend = () => setAudioPlaying(false);
+      utter.onerror = () => setAudioPlaying(false);
+      activeBrowserUtterRef.current = utter;
+      window.speechSynthesis.speak(utter);
+      return true;
+    } catch (err) {
+      console.error('Browser TTS failed:', err);
+      return false;
+    }
+  };
+
   const handleGenerateAudio = async (text) => {
+    const fullText = (text || '').toString().trim();
+    if (!fullText) {
+      toast.error('No text to read.');
+      return;
+    }
     setGeneratingAudio(true);
     try {
-      // Send full text - backend chunks & concatenates as needed for long-form audio
-      const fullText = (text || '').toString();
       const voiceId = avatarSettings?.voice_id || 'nova';
       const result = await generateTTS(fullText, voiceId);
       if (result.audio_url) {
         setAudioUrl(result.audio_url);
         const chunks = result.chunks || 1;
         toast.success(`Audio generated${chunks > 1 ? ` (${chunks} segments combined)` : ''}!`);
+        return;
       }
+      throw new Error('No audio URL in response');
     } catch (error) {
-      console.error('TTS failed:', error);
-      toast.error('Failed to generate audio. Please try again.');
+      console.error('Cloud TTS failed:', error);
+      const detail = error.response?.data?.detail;
+      const msg = typeof detail === 'object' ? (detail.error || detail.message) : detail;
+      // Fall back to browser-native TTS so audio mode always works
+      const ok = speakWithBrowserTTS(fullText);
+      if (ok) {
+        toast.info(
+          msg && /budget|quota/i.test(msg)
+            ? 'Cloud audio quota reached — using browser voice instead.'
+            : 'Using your browser voice to read the lesson.',
+          { duration: 4000 }
+        );
+        setAudioUrl(null);
+      } else {
+        toast.error('Failed to generate audio. Please try again.');
+      }
     } finally {
       setGeneratingAudio(false);
     }
   };
 
+  const activeBrowserUtterRef = React.useRef(null);
+
   const playAudio = () => {
+    // If we have a cloud audio URL, play that. Otherwise, replay via browser TTS.
     if (audioUrl) {
       if (activeAudioRef.current && !activeAudioRef.current.paused) {
         activeAudioRef.current.pause();
@@ -352,6 +405,17 @@ export default function CourseViewPage() {
       audio.play();
       setAudioPlaying(true);
       audio.onended = () => { setAudioPlaying(false); activeAudioRef.current = null; };
+      return;
+    }
+    // Browser-TTS path: pause/resume
+    if ('speechSynthesis' in window) {
+      if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+        window.speechSynthesis.pause();
+        setAudioPlaying(false);
+      } else if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+        setAudioPlaying(true);
+      }
     }
   };
   
@@ -1016,7 +1080,17 @@ export default function CourseViewPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => audioPlaying ? setAudioPlaying(false) : (audioUrl ? playAudio() : handleGenerateAudio(displayText))}
+                        onClick={() => {
+                          if (audioPlaying) {
+                            playAudio(); // toggle pause for both cloud and browser TTS
+                          } else if (audioUrl) {
+                            playAudio();
+                          } else if ('speechSynthesis' in window && window.speechSynthesis.paused) {
+                            playAudio(); // resume browser TTS
+                          } else {
+                            handleGenerateAudio(displayText);
+                          }
+                        }}
                         disabled={generatingAudio}
                         className="border-white/10"
                         data-testid="audio-btn"
@@ -1216,7 +1290,7 @@ export default function CourseViewPage() {
                         <p className="text-zinc-400">Listen to this lesson while you&apos;re on the go</p>
                       </div>
                       
-                      {audioUrl ? (
+                      {(audioUrl || audioPlaying) ? (
                         <div className="bg-zinc-900/50 p-4 rounded-lg">
                           <div className="flex items-center justify-center gap-4">
                             <Button

@@ -13067,6 +13067,140 @@ async def download_premade_course(doc_id: str, current_user: dict = Depends(get_
     )
 
 
+def _convert_office_to_pdf(input_path: str, output_dir: str) -> Optional[str]:
+    """Convert .doc/.docx/.ppt/.pptx/.xls/.xlsx to PDF using LibreOffice headless.
+    Returns the produced PDF path, or None on failure.
+    """
+    import subprocess
+    # Resolve soffice binary (supervisor may not include /usr/bin in PATH)
+    soffice_bin = None
+    for path in ("/usr/bin/soffice", "/usr/bin/libreoffice", "soffice", "libreoffice"):
+        try:
+            r = subprocess.run(["which", path] if not path.startswith("/") else ["test", "-x", path],
+                               capture_output=True, timeout=5)
+            if r.returncode == 0:
+                soffice_bin = path
+                break
+        except Exception:
+            continue
+    if not soffice_bin:
+        soffice_bin = "/usr/bin/soffice"  # last resort
+
+    try:
+        subprocess.run(
+            [
+                soffice_bin, "--headless", "--norestore", "--nologo",
+                "--convert-to", "pdf",
+                "--outdir", output_dir,
+                input_path,
+            ],
+            check=True,
+            timeout=120,
+            capture_output=True,
+        )
+        base = os.path.splitext(os.path.basename(input_path))[0]
+        pdf_path = os.path.join(output_dir, f"{base}.pdf")
+        return pdf_path if os.path.exists(pdf_path) else None
+    except Exception as e:
+        logging.error(f"LibreOffice conversion failed for {input_path}: {e}")
+        return None
+
+
+# Cache directory for converted PDFs (keeps things fast on repeat views)
+PREMADE_VIEW_CACHE_DIR = "/app/generated_pdf_cache"
+os.makedirs(PREMADE_VIEW_CACHE_DIR, exist_ok=True)
+
+
+@api_router.get("/premade-courses/{doc_id}/view")
+async def view_premade_course(
+    doc_id: str,
+    raw: bool = False,
+    current_user: dict = Depends(get_current_user),
+):
+    """Stream the original premade course document inline for in-browser viewing.
+
+    - PDF files: served as-is (rendered with react-pdf on the frontend)
+    - DOCX files: served as-is (rendered with docx-preview on the frontend) so the
+      original Word formatting is preserved
+    - PPT / PPTX / XLS / XLSX / DOC: converted to PDF on the fly (cached)
+    - Images / TXT: served inline with original MIME type
+
+    Pass `?raw=1` to ALWAYS receive the original file bytes (skips PDF conversion).
+    """
+    doc = await db.premade_courses.find_one({"id": doc_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    filename = (doc.get('filename') or 'document').lower()
+    raw_bytes = base64.b64decode(doc['file_data'])
+
+    ext = ""
+    if "." in filename:
+        ext = filename.rsplit(".", 1)[-1]
+
+    inline_headers = {
+        "Content-Disposition": f"inline; filename=\"{filename}\"",
+        "Cache-Control": "private, max-age=300",
+        "X-Frame-Options": "SAMEORIGIN",
+        "X-Content-Type-Options": "nosniff",
+    }
+
+    # Always-raw formats (no conversion possible / desired)
+    if ext == "pdf":
+        return StreamingResponse(io.BytesIO(raw_bytes), media_type="application/pdf", headers=inline_headers)
+    if ext in ("png", "jpg", "jpeg", "gif", "webp", "svg"):
+        media = doc.get('content_type') or f"image/{'jpeg' if ext == 'jpg' else ext}"
+        return StreamingResponse(io.BytesIO(raw_bytes), media_type=media, headers=inline_headers)
+    if ext == "txt":
+        return StreamingResponse(io.BytesIO(raw_bytes), media_type="text/plain; charset=utf-8", headers=inline_headers)
+
+    # DOCX: serve original bytes by default — frontend renders with docx-preview to keep Word styling.
+    if ext == "docx" and not raw:
+        return StreamingResponse(
+            io.BytesIO(raw_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers=inline_headers,
+        )
+
+    # Explicit raw request for any other format: just stream the bytes
+    if raw:
+        media = doc.get('content_type') or 'application/octet-stream'
+        return StreamingResponse(io.BytesIO(raw_bytes), media_type=media, headers=inline_headers)
+
+    # Office formats (legacy doc, ppt, pptx, xls, xlsx) -> convert to PDF (cached) so the
+    # visual layout (slides, columns, charts) is preserved when shown in-browser.
+    if ext in ("doc", "ppt", "pptx", "xls", "xlsx"):
+        cached_pdf = os.path.join(PREMADE_VIEW_CACHE_DIR, f"{doc_id}.pdf")
+        if not os.path.exists(cached_pdf):
+            tmp_dir = f"/tmp/premade-{doc_id}"
+            os.makedirs(tmp_dir, exist_ok=True)
+            src_path = os.path.join(tmp_dir, filename)
+            with open(src_path, "wb") as f:
+                f.write(raw_bytes)
+            pdf_path = await asyncio.to_thread(_convert_office_to_pdf, src_path, tmp_dir)
+            if not pdf_path:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Could not render this document in-browser. Conversion service unavailable."
+                )
+            import shutil as _shutil
+            _shutil.move(pdf_path, cached_pdf)
+            _shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        def _iter():
+            with open(cached_pdf, "rb") as f:
+                while True:
+                    chunk = f.read(64 * 1024)
+                    if not chunk:
+                        break
+                    yield chunk
+        return StreamingResponse(_iter(), media_type="application/pdf", headers=inline_headers)
+
+    # Fallback
+    media = doc.get('content_type') or 'application/octet-stream'
+    return StreamingResponse(io.BytesIO(raw_bytes), media_type=media, headers=inline_headers)
+
+
 @api_router.delete("/premade-courses/{doc_id}")
 async def delete_premade_course(doc_id: str, current_user: dict = Depends(get_current_user)):
     """Delete a premade course document"""

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
@@ -19,6 +19,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
+import { renderAsync as renderDocxAsync } from 'docx-preview';
+
+// Configure pdf.js worker - use locally-served worker from /public for reliability
+pdfjs.GlobalWorkerOptions.workerSrc = `${process.env.PUBLIC_URL || ''}/pdf.worker.min.mjs`;
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const getAuth = () => ({ Authorization: `Bearer ${localStorage.getItem('cognify_token')}` });
@@ -48,8 +55,97 @@ export default function PremadeCoursesPage() {
   const [uploadForm, setUploadForm] = useState({ title: '', description: '', category: 'general' });
   const [selectedFile, setSelectedFile] = useState(null);
   const [viewDoc, setViewDoc] = useState(null);
+  const [viewBlobUrl, setViewBlobUrl] = useState(null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [viewError, setViewError] = useState(null);
+  const [pdfNumPages, setPdfNumPages] = useState(null);
+  const pdfContainerRef = useRef(null);
+  const [pdfContainerWidth, setPdfContainerWidth] = useState(800);
+  const docxContainerRef = useRef(null);
+  const [viewBlob, setViewBlob] = useState(null);
 
   useEffect(() => { loadDocuments(); }, [selectedCategory]);
+
+  // Fetch and stream the original document as a blob URL for in-iframe rendering.
+  useEffect(() => {
+    let cancelled = false;
+    async function loadView() {
+      setPdfNumPages(null);
+      if (!viewDoc) {
+        setViewBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
+        setViewBlob(null);
+        setViewError(null);
+        return;
+      }
+      setViewLoading(true);
+      setViewError(null);
+      try {
+        const { data } = await axios.get(
+          `${API}/api/premade-courses/${viewDoc.id}/view`,
+          { headers: getAuth(), responseType: 'blob' }
+        );
+        if (cancelled) return;
+        const fname = (viewDoc.filename || '').toLowerCase();
+        const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].some(e => fname.endsWith('.' + e));
+        const isTxt = fname.endsWith('.txt');
+        const isDocx = fname.endsWith('.docx');
+        let mime;
+        if (isImg) mime = data.type || 'image/png';
+        else if (isTxt) mime = 'text/plain';
+        else if (isDocx) mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        else mime = 'application/pdf';
+        const blob = new Blob([data], { type: mime });
+        const url = URL.createObjectURL(blob);
+        setViewBlob(blob);
+        setViewBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url; });
+      } catch (e) {
+        if (!cancelled) setViewError(e.response?.data?.detail || 'Could not load document');
+      } finally {
+        if (!cancelled) setViewLoading(false);
+      }
+    }
+    loadView();
+    return () => { cancelled = true; };
+  }, [viewDoc]);
+
+  // Track container width so pdf pages scale responsively
+  useEffect(() => {
+    const el = pdfContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = Math.max(320, Math.floor(entry.contentRect.width) - 24);
+        setPdfContainerWidth(w);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [viewBlobUrl]);
+
+  // Stable file source for react-pdf so it doesn't re-fetch on every render
+  const pdfFileSource = useMemo(() => (viewBlobUrl ? { url: viewBlobUrl } : null), [viewBlobUrl]);
+
+  // Render DOCX into its container using docx-preview (preserves Word styling)
+  useEffect(() => {
+    const fname = (viewDoc?.filename || '').toLowerCase();
+    const isDocx = fname.endsWith('.docx');
+    const container = docxContainerRef.current;
+    if (!isDocx || !viewBlob || !container) return;
+    container.innerHTML = '';
+    renderDocxAsync(viewBlob, container, null, {
+      className: 'docx-preview',
+      inWrapper: true,
+      ignoreWidth: false,
+      ignoreHeight: false,
+      ignoreFonts: false,
+      breakPages: true,
+      experimental: true,
+      useBase64URL: true,
+    }).catch((err) => {
+      console.error('docx-preview render failed', err);
+      container.innerHTML = '<div style="padding:24px;color:#a1a1aa;text-align:center">Could not render Word document.</div>';
+    });
+  }, [viewBlob, viewDoc]);
 
   const loadDocuments = async () => {
     try {
@@ -277,41 +373,130 @@ export default function PremadeCoursesPage() {
 
         {/* Preview Dialog - view only, no download */}
         <Dialog open={!!viewDoc} onOpenChange={() => setViewDoc(null)}>
-          <DialogContent className="bg-zinc-900 border-white/10 max-w-3xl max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
+          <DialogContent className="bg-zinc-900 border-white/10 w-[95vw] max-w-6xl h-[90vh] p-0 flex flex-col">
+            <DialogHeader className="px-6 pt-5 pb-3 border-b border-white/10">
               <DialogTitle className="flex items-center gap-2">
                 <Eye className="w-5 h-5 text-violet-400" />
-                {viewDoc?.title}
+                <span className="truncate">{viewDoc?.title}</span>
               </DialogTitle>
-            </DialogHeader>
-            <div
-              className="space-y-3 mt-4"
-              onContextMenu={(e) => e.preventDefault()}
-              onCopy={(e) => e.preventDefault()}
-              style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
-              data-testid="premade-view-content"
-            >
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 flex-wrap pt-2">
                 <Badge>{viewDoc?.category}</Badge>
                 <Badge className="bg-zinc-700/50">{viewDoc?.filename}</Badge>
                 <Badge className="bg-zinc-700/50">{formatFileSize(viewDoc?.file_size || 0)}</Badge>
                 <Badge className="bg-emerald-500/20 text-emerald-300">View Only</Badge>
               </div>
-              {viewDoc?.description && <p className="text-sm text-zinc-400">{viewDoc.description}</p>}
-              {viewDoc?.preview_text ? (
-                <div className="bg-zinc-800/50 rounded-lg p-4 max-h-[55vh] overflow-y-auto select-none">
-                  <p className="text-xs font-semibold text-zinc-500 mb-2 uppercase tracking-wide">Document Content (View Only)</p>
-                  <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">{viewDoc.preview_text}</p>
-                </div>
-              ) : (
-                <div className="bg-zinc-800/50 rounded-lg p-6 text-center">
-                  <FileText className="w-12 h-12 text-violet-400 mx-auto mb-2" />
-                  <p className="text-sm text-zinc-400">No preview text available for this document</p>
+            </DialogHeader>
+
+            <div
+              className="flex-1 relative overflow-hidden bg-zinc-950"
+              onContextMenu={(e) => e.preventDefault()}
+              data-testid="premade-view-content"
+            >
+              {viewLoading && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Loader2 className="w-10 h-10 animate-spin text-violet-400" />
                 </div>
               )}
-              <p className="text-[11px] text-zinc-500 text-center pt-2">
+              {viewError && !viewLoading && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
+                  <FileText className="w-12 h-12 text-zinc-500 mb-3" />
+                  <p className="text-zinc-300 font-medium">{viewError}</p>
+                  {viewDoc?.preview_text && (
+                    <div className="mt-4 max-w-2xl w-full text-left bg-zinc-800/60 rounded-lg p-4 max-h-[55vh] overflow-y-auto">
+                      <p className="text-xs font-semibold text-zinc-500 mb-2 uppercase tracking-wide">Text fallback</p>
+                      <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed select-none">{viewDoc.preview_text}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {!viewLoading && !viewError && viewBlobUrl && (() => {
+                const fname = (viewDoc?.filename || '').toLowerCase();
+                const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].some(e => fname.endsWith('.' + e));
+                const isTxt = fname.endsWith('.txt');
+                const isDocx = fname.endsWith('.docx');
+
+                if (isImg) {
+                  return (
+                    <div className="w-full h-full flex items-center justify-center p-4 select-none">
+                      <img
+                        src={viewBlobUrl}
+                        alt={viewDoc?.title}
+                        className="max-w-full max-h-full object-contain pointer-events-none"
+                        draggable={false}
+                      />
+                    </div>
+                  );
+                }
+
+                if (isTxt) {
+                  return (
+                    <iframe
+                      title={viewDoc?.title}
+                      src={viewBlobUrl}
+                      className="w-full h-full border-0 bg-white"
+                      data-testid="premade-view-iframe"
+                    />
+                  );
+                }
+
+                if (isDocx) {
+                  // Word document rendered with docx-preview (preserves original Word styling)
+                  return (
+                    <div
+                      ref={docxContainerRef}
+                      className="w-full h-full overflow-y-auto bg-white text-zinc-900 px-6 py-4 select-none"
+                      data-testid="premade-view-docx"
+                      style={{ userSelect: 'none' }}
+                    />
+                  );
+                }
+
+                // PDF (native PDFs and PPT/PPTX/XLS/XLSX/DOC after conversion) — react-pdf
+                return (
+                  <div ref={pdfContainerRef} className="w-full h-full overflow-y-auto bg-zinc-900 select-none">
+                    <Document
+                      file={pdfFileSource}
+                      loading={
+                        <div className="flex items-center justify-center py-20">
+                          <Loader2 className="w-10 h-10 animate-spin text-violet-400" />
+                        </div>
+                      }
+                      error={
+                        <div className="text-center py-20 px-6">
+                          <FileText className="w-12 h-12 text-zinc-500 mx-auto mb-3" />
+                          <p className="text-zinc-300">Could not render this document.</p>
+                        </div>
+                      }
+                      onLoadSuccess={({ numPages }) => { setPdfNumPages(numPages); }}
+                      onContextMenu={(e) => e.preventDefault()}
+                    >
+                      {pdfNumPages && Array.from({ length: pdfNumPages }, (_, i) => (
+                        <div
+                          key={`page_${i + 1}`}
+                          className="flex justify-center py-3 border-b border-white/5"
+                        >
+                          <Page
+                            pageNumber={i + 1}
+                            width={pdfContainerWidth}
+                            renderTextLayer={false}
+                            renderAnnotationLayer={false}
+                          />
+                        </div>
+                      ))}
+                    </Document>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="px-6 py-3 border-t border-white/10 text-[11px] text-zinc-500 flex items-center justify-between gap-4">
+              <span>
+                {pdfNumPages ? `${pdfNumPages} page${pdfNumPages > 1 ? 's' : ''}` : 'View only'}
+              </span>
+              <span className="text-center flex-1">
                 This document is view-only. Downloading, copying and printing are disabled.
-              </p>
+              </span>
+              <span className="opacity-0">.</span>
             </div>
           </DialogContent>
         </Dialog>
