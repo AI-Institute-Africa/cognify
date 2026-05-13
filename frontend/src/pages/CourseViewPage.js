@@ -540,7 +540,7 @@ export default function CourseViewPage() {
     try {
       if (generateType === 'video') {
         toast.info('Generating video... This may take a few minutes.');
-        const result = await generateVideoContent(topic, courseId, 4);
+        const result = await generateVideoContent(topic, courseId, 12);
         toast.success('Video generated successfully!');
         // Refresh content to show new video
         loadCourseData();

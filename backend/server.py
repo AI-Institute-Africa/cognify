@@ -8726,23 +8726,50 @@ async def live_research_search(
     request: Request,
     current_user: dict = Depends(get_current_user)
 ):
-    """Search for real academic publications and verified news using web search"""
+    """Search for real academic publications and verified news using web search.
+    Always returns direct_search_links to verified sources even if the AI provider fails.
+    """
+    body = {}
     try:
         body = await request.json()
-        query = body.get('query', '')
-        category = (body.get('category') or 'all').lower()
-        if not query:
-            raise HTTPException(status_code=400, detail="Query is required")
+    except Exception:
+        body = {}
+    query = (body.get('query') or '').strip()
+    category = (body.get('category') or 'all').lower()
+    if not query:
+        raise HTTPException(status_code=400, detail="Query is required")
+    
+    from urllib.parse import quote
+    encoded_query = quote(query)
+    
+    # Verified-source links available regardless of AI status
+    real_links = [
+        {"title": f"Search '{query}' on Google Scholar", "url": f"https://scholar.google.com/scholar?q={encoded_query}", "source": "Google Scholar", "icon": "scholar"},
+        {"title": f"Search '{query}' on arXiv", "url": f"https://arxiv.org/search/?query={encoded_query}&searchtype=all", "source": "arXiv", "icon": "arxiv"},
+        {"title": f"Search '{query}' on PubMed", "url": f"https://pubmed.ncbi.nlm.nih.gov/?term={encoded_query}", "source": "PubMed", "icon": "pubmed"},
+        {"title": f"Search '{query}' on Semantic Scholar", "url": f"https://www.semanticscholar.org/search?q={encoded_query}", "source": "Semantic Scholar", "icon": "semantic"},
+        {"title": f"Search '{query}' on IEEE Xplore", "url": f"https://ieeexplore.ieee.org/search/searchresult.jsp?queryText={encoded_query}", "source": "IEEE Xplore", "icon": "ieee"},
+        {"title": f"Search '{query}' on Reuters", "url": f"https://www.reuters.com/site-search/?query={encoded_query}", "source": "Reuters", "icon": "news"},
+        {"title": f"Search '{query}' on BBC News", "url": f"https://www.bbc.co.uk/search?q={encoded_query}", "source": "BBC News", "icon": "news"},
+        {"title": f"Search '{query}' on AP News", "url": f"https://apnews.com/hub/{encoded_query}", "source": "AP News", "icon": "news"},
+        {"title": f"Search '{query}' on Google News", "url": f"https://news.google.com/search?q={encoded_query}", "source": "Google News", "icon": "news"},
+        {"title": f"Search '{query}' on The Guardian", "url": f"https://www.theguardian.com/search?q={encoded_query}", "source": "The Guardian", "icon": "news"},
+        {"title": f"Search '{query}' on Nature News", "url": f"https://www.nature.com/search?q={encoded_query}", "source": "Nature", "icon": "nature"},
+        {"title": f"Search '{query}' on MIT Tech Review", "url": f"https://www.technologyreview.com/?s={encoded_query}", "source": "MIT Tech Review", "icon": "news"},
+    ]
+    
+    ai_error = None
+    results = []
+    
+    try:
         api_key = os.environ.get('EMERGENT_LLM_KEY')
         if not api_key:
-            raise HTTPException(status_code=500, detail="Search service not configured")
-        
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        from urllib.parse import quote
-        
-        # Enhanced system prompt for verified news + research
-        if category == 'news':
-            system_msg = """You are a news intelligence assistant. Return ONLY real, recent news articles from VERIFIED sources.
+            ai_error = "AI search service not configured"
+        else:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            
+            if category == 'news':
+                system_msg = """You are a news intelligence assistant. Return ONLY real, recent news articles from VERIFIED sources.
 
 Allowed sources ONLY: Reuters, Associated Press (AP), BBC, The New York Times, The Washington Post, The Guardian, Bloomberg, CNBC, CNN, Al Jazeera, Wall Street Journal, Financial Times, NPR, ABC News, NBC News, CBS News, Forbes, TechCrunch, The Verge, Wired, Nature News, Science Magazine, MIT Technology Review.
 
@@ -8755,8 +8782,8 @@ Each item:
 - type: "news"
 
 Return STRICT JSON array of 8-12 items. No prose. No markdown fences."""
-        else:
-            system_msg = """You are a research + verified news assistant. Return a balanced mix of:
+            else:
+                system_msg = """You are a research + verified news assistant. Return a balanced mix of:
 1. Real academic publications (Google Scholar, arXiv, IEEE, ACM, Nature, Science, PubMed)
 2. Recent news from VERIFIED publishers ONLY: Reuters, AP, BBC, NYT, Washington Post, Guardian, Bloomberg, CNBC, WSJ, FT, NPR, Al Jazeera, Forbes, TechCrunch, The Verge, Wired, Nature News, Science Magazine, MIT Technology Review.
 
@@ -8771,67 +8798,52 @@ Each item (JSON):
 - relevance: 60-99
 
 Return STRICT JSON array of 8-12 items. No prose. No markdown fences."""
-        
-        chat = LlmChat(api_key=api_key, session_id=f"research-{uuid.uuid4()}", system_message=system_msg)
-        chat.with_model("openai", "gpt-5.2")
-        
-        user_prompt = (
-            f"Find recent verified news articles about: {query}\n\nReturn ONLY the JSON array."
-            if category == 'news'
-            else f"Find real academic papers AND recent verified news about: {query}\n\nReturn ONLY the JSON array."
-        )
-        
-        response_raw = await chat.send_message(UserMessage(text=user_prompt))
-        
-        import json
-        
-        response_text = (response_raw.text if hasattr(response_raw, 'text') else str(response_raw))
-        
-        # Try to parse JSON response
-        results = []
-        try:
-            # Clean response
-            cleaned = response_text.strip()
-            if "```json" in cleaned:
-                cleaned = cleaned.split("```json")[1].split("```")[0]
-            elif "```" in cleaned:
-                cleaned = cleaned.split("```")[1].split("```")[0]
             
-            json_start = cleaned.find('[')
-            json_end = cleaned.rfind(']') + 1
-            if json_start >= 0 and json_end > json_start:
-                results = json.loads(cleaned[json_start:json_end])
-        except Exception as parse_err:
-            logging.warning(f"Research JSON parse error: {parse_err}")
-        
-        # Always provide direct search links to real academic search engines + news
-        encoded_query = quote(query)
-        real_links = [
-            {"title": f"Search '{query}' on Google Scholar", "url": f"https://scholar.google.com/scholar?q={encoded_query}", "source": "Google Scholar", "icon": "scholar"},
-            {"title": f"Search '{query}' on arXiv", "url": f"https://arxiv.org/search/?query={encoded_query}&searchtype=all", "source": "arXiv", "icon": "arxiv"},
-            {"title": f"Search '{query}' on PubMed", "url": f"https://pubmed.ncbi.nlm.nih.gov/?term={encoded_query}", "source": "PubMed", "icon": "pubmed"},
-            {"title": f"Search '{query}' on Semantic Scholar", "url": f"https://www.semanticscholar.org/search?q={encoded_query}", "source": "Semantic Scholar", "icon": "semantic"},
-            {"title": f"Search '{query}' on IEEE Xplore", "url": f"https://ieeexplore.ieee.org/search/searchresult.jsp?queryText={encoded_query}", "source": "IEEE Xplore", "icon": "ieee"},
-            {"title": f"Search '{query}' on Reuters", "url": f"https://www.reuters.com/site-search/?query={encoded_query}", "source": "Reuters", "icon": "news"},
-            {"title": f"Search '{query}' on BBC News", "url": f"https://www.bbc.co.uk/search?q={encoded_query}", "source": "BBC News", "icon": "news"},
-            {"title": f"Search '{query}' on AP News", "url": f"https://apnews.com/hub/{encoded_query}", "source": "AP News", "icon": "news"},
-            {"title": f"Search '{query}' on Google News", "url": f"https://news.google.com/search?q={encoded_query}", "source": "Google News", "icon": "news"},
-        ]
-        
-        return {
-            "query": query,
-            "category": category,
-            "ai_results": results,
-            "direct_search_links": real_links,
-            "total_results": len(results),
-            "search_timestamp": datetime.now(timezone.utc).isoformat()
-        }
-        
-    except HTTPException:
-        raise
+            chat = LlmChat(api_key=api_key, session_id=f"research-{uuid.uuid4()}", system_message=system_msg)
+            chat.with_model("openai", "gpt-5.2")
+            
+            user_prompt = (
+                f"Find recent verified news articles about: {query}\n\nReturn ONLY the JSON array."
+                if category == 'news'
+                else f"Find real academic papers AND recent verified news about: {query}\n\nReturn ONLY the JSON array."
+            )
+            
+            response_raw = await chat.send_message(UserMessage(text=user_prompt))
+            
+            import json as _json
+            response_text = (response_raw.text if hasattr(response_raw, 'text') else str(response_raw))
+            
+            try:
+                cleaned = response_text.strip()
+                if "```json" in cleaned:
+                    cleaned = cleaned.split("```json")[1].split("```")[0]
+                elif "```" in cleaned:
+                    cleaned = cleaned.split("```")[1].split("```")[0]
+                
+                json_start = cleaned.find('[')
+                json_end = cleaned.rfind(']') + 1
+                if json_start >= 0 and json_end > json_start:
+                    results = _json.loads(cleaned[json_start:json_end])
+            except Exception as parse_err:
+                logging.warning(f"Research JSON parse error: {parse_err}")
+                ai_error = "AI returned unparseable response"
     except Exception as e:
-        logging.error(f"Research search error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Research AI search error: {e}")
+        err_str = str(e)
+        if "budget" in err_str.lower():
+            ai_error = "AI search temporarily unavailable (LLM quota exceeded). Use the verified-source links below."
+        else:
+            ai_error = "AI search temporarily unavailable. Use the verified-source links below."
+    
+    return {
+        "query": query,
+        "category": category,
+        "ai_results": results,
+        "direct_search_links": real_links,
+        "total_results": len(results),
+        "ai_error": ai_error,
+        "search_timestamp": datetime.now(timezone.utc).isoformat()
+    }
 
 @api_router.post("/research/crawl-content")
 async def crawl_research_content(

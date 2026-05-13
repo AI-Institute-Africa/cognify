@@ -762,7 +762,7 @@ export const getOutcomePathways = async () => {
 };
 
 // ==================== VIDEO & SLIDES GENERATION ====================
-export const generateVideoContent = async (topic, courseId = null, duration = 4) => {
+export const generateVideoContent = async (topic, courseId = null, duration = 12) => {
   const params = new URLSearchParams({ topic, duration: duration.toString() });
   if (courseId) params.append('course_id', courseId);
   const response = await axios.post(`${API}/content/generate-video?${params}`, {}, { headers: getAuthHeaders() });

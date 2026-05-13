@@ -97,7 +97,11 @@ export default function LiveResearchPage() {
       });
       setResults(normalized);
       setDirectLinks(response.direct_search_links || []);
-      toast.success(`Found ${normalized.length} results for "${query}"`);
+      if (response.ai_error) {
+        toast.warning(response.ai_error, { duration: 5000 });
+      } else {
+        toast.success(`Found ${normalized.length} results for "${query}"`);
+      }
     } catch (error) {
       console.error('Search failed:', error);
       toast.error('Search failed. Please try again.');
@@ -441,10 +445,10 @@ export default function LiveResearchPage() {
                 <div className="glass-card p-6 mt-6">
                   <h3 className="font-semibold mb-4 flex items-center gap-2">
                     <Link2 className="w-5 h-5 text-emerald-400" />
-                    Direct Search Links (Real Publications)
+                    Verified News & Research Sources
                   </h3>
                   <p className="text-sm text-zinc-500 mb-4">
-                    Click these links to search directly on academic databases:
+                    Search directly on verified publishers and academic databases:
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {directLinks.map((link, idx) => (
