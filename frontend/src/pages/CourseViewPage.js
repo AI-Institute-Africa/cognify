@@ -609,15 +609,47 @@ export default function CourseViewPage() {
         // Refresh content to show new video
         loadCourseData();
       } else {
-        toast.info('Generating slides...');
-        const result = await generateSlidesContent(topic, courseId, 5);
-        toast.success(`Generated ${result.slides?.length || 0} slides!`);
+        // Async slides — kick off and poll
+        toast.info('Generating slides (background task, ~30-60s)...');
+        const start = await generateSlidesContent(topic, courseId, 5);
+        const slideshowId = start.slideshow_id;
+        if (!slideshowId) throw new Error('No slideshow_id returned');
+
+        let attempts = 0;
+        let finalSlides = [];
+        while (attempts < 90) { // ~90 * 2s = 3 min max
+          await new Promise((r) => setTimeout(r, 2000));
+          attempts += 1;
+          let statusResp;
+          try {
+            const { data } = await axios.get(`${API}/api/content/slides-status/${slideshowId}`, {
+              headers: { Authorization: `Bearer ${localStorage.getItem('cognify_token')}` }
+            });
+            statusResp = data;
+          } catch (pollErr) {
+            console.warn('Slides poll failed', pollErr);
+            continue;
+          }
+          if (statusResp.status === 'completed') {
+            finalSlides = statusResp.slides || [];
+            break;
+          }
+          if (statusResp.status === 'failed') {
+            throw new Error(statusResp.error || 'Slides generation failed');
+          }
+        }
+        if (finalSlides.length === 0) {
+          throw new Error('Slides generation timed out. Please try again.');
+        }
+        toast.success(`Generated ${finalSlides.length} slides!`);
         loadCourseData();
       }
       setShowGenerateDialog(false);
     } catch (error) {
       console.error('Content generation failed:', error);
-      toast.error(`Failed to generate ${generateType}. Please try again.`);
+      const detail = error.response?.data?.detail;
+      const msg = (typeof detail === 'string' ? detail : (detail?.error || detail?.message)) || error.message || `Failed to generate ${generateType}. Please try again.`;
+      toast.error(msg);
     } finally {
       setGeneratingContent(false);
     }
@@ -1386,27 +1418,50 @@ export default function CourseViewPage() {
                                   setGeneratingSlides(true);
                                   try {
                                     const lessonTitle = currentLesson?.title || content[currentLessonIndex]?.title || course?.name || 'Lesson';
-                                    
-                                    // Use Gemini Nano Banana for pictorial slide generation
-                                    const { data } = await axios.post(`${API}/api/content/generate-slides`, null, {
-                                      params: {
-                                        topic: lessonTitle,
-                                        course_id: courseId,
-                                        slide_count: 5
-                                      },
-                                      headers: { Authorization: `Bearer ${localStorage.getItem('cognify_token')}` },
-                                      timeout: 120000
+                                    const authHeader = { Authorization: `Bearer ${localStorage.getItem('cognify_token')}` };
+
+                                    // Kick off async background job
+                                    const { data: start } = await axios.post(`${API}/api/content/generate-slides`, null, {
+                                      params: { topic: lessonTitle, course_id: courseId, slide_count: 5 },
+                                      headers: authHeader,
+                                      timeout: 30000,
                                     });
-                                    if (data.slides && data.slides.length > 0) {
-                                      toast.success(`Generated ${data.slides.length} pictorial slides!`);
-                                      loadCourseData(); // Reload to show new slides
+                                    const slideshowId = start.slideshow_id;
+                                    if (!slideshowId) throw new Error('No slideshow_id returned');
+                                    toast.info('Slides generation started — this takes ~30-60 seconds...');
+
+                                    // Poll for status (every 2s, up to 3 min)
+                                    let attempts = 0;
+                                    let finalSlides = [];
+                                    while (attempts < 90) {
+                                      await new Promise((r) => setTimeout(r, 2000));
+                                      attempts += 1;
+                                      let st;
+                                      try {
+                                        const { data } = await axios.get(`${API}/api/content/slides-status/${slideshowId}`, { headers: authHeader });
+                                        st = data;
+                                      } catch (pe) {
+                                        continue;
+                                      }
+                                      if (st.status === 'completed') {
+                                        finalSlides = st.slides || [];
+                                        break;
+                                      }
+                                      if (st.status === 'failed') {
+                                        throw new Error(st.error || 'Slides generation failed');
+                                      }
+                                    }
+                                    if (finalSlides.length === 0) {
+                                      toast.warning('Slides are still being generated. Refresh the page in a moment.');
                                     } else {
-                                      toast.error(data.detail || 'Failed to generate slides');
+                                      toast.success(`Generated ${finalSlides.length} pictorial slides!`);
+                                      loadCourseData();
                                     }
                                   } catch (e) {
                                     console.error('Slides error:', e);
-                                    const msg = e.response?.data?.detail || 'Failed to generate slides';
-                                    toast.error(msg.includes('timeout') ? 'Slide generation taking long. May still complete.' : msg);
+                                    const detail = e.response?.data?.detail;
+                                    const msg = (typeof detail === 'string' ? detail : (detail?.error || detail?.message)) || e.message || 'Failed to generate slides';
+                                    toast.error(msg);
                                   } finally {
                                     setGeneratingSlides(false);
                                   }

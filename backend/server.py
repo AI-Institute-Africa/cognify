@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Form, Query, Request, Body
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Form, Query, Request, Body, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from dotenv import load_dotenv
@@ -7113,73 +7113,82 @@ async def get_generated_video(video_id: str):
     
     return FileResponse(video_path, media_type="video/mp4")
 
-@content_router.post("/generate-slides")
-async def generate_slides_content(
-    topic: str,
-    course_id: Optional[str] = None,
-    slide_count: int = 5,
-    current_user: dict = Depends(get_current_user)
-):
-    """Generate educational slides/images using Gemini Nano Banana"""
+async def _generate_slides_background(slideshow_id: str, api_key: str, topic: str, slide_count: int, course_id: Optional[str], user_id: str):
+    """Background task: generate Nano Banana slides one by one and persist progress."""
     try:
         import base64
         from emergentintegrations.llm.chat import LlmChat, UserMessage
-        
-        api_key = os.environ.get('EMERGENT_LLM_KEY')
-        if not api_key:
-            raise HTTPException(status_code=500, detail="Slide generation service not configured")
-        
+
+        slide_prompts = [
+            f"Educational slide titled 'Introduction to {topic}' with professional design, clean layout, key points visualized",
+            f"Educational infographic explaining the main concepts of {topic} with clear icons and diagrams",
+            f"Visual representation of {topic} key principles with modern educational design",
+            f"Summary slide about {topic} with bullet points and visual elements",
+            f"Conclusion slide for {topic} with key takeaways highlighted",
+        ]
+
         slides = []
-        
         for i in range(slide_count):
-            slide_prompts = [
-                f"Educational slide titled 'Introduction to {topic}' with professional design, clean layout, key points visualized",
-                f"Educational infographic explaining the main concepts of {topic} with clear icons and diagrams",
-                f"Visual representation of {topic} key principles with modern educational design",
-                f"Summary slide about {topic} with bullet points and visual elements",
-                f"Conclusion slide for {topic} with key takeaways highlighted"
-            ]
-            
-            prompt = slide_prompts[min(i, len(slide_prompts)-1)]
-            
+            prompt = slide_prompts[min(i, len(slide_prompts) - 1)]
             system_msg = "You are an educational content designer creating professional slides and infographics."
             chat = LlmChat(api_key=api_key, session_id=f"slides-{uuid.uuid4()}", system_message=system_msg)
             chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
-            
-            msg = UserMessage(text=prompt)
-            text, images = await chat.send_message_multimodal_response(msg)
-            
+
+            try:
+                text, images = await chat.send_message_multimodal_response(UserMessage(text=prompt))
+            except Exception as inner:
+                err_s = str(inner)
+                if "budget" in err_s.lower() or "quota" in err_s.lower():
+                    await db.generated_slideshows.update_one(
+                        {"id": slideshow_id},
+                        {"$set": {
+                            "status": "failed",
+                            "error": (
+                                "Emergent LLM Key budget exceeded. Please top up the Universal Key via "
+                                "Profile → Universal Key → Add Balance, then try again."
+                            )
+                        }}
+                    )
+                    return
+                logging.error(f"Slide {i+1} generation failed: {err_s}")
+                continue
+
             if images:
                 for img in images:
                     slide_id = str(uuid.uuid4())
-                    # Save image
                     os.makedirs("/app/generated_slides", exist_ok=True)
                     img_path = f"/app/generated_slides/{slide_id}.png"
                     image_bytes = base64.b64decode(img['data'])
                     with open(img_path, "wb") as f:
                         f.write(image_bytes)
-                    
                     slides.append({
                         "id": slide_id,
                         "title": f"Slide {i+1}: {topic}",
                         "image_url": f"/api/content/slide/{slide_id}",
-                        "description": text[:200] if text else ""
+                        "description": (text or "")[:200],
                     })
-                    break  # Only need one image per slide
-        
-        # Store in database
-        slideshow_id = str(uuid.uuid4())
-        slideshow_record = {
-            "id": slideshow_id,
-            "topic": topic,
-            "course_id": course_id,
-            "user_id": current_user['id'],
-            "slides": slides,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        await db.generated_slideshows.insert_one(slideshow_record)
-        
-        # Also save to course_content for display in CourseViewPage
+                    break
+
+            # Persist progress so the frontend polling can show partial results
+            await db.generated_slideshows.update_one(
+                {"id": slideshow_id},
+                {"$set": {
+                    "slides": slides,
+                    "progress": i + 1,
+                    "total": slide_count,
+                }}
+            )
+
+        # Final status update
+        await db.generated_slideshows.update_one(
+            {"id": slideshow_id},
+            {"$set": {
+                "status": "completed" if slides else "failed",
+                "slides": slides,
+                "error": None if slides else "No slides could be generated.",
+            }}
+        )
+
         if course_id and slides:
             slides_description = "\n\n".join([f"**{s['title']}**\n{s.get('description', '')}" for s in slides])
             content_record = {
@@ -7191,29 +7200,79 @@ async def generate_slides_content(
                 "text": f"# {topic} - Visual Slides\n\n{slides_description}\n\n*Navigate through the slides using the picture mode above.*",
                 "slides": slides,
                 "slideshow_id": slideshow_id,
-                "created_by": current_user['id'],
-                "created_at": datetime.now(timezone.utc).isoformat()
+                "created_by": user_id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
             }
             await db.course_contents.insert_one(content_record)
-        
-        return {
-            "message": "Slides generated successfully",
-            "slideshow_id": slideshow_id,
-            "slides": slides
-        }
-        
     except Exception as e:
         err_str = str(e)
-        logging.error(f"Slides generation error: {err_str}")
+        logging.error(f"Background slides gen failed: {err_str}")
         if "budget" in err_str.lower() or "quota" in err_str.lower():
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    "Emergent LLM Key budget exceeded. Please top up the Universal Key via "
-                    "Profile → Universal Key → Add Balance, then try again."
-                )
+            friendly = (
+                "Emergent LLM Key budget exceeded. Please top up the Universal Key via "
+                "Profile → Universal Key → Add Balance, then try again."
             )
-        raise HTTPException(status_code=500, detail=err_str)
+        else:
+            friendly = f"Slides generation failed: {err_str}"
+        await db.generated_slideshows.update_one(
+            {"id": slideshow_id},
+            {"$set": {"status": "failed", "error": friendly}}
+        )
+
+
+@content_router.post("/generate-slides")
+async def generate_slides_content(
+    background_tasks: BackgroundTasks,
+    topic: str,
+    course_id: Optional[str] = None,
+    slide_count: int = 5,
+    current_user: dict = Depends(get_current_user),
+):
+    """Kick off async Gemini Nano Banana slides generation. Returns slideshow_id immediately
+    so the frontend can poll /content/slides-status/{id}. Avoids K8s 60s proxy timeout.
+    """
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="Slide generation service not configured")
+
+    # Clamp inputs
+    slide_count = max(1, min(int(slide_count or 5), 10))
+
+    slideshow_id = str(uuid.uuid4())
+    record = {
+        "id": slideshow_id,
+        "topic": topic,
+        "course_id": course_id,
+        "user_id": current_user['id'],
+        "status": "processing",
+        "progress": 0,
+        "total": slide_count,
+        "slides": [],
+        "error": None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.generated_slideshows.insert_one(record)
+
+    background_tasks.add_task(
+        _generate_slides_background,
+        slideshow_id, api_key, topic, slide_count, course_id, current_user['id']
+    )
+
+    return {
+        "slideshow_id": slideshow_id,
+        "status": "processing",
+        "message": "Slides generation started. Poll /content/slides-status/{id} for progress.",
+        "total": slide_count,
+    }
+
+
+@content_router.get("/slides-status/{slideshow_id}")
+async def get_slides_status(slideshow_id: str, current_user: dict = Depends(get_current_user)):
+    """Poll the status / partial slides for an async slides job."""
+    record = await db.generated_slideshows.find_one({"id": slideshow_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Slideshow not found")
+    return record
 
 @content_router.get("/slide/{slide_id}")
 async def get_generated_slide(slide_id: str):
