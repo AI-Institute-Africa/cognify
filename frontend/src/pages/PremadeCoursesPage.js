@@ -24,8 +24,28 @@ import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import { renderAsync as renderDocxAsync } from 'docx-preview';
 
-// Configure pdf.js worker - use locally-served worker from /public for reliability
-pdfjs.GlobalWorkerOptions.workerSrc = `${process.env.PUBLIC_URL || ''}/pdf.worker.min.mjs`;
+// Configure pdf.js worker.
+// Production static servers sometimes serve .mjs with the wrong MIME type
+// (causing "Could not render this document"). We:
+//   1. Use a .js extension (always served as application/javascript)
+//   2. Fall back to the unpkg CDN if the local file fails to load
+const _localWorkerSrc = `${process.env.PUBLIC_URL || ''}/pdf.worker.min.js`;
+const _cdnWorkerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = _localWorkerSrc;
+// Probe the local worker once; switch to CDN on any HEAD failure
+if (typeof window !== 'undefined' && !window.__pdfWorkerProbed) {
+  window.__pdfWorkerProbed = true;
+  fetch(_localWorkerSrc, { method: 'HEAD' })
+    .then((r) => {
+      const ct = r.headers.get('content-type') || '';
+      if (!r.ok || (!ct.includes('javascript') && !ct.includes('text/plain'))) {
+        pdfjs.GlobalWorkerOptions.workerSrc = _cdnWorkerSrc;
+      }
+    })
+    .catch(() => {
+      pdfjs.GlobalWorkerOptions.workerSrc = _cdnWorkerSrc;
+    });
+}
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const getAuth = () => ({ Authorization: `Bearer ${localStorage.getItem('cognify_token')}` });
@@ -122,8 +142,30 @@ export default function PremadeCoursesPage() {
     return () => ro.disconnect();
   }, [viewBlobUrl]);
 
-  // Stable file source for react-pdf so it doesn't re-fetch on every render
-  const pdfFileSource = useMemo(() => (viewBlobUrl ? { url: viewBlobUrl } : null), [viewBlobUrl]);
+  // Stable file source for react-pdf so it doesn't re-fetch on every render.
+  // Use the raw blob's ArrayBuffer so PDF.js parses bytes directly (most reliable on production).
+  const [pdfArrayBuffer, setPdfArrayBuffer] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (!viewBlob) { setPdfArrayBuffer(null); return; }
+    const fname = (viewDoc?.filename || '').toLowerCase();
+    const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].some(e => fname.endsWith('.' + e));
+    const isDocx = fname.endsWith('.docx');
+    const isTxt = fname.endsWith('.txt');
+    if (isImg || isDocx || isTxt) { setPdfArrayBuffer(null); return; }
+    viewBlob.arrayBuffer().then((buf) => {
+      if (!cancelled) setPdfArrayBuffer(buf);
+    }).catch(() => {
+      if (!cancelled) setPdfArrayBuffer(null);
+    });
+    return () => { cancelled = true; };
+  }, [viewBlob, viewDoc]);
+
+  const pdfFileSource = useMemo(() => {
+    if (pdfArrayBuffer) return { data: pdfArrayBuffer };
+    if (viewBlobUrl) return { url: viewBlobUrl };
+    return null;
+  }, [pdfArrayBuffer, viewBlobUrl]);
 
   // Render DOCX into its container using docx-preview (preserves Word styling)
   useEffect(() => {
@@ -467,10 +509,24 @@ export default function PremadeCoursesPage() {
                       error={
                         <div className="text-center py-20 px-6">
                           <FileText className="w-12 h-12 text-zinc-500 mx-auto mb-3" />
-                          <p className="text-zinc-300">Could not render this document.</p>
+                          <p className="text-zinc-300 font-medium">Could not render this document.</p>
+                          <p className="text-xs text-zinc-500 mt-2 max-w-md mx-auto">
+                            The PDF viewer failed to load. Please refresh the page and try again. If the problem persists, the document may be corrupted.
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-4 border-white/10"
+                            onClick={() => window.location.reload()}
+                            data-testid="pdf-reload-btn"
+                          >
+                            Reload page
+                          </Button>
                         </div>
                       }
                       onLoadSuccess={({ numPages }) => { setPdfNumPages(numPages); }}
+                      onLoadError={(err) => { console.error('react-pdf load error:', err); }}
+                      onSourceError={(err) => { console.error('react-pdf source error:', err); }}
                       onContextMenu={(e) => e.preventDefault()}
                     >
                       {pdfNumPages && Array.from({ length: pdfNumPages }, (_, i) => (
