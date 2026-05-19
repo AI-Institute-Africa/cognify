@@ -1,6 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Form, Query, Request, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -7060,13 +7060,28 @@ async def _generate_video_background(video_id: str, api_key: str, prompt: str, c
         else:
             await db.generated_videos.update_one(
                 {"id": video_id},
-                {"$set": {"status": "failed", "error": "No video bytes returned"}}
+                {"$set": {
+                    "status": "failed",
+                    "error": (
+                        "Video generation did not return any data. This is usually due to the "
+                        "Emergent LLM Key budget being exhausted. Please top up the Universal Key "
+                        "via Profile → Universal Key → Add Balance and try again."
+                    )
+                }}
             )
     except Exception as e:
         logging.error(f"Background video gen failed: {e}")
+        err_str = str(e)
+        if "budget" in err_str.lower() or "quota" in err_str.lower():
+            friendly = (
+                "Emergent LLM Key budget exceeded. Please top up the Universal Key via "
+                "Profile → Universal Key → Add Balance, then try again."
+            )
+        else:
+            friendly = f"Video generation failed: {err_str}"
         await db.generated_videos.update_one(
             {"id": video_id},
-            {"$set": {"status": "failed", "error": str(e)}}
+            {"$set": {"status": "failed", "error": friendly}}
         )
 
 
@@ -7188,8 +7203,17 @@ async def generate_slides_content(
         }
         
     except Exception as e:
-        logging.error(f"Slides generation error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        err_str = str(e)
+        logging.error(f"Slides generation error: {err_str}")
+        if "budget" in err_str.lower() or "quota" in err_str.lower():
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Emergent LLM Key budget exceeded. Please top up the Universal Key via "
+                    "Profile → Universal Key → Add Balance, then try again."
+                )
+            )
+        raise HTTPException(status_code=500, detail=err_str)
 
 @content_router.get("/slide/{slide_id}")
 async def get_generated_slide(slide_id: str):
@@ -13032,11 +13056,23 @@ async def get_premade_courses(
     category: str = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get all premade course documents"""
-    query = {}
+    """Get premade course documents. Strict org-isolation:
+    - Users see ONLY documents from THEIR organization.
+    - Platform-level admins (role='admin', no org) see everything.
+    - Documents without organization_id (legacy seeds) are visible to platform admins only.
+    """
+    role = current_user.get('role')
     org_id = current_user.get('organization_id')
-    if org_id:
-        query["$or"] = [{"organization_id": org_id}, {"is_public": True}, {"organization_id": None}]
+    
+    if role == 'admin' and not org_id:
+        # Platform-level admin: see all
+        query = {}
+    elif org_id:
+        # Org-scoped user (org_admin, teacher, student): only their org's documents
+        query = {"organization_id": org_id}
+    else:
+        # User has no org_id and is not platform admin -> see nothing
+        query = {"organization_id": "__no_match__"}
     
     if category and category != 'all':
         query["category"] = category
@@ -13051,11 +13087,24 @@ async def get_premade_courses(
 
 @api_router.get("/premade-courses/{doc_id}")
 async def get_premade_course(doc_id: str, current_user: dict = Depends(get_current_user)):
-    """Get a single premade course document (without file data)"""
+    """Get a single premade course document (without file data). Org-isolated."""
     doc = await db.premade_courses.find_one({"id": doc_id}, {"_id": 0, "file_data": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+    _ensure_premade_access(doc, current_user)
     return doc
+
+
+def _ensure_premade_access(doc: dict, current_user: dict):
+    """Raises 403 if the user is not allowed to access this premade course doc."""
+    role = current_user.get('role')
+    user_org = current_user.get('organization_id')
+    doc_org = doc.get('organization_id')
+    if role == 'admin' and not user_org:
+        return  # platform admin
+    if doc_org and user_org and doc_org == user_org:
+        return  # same org
+    raise HTTPException(status_code=403, detail="Not authorized to view this document.")
 
 
 @api_router.get("/premade-courses/{doc_id}/download")
@@ -13069,23 +13118,14 @@ async def download_premade_course(doc_id: str, current_user: dict = Depends(get_
 
 def _convert_office_to_pdf(input_path: str, output_dir: str) -> Optional[str]:
     """Convert .doc/.docx/.ppt/.pptx/.xls/.xlsx to PDF using LibreOffice headless.
-    Returns the produced PDF path, or None on failure.
+    Returns the produced PDF path, or None on failure (e.g., LibreOffice not installed).
     """
-    import subprocess
-    # Resolve soffice binary (supervisor may not include /usr/bin in PATH)
-    soffice_bin = None
-    for path in ("/usr/bin/soffice", "/usr/bin/libreoffice", "soffice", "libreoffice"):
-        try:
-            r = subprocess.run(["which", path] if not path.startswith("/") else ["test", "-x", path],
-                               capture_output=True, timeout=5)
-            if r.returncode == 0:
-                soffice_bin = path
-                break
-        except Exception:
-            continue
+    import subprocess, shutil as _shutil
+    soffice_bin = _shutil.which("soffice") or _shutil.which("libreoffice")
     if not soffice_bin:
-        soffice_bin = "/usr/bin/soffice"  # last resort
-
+        # LibreOffice not installed on this host — caller should use a fallback path
+        logging.warning("LibreOffice not found on this host; office->PDF conversion unavailable")
+        return None
     try:
         subprocess.run(
             [
@@ -13103,6 +13143,63 @@ def _convert_office_to_pdf(input_path: str, output_dir: str) -> Optional[str]:
         return pdf_path if os.path.exists(pdf_path) else None
     except Exception as e:
         logging.error(f"LibreOffice conversion failed for {input_path}: {e}")
+        return None
+
+
+def _pptx_to_slides_json(pptx_bytes: bytes) -> Optional[list]:
+    """Extract slides from a PPTX as structured JSON (title, bullets, images base64).
+    Pure-Python fallback when LibreOffice is not available (no system deps).
+    Returns a list of slides or None on failure.
+    """
+    try:
+        from pptx import Presentation
+        from pptx.enum.shapes import MSO_SHAPE_TYPE
+        import io as _io
+        prs = Presentation(_io.BytesIO(pptx_bytes))
+        slides_out = []
+        for idx, slide in enumerate(prs.slides):
+            title = ""
+            bullets = []
+            images = []
+            notes = ""
+            for shape in slide.shapes:
+                try:
+                    if shape.has_text_frame:
+                        # First non-empty text frame is treated as title for slide 1
+                        for para in shape.text_frame.paragraphs:
+                            txt = "".join(run.text for run in para.runs).strip()
+                            if not txt:
+                                continue
+                            if not title and (idx == 0 or shape == slide.shapes.title):
+                                title = txt
+                            else:
+                                bullets.append({
+                                    "text": txt,
+                                    "level": getattr(para, "level", 0) or 0,
+                                })
+                    if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+                        img = shape.image
+                        b64 = base64.b64encode(img.blob).decode()
+                        images.append({
+                            "data": f"data:{img.content_type};base64,{b64}",
+                        })
+                except Exception:
+                    continue
+            try:
+                if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
+                    notes = slide.notes_slide.notes_text_frame.text or ""
+            except Exception:
+                pass
+            slides_out.append({
+                "index": idx + 1,
+                "title": title or f"Slide {idx + 1}",
+                "bullets": bullets,
+                "images": images,
+                "notes": notes,
+            })
+        return slides_out
+    except Exception as e:
+        logging.error(f"python-pptx fallback failed: {e}")
         return None
 
 
@@ -13130,6 +13227,9 @@ async def view_premade_course(
     doc = await db.premade_courses.find_one({"id": doc_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    # Enforce org isolation
+    _ensure_premade_access(doc, current_user)
 
     filename = (doc.get('filename') or 'document').lower()
     raw_bytes = base64.b64decode(doc['file_data'])
@@ -13178,14 +13278,38 @@ async def view_premade_course(
             with open(src_path, "wb") as f:
                 f.write(raw_bytes)
             pdf_path = await asyncio.to_thread(_convert_office_to_pdf, src_path, tmp_dir)
-            if not pdf_path:
+            if pdf_path:
+                import shutil as _shutil
+                _shutil.move(pdf_path, cached_pdf)
+                _shutil.rmtree(tmp_dir, ignore_errors=True)
+            else:
+                # LibreOffice not available OR conversion failed.
+                # For PPTX: fall back to pure-Python python-pptx slide extraction so the
+                # frontend can render slides natively (no server-side dependencies).
+                import shutil as _shutil
+                _shutil.rmtree(tmp_dir, ignore_errors=True)
+                if ext == "pptx":
+                    slides = await asyncio.to_thread(_pptx_to_slides_json, raw_bytes)
+                    if slides is not None and len(slides) > 0:
+                        return JSONResponse(
+                            {
+                                "type": "slides_json",
+                                "title": doc.get("title", filename),
+                                "slides": slides,
+                                "total_slides": len(slides),
+                            },
+                            headers={
+                                "Cache-Control": "private, max-age=300",
+                                "X-Frame-Options": "SAMEORIGIN",
+                            }
+                        )
                 raise HTTPException(
-                    status_code=500,
-                    detail="Could not render this document in-browser. Conversion service unavailable."
+                    status_code=503,
+                    detail=(
+                        f"This {ext.upper()} file cannot be rendered in the browser on this server "
+                        "right now. Try uploading a PDF or DOCX version of the document."
+                    )
                 )
-            import shutil as _shutil
-            _shutil.move(pdf_path, cached_pdf)
-            _shutil.rmtree(tmp_dir, ignore_errors=True)
 
         def _iter():
             with open(cached_pdf, "rb") as f:

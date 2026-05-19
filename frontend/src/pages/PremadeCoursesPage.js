@@ -83,6 +83,7 @@ export default function PremadeCoursesPage() {
   const [pdfContainerWidth, setPdfContainerWidth] = useState(800);
   const docxContainerRef = useRef(null);
   const [viewBlob, setViewBlob] = useState(null);
+  const [slidesJson, setSlidesJson] = useState(null); // {title, slides, total_slides}
 
   useEffect(() => { loadDocuments(); }, [selectedCategory]);
 
@@ -91,6 +92,7 @@ export default function PremadeCoursesPage() {
     let cancelled = false;
     async function loadView() {
       setPdfNumPages(null);
+      setSlidesJson(null);
       if (!viewDoc) {
         setViewBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
         setViewBlob(null);
@@ -100,12 +102,29 @@ export default function PremadeCoursesPage() {
       setViewLoading(true);
       setViewError(null);
       try {
-        const { data } = await axios.get(
+        const { data, headers } = await axios.get(
           `${API}/api/premade-courses/${viewDoc.id}/view`,
           { headers: getAuth(), responseType: 'blob' }
         );
         if (cancelled) return;
+
         const fname = (viewDoc.filename || '').toLowerCase();
+        const respCT = (headers && headers['content-type']) || data.type || '';
+
+        // Backend may return JSON slides for PPTX when LibreOffice is unavailable
+        if (respCT.includes('application/json')) {
+          const txt = await data.text();
+          try {
+            const parsed = JSON.parse(txt);
+            if (parsed && parsed.type === 'slides_json' && Array.isArray(parsed.slides)) {
+              setSlidesJson(parsed);
+              setViewBlob(null);
+              setViewBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
+              return;
+            }
+          } catch (_) { /* fall through */ }
+        }
+
         const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].some(e => fname.endsWith('.' + e));
         const isTxt = fname.endsWith('.txt');
         const isDocx = fname.endsWith('.docx');
@@ -119,7 +138,19 @@ export default function PremadeCoursesPage() {
         setViewBlob(blob);
         setViewBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url; });
       } catch (e) {
-        if (!cancelled) setViewError(e.response?.data?.detail || 'Could not load document');
+        if (!cancelled) {
+          // Try to read detail from blob error body
+          let detail = 'Could not load document';
+          try {
+            if (e.response?.data && e.response.data.text) {
+              const txt = await e.response.data.text();
+              try { detail = JSON.parse(txt).detail || detail; } catch (_) { detail = txt || detail; }
+            } else if (e.response?.data?.detail) {
+              detail = e.response.data.detail;
+            }
+          } catch (_) {}
+          setViewError(detail);
+        }
       } finally {
         if (!cancelled) setViewLoading(false);
       }
@@ -454,7 +485,58 @@ export default function PremadeCoursesPage() {
                   )}
                 </div>
               )}
-              {!viewLoading && !viewError && viewBlobUrl && (() => {
+              {!viewLoading && !viewError && (slidesJson || viewBlobUrl) && (() => {
+                // python-pptx structured slides fallback (when LibreOffice isn't on the server)
+                if (slidesJson) {
+                  return (
+                    <div className="w-full h-full overflow-y-auto bg-zinc-950 select-none px-4 py-4 space-y-6" data-testid="premade-view-slides-json">
+                      {slidesJson.slides.map((s) => (
+                        <div
+                          key={s.index}
+                          className="mx-auto bg-white text-zinc-900 rounded-lg shadow-xl"
+                          style={{ width: '90%', maxWidth: 960, aspectRatio: '16/9', padding: '40px 56px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}
+                        >
+                          <h2 className="text-3xl font-bold mb-6 text-zinc-900 border-b-2 border-violet-400 pb-3" style={{ fontFamily: 'Georgia, serif' }}>
+                            {s.title}
+                          </h2>
+                          {s.bullets && s.bullets.length > 0 && (
+                            <ul className="space-y-3 flex-1">
+                              {s.bullets.map((b, i) => (
+                                <li
+                                  key={i}
+                                  className="text-zinc-700 leading-relaxed"
+                                  style={{
+                                    paddingLeft: `${(b.level || 0) * 24}px`,
+                                    fontSize: (b.level || 0) === 0 ? '1.25rem' : '1.05rem',
+                                  }}
+                                >
+                                  {(b.level || 0) === 0 ? '• ' : '◦ '} {b.text}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {s.images && s.images.length > 0 && (
+                            <div className="grid grid-cols-2 gap-3 mt-4">
+                              {s.images.slice(0, 4).map((img, idx) => (
+                                <img
+                                  key={idx}
+                                  src={img.data}
+                                  alt=""
+                                  className="max-h-32 object-contain"
+                                  draggable={false}
+                                />
+                              ))}
+                            </div>
+                          )}
+                          <div className="mt-auto text-right text-xs text-zinc-400 pt-3">
+                            Slide {s.index} / {slidesJson.total_slides}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+
                 const fname = (viewDoc?.filename || '').toLowerCase();
                 const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].some(e => fname.endsWith('.' + e));
                 const isTxt = fname.endsWith('.txt');
@@ -550,7 +632,8 @@ export default function PremadeCoursesPage() {
 
             <div className="px-6 py-3 border-t border-white/10 text-[11px] text-zinc-500 flex items-center justify-between gap-4">
               <span>
-                {pdfNumPages ? `${pdfNumPages} page${pdfNumPages > 1 ? 's' : ''}` : 'View only'}
+                {slidesJson ? `${slidesJson.total_slides} slide${slidesJson.total_slides > 1 ? 's' : ''}` :
+                  pdfNumPages ? `${pdfNumPages} page${pdfNumPages > 1 ? 's' : ''}` : 'View only'}
               </span>
               <span className="text-center flex-1">
                 This document is view-only. Downloading, copying and printing are disabled.
