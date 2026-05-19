@@ -244,26 +244,32 @@ export default function CourseViewPage() {
       ]);
       setCourse(courseData);
       
+      let finalContent = [];
       // Handle enrollment gate response
       if (contentData && contentData.access_restricted) {
         // Student hasn't paid - show restricted content
-        setContent(contentData.contents || []);
+        finalContent = contentData.contents || [];
+        setContent(finalContent);
         setAccessRestricted(true);
         setRestrictionMessage(contentData.message);
         setCoursePrice(contentData.course_price);
         toast.info(contentData.message);
       } else {
-        setContent(Array.isArray(contentData) ? contentData : []);
+        finalContent = Array.isArray(contentData) ? contentData : [];
+        setContent(finalContent);
         setAccessRestricted(false);
       }
       
       // Create default lessons if no content exists
       if ((!contentData || (Array.isArray(contentData) && contentData.length === 0)) && !contentData?.access_restricted) {
-        setContent(generateDefaultLessons(courseData));
+        finalContent = generateDefaultLessons(courseData);
+        setContent(finalContent);
       }
+      return finalContent;
     } catch (error) {
       console.error('Failed to load course:', error);
       toast.error('Failed to load course content');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -1368,29 +1374,49 @@ export default function CourseViewPage() {
                   <TabsContent value="slides" className="mt-0">
                     <div className="space-y-4">
                       {/* Slide viewer */}
-                      {(currentLesson?.image_url || currentLesson?.slides_url || (currentLesson?.url && currentLesson?.type === 'image')) ? (
-                        <div className="aspect-video bg-zinc-900 rounded-xl overflow-hidden border border-white/10">
-                          <img 
-                            src={currentLesson.image_url || currentLesson.slides_url || currentLesson.url}
-                            alt={currentLesson.title}
-                            className="w-full h-full object-contain"
-                          />
-                        </div>
-                      ) : currentLesson?.slides ? (
-                        <div className="space-y-4">
-                          {currentLesson.slides.map((slide, idx) => (
-                            <div key={idx} className="aspect-video bg-gradient-to-br from-blue-500/5 to-violet-500/5 rounded-xl border border-white/10 p-8">
-                              <div className="text-center max-w-2xl mx-auto">
-                                <h3 className="text-2xl font-bold mb-4">{slide.title || `Slide ${idx + 1}`}</h3>
-                                <p className="text-zinc-300 text-lg whitespace-pre-wrap">{slide.content}</p>
-                                {slide.image_url && (
-                                  <img src={slide.image_url} alt={slide.title} className="mt-4 mx-auto rounded-lg max-h-64" />
-                                )}
-                              </div>
+                      {(() => {
+                        const prefixUrl = (u) => (u && u.startsWith('/api/')) ? `${API}${u}` : u;
+                        if (currentLesson?.image_url || currentLesson?.slides_url || (currentLesson?.url && currentLesson?.type === 'image')) {
+                          return (
+                            <div className="aspect-video bg-zinc-900 rounded-xl overflow-hidden border border-white/10">
+                              <img
+                                src={prefixUrl(currentLesson.image_url || currentLesson.slides_url || currentLesson.url)}
+                                alt={currentLesson.title}
+                                className="w-full h-full object-contain"
+                              />
                             </div>
-                          ))}
-                        </div>
-                      ) : (
+                          );
+                        }
+                        if (currentLesson?.slides && currentLesson.slides.length > 0) {
+                          return (
+                            <div className="space-y-4">
+                              {currentLesson.slides.map((slide, idx) => (
+                                <div key={slide.id || idx} className="bg-gradient-to-br from-blue-500/5 to-violet-500/5 rounded-xl border border-white/10 p-6">
+                                  <h3 className="text-2xl font-bold mb-4 text-center">{slide.title || `Slide ${idx + 1}`}</h3>
+                                  {slide.image_url && (
+                                    <div className="bg-zinc-900 rounded-lg overflow-hidden mb-4">
+                                      <img
+                                        src={prefixUrl(slide.image_url)}
+                                        alt={slide.title || `Slide ${idx + 1}`}
+                                        className="w-full max-h-[520px] object-contain mx-auto"
+                                        data-testid={`slide-image-${idx}`}
+                                        onError={(e) => { e.target.style.display = 'none'; console.warn('Slide image failed to load:', slide.image_url); }}
+                                      />
+                                    </div>
+                                  )}
+                                  {(slide.content || slide.description) && (
+                                    <p className="text-zinc-300 text-base whitespace-pre-wrap text-center max-w-3xl mx-auto">
+                                      {slide.content || slide.description}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                      {!(currentLesson?.image_url || currentLesson?.slides_url || (currentLesson?.url && currentLesson?.type === 'image') || (currentLesson?.slides && currentLesson.slides.length > 0)) && (
                         <div className="aspect-video bg-gradient-to-br from-blue-500/5 to-violet-500/5 rounded-xl flex items-center justify-center border border-white/10 p-8">
                           <div className="text-center max-w-2xl">
                             <div className="w-20 h-20 bg-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
@@ -1455,7 +1481,16 @@ export default function CourseViewPage() {
                                       toast.warning('Slides are still being generated. Refresh the page in a moment.');
                                     } else {
                                       toast.success(`Generated ${finalSlides.length} pictorial slides!`);
-                                      loadCourseData();
+                                      // Reload course content, then jump to the newly created slides lesson
+                                      const refreshed = await loadCourseData();
+                                      const newContentId = `content-${slideshowId}`;
+                                      const list = Array.isArray(refreshed) ? refreshed : null;
+                                      if (list) {
+                                        const newIdx = list.findIndex((c) => c.id === newContentId || c.slideshow_id === slideshowId);
+                                        if (newIdx >= 0) setCurrentLessonIndex(newIdx);
+                                      }
+                                      // Ensure user is on the Slides view mode
+                                      setSelectedMode('slides');
                                     }
                                   } catch (e) {
                                     console.error('Slides error:', e);
@@ -1495,7 +1530,7 @@ export default function CourseViewPage() {
                           >
                             <div className="w-full h-full flex items-center justify-center">
                               {lesson.image_url ? (
-                                <img src={lesson.image_url} alt="" className="w-full h-full object-cover rounded-md" />
+                                <img src={lesson.image_url.startsWith('/api/') ? `${API}${lesson.image_url}` : lesson.image_url} alt="" className="w-full h-full object-cover rounded-md" />
                               ) : (
                                 <span className="text-sm font-medium">{index + 1}</span>
                               )}
