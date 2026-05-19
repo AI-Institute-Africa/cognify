@@ -1,35 +1,33 @@
 # Cognify - Product Requirements Document
 
 ## Overview
-AI-Powered School Management, Learning & Career Intelligence Platform with HeyGen Avatar Integration, async AI Video/Slides generation, original-format document viewer (with python-pptx fallback for production), strict org-isolation for premade courses, multi-tenant org isolation, browser-TTS audio fallback, and Course Analytics.
+AI-Powered School Management, Learning & Career Intelligence Platform with HeyGen Avatar Integration, async AI Video/Slides generation, original-format document viewer with python-pptx fallback, robust PDF.js worker loading, strict org-isolation for premade courses, browser-TTS audio fallback, and Course Analytics.
 
-**Version:** 14.0 (Iteration 43)
+**Version:** 15.0 (Iteration 44)
 **Date:** May 19, 2026
 
 ---
 
-## LATEST - ITERATION 43 (4 production fixes)
+## LATEST - ITERATION 44 (production upload + render fixes)
 
-### 1. PowerPoint Renders on Production (no LibreOffice required)
-- New pure-Python fallback `_pptx_to_slides_json()` uses `python-pptx` (already in requirements.txt) to extract slides as structured JSON: `{index, title, bullets[level], images[base64], notes}`
-- `/api/premade-courses/{id}/view` returns `application/json` with `type: "slides_json"` when LibreOffice is unavailable for PPTX
-- Frontend `PremadeCoursesPage` detects JSON response and renders each slide as a 16:9 white card with title + bullets + embedded images
-- LibreOffice path still works on hosts that have it (preserves original visuals)
+### 1. Upload Failure → FIXED
+- **Root cause**: Frontend was sending `Content-Type: 'multipart/form-data'` explicitly, which strips the auto-generated `boundary` parameter. Many proxies (incl. K8s ingress) reject body parts without boundary, returning "Failed to upload document"
+- **Fix**: Let axios set the multipart header itself
+- **Upload limit raised from 50MB → 100MB** (server + client-side guard)
+- Upload timeout raised to **5 minutes** for large files
+- Better error messages: 413 → "File too large for server", 401 → "Session expired", ECONNABORTED → "Upload timed out", and surfaces the actual server detail
 
-### 2. Strict Org-Isolation on Premade Courses
-- `GET /api/premade-courses` returns ONLY documents from the user's organization
-- Platform admins (role=admin, no org) see all; orphaned users (no org, not admin) see none
-- `_ensure_premade_access()` guards `/{id}` and `/{id}/view` with 403 on cross-org access
+### 2. PDF "Could not render this document" → FIXED with Blob-URL Worker
+- **Most robust PDF.js worker strategy**: fetch the worker bytes ourselves, wrap them in a Blob URL with forced `application/javascript` MIME, and use THAT as the worker source. Browsers always serve Blob URLs with the correct MIME, bypassing any static-server misconfiguration on production
+- Multi-stage fallback: local `/pdf.worker.min.js` → unpkg CDN
+- Production-resilient: works no matter how `.js`/`.mjs` are served
 
-### 3. Friendly Budget-Exceeded Error Messages
-- `/api/content/generate-slides` returns **HTTP 503** with detail: *"Emergent LLM Key budget exceeded. Please top up the Universal Key via Profile → Universal Key → Add Balance, then try again."*
-- `/api/content/generate-video` background task writes the same friendly message into `generated_videos.error` (instead of cryptic "No video bytes returned")
-- Detection: any caught exception with "budget" or "quota" in the message
-
-### 4. Production PDF Worker MIME Fix (carried from iteration 42)
-- Local worker at `/public/pdf.worker.min.js` (`.js` extension, correct MIME everywhere)
-- Pass PDF bytes via `ArrayBuffer` to react-pdf
-- CDN fallback to unpkg if local worker fails
+### Inherited from iterations 40/41/42
+- python-pptx slides_json fallback for PPTX when LibreOffice missing (production)
+- Strict org-isolation on premade courses
+- Friendly budget-exceeded errors on `/generate-slides` and `/generate-video`
+- docx-preview for DOCX rendering
+- react-pdf for PDF rendering with ArrayBuffer source
 
 ---
 
@@ -43,25 +41,30 @@ AI-Powered School Management, Learning & Career Intelligence Platform with HeyGe
 ├── services/
 └── tests/
     └── test_iteration40_premade_org_isolation.py
+
+/app/frontend/
+├── public/
+│   └── pdf.worker.min.js (PDF.js worker — fetched & blob-wrapped at runtime)
+└── src/pages/
+    └── PremadeCoursesPage.js (react-pdf + docx-preview + slides_json renderer)
 ```
 
 ## KEY ENDPOINTS
-- `GET /api/premade-courses` — Strictly org-scoped list
-- `GET /api/premade-courses/{id}/view` — Inline view (PDF native, DOCX raw, PPTX → PDF via LibreOffice OR slides_json via python-pptx, others)
-- `POST /api/content/generate-slides` — Returns 503 with friendly message on LLM budget exhaustion
-- `POST /api/content/generate-video` — Status records carry friendly error on budget exhaustion
-- `GET /api/analytics/course-dashboard` — Role-scoped analytics
+- `POST /api/premade-courses/upload` — 100MB limit, multipart
+- `GET /api/premade-courses` — strictly org-scoped
+- `GET /api/premade-courses/{id}/view` — PDF/DOCX raw, PPTX via LibreOffice or slides_json fallback
+- `POST /api/content/generate-slides` — 503 with friendly message on LLM budget exhaustion
+- `POST /api/content/generate-video` — friendly error in status record
 
 ## KNOWN ENVIRONMENTAL ISSUES
-- **Emergent LLM Key budget exhausted** ($29.82 / $29.82). Top up via Profile → Universal Key → Add Balance to re-enable: cloud TTS (browser fallback masks this), AI research results, Sora 2 video, Nano Banana slides.
-- **LibreOffice missing on production base image**: PowerPoint now uses python-pptx slides_json fallback automatically. Word & PDF use docx-preview and react-pdf respectively (no server deps).
+- **Emergent LLM Key budget exhausted** ($29.82 / $29.82). Refill via Profile → Universal Key → Add Balance.
+- **LibreOffice missing on production base image**: PPTX uses python-pptx slides_json fallback automatically.
 
 ## NEXT / BACKLOG
 - (P0) Top up Emergent LLM Key budget
+- (P0) **Deploy** to push the upload + PDF.js fixes to production
 - (P1) Refactor `server.py` (~13.4k lines) into `/app/backend/routes/`
-- (P1) Fix demo.teacher@eduos.edu seed — currently has `organization_id=None`. Assign to Cognify or a dedicated "Demo School" org.
-- (P2) Add image extraction from PPT (older legacy format) — only PPTX is parsed by python-pptx
-- (P2) CSV export from Course Analytics Dashboard
-- (P2) PDF page navigation controls (page input, prev/next)
+- (P1) Fix `demo.teacher@eduos.edu` seed (organization_id=None)
+- (P2) CSV export from Course Analytics + PDF page-navigation controls
 
 **Last Updated:** May 19, 2026

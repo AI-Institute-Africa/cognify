@@ -24,27 +24,33 @@ import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import { renderAsync as renderDocxAsync } from 'docx-preview';
 
-// Configure pdf.js worker.
-// Production static servers sometimes serve .mjs with the wrong MIME type
-// (causing "Could not render this document"). We:
-//   1. Use a .js extension (always served as application/javascript)
-//   2. Fall back to the unpkg CDN if the local file fails to load
-const _localWorkerSrc = `${process.env.PUBLIC_URL || ''}/pdf.worker.min.js`;
-const _cdnWorkerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-pdfjs.GlobalWorkerOptions.workerSrc = _localWorkerSrc;
-// Probe the local worker once; switch to CDN on any HEAD failure
-if (typeof window !== 'undefined' && !window.__pdfWorkerProbed) {
-  window.__pdfWorkerProbed = true;
-  fetch(_localWorkerSrc, { method: 'HEAD' })
-    .then((r) => {
-      const ct = r.headers.get('content-type') || '';
-      if (!r.ok || (!ct.includes('javascript') && !ct.includes('text/plain'))) {
-        pdfjs.GlobalWorkerOptions.workerSrc = _cdnWorkerSrc;
+// Configure pdf.js worker — most robust strategy:
+//   Wrap the worker bytes in a Blob URL. Browsers always serve Blob URLs with the
+//   right MIME, bypassing any static-server misconfiguration on production.
+//   We try the local /pdf.worker.min.js first, then fall back to a CDN.
+const _WORKER_LOCAL = `${process.env.PUBLIC_URL || ''}/pdf.worker.min.js`;
+const _WORKER_CDN = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Set a synchronous default so PDF.js doesn't bail before our async setup completes
+pdfjs.GlobalWorkerOptions.workerSrc = _WORKER_LOCAL;
+
+if (typeof window !== 'undefined' && !window.__pdfWorkerBlobUrl) {
+  (async () => {
+    for (const src of [_WORKER_LOCAL, _WORKER_CDN]) {
+      try {
+        const r = await fetch(src);
+        if (!r.ok) continue;
+        const blob = await r.blob();
+        // Force application/javascript MIME on the blob URL
+        const jsBlob = new Blob([await blob.text()], { type: 'application/javascript' });
+        const blobUrl = URL.createObjectURL(jsBlob);
+        window.__pdfWorkerBlobUrl = blobUrl;
+        pdfjs.GlobalWorkerOptions.workerSrc = blobUrl;
+        return;
+      } catch (e) {
+        // try next
       }
-    })
-    .catch(() => {
-      pdfjs.GlobalWorkerOptions.workerSrc = _cdnWorkerSrc;
-    });
+    }
+  })();
 }
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -237,6 +243,11 @@ export default function PremadeCoursesPage() {
       toast.error('Please select a file and enter a title');
       return;
     }
+    // Client-side size guard
+    if (selectedFile.size > 100 * 1024 * 1024) {
+      toast.error(`File too large (${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB). Max 100MB.`);
+      return;
+    }
     setUploading(true);
     try {
       const formData = new FormData();
@@ -244,10 +255,15 @@ export default function PremadeCoursesPage() {
       formData.append('title', uploadForm.title);
       formData.append('description', uploadForm.description);
       formData.append('category', uploadForm.category);
-      
+
+      // IMPORTANT: DO NOT set Content-Type manually for multipart/form-data.
+      // Axios MUST be allowed to set the boundary parameter automatically,
+      // otherwise some proxies (including K8s ingress) reject the body.
       const { data } = await axios.post(`${API}/api/premade-courses/upload`, formData, {
-        headers: { ...getAuth(), 'Content-Type': 'multipart/form-data' },
-        timeout: 60000
+        headers: { ...getAuth() },
+        timeout: 300000, // 5 minutes for large files
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
       });
       toast.success(data.message || 'Document uploaded!');
       setShowUploadDialog(false);
@@ -255,7 +271,17 @@ export default function PremadeCoursesPage() {
       setUploadForm({ title: '', description: '', category: 'general' });
       loadDocuments();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Upload failed');
+      const detail = err.response?.data?.detail;
+      const status = err.response?.status;
+      let msg;
+      if (status === 413) msg = 'File too large for the server. Try a smaller file.';
+      else if (status === 401) msg = 'Session expired. Please log in again.';
+      else if (status === 403) msg = 'Not authorized to upload documents.';
+      else if (err.code === 'ECONNABORTED') msg = 'Upload timed out. The file may be too large or your connection is slow.';
+      else if (detail) msg = typeof detail === 'string' ? detail : JSON.stringify(detail);
+      else if (err.message) msg = err.message;
+      else msg = 'Upload failed. Please try again.';
+      toast.error(msg);
     } finally {
       setUploading(false);
     }

@@ -12988,8 +12988,8 @@ async def upload_premade_course(
         raise HTTPException(status_code=403, detail="Not authorized")
     
     content = await file.read()
-    if len(content) > 50 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File too large. Max 50MB.")
+    if len(content) > 100 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Max 100MB.")
     
     # Extract text for preview
     extracted_text = ""
