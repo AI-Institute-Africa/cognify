@@ -167,7 +167,10 @@ export default function PublicContentViewPage() {
           } catch (_) { /* skip */ }
         }
       } catch (e) {
-        toast.error('Failed to load document');
+        const status = e.response?.status;
+        const msg = e.response?.data?.detail || e.message || 'Could not load document';
+        toast.error(`View failed (${status || 'error'}): ${msg}`);
+        setRenderKind('unsupported');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -788,10 +791,29 @@ function DocRenderer({ doc, renderKind, pdfFileSource, pdfNumPages, setPdfNumPag
     );
   }
   return (
-    <div className="text-center py-20">
+    <div className="text-center py-20 px-6">
       <FileText className="w-12 h-12 text-zinc-500 mx-auto mb-3" />
-      <p className="text-zinc-300">This document format is not directly viewable in the browser.</p>
-      <p className="text-zinc-500 text-sm mt-2">Sign in and use the multi-modal tabs (Audio / Slides / Avatar) to learn from it.</p>
+      <p className="text-zinc-300 mb-1">This document couldn&apos;t be rendered in the browser.</p>
+      <p className="text-zinc-500 text-sm mb-5">Format: {(doc?.filename || '').split('.').pop()?.toUpperCase() || 'Unknown'}</p>
+      <div className="flex items-center justify-center gap-2">
+        <a
+          href={`${API}/api/public/content/${doc?.id}/view?raw=true`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-500 hover:bg-violet-600 text-white text-sm"
+          data-testid="download-original-link"
+        >
+          <FileText className="w-4 h-4" /> Download original
+        </a>
+        <button
+          onClick={() => window.location.reload()}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 hover:bg-white/5 text-zinc-300 text-sm"
+          data-testid="retry-render-btn"
+        >
+          Retry
+        </button>
+      </div>
+      <p className="text-zinc-500 text-xs mt-5">Tip: even if the file won&apos;t preview, you can still use the Audio / Slides / Avatar tabs above to learn from it.</p>
     </div>
   );
 }

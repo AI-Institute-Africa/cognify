@@ -34,7 +34,11 @@ if RESEND_API_KEY and not RESEND_API_KEY.startswith("re_test_"):
         logger.warning("Resend client init failed, will fall back to SMTP: %s", e)
 
 
+_RESEND_TEST_MODE = False  # flipped to True when we detect the "verify a domain" error
+
+
 def _send_via_resend_sync(to_email: str, subject: str, html_body: str) -> bool:
+    global _RESEND_TEST_MODE
     if not _resend:
         return False
     try:
@@ -50,7 +54,14 @@ def _send_via_resend_sync(to_email: str, subject: str, html_body: str) -> bool:
             logger.warning("Resend returned no id for %s: %r", to_email, resp)
         return ok
     except Exception as e:
-        logger.error("Resend send to %s failed: %s", to_email, e)
+        err_str = str(e).lower()
+        if ("verify a domain" in err_str or "testing emails" in err_str or
+            "you can only send" in err_str):
+            if not _RESEND_TEST_MODE:
+                logger.warning("Resend is in TEST MODE — only the verified owner email will receive notifications until a domain is verified at resend.com/domains")
+            _RESEND_TEST_MODE = True
+        else:
+            logger.error("Resend send to %s failed: %s", to_email, e)
         return False
 
 

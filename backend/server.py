@@ -13288,6 +13288,39 @@ def _pptx_to_slides_json(pptx_bytes: bytes) -> Optional[list]:
         return None
 
 
+def _slim_slides_for_cache(slides: list) -> list:
+    """Return a DB-safe copy of slides_json: keeps text/notes, drops base64 images.
+    Used so the cached version stays under MongoDB's 16 MB document limit while the
+    full version with images is still sent to the client in the response body.
+    """
+    if not slides:
+        return slides
+    out = []
+    for s in slides:
+        out.append({
+            "index": s.get("index"),
+            "title": s.get("title"),
+            "bullets": s.get("bullets", []),
+            "notes": s.get("notes", ""),
+            "images": [],  # base64 data stripped to keep doc small
+            "image_count": len(s.get("images") or []),
+        })
+    return out
+
+
+async def _try_cache_slides(doc_id: str, slides: list) -> None:
+    """Best-effort cache write — never raises. Stripped (slim) version is persisted
+    so big presentations don't trip MongoDB's 16 MB BSON limit."""
+    try:
+        await db.public_content.update_one(
+            {"id": doc_id},
+            {"$set": {"slides_json": _slim_slides_for_cache(slides)}}
+        )
+    except Exception as _e:
+        logging.warning(f"slides_json cache write skipped (size or BSON error): {_e}")
+
+
+
 # Cache directory for converted PDFs (keeps things fast on repeat views)
 PREMADE_VIEW_CACHE_DIR = "/app/generated_pdf_cache"
 os.makedirs(PREMADE_VIEW_CACHE_DIR, exist_ok=True)
@@ -13722,18 +13755,30 @@ async def sa_upload_public_content(
         update_fields = {}
         if text:
             update_fields["preview_text"] = text
-        # 2) For PPTX, pre-cache slides JSON so the first view is instant
+        # 2) For PPTX, pre-cache SLIM slides JSON (no base64 images) so the first view is instant
         if fname_l.endswith(".pptx"):
             try:
                 with open(_path, "rb") as _f:
                     pptx_bytes = _f.read()
                 slides = await asyncio.to_thread(_pptx_to_slides_json, pptx_bytes)
                 if slides:
-                    update_fields["slides_json"] = slides
+                    update_fields["slides_json"] = _slim_slides_for_cache(slides)
             except Exception as _e:
                 logging.warning(f"slides_json cache failed: {_e}")
         if update_fields:
-            await db.public_content.update_one({"id": _doc_id}, {"$set": update_fields})
+            try:
+                await db.public_content.update_one({"id": _doc_id}, {"$set": update_fields})
+            except Exception as _e:
+                logging.warning(f"public_content update failed, falling back to preview_text only: {_e}")
+                # Retry with just preview_text in case it was slides that blew the limit
+                if "preview_text" in update_fields:
+                    try:
+                        await db.public_content.update_one(
+                            {"id": _doc_id},
+                            {"$set": {"preview_text": update_fields["preview_text"]}}
+                        )
+                    except Exception:
+                        pass
         # 3) Email blast to ALL active users (public content is global, not org-scoped)
         try:
             from services.smtp_notifications import send_notification_email
@@ -14133,8 +14178,8 @@ async def public_view_content(doc_id: str, raw: bool = False):
                             src_bytes = _f.read()
                     slides = await asyncio.to_thread(_pptx_to_slides_json, src_bytes)
                     if slides:
-                        # Cache for next time
-                        await db.public_content.update_one({"id": doc_id}, {"$set": {"slides_json": slides}})
+                        # Cache slim (text-only) version — never raise on size errors
+                        await _try_cache_slides(doc_id, slides)
                         return JSONResponse({"type": "slides_json", "title": doc.get("title", filename),
                                              "slides": slides, "total_slides": len(slides)})
                 raise HTTPException(status_code=503, detail=f"Cannot render {ext.upper()} in-browser on this server.")
