@@ -437,9 +437,27 @@ function PublicContentTab() {
         try {
           const { data: j } = await axios.get(`${API}/api/super-admin/public-content/job/${jobId}`, { headers: TOKEN_HEADER() });
           if (j.status === 'completed') {
-            toast.success(`${kind} ready!`);
+            toast.success(`${kind === 'audio' ? 'Audio narration' : 'Video presentation'} is ready! Opening preview…`);
             setWorking((w) => { const n = { ...w }; delete n[id]; return n; });
             load();
+            // Auto-play the freshly-generated media using the actual media URL
+            try {
+              const { data: mi } = await axios.get(`${API}/api/public/content/${id}/media-info`, { headers: TOKEN_HEADER() });
+              const url = kind === 'audio' ? mi.audio_url : mi.video_url;
+              if (url) {
+                const r = await fetch(`${API}${url}`, { headers: TOKEN_HEADER() });
+                if (r.ok) {
+                  const blob = await r.blob();
+                  const burl = URL.createObjectURL(blob);
+                  if (kind === 'audio') {
+                    const a = new Audio(burl);
+                    a.play().catch(() => {});
+                  } else {
+                    window.open(burl, '_blank');
+                  }
+                }
+              }
+            } catch (_) { /* user can still click the View button */ }
           } else if (j.status === 'failed') {
             toast.error(j.error || `${kind} generation failed`);
             setWorking((w) => { const n = { ...w }; delete n[id]; return n; });
@@ -583,12 +601,14 @@ function UploadForm({ onDone }) {
   const [category, setCategory] = useState('summit');
   const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState(0);
   const fileRef = useRef(null);
 
   const submit = async (e) => {
     e.preventDefault();
     if (!file || !title) { toast.error('Title and file are required'); return; }
     setSubmitting(true);
+    setProgress(0);
     try {
       const fd = new FormData();
       fd.append('file', file);
@@ -598,12 +618,16 @@ function UploadForm({ onDone }) {
       fd.append('is_summit', category === 'summit' ? 'true' : 'false');
       await axios.post(`${API}/api/super-admin/public-content/upload`, fd, {
         headers: { ...TOKEN_HEADER(), 'Content-Type': 'multipart/form-data' },
+        timeout: 300000,
+        onUploadProgress: (e) => {
+          if (e.total) setProgress(Math.round((e.loaded / e.total) * 100));
+        },
       });
-      toast.success('Uploaded');
+      toast.success('Uploaded — text extraction & slide caching running in background');
       onDone();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Upload failed');
-    } finally { setSubmitting(false); }
+      toast.error(err.response?.data?.detail || err.message || 'Upload failed');
+    } finally { setSubmitting(false); setProgress(0); }
   };
 
   return (
@@ -629,21 +653,36 @@ function UploadForm({ onDone }) {
         </select>
       </div>
       <div>
-        <label className="text-xs text-zinc-400 mb-1 block">File (PDF/DOCX/PPT/PPTX/MP4/MP3 — up to 200 MB)</label>
+        <label className="text-xs text-zinc-400 mb-1 block">File (PDF/DOCX/PPT/PPTX/XLSX/TXT/MD/Images/MP3/MP4 — up to 200 MB)</label>
         <input
           ref={fileRef}
           type="file"
           onChange={(e) => setFile(e.target.files?.[0] || null)}
           className="w-full text-sm text-zinc-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-violet-500 file:text-white"
-          accept=".pdf,.docx,.doc,.ppt,.pptx,.mp4,.mp3,.wav,.m4a,.png,.jpg,.jpeg"
+          accept=".pdf,.docx,.doc,.ppt,.pptx,.xlsx,.txt,.md,.csv,.mp4,.mp3,.wav,.m4a,.png,.jpg,.jpeg,.gif,.webp,.svg"
           required
           data-testid="sa-upload-file"
         />
+        {file && (
+          <p className="text-xs text-zinc-500 mt-1">{file.name} · {Math.round(file.size / 1024)} KB</p>
+        )}
       </div>
+      {submitting && (
+        <div className="space-y-1" data-testid="sa-upload-progress">
+          <div className="flex justify-between text-xs text-zinc-400">
+            <span>{progress < 100 ? 'Uploading…' : 'Processing on server…'}</span>
+            <span>{progress}%</span>
+          </div>
+          <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 transition-all"
+                 style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      )}
       <DialogFooter>
         <Button type="submit" disabled={submitting} className="bg-violet-500 hover:bg-violet-600" data-testid="sa-upload-submit">
           {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-          Upload
+          {submitting ? (progress < 100 ? `Uploading ${progress}%` : 'Processing…') : 'Upload'}
         </Button>
       </DialogFooter>
     </form>

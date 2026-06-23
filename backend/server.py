@@ -13714,12 +13714,27 @@ async def sa_upload_public_content(
     }
     await db.public_content.insert_one(doc)
 
-    # Background: extract preview text + broadcast email notification
+    # Background: extract preview text + (for PPTX) cache slides JSON + broadcast email
     async def _post_upload(_doc_id: str, _path: str, _fname: str, _title: str, _category: str, _uploader_id: str):
-        text = await asyncio.to_thread(_extract_preview_text_sync, _path, _fname.lower())
+        fname_l = _fname.lower()
+        # 1) extract preview text (PDF/DOCX/PPTX)
+        text = await asyncio.to_thread(_extract_preview_text_sync, _path, fname_l)
+        update_fields = {}
         if text:
-            await db.public_content.update_one({"id": _doc_id}, {"$set": {"preview_text": text}})
-        # Email blast to ALL active users (public content is global, not org-scoped)
+            update_fields["preview_text"] = text
+        # 2) For PPTX, pre-cache slides JSON so the first view is instant
+        if fname_l.endswith(".pptx"):
+            try:
+                with open(_path, "rb") as _f:
+                    pptx_bytes = _f.read()
+                slides = await asyncio.to_thread(_pptx_to_slides_json, pptx_bytes)
+                if slides:
+                    update_fields["slides_json"] = slides
+            except Exception as _e:
+                logging.warning(f"slides_json cache failed: {_e}")
+        if update_fields:
+            await db.public_content.update_one({"id": _doc_id}, {"$set": update_fields})
+        # 3) Email blast to ALL active users (public content is global, not org-scoped)
         try:
             from services.smtp_notifications import send_notification_email
             users = await db.users.find({"is_active": {"$ne": False}, "id": {"$ne": _uploader_id}},
@@ -14031,46 +14046,78 @@ async def public_list_content(category: Optional[str] = None, q: Optional[str] =
 
 @public_router.get("/content/{doc_id}/view")
 async def public_view_content(doc_id: str, raw: bool = False):
-    """Public view of a document (no auth). DOCX/PPTX/PDF inline view."""
+    """Public view of a document (no auth). PDF/DOCX/PPTX/images/text inline view.
+    Streams directly from disk using FileResponse (zero-copy, supports Range requests
+    so react-pdf can incrementally load large PDFs)."""
     doc = await db.public_content.find_one({"id": doc_id, "is_active": {"$ne": False}}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Not found")
     filename = (doc.get("filename") or "document").lower()
-    # Prefer on-disk file_path; fall back to legacy base64 file_data for older docs
-    if doc.get("file_path") and os.path.exists(doc["file_path"]):
-        with open(doc["file_path"], "rb") as f:
-            raw_bytes = f.read()
-    elif doc.get("file_data"):
-        raw_bytes = base64.b64decode(doc["file_data"])
-    else:
-        raise HTTPException(status_code=410, detail="File data missing")
     ext = filename.rsplit(".", 1)[-1] if "." in filename else ""
+
+    # Fast path: PPTX slides JSON cached at upload time → instant response
+    if not raw and ext == "pptx" and doc.get("slides_json"):
+        return JSONResponse({
+            "type": "slides_json",
+            "title": doc.get("title", filename),
+            "slides": doc["slides_json"],
+            "total_slides": len(doc["slides_json"]),
+        }, headers={"Cache-Control": "public, max-age=3600"})
+
     headers = {
         "Content-Disposition": f"inline; filename=\"{filename}\"",
-        "Cache-Control": "public, max-age=600",
+        "Cache-Control": "public, max-age=3600",
         "X-Content-Type-Options": "nosniff",
     }
-    if ext == "pdf":
-        return StreamingResponse(io.BytesIO(raw_bytes), media_type="application/pdf", headers=headers)
-    if ext in ("png", "jpg", "jpeg", "gif", "webp"):
-        media = doc.get("content_type") or f"image/{'jpeg' if ext == 'jpg' else ext}"
-        return StreamingResponse(io.BytesIO(raw_bytes), media_type=media, headers=headers)
-    if ext == "txt":
-        return StreamingResponse(io.BytesIO(raw_bytes), media_type="text/plain; charset=utf-8", headers=headers)
-    if ext == "docx" and not raw:
-        return StreamingResponse(io.BytesIO(raw_bytes),
-                                 media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                 headers=headers)
-    if raw:
-        return StreamingResponse(io.BytesIO(raw_bytes), media_type=doc.get("content_type") or "application/octet-stream", headers=headers)
+
+    # On-disk path → use FileResponse for zero-copy streaming with Range support
+    file_path = doc.get("file_path")
+    if file_path and os.path.exists(file_path):
+        mime_map = {
+            "pdf": "application/pdf",
+            "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+            "gif": "image/gif", "webp": "image/webp", "svg": "image/svg+xml",
+            "txt": "text/plain; charset=utf-8", "md": "text/markdown; charset=utf-8",
+            "csv": "text/csv; charset=utf-8", "json": "application/json",
+            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "mp4": "video/mp4", "mov": "video/quicktime", "webm": "video/webm",
+            "mp3": "audio/mpeg", "wav": "audio/wav", "m4a": "audio/mp4",
+        }
+        media_type = mime_map.get(ext, doc.get("content_type") or "application/octet-stream")
+        # For PPTX/PPT without cached slides JSON, fall through to LibreOffice conversion below
+        if ext not in ("ppt", "pptx", "doc", "xls") or raw:
+            return FileResponse(file_path, media_type=media_type, headers=headers)
+
+    # Legacy fallback: file_data base64 in DB (pre-disk-storage docs)
+    if doc.get("file_data"):
+        raw_bytes = base64.b64decode(doc["file_data"])
+        if ext == "pdf":
+            return StreamingResponse(io.BytesIO(raw_bytes), media_type="application/pdf", headers=headers)
+        if ext in ("png", "jpg", "jpeg", "gif", "webp"):
+            return StreamingResponse(io.BytesIO(raw_bytes),
+                                     media_type=doc.get("content_type") or f"image/{'jpeg' if ext == 'jpg' else ext}",
+                                     headers=headers)
+        if ext == "txt":
+            return StreamingResponse(io.BytesIO(raw_bytes), media_type="text/plain; charset=utf-8", headers=headers)
+        if ext == "docx":
+            return StreamingResponse(io.BytesIO(raw_bytes),
+                                     media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                     headers=headers)
+    else:
+        raw_bytes = None
+
+    # PPT/DOC/XLS/PPTX (no cached slides) → LibreOffice conversion to cached PDF
     if ext in ("doc", "ppt", "pptx", "xls", "xlsx"):
         cached_pdf = os.path.join(PREMADE_VIEW_CACHE_DIR, f"public-{doc_id}.pdf")
         if not os.path.exists(cached_pdf):
             tmp_dir = f"/tmp/public-{doc_id}"
             os.makedirs(tmp_dir, exist_ok=True)
-            src_path = os.path.join(tmp_dir, filename)
-            with open(src_path, "wb") as f:
-                f.write(raw_bytes)
+            src_path = file_path if (file_path and os.path.exists(file_path)) else os.path.join(tmp_dir, filename)
+            if not file_path and raw_bytes:
+                with open(src_path, "wb") as f:
+                    f.write(raw_bytes)
             pdf_path = await asyncio.to_thread(_convert_office_to_pdf, src_path, tmp_dir)
             if pdf_path:
                 import shutil as _sh
@@ -14080,21 +14127,20 @@ async def public_view_content(doc_id: str, raw: bool = False):
                 import shutil as _sh
                 _sh.rmtree(tmp_dir, ignore_errors=True)
                 if ext == "pptx":
-                    slides = await asyncio.to_thread(_pptx_to_slides_json, raw_bytes)
+                    src_bytes = raw_bytes
+                    if not src_bytes and file_path:
+                        with open(file_path, "rb") as _f:
+                            src_bytes = _f.read()
+                    slides = await asyncio.to_thread(_pptx_to_slides_json, src_bytes)
                     if slides:
+                        # Cache for next time
+                        await db.public_content.update_one({"id": doc_id}, {"$set": {"slides_json": slides}})
                         return JSONResponse({"type": "slides_json", "title": doc.get("title", filename),
                                              "slides": slides, "total_slides": len(slides)})
                 raise HTTPException(status_code=503, detail=f"Cannot render {ext.upper()} in-browser on this server.")
+        return FileResponse(cached_pdf, media_type="application/pdf", headers=headers)
 
-        def _iter():
-            with open(cached_pdf, "rb") as f:
-                while True:
-                    chunk = f.read(64 * 1024)
-                    if not chunk:
-                        break
-                    yield chunk
-        return StreamingResponse(_iter(), media_type="application/pdf", headers=headers)
-    return StreamingResponse(io.BytesIO(raw_bytes), media_type=doc.get("content_type") or "application/octet-stream", headers=headers)
+    raise HTTPException(status_code=410, detail="File data missing")
 
 
 @public_router.get("/content/{doc_id}/media-info")

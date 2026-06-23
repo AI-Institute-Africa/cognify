@@ -17,6 +17,7 @@ import {
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
+import { renderAsync as renderDocxAsync } from 'docx-preview';
 
 // PDF worker config (mirrors PremadeCoursesPage)
 const _WORKER_LOCAL = `${process.env.PUBLIC_URL || ''}/pdf.worker.min.js`;
@@ -85,7 +86,12 @@ export default function PublicContentViewPage() {
   const [viewBlobUrl, setViewBlobUrl] = useState(null);
   const [pdfArrayBuffer, setPdfArrayBuffer] = useState(null);
   const [pdfNumPages, setPdfNumPages] = useState(null);
+  const [docxArrayBuffer, setDocxArrayBuffer] = useState(null);
+  const [textContent, setTextContent] = useState(null);
+  const [imageUrl, setImageUrl] = useState(null);
+  const [renderKind, setRenderKind] = useState('loading'); // 'pdf' | 'slides' | 'docx' | 'image' | 'text' | 'unsupported'
   const pdfContainerRef = useRef(null);
+  const docxContainerRef = useRef(null);
   const [pdfContainerWidth, setPdfContainerWidth] = useState(800);
 
   // Logged-in extras
@@ -118,19 +124,40 @@ export default function PublicContentViewPage() {
         setDoc(found);
 
         const { data, headers } = await axios.get(`${API}/api/public/content/${docId}/view`, { responseType: 'blob' });
-        const respCT = (headers && headers['content-type']) || data.type || '';
+        const respCT = ((headers && headers['content-type']) || data.type || '').toLowerCase();
+        const fname = (found.filename || '').toLowerCase();
+
         if (respCT.includes('application/json')) {
+          // Slides JSON (PPTX without LibreOffice)
           const txt = await data.text();
           const parsed = JSON.parse(txt);
           setDoc((prev) => ({ ...prev, slidesJson: parsed }));
-        } else {
-          const fname = (found.filename || '').toLowerCase();
-          const isImg = ['png','jpg','jpeg','gif','webp'].some(e => fname.endsWith('.'+e));
-          const mime = isImg ? (data.type || 'image/png') : 'application/pdf';
-          const blob = new Blob([data], { type: mime });
+          setRenderKind('slides');
+        } else if (respCT.includes('pdf')) {
+          const blob = new Blob([data], { type: 'application/pdf' });
           const buf = await blob.arrayBuffer();
           setPdfArrayBuffer(buf);
           setViewBlobUrl(URL.createObjectURL(blob));
+          setRenderKind('pdf');
+        } else if (respCT.includes('wordprocessingml') || fname.endsWith('.docx')) {
+          const buf = await data.arrayBuffer();
+          setDocxArrayBuffer(buf);
+          setRenderKind('docx');
+        } else if (respCT.startsWith('image/') || ['png','jpg','jpeg','gif','webp','svg'].some(e => fname.endsWith('.'+e))) {
+          const blob = new Blob([data], { type: data.type || respCT || 'image/png' });
+          setImageUrl(URL.createObjectURL(blob));
+          setRenderKind('image');
+        } else if (respCT.startsWith('text/') || ['txt','md','csv','json'].some(e => fname.endsWith('.'+e))) {
+          const txt = await data.text();
+          setTextContent(txt);
+          setRenderKind('text');
+        } else {
+          // Last-resort: try as PDF anyway
+          const blob = new Blob([data], { type: 'application/pdf' });
+          const buf = await blob.arrayBuffer();
+          setPdfArrayBuffer(buf);
+          setViewBlobUrl(URL.createObjectURL(blob));
+          setRenderKind('pdf');
         }
 
         if (isLoggedIn) {
@@ -158,6 +185,20 @@ export default function PublicContentViewPage() {
     ro.observe(pdfContainerRef.current);
     return () => ro.disconnect();
   }, [viewBlobUrl, mode]);
+
+  // Render DOCX with docx-preview when its buffer becomes available and the container exists
+  useEffect(() => {
+    if (renderKind !== 'docx' || !docxArrayBuffer || !docxContainerRef.current) return;
+    docxContainerRef.current.innerHTML = '';
+    renderDocxAsync(docxArrayBuffer, docxContainerRef.current, null, {
+      className: 'docx-preview',
+      inWrapper: true,
+      ignoreLastRenderedPageBreak: true,
+    }).catch((err) => {
+      console.error('docx-preview failed', err);
+      toast.error('Could not render DOCX inline');
+    });
+  }, [renderKind, docxArrayBuffer, mode]);
 
   const pdfFileSource = useMemo(() => {
     if (pdfArrayBuffer) return { data: pdfArrayBuffer };
@@ -375,10 +416,14 @@ export default function PublicContentViewPage() {
         docId={docId}
         navigate={navigate}
         pdfContainerRef={pdfContainerRef}
+        docxContainerRef={docxContainerRef}
         pdfContainerWidth={pdfContainerWidth}
         pdfFileSource={pdfFileSource}
         pdfNumPages={pdfNumPages}
         setPdfNumPages={setPdfNumPages}
+        renderKind={renderKind}
+        textContent={textContent}
+        imageUrl={imageUrl}
       />
     );
   }
@@ -435,24 +480,17 @@ export default function PublicContentViewPage() {
             {/* READ — original document */}
             <TabsContent value="read" className="mt-0">
               <div ref={pdfContainerRef} className="glass-card overflow-hidden h-[78vh]">
-                {doc.slidesJson ? (
-                  <SlidesJSONViewer slides={doc.slidesJson.slides} total={doc.slidesJson.total_slides} />
-                ) : pdfFileSource ? (
-                  <div className="h-full overflow-y-auto">
-                    <Document
-                      file={pdfFileSource}
-                      loading={<div className="flex items-center justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-violet-400" /></div>}
-                      error={<div className="text-center py-20"><FileText className="w-12 h-12 text-zinc-500 mx-auto mb-3" /><p className="text-zinc-300">Could not render this document.</p></div>}
-                      onLoadSuccess={({ numPages }) => setPdfNumPages(numPages)}
-                    >
-                      {pdfNumPages && Array.from({ length: pdfNumPages }, (_, i) => (
-                        <div key={i} className="flex justify-center py-3 border-b border-white/5">
-                          <Page pageNumber={i+1} width={pdfContainerWidth} renderTextLayer={false} renderAnnotationLayer={false} />
-                        </div>
-                      ))}
-                    </Document>
-                  </div>
-                ) : null}
+                <DocRenderer
+                  doc={doc}
+                  renderKind={renderKind}
+                  pdfFileSource={pdfFileSource}
+                  pdfNumPages={pdfNumPages}
+                  setPdfNumPages={setPdfNumPages}
+                  pdfContainerWidth={pdfContainerWidth}
+                  docxContainerRef={docxContainerRef}
+                  textContent={textContent}
+                  imageUrl={imageUrl}
+                />
               </div>
             </TabsContent>
 
@@ -697,6 +735,67 @@ export default function PublicContentViewPage() {
   );
 }
 
+// ---------- Unified renderer: PDF / slides / DOCX / image / text / loading ----------
+function DocRenderer({ doc, renderKind, pdfFileSource, pdfNumPages, setPdfNumPages,
+                       pdfContainerWidth, docxContainerRef, textContent, imageUrl }) {
+  if (renderKind === 'loading') {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-10 h-10 animate-spin text-violet-400" />
+      </div>
+    );
+  }
+  if (renderKind === 'slides' && doc?.slidesJson) {
+    return <SlidesJSONViewer slides={doc.slidesJson.slides} total={doc.slidesJson.total_slides} />;
+  }
+  if (renderKind === 'pdf' && pdfFileSource) {
+    return (
+      <div className="h-full overflow-y-auto">
+        <Document
+          file={pdfFileSource}
+          loading={<div className="flex items-center justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-violet-400" /></div>}
+          error={<div className="text-center py-20"><FileText className="w-12 h-12 text-zinc-500 mx-auto mb-3" /><p className="text-zinc-300">Could not render this document.</p></div>}
+          onLoadSuccess={({ numPages }) => setPdfNumPages(numPages)}
+        >
+          {pdfNumPages && Array.from({ length: pdfNumPages }, (_, i) => (
+            <div key={i} className="flex justify-center py-3 border-b border-white/5">
+              <Page pageNumber={i+1} width={pdfContainerWidth} renderTextLayer={false} renderAnnotationLayer={false} />
+            </div>
+          ))}
+        </Document>
+      </div>
+    );
+  }
+  if (renderKind === 'docx') {
+    return (
+      <div className="h-full overflow-y-auto bg-zinc-100 text-zinc-900 p-6">
+        <div ref={docxContainerRef} data-testid="docx-viewer" />
+      </div>
+    );
+  }
+  if (renderKind === 'image' && imageUrl) {
+    return (
+      <div className="h-full overflow-auto flex items-center justify-center bg-zinc-950 p-4">
+        <img src={imageUrl} alt={doc?.title || ''} className="max-w-full max-h-full object-contain" data-testid="image-viewer" />
+      </div>
+    );
+  }
+  if (renderKind === 'text' && textContent !== null) {
+    return (
+      <div className="h-full overflow-y-auto bg-zinc-950 p-6">
+        <pre className="text-sm text-zinc-200 whitespace-pre-wrap font-mono" data-testid="text-viewer">{textContent}</pre>
+      </div>
+    );
+  }
+  return (
+    <div className="text-center py-20">
+      <FileText className="w-12 h-12 text-zinc-500 mx-auto mb-3" />
+      <p className="text-zinc-300">This document format is not directly viewable in the browser.</p>
+      <p className="text-zinc-500 text-sm mt-2">Sign in and use the multi-modal tabs (Audio / Slides / Avatar) to learn from it.</p>
+    </div>
+  );
+}
+
 // ---------- Slides JSON viewer (re-used) ----------
 function SlidesJSONViewer({ slides, total }) {
   return (
@@ -727,7 +826,9 @@ function SlidesJSONViewer({ slides, total }) {
 }
 
 // ---------- Guest (no auth) view ----------
-function GuestPublicView({ doc, docId, navigate, pdfContainerRef, pdfContainerWidth, pdfFileSource, pdfNumPages, setPdfNumPages }) {
+function GuestPublicView({ doc, docId, navigate, pdfContainerRef, docxContainerRef,
+                           pdfContainerWidth, pdfFileSource, pdfNumPages, setPdfNumPages,
+                           renderKind, textContent, imageUrl }) {
   return (
     <div className="min-h-screen bg-[#0a0a0b] text-zinc-100">
       <nav className="border-b border-white/5 bg-zinc-950/90 backdrop-blur sticky top-0 z-30">
@@ -750,24 +851,17 @@ function GuestPublicView({ doc, docId, navigate, pdfContainerRef, pdfContainerWi
               {doc.description && <p className="text-zinc-400 mt-2">{doc.description}</p>}
             </div>
             <div ref={pdfContainerRef} className="glass-card overflow-hidden h-[78vh]">
-              {doc.slidesJson ? (
-                <SlidesJSONViewer slides={doc.slidesJson.slides} total={doc.slidesJson.total_slides} />
-              ) : pdfFileSource ? (
-                <div className="h-full overflow-y-auto">
-                  <Document
-                    file={pdfFileSource}
-                    loading={<div className="flex items-center justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-violet-400" /></div>}
-                    error={<div className="text-center py-20"><FileText className="w-12 h-12 text-zinc-500 mx-auto mb-3" /><p className="text-zinc-300">Could not render this document.</p></div>}
-                    onLoadSuccess={({ numPages }) => setPdfNumPages(numPages)}
-                  >
-                    {pdfNumPages && Array.from({ length: pdfNumPages }, (_, i) => (
-                      <div key={i} className="flex justify-center py-3 border-b border-white/5">
-                        <Page pageNumber={i+1} width={pdfContainerWidth} renderTextLayer={false} renderAnnotationLayer={false} />
-                      </div>
-                    ))}
-                  </Document>
-                </div>
-              ) : null}
+              <DocRenderer
+                doc={doc}
+                renderKind={renderKind}
+                pdfFileSource={pdfFileSource}
+                pdfNumPages={pdfNumPages}
+                setPdfNumPages={setPdfNumPages}
+                pdfContainerWidth={pdfContainerWidth}
+                docxContainerRef={docxContainerRef}
+                textContent={textContent}
+                imageUrl={imageUrl}
+              />
             </div>
           </div>
           <aside className="lg:col-span-1 space-y-4">
