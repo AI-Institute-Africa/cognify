@@ -45,7 +45,8 @@ import {
   Share2,
   Zap,
   Award,
-  BarChart3
+  BarChart3,
+  Shield
 } from 'lucide-react';
 
 const navItems = {
@@ -202,6 +203,16 @@ const navItems = {
     { path: '/parent-portal', icon: Users, labelKey: 'myChildren' },
     { path: '/fees', icon: CreditCard, labelKey: 'fees' },
     { path: '/attendance', icon: Calendar, labelKey: 'attendance' },
+  ],
+  super_admin: [
+    { path: '/super-admin', icon: Shield, label: 'Super Admin Console' },
+    { divider: true, label: 'System' },
+    { path: '/public', icon: Globe, label: 'Public Library' },
+    { path: '/courses', icon: BookOpen, label: 'All Courses' },
+    { path: '/premade-courses', icon: FolderOpen, label: 'Premade Docs' },
+    { divider: true, label: 'Tools' },
+    { path: '/ai-mentor', icon: Brain, labelKey: 'aiMentor' },
+    { path: '/settings', icon: Settings, labelKey: 'settings' },
   ],
 };
 

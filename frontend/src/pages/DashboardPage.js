@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { DashboardLayout } from '../components/DashboardLayout';
@@ -28,6 +29,7 @@ import { Link } from 'react-router-dom';
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { t } = useLanguage();
   const [stats, setStats] = useState({});
   const [courses, setCourses] = useState([]);
@@ -36,8 +38,13 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (user?.role === 'super_admin') {
+      navigate('/super-admin', { replace: true });
+      return;
+    }
     loadDashboardData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role]);
 
   const loadDashboardData = async () => {
     try {

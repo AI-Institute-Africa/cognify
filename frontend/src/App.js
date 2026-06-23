@@ -69,6 +69,9 @@ import CertificateGalleryPage from './pages/CertificateGalleryPage';
 import CourseManagePage from './pages/CourseManagePage';
 import PremadeCoursesPage from './pages/PremadeCoursesPage';
 import CourseAnalyticsDashboardPage from './pages/CourseAnalyticsDashboardPage';
+import PublicContentPage from './pages/PublicContentPage';
+import PublicContentViewPage from './pages/PublicContentViewPage';
+import SuperAdminDashboardPage from './pages/SuperAdminDashboardPage';
 
 import './App.css';
 
@@ -468,6 +471,17 @@ function AppRoutes() {
       
       {/* Avatar Trial (Public - No account needed) */}
       <Route path="/avatar-trial" element={<AvatarTrialPage />} />
+
+      {/* Public Content Library (No login required) */}
+      <Route path="/public" element={<PublicContentPage />} />
+      <Route path="/public/:docId" element={<PublicContentViewPage />} />
+
+      {/* Super Admin Console */}
+      <Route path="/super-admin" element={
+        <ProtectedRoute allowedRoles={['super_admin']}>
+          <SuperAdminDashboardPage />
+        </ProtectedRoute>
+      } />
       
       {/* Home Page (Public) */}
       <Route path="/" element={<HomePage />} />

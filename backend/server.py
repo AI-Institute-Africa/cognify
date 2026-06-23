@@ -2164,6 +2164,10 @@ async def login(credentials: UserLogin):
     if not user or not verify_password(credentials.password, user.get('password_hash', '')):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
+    # Block deactivated users (soft-deleted)
+    if user.get('is_active') is False:
+        raise HTTPException(status_code=403, detail="Account has been deactivated. Please contact your administrator.")
+    
     # Block login for pending/rejected org users
     if user.get('org_status') == 'pending':
         raise HTTPException(status_code=403, detail="Your account is pending approval by the organization administrator. Please wait for approval.")
@@ -5595,6 +5599,11 @@ async def create_assignment(
         "created_at": datetime.now(timezone.utc)
     }
     await db.assignments.insert_one(assignment)
+    # Notify org users
+    try:
+        await _notify_org_new_assignment(assignment, current_user['id'])
+    except Exception as _e:
+        logging.warning(f"assignment notify failed: {_e}")
     
     return {"assignment_id": assignment['id'], "course_id": course_id, **result}
 
@@ -6125,6 +6134,11 @@ async def create_exam(exam_data: ExamCreate, current_user: dict = Depends(get_cu
     }
     
     await db.exams.insert_one(exam)
+    # Notify org users
+    try:
+        await _notify_org_new_exam(exam, current_user['id'])
+    except Exception as _e:
+        logging.warning(f"exam notify failed: {_e}")
     exam.pop('_id', None)
     return serialize_doc(exam)
 
@@ -13436,6 +13450,560 @@ api_router.include_router(exams_router)
 api_router.include_router(assignments_router)
 api_router.include_router(payments_router)
 api_router.include_router(org_admin_router)
+
+# ==================== SUPER ADMIN + PUBLIC CONTENT (Iteration 45) ====================
+from services.smtp_notifications import send_email, broadcast_to_org, render_notification
+
+super_admin_router = APIRouter(prefix="/super-admin", tags=["super-admin"])
+public_router = APIRouter(prefix="/public", tags=["public"])
+
+
+async def require_super_admin(current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") != "super_admin":
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    return current_user
+
+
+# ----- Super Admin: list / deactivate / reactivate users & orgs -----
+
+@super_admin_router.get("/users")
+async def sa_list_users(
+    q: Optional[str] = None,
+    role: Optional[str] = None,
+    org_id: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    limit: int = 200,
+    current_user: dict = Depends(require_super_admin),
+):
+    query = {}
+    if q:
+        query["$or"] = [
+            {"email": {"$regex": q, "$options": "i"}},
+            {"full_name": {"$regex": q, "$options": "i"}},
+        ]
+    if role:
+        query["role"] = role
+    if org_id:
+        query["organization_id"] = org_id
+    if is_active is not None:
+        query["is_active"] = {"$ne": False} if is_active else False
+    users = await db.users.find(
+        query, {"_id": 0, "password_hash": 0}
+    ).sort("created_at", -1).to_list(length=max(1, min(int(limit), 1000)))
+    return {"users": users, "total": len(users)}
+
+
+@super_admin_router.post("/users/{user_id}/deactivate")
+async def sa_deactivate_user(user_id: str, current_user: dict = Depends(require_super_admin)):
+    if user_id == current_user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
+    r = await db.users.update_one({"id": user_id}, {"$set": {"is_active": False, "deactivated_at": datetime.now(timezone.utc).isoformat(), "deactivated_by": current_user["id"]}})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"status": "deactivated"}
+
+
+@super_admin_router.post("/users/{user_id}/reactivate")
+async def sa_reactivate_user(user_id: str, current_user: dict = Depends(require_super_admin)):
+    r = await db.users.update_one({"id": user_id}, {"$set": {"is_active": True}, "$unset": {"deactivated_at": "", "deactivated_by": ""}})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"status": "reactivated"}
+
+
+@super_admin_router.get("/organizations")
+async def sa_list_orgs(current_user: dict = Depends(require_super_admin)):
+    orgs = await db.organizations.find({}, {"_id": 0}).sort("created_at", -1).to_list(length=1000)
+    # Enrich with counts
+    for o in orgs:
+        oid = o.get("id")
+        o["users_count"] = await db.users.count_documents({"organization_id": oid})
+        o["courses_count"] = await db.courses.count_documents({"organization_id": oid})
+        o["active_users"] = await db.users.count_documents({"organization_id": oid, "is_active": {"$ne": False}})
+    return {"organizations": orgs, "total": len(orgs)}
+
+
+@super_admin_router.post("/organizations/{org_id}/deactivate")
+async def sa_deactivate_org(org_id: str, current_user: dict = Depends(require_super_admin)):
+    r1 = await db.organizations.update_one({"id": org_id}, {"$set": {"is_active": False, "deactivated_at": datetime.now(timezone.utc).isoformat()}})
+    if r1.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    # Cascade: deactivate all users of this org
+    await db.users.update_many({"organization_id": org_id}, {"$set": {"is_active": False}})
+    return {"status": "deactivated", "cascade": "all users deactivated"}
+
+
+@super_admin_router.post("/organizations/{org_id}/reactivate")
+async def sa_reactivate_org(org_id: str, current_user: dict = Depends(require_super_admin)):
+    r1 = await db.organizations.update_one({"id": org_id}, {"$set": {"is_active": True}, "$unset": {"deactivated_at": ""}})
+    if r1.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    await db.users.update_many({"organization_id": org_id}, {"$set": {"is_active": True}})
+    return {"status": "reactivated"}
+
+
+@super_admin_router.get("/analytics")
+async def sa_system_analytics(current_user: dict = Depends(require_super_admin)):
+    """System-wide analytics across all orgs."""
+    total_users = await db.users.count_documents({})
+    active_users = await db.users.count_documents({"is_active": {"$ne": False}})
+    total_orgs = await db.organizations.count_documents({})
+    active_orgs = await db.organizations.count_documents({"is_active": {"$ne": False}})
+    total_courses = await db.courses.count_documents({})
+    total_premade = await db.premade_courses.count_documents({})
+    total_public = await db.public_content.count_documents({}) if "public_content" in await db.list_collection_names() else 0
+    total_assignments = await db.assignments.count_documents({}) if "assignments" in await db.list_collection_names() else 0
+    total_quizzes = await db.quiz_results.count_documents({}) if "quiz_results" in await db.list_collection_names() else 0
+
+    # Users by role
+    pipeline = [{"$group": {"_id": "$role", "count": {"$sum": 1}}}]
+    role_buckets = await db.users.aggregate(pipeline).to_list(length=20)
+    by_role = {r["_id"] or "unknown": r["count"] for r in role_buckets}
+
+    # New signups last 7 days
+    week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    new_signups_week = await db.users.count_documents({"created_at": {"$gte": week_ago}})
+
+    # Top 5 orgs by user count
+    org_counts = await db.users.aggregate([
+        {"$group": {"_id": "$organization_id", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 5},
+    ]).to_list(length=5)
+    top_orgs = []
+    for r in org_counts:
+        oid = r["_id"]
+        if not oid:
+            continue
+        org = await db.organizations.find_one({"id": oid}, {"_id": 0, "name": 1})
+        if org:
+            top_orgs.append({"name": org["name"], "users": r["count"]})
+
+    return {
+        "summary": {
+            "total_users": total_users,
+            "active_users": active_users,
+            "total_organizations": total_orgs,
+            "active_organizations": active_orgs,
+            "total_courses": total_courses,
+            "total_premade_docs": total_premade,
+            "total_public_content": total_public,
+            "total_assignments": total_assignments,
+            "total_quiz_attempts": total_quizzes,
+            "new_signups_last_7d": new_signups_week,
+        },
+        "users_by_role": by_role,
+        "top_organizations": top_orgs,
+    }
+
+
+# ----- Public Content: super_admin upload + media generation -----
+
+PUBLIC_CONTENT_AUDIO_DIR = "/app/generated_audio_public"
+PUBLIC_CONTENT_VIDEO_DIR = "/app/generated_video_public"
+os.makedirs(PUBLIC_CONTENT_AUDIO_DIR, exist_ok=True)
+os.makedirs(PUBLIC_CONTENT_VIDEO_DIR, exist_ok=True)
+
+
+@super_admin_router.post("/public-content/upload")
+async def sa_upload_public_content(
+    file: UploadFile = File(...),
+    title: str = Form(...),
+    description: str = Form(""),
+    category: str = Form("summit"),  # 'summit' | 'public' | etc.
+    is_summit: bool = Form(True),
+    current_user: dict = Depends(require_super_admin),
+):
+    """Upload a public document (PDF/DOCX/PPT/PPTX/audio/video). super_admin only."""
+    content = await file.read()
+    if len(content) > 200 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Max 200MB.")
+    filename = file.filename or "document"
+
+    # Detect media type
+    fname_lower = filename.lower()
+    media_kind = "document"
+    if fname_lower.endswith((".mp4", ".mov", ".webm", ".mkv")):
+        media_kind = "video"
+    elif fname_lower.endswith((".mp3", ".wav", ".m4a", ".aac", ".ogg")):
+        media_kind = "audio"
+
+    # Try to extract preview text for documents
+    preview_text = ""
+    try:
+        if fname_lower.endswith(".pdf"):
+            from PyPDF2 import PdfReader
+            import io as _io
+            reader = PdfReader(_io.BytesIO(content))
+            pages = []
+            for i, p in enumerate(reader.pages):
+                if i > 10: break
+                pages.append(p.extract_text() or "")
+            preview_text = "\n".join(pages)[:10000]
+        elif fname_lower.endswith(".docx"):
+            import docx as _docx, io as _io
+            d = _docx.Document(_io.BytesIO(content))
+            preview_text = "\n".join(p.text for p in d.paragraphs[:200])[:10000]
+        elif fname_lower.endswith(".pptx"):
+            from pptx import Presentation as _Pres
+            import io as _io
+            prs = _Pres(_io.BytesIO(content))
+            chunks = []
+            for s in prs.slides:
+                for shp in s.shapes:
+                    if shp.has_text_frame:
+                        chunks.append(shp.text_frame.text)
+            preview_text = "\n".join(chunks)[:10000]
+    except Exception as e:
+        logging.warning(f"Preview text extraction failed: {e}")
+
+    doc = {
+        "id": str(uuid.uuid4()),
+        "title": title,
+        "description": description,
+        "category": category,
+        "is_summit": bool(is_summit),
+        "media_kind": media_kind,
+        "filename": filename,
+        "content_type": file.content_type or "application/octet-stream",
+        "file_size": len(content),
+        "preview_text": preview_text,
+        "file_data": base64.b64encode(content).decode(),
+        "audio_url": None,
+        "video_url": None,
+        "slides": [],
+        "uploaded_by": current_user["id"],
+        "uploader_name": current_user.get("full_name", "Super Admin"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "is_active": True,
+    }
+    await db.public_content.insert_one(doc)
+    # MongoDB mutates the dict adding _id; strip it before returning
+    safe = {k: v for k, v in doc.items() if k not in ("file_data", "_id")}
+    return {"message": "Public content uploaded", "document": safe}
+
+
+@super_admin_router.delete("/public-content/{doc_id}")
+async def sa_delete_public_content(doc_id: str, current_user: dict = Depends(require_super_admin)):
+    r = await db.public_content.update_one({"id": doc_id}, {"$set": {"is_active": False}})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"status": "deactivated"}
+
+
+@super_admin_router.post("/public-content/{doc_id}/generate-audio")
+async def sa_generate_public_audio(doc_id: str, background_tasks: BackgroundTasks,
+                                   voice: str = "nova",
+                                   current_user: dict = Depends(require_super_admin)):
+    doc = await db.public_content.find_one({"id": doc_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    text = doc.get("preview_text") or ""
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="Document has no extractable text to narrate")
+    job_id = str(uuid.uuid4())
+    await db.public_content_jobs.insert_one({
+        "id": job_id, "doc_id": doc_id, "kind": "audio", "status": "processing",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    async def _run():
+        try:
+            chunks = _split_text_for_tts(text, max_chunk=3500)
+            from emergentintegrations.llm.openai import OpenAITextToSpeech
+            api_key = os.environ["EMERGENT_LLM_KEY"]
+            tts = OpenAITextToSpeech(api_key=api_key)
+            combined = b""
+            for c in chunks:
+                b64 = await tts.generate_speech_base64(text=c, model="tts-1", voice=voice, speed=1.0)
+                if b64:
+                    combined += base64.b64decode(b64)
+            audio_id = str(uuid.uuid4())
+            audio_path = f"{PUBLIC_CONTENT_AUDIO_DIR}/{audio_id}.mp3"
+            with open(audio_path, "wb") as f:
+                f.write(combined)
+            audio_url = f"/api/public/{doc_id}/audio/{audio_id}"
+            await db.public_content.update_one({"id": doc_id}, {"$set": {"audio_url": audio_url, "audio_file": audio_path}})
+            await db.public_content_jobs.update_one({"id": job_id}, {"$set": {"status": "completed", "audio_url": audio_url}})
+        except Exception as e:
+            err = str(e)
+            friendly = "Emergent LLM Key budget exceeded. Please top up via Profile → Universal Key → Add Balance." if "budget" in err.lower() else err
+            await db.public_content_jobs.update_one({"id": job_id}, {"$set": {"status": "failed", "error": friendly}})
+
+    background_tasks.add_task(_run)
+    return {"job_id": job_id, "status": "processing"}
+
+
+@super_admin_router.post("/public-content/{doc_id}/generate-video")
+async def sa_generate_public_video(doc_id: str, background_tasks: BackgroundTasks,
+                                   duration: int = 12,
+                                   current_user: dict = Depends(require_super_admin)):
+    doc = await db.public_content.find_one({"id": doc_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    job_id = str(uuid.uuid4())
+    duration = max(4, min(int(duration or 12), 12))
+    await db.public_content_jobs.insert_one({
+        "id": job_id, "doc_id": doc_id, "kind": "video", "status": "processing",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+
+    async def _run():
+        try:
+            from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+            vg = OpenAIVideoGeneration(api_key=api_key)
+            prompt = f"Professional educational explainer video about: {doc.get('title','')}. Clean diagrams, modern visuals, suitable for a wider audience."
+            video_bytes = await asyncio.to_thread(vg.text_to_video, prompt=prompt, model="sora-2",
+                                                  size="1280x720", duration=duration, max_wait_time=600)
+            if not video_bytes:
+                raise RuntimeError("No video returned (likely LLM budget exhausted)")
+            video_id = str(uuid.uuid4())
+            video_path = f"{PUBLIC_CONTENT_VIDEO_DIR}/{video_id}.mp4"
+            vg.save_video(video_bytes, video_path)
+            video_url = f"/api/public/{doc_id}/video/{video_id}"
+            await db.public_content.update_one({"id": doc_id}, {"$set": {"video_url": video_url, "video_file": video_path}})
+            await db.public_content_jobs.update_one({"id": job_id}, {"$set": {"status": "completed", "video_url": video_url}})
+        except Exception as e:
+            err = str(e)
+            friendly = "Emergent LLM Key budget exceeded. Please top up via Profile → Universal Key → Add Balance." if "budget" in err.lower() else err
+            await db.public_content_jobs.update_one({"id": job_id}, {"$set": {"status": "failed", "error": friendly}})
+
+    background_tasks.add_task(_run)
+    return {"job_id": job_id, "status": "processing"}
+
+
+@super_admin_router.get("/public-content/job/{job_id}")
+async def sa_get_public_job(job_id: str, current_user: dict = Depends(require_super_admin)):
+    j = await db.public_content_jobs.find_one({"id": job_id}, {"_id": 0})
+    if not j:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return j
+
+
+# ----- Public endpoints (no-auth list + view; auth-required audio/video) -----
+
+@public_router.get("/content")
+async def public_list_content(category: Optional[str] = None, q: Optional[str] = None):
+    """List public documents (no auth required) — text/doc preview only.
+    Audio/Video URLs are gated separately by /audio and /video endpoints.
+    """
+    query = {"is_active": {"$ne": False}}
+    if category:
+        query["category"] = category
+    if q:
+        query["$or"] = [
+            {"title": {"$regex": q, "$options": "i"}},
+            {"description": {"$regex": q, "$options": "i"}},
+        ]
+    docs = await db.public_content.find(
+        query, {"_id": 0, "file_data": 0}
+    ).sort("created_at", -1).to_list(length=500)
+    # Strip audio_url/video_url from public listing — they are auth-gated
+    public_safe = []
+    for d in docs:
+        d2 = {k: v for k, v in d.items() if k not in ("audio_url", "video_url", "audio_file", "video_file")}
+        d2["has_audio"] = bool(d.get("audio_url"))
+        d2["has_video"] = bool(d.get("video_url"))
+        public_safe.append(d2)
+    return {"documents": public_safe, "total": len(public_safe)}
+
+
+@public_router.get("/content/{doc_id}/view")
+async def public_view_content(doc_id: str, raw: bool = False):
+    """Public view of a document (no auth). DOCX/PPTX/PDF inline view."""
+    doc = await db.public_content.find_one({"id": doc_id, "is_active": {"$ne": False}}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    filename = (doc.get("filename") or "document").lower()
+    raw_bytes = base64.b64decode(doc["file_data"])
+    ext = filename.rsplit(".", 1)[-1] if "." in filename else ""
+    headers = {
+        "Content-Disposition": f"inline; filename=\"{filename}\"",
+        "Cache-Control": "public, max-age=600",
+        "X-Content-Type-Options": "nosniff",
+    }
+    if ext == "pdf":
+        return StreamingResponse(io.BytesIO(raw_bytes), media_type="application/pdf", headers=headers)
+    if ext in ("png", "jpg", "jpeg", "gif", "webp"):
+        media = doc.get("content_type") or f"image/{'jpeg' if ext == 'jpg' else ext}"
+        return StreamingResponse(io.BytesIO(raw_bytes), media_type=media, headers=headers)
+    if ext == "txt":
+        return StreamingResponse(io.BytesIO(raw_bytes), media_type="text/plain; charset=utf-8", headers=headers)
+    if ext == "docx" and not raw:
+        return StreamingResponse(io.BytesIO(raw_bytes),
+                                 media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                 headers=headers)
+    if raw:
+        return StreamingResponse(io.BytesIO(raw_bytes), media_type=doc.get("content_type") or "application/octet-stream", headers=headers)
+    if ext in ("doc", "ppt", "pptx", "xls", "xlsx"):
+        cached_pdf = os.path.join(PREMADE_VIEW_CACHE_DIR, f"public-{doc_id}.pdf")
+        if not os.path.exists(cached_pdf):
+            tmp_dir = f"/tmp/public-{doc_id}"
+            os.makedirs(tmp_dir, exist_ok=True)
+            src_path = os.path.join(tmp_dir, filename)
+            with open(src_path, "wb") as f:
+                f.write(raw_bytes)
+            pdf_path = await asyncio.to_thread(_convert_office_to_pdf, src_path, tmp_dir)
+            if pdf_path:
+                import shutil as _sh
+                _sh.move(pdf_path, cached_pdf)
+                _sh.rmtree(tmp_dir, ignore_errors=True)
+            else:
+                import shutil as _sh
+                _sh.rmtree(tmp_dir, ignore_errors=True)
+                if ext == "pptx":
+                    slides = await asyncio.to_thread(_pptx_to_slides_json, raw_bytes)
+                    if slides:
+                        return JSONResponse({"type": "slides_json", "title": doc.get("title", filename),
+                                             "slides": slides, "total_slides": len(slides)})
+                raise HTTPException(status_code=503, detail=f"Cannot render {ext.upper()} in-browser on this server.")
+
+        def _iter():
+            with open(cached_pdf, "rb") as f:
+                while True:
+                    chunk = f.read(64 * 1024)
+                    if not chunk:
+                        break
+                    yield chunk
+        return StreamingResponse(_iter(), media_type="application/pdf", headers=headers)
+    return StreamingResponse(io.BytesIO(raw_bytes), media_type=doc.get("content_type") or "application/octet-stream", headers=headers)
+
+
+@public_router.get("/content/{doc_id}/media-info")
+async def public_media_info(doc_id: str, current_user: dict = Depends(get_current_user)):
+    """Returns audio_url / video_url for a public document. Requires login."""
+    doc = await db.public_content.find_one({"id": doc_id, "is_active": {"$ne": False}}, {"_id": 0, "file_data": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {
+        "id": doc["id"],
+        "title": doc.get("title"),
+        "audio_url": doc.get("audio_url"),
+        "video_url": doc.get("video_url"),
+    }
+
+
+@public_router.get("/{doc_id}/audio/{audio_id}")
+async def public_serve_audio(doc_id: str, audio_id: str, current_user: dict = Depends(get_current_user)):
+    """Stream audio for a public doc (login required)."""
+    doc = await db.public_content.find_one({"id": doc_id, "is_active": {"$ne": False}}, {"_id": 0, "audio_file": 1})
+    if not doc or not doc.get("audio_file") or not os.path.exists(doc["audio_file"]):
+        raise HTTPException(status_code=404, detail="Audio not available")
+    return FileResponse(doc["audio_file"], media_type="audio/mpeg")
+
+
+@public_router.get("/{doc_id}/video/{video_id}")
+async def public_serve_video(doc_id: str, video_id: str, current_user: dict = Depends(get_current_user)):
+    """Stream video for a public doc (login required)."""
+    doc = await db.public_content.find_one({"id": doc_id, "is_active": {"$ne": False}}, {"_id": 0, "video_file": 1})
+    if not doc or not doc.get("video_file") or not os.path.exists(doc["video_file"]):
+        raise HTTPException(status_code=404, detail="Video not available")
+    return FileResponse(doc["video_file"], media_type="video/mp4")
+
+
+api_router.include_router(super_admin_router)
+api_router.include_router(public_router)
+
+
+# ----- Notification hooks -----
+
+async def _notify_org_new_content(course_id: str, content_title: str, actor_id: str):
+    """Send a notification to all users of the course's organization when new course content is added."""
+    try:
+        course = await db.courses.find_one({"id": course_id}, {"_id": 0, "organization_id": 1, "title": 1, "name": 1})
+        if not course or not course.get("organization_id"):
+            return
+        org_id = course["organization_id"]
+        course_name = course.get("title") or course.get("name") or "your course"
+        frontend = os.environ.get("FRONTEND_URL", "")
+        html = render_notification(
+            title=f"New content available: {content_title}",
+            message=f"A new lesson <strong>{content_title}</strong> has been added to <em>{course_name}</em>. Sign in to start learning.",
+            action_label="Open course",
+            action_url=f"{frontend}/course/{course_id}" if frontend else None,
+        )
+        asyncio.create_task(broadcast_to_org(db, org_id, f"New lesson: {content_title}", html,
+                                              exclude_user_id=actor_id))
+    except Exception as e:
+        logging.error(f"notify_org_new_content failed: {e}")
+
+
+async def _notify_org_new_assignment(assignment: dict, actor_id: str):
+    try:
+        org_id = assignment.get("organization_id")
+        if not org_id and assignment.get("course_id"):
+            c = await db.courses.find_one({"id": assignment["course_id"]}, {"_id": 0, "organization_id": 1})
+            org_id = c.get("organization_id") if c else None
+        if not org_id:
+            return
+        frontend = os.environ.get("FRONTEND_URL", "")
+        html = render_notification(
+            title=f"New assignment: {assignment.get('title', 'Assignment')}",
+            message=f"A new assignment has been posted. Due: <strong>{assignment.get('due_date', 'TBD')}</strong>.",
+            action_label="View assignment",
+            action_url=f"{frontend}/assignments" if frontend else None,
+        )
+        asyncio.create_task(broadcast_to_org(db, org_id, f"New assignment: {assignment.get('title', '')}", html,
+                                              exclude_user_id=actor_id, role_filter=["student", "teacher"]))
+    except Exception as e:
+        logging.error(f"notify_org_new_assignment failed: {e}")
+
+
+async def _notify_org_new_exam(exam: dict, actor_id: str):
+    try:
+        org_id = exam.get("organization_id")
+        if not org_id and exam.get("course_id"):
+            c = await db.courses.find_one({"id": exam["course_id"]}, {"_id": 0, "organization_id": 1})
+            org_id = c.get("organization_id") if c else None
+        if not org_id:
+            return
+        frontend = os.environ.get("FRONTEND_URL", "")
+        html = render_notification(
+            title=f"New exam scheduled: {exam.get('title', 'Exam')}",
+            message=f"A new exam has been scheduled. Date: <strong>{exam.get('scheduled_at', 'TBD')}</strong>.",
+            action_label="View exam",
+            action_url=f"{frontend}/exams" if frontend else None,
+        )
+        asyncio.create_task(broadcast_to_org(db, org_id, f"New exam: {exam.get('title', '')}", html,
+                                              exclude_user_id=actor_id, role_filter=["student", "teacher"]))
+    except Exception as e:
+        logging.error(f"notify_org_new_exam failed: {e}")
+
+
+# Startup: seed super_admin
+@app.on_event("startup")
+async def _seed_super_admin():
+    try:
+        email = os.environ.get("SUPER_ADMIN_EMAIL", "").strip().lower()
+        password = os.environ.get("SUPER_ADMIN_PASSWORD", "")
+        name = os.environ.get("SUPER_ADMIN_NAME", "Super Admin")
+        if not email or not password:
+            return
+        existing = await db.users.find_one({"email": email})
+        if existing:
+            # Ensure role is super_admin and active
+            await db.users.update_one(
+                {"email": email},
+                {"$set": {"role": "super_admin", "is_active": True}}
+            )
+            logging.info(f"Super admin account ensured: {email}")
+            return
+        user = {
+            "id": str(uuid.uuid4()),
+            "email": email,
+            "full_name": name,
+            "role": "super_admin",
+            "password_hash": bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
+            "is_active": True,
+            "organization_id": None,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.users.insert_one(user)
+        logging.info(f"Super admin account seeded: {email}")
+    except Exception as e:
+        logging.error(f"Super admin seed failed: {e}")
+
 
 # Include all routes in the app
 app.include_router(api_router)
