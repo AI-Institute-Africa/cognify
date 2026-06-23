@@ -55,6 +55,17 @@ const LANGUAGES = [
   { code: 'zh', label: '中文' },
 ];
 
+const PRESET_AVATARS = [
+  { id: 'ada', name: 'Professor Ada', voice: 'nova',
+    image: 'https://api.dicebear.com/7.x/personas/svg?seed=Ada&backgroundColor=b6e3f4' },
+  { id: 'kwame', name: 'Dr. Kwame', voice: 'onyx',
+    image: 'https://api.dicebear.com/7.x/personas/svg?seed=Kwame&backgroundColor=c0aede' },
+  { id: 'amara', name: 'Ms. Amara', voice: 'shimmer',
+    image: 'https://api.dicebear.com/7.x/personas/svg?seed=Amara&backgroundColor=ffd5dc' },
+  { id: 'zuri', name: 'Coach Zuri', voice: 'echo',
+    image: 'https://api.dicebear.com/7.x/personas/svg?seed=Zuri&backgroundColor=d1d4f9' },
+];
+
 export default function PublicContentViewPage() {
   const { docId } = useParams();
   const navigate = useNavigate();
@@ -91,6 +102,9 @@ export default function PublicContentViewPage() {
   const [slidesBusy, setSlidesBusy] = useState(false);
   const [avatarText, setAvatarText] = useState('');
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarImage, setAvatarImage] = useState(null); // dataURL OR preset image url
+  const [avatarVoice, setAvatarVoice] = useState('nova');
+  const avatarFileRef = useRef(null);
 
   // Load doc metadata + PDF blob
   useEffect(() => {
@@ -305,22 +319,35 @@ export default function PublicContentViewPage() {
     setAvatarBusy(true);
     setAvatarText('');
     try {
-      // Use the AI mentor chat — student-accessible, returns a teaching response
-      const prompt = `You are my personal AI tutor. Walk me through the following ${doc?.category || 'public'} presentation titled "${doc?.title}" in a clear, structured 5-minute lesson. Cover: the key ideas, why they matter, two examples, and reflection questions at the end. Here is the content:\n\n${source.slice(0, 4000)}`;
+      // 1) Generate the teaching script via the AI mentor
+      const prompt = `You are my personal AI tutor. Walk me through the ${doc?.category || 'public'} presentation titled "${doc?.title}" in a clear, structured 5-minute lesson. Cover: the key ideas, why they matter, two examples, and two reflection questions at the end. Use the selected language. Content:\n\n${source.slice(0, 4000)}`;
       const { data } = await axios.post(`${API}/api/mentor/chat`,
         { message: prompt, language, include_audio: false },
         { headers: TOKEN_HEADER() });
       const script = data.response || data.reply || data.message || JSON.stringify(data).slice(0, 2000);
       setAvatarText(script);
-      // Auto-narrate via browser TTS as the avatar voice
-      if ('speechSynthesis' in window) {
-        const utter = new SpeechSynthesisUtterance(script.slice(0, 6000));
-        utter.lang = language === 'en' ? 'en-US' : language;
-        utter.onend = () => setAudioPlaying(false);
-        utter.onerror = () => setAudioPlaying(false);
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utter);
-        setAudioPlaying(true);
+
+      // 2) Narrate the script using the chosen avatar voice (OpenAI TTS) — with browser-TTS fallback
+      stopAudio();
+      try {
+        const tts = await axios.post(`${API}/api/advanced/tts`,
+          { text: script.slice(0, 6000), voice: avatarVoice, speed: 1.0 },
+          { headers: TOKEN_HEADER() });
+        if (tts.data?.audio_url) {
+          await playAudioFromUrl(tts.data.audio_url, false);
+        } else {
+          throw new Error('no audio_url');
+        }
+      } catch (_ttsErr) {
+        if ('speechSynthesis' in window) {
+          const utter = new SpeechSynthesisUtterance(script.slice(0, 6000));
+          utter.lang = language === 'en' ? 'en-US' : language;
+          utter.onend = () => setAudioPlaying(false);
+          utter.onerror = () => setAudioPlaying(false);
+          window.speechSynthesis.cancel();
+          window.speechSynthesis.speak(utter);
+          setAudioPlaying(true);
+        }
       }
     } catch (e) {
       const detail = e.response?.data?.detail;
@@ -549,34 +576,118 @@ export default function PublicContentViewPage() {
               </div>
             </TabsContent>
 
-            {/* AVATAR TEACHING */}
+            {/* AVATAR TEACHING — pick a face (preset or upload your own) + AI tutor narrates */}
             <TabsContent value="avatar" className="mt-0">
               <div className="glass-card p-6 min-h-[60vh]">
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                  <div>
-                    <h3 className="font-semibold text-lg">Avatar-led Lesson</h3>
-                    <p className="text-xs text-zinc-500">AI builds a structured 5-min lesson around this presentation</p>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* LEFT — avatar face + controls */}
+                  <div className="lg:col-span-4">
+                    <div className="rounded-2xl bg-gradient-to-br from-zinc-900 to-zinc-950 border border-white/5 overflow-hidden">
+                      <div className="aspect-square bg-zinc-900 flex items-center justify-center relative">
+                        {avatarImage ? (
+                          <img src={avatarImage} alt="Avatar" className="w-full h-full object-cover" data-testid="avatar-face" />
+                        ) : (
+                          <div className="text-center text-zinc-500">
+                            <Bot className="w-16 h-16 mx-auto mb-2" />
+                            <p className="text-sm">Choose a face</p>
+                          </div>
+                        )}
+                        {audioPlaying && avatarImage && (
+                          <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 px-3 py-2 rounded-full bg-black/60 backdrop-blur border border-white/10">
+                            <div className="flex gap-1 items-end h-4">
+                              {[0,1,2,3,4].map(i => (
+                                <span key={i} className="w-1 bg-emerald-400 rounded-full animate-pulse"
+                                  style={{ height: `${30 + (i*15)%70}%`, animationDelay: `${i*120}ms` }} />
+                              ))}
+                            </div>
+                            <span className="text-xs text-zinc-300">Speaking…</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-3 space-y-2">
+                        <p className="text-xs text-zinc-500 uppercase tracking-wider">Choose avatar</p>
+                        <div className="grid grid-cols-4 gap-2">
+                          {PRESET_AVATARS.map(a => (
+                            <button
+                              key={a.id}
+                              onClick={() => { setAvatarImage(a.image); setAvatarVoice(a.voice); }}
+                              className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${avatarImage === a.image ? 'border-violet-500' : 'border-transparent hover:border-white/20'}`}
+                              title={a.name}
+                              data-testid={`avatar-preset-${a.id}`}
+                            >
+                              <img src={a.image} alt={a.name} className="w-full h-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
+                        <input
+                          ref={avatarFileRef}
+                          type="file"
+                          accept="image/*"
+                          hidden
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            if (f.size > 8 * 1024 * 1024) { toast.error('Image too large (max 8MB)'); return; }
+                            const reader = new FileReader();
+                            reader.onload = (ev) => setAvatarImage(ev.target.result);
+                            reader.readAsDataURL(f);
+                            e.target.value = '';
+                          }}
+                        />
+                        <Button
+                          variant="outline"
+                          className="w-full border-white/10"
+                          onClick={() => avatarFileRef.current?.click()}
+                          data-testid="avatar-upload-photo"
+                        >
+                          <ImageIcon className="w-4 h-4 mr-2" /> Upload your own photo
+                        </Button>
+                        <p className="text-xs text-zinc-500">Voice: <span className="text-zinc-300 capitalize">{avatarVoice}</span></p>
+                      </div>
+                    </div>
                   </div>
-                  <Button
-                    onClick={handleAvatarTeach}
-                    disabled={avatarBusy}
-                    className="bg-gradient-to-r from-violet-500 to-blue-500 hover:from-violet-600 hover:to-blue-600"
-                    data-testid="learner-avatar-btn"
-                  >
-                    {avatarBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Bot className="w-4 h-4 mr-2" />}
-                    {avatarBusy ? 'Preparing…' : 'Start avatar teaching'}
-                  </Button>
+
+                  {/* RIGHT — teaching script + start/stop */}
+                  <div className="lg:col-span-8">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                      <div>
+                        <h3 className="font-semibold text-lg">Avatar-led Lesson</h3>
+                        <p className="text-xs text-zinc-500">Your chosen face teaches this presentation using your selected language</p>
+                      </div>
+                      <div className="flex gap-2">
+                        {audioPlaying ? (
+                          <Button onClick={stopAudio} variant="outline" className="border-rose-500/30 text-rose-300" data-testid="avatar-stop-btn">
+                            <Pause className="w-4 h-4 mr-2" /> Stop
+                          </Button>
+                        ) : null}
+                        <Button
+                          onClick={handleAvatarTeach}
+                          disabled={avatarBusy || !avatarImage}
+                          className="bg-gradient-to-r from-violet-500 to-blue-500 hover:from-violet-600 hover:to-blue-600 disabled:opacity-50"
+                          data-testid="learner-avatar-btn"
+                        >
+                          {avatarBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Bot className="w-4 h-4 mr-2" />}
+                          {avatarBusy ? 'Preparing…' : audioPlaying ? 'Re-teach' : 'Start avatar teaching'}
+                        </Button>
+                      </div>
+                    </div>
+                    {!avatarImage && (
+                      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 mb-3">
+                        Pick a preset avatar or upload your own photo to enable teaching.
+                      </div>
+                    )}
+                    {avatarText ? (
+                      <div className="prose prose-invert max-w-none whitespace-pre-wrap text-zinc-200 leading-relaxed bg-zinc-950/50 border border-white/5 rounded-xl p-5 max-h-[55vh] overflow-y-auto">
+                        {avatarText}
+                      </div>
+                    ) : (
+                      <div className="text-center py-16 border border-dashed border-white/10 rounded-xl">
+                        <Bot className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+                        <p className="text-sm text-zinc-500">Click &quot;Start avatar teaching&quot; — your AI tutor will walk you through this presentation.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                {avatarText ? (
-                  <div className="prose prose-invert max-w-none whitespace-pre-wrap text-zinc-200 leading-relaxed">
-                    {avatarText}
-                  </div>
-                ) : (
-                  <div className="text-center py-16">
-                    <Bot className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
-                    <p className="text-sm text-zinc-500">Click &quot;Start avatar teaching&quot; to have your AI tutor walk you through this presentation.</p>
-                  </div>
-                )}
               </div>
             </TabsContent>
           </Tabs>

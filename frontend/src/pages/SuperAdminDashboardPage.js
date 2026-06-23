@@ -114,14 +114,39 @@ function AnalyticsTab() {
 
   return (
     <div className="space-y-8" data-testid="sa-analytics-panel">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-semibold">System overview</h2>
           <p className="text-sm text-zinc-500">{s.new_signups_last_7d || 0} new signups in the last 7 days</p>
         </div>
-        <Button variant="outline" className="border-white/10" onClick={load} data-testid="sa-refresh-analytics">
-          <RefreshCw className="w-4 h-4 mr-2" /> Refresh
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" className="border-emerald-500/30 text-emerald-300"
+            onClick={async () => {
+              try {
+                const { data } = await axios.post(`${API}/api/super-admin/test-email`, {}, { headers: TOKEN_HEADER() });
+                if (data.sent > 0) toast.success(`Test email sent to ${data.to}`);
+                else toast.error('Email failed to send. Check SMTP config in backend/.env');
+              } catch (e) { toast.error(e.response?.data?.detail || 'Test email failed'); }
+            }}
+            data-testid="sa-test-email">
+            Send test email
+          </Button>
+          <Button variant="outline" className="border-rose-500/30 text-rose-300"
+            onClick={async () => {
+              if (!window.confirm('Wipe ALL demo/test/sample data?\n\nThis removes:\n• demo.* / test.* / @example.com user accounts\n• demo/test/sample organizations + their courses\n• Public content titled Test/Sample/Demo\n\nThe super admin and real production data are preserved.')) return;
+              try {
+                const { data } = await axios.post(`${API}/api/super-admin/wipe-demo-data`, {}, { headers: TOKEN_HEADER() });
+                toast.success(`Wiped: ${data.demo_users_removed} users · ${data.demo_orgs_removed} orgs · ${data.demo_public_content_removed} public docs`);
+                load();
+              } catch (e) { toast.error(e.response?.data?.detail || 'Wipe failed'); }
+            }}
+            data-testid="sa-wipe-demo">
+            <Trash2 className="w-4 h-4 mr-2" /> Wipe demo data
+          </Button>
+          <Button variant="outline" className="border-white/10" onClick={load} data-testid="sa-refresh-analytics">
+            <RefreshCw className="w-4 h-4 mr-2" /> Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

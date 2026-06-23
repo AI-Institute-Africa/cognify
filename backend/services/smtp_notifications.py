@@ -126,3 +126,38 @@ def render_notification(title: str, message: str, action_label: Optional[str] = 
     </body>
     </html>
     """
+
+
+
+async def send_notification_email(recipients: List[str], subject: str, title: str, message: str,
+                                   action_label: Optional[str] = None, action_url: Optional[str] = None,
+                                   frontend_base_url: Optional[str] = None) -> dict:
+    """High-level helper used by feature code: builds the HTML, fans out to recipients.
+
+    Returns {sent, failed, total}.
+    """
+    if not recipients:
+        return {"sent": 0, "failed": 0, "total": 0}
+    # If action_url is a relative path, prefix with the frontend host so links work in email clients
+    full_action_url = action_url
+    if action_url and action_url.startswith("/"):
+        base = frontend_base_url or os.environ.get("PUBLIC_FRONTEND_URL") or os.environ.get("REACT_APP_BACKEND_URL", "")
+        if base:
+            full_action_url = base.rstrip("/") + action_url
+    html_body = render_notification(title=title, message=message,
+                                    action_label=action_label, action_url=full_action_url)
+    sent = 0
+    failed = 0
+    for email in recipients:
+        email = (email or "").strip()
+        if not email or "@" not in email:
+            failed += 1
+            continue
+        personalized = html_body.replace("{{name}}", "there")
+        ok = await send_email(email, subject, personalized)
+        if ok:
+            sent += 1
+        else:
+            failed += 1
+    logger.info("notification: sent=%d failed=%d total=%d subject=%r", sent, failed, len(recipients), subject)
+    return {"sent": sent, "failed": failed, "total": len(recipients)}

@@ -13613,12 +13613,45 @@ async def sa_system_analytics(current_user: dict = Depends(require_super_admin))
 
 PUBLIC_CONTENT_AUDIO_DIR = "/app/generated_audio_public"
 PUBLIC_CONTENT_VIDEO_DIR = "/app/generated_video_public"
+PUBLIC_CONTENT_DOCS_DIR = "/app/uploaded_public_docs"
 os.makedirs(PUBLIC_CONTENT_AUDIO_DIR, exist_ok=True)
 os.makedirs(PUBLIC_CONTENT_VIDEO_DIR, exist_ok=True)
+os.makedirs(PUBLIC_CONTENT_DOCS_DIR, exist_ok=True)
+
+
+def _extract_preview_text_sync(file_path: str, fname_lower: str) -> str:
+    """Heavy sync extraction (PDF/DOCX/PPTX) run in a thread to keep upload fast."""
+    try:
+        if fname_lower.endswith(".pdf"):
+            from PyPDF2 import PdfReader
+            reader = PdfReader(file_path)
+            pages = []
+            for i, p in enumerate(reader.pages):
+                if i > 10:
+                    break
+                pages.append(p.extract_text() or "")
+            return "\n".join(pages)[:10000]
+        if fname_lower.endswith(".docx"):
+            import docx as _docx
+            d = _docx.Document(file_path)
+            return "\n".join(p.text for p in d.paragraphs[:200])[:10000]
+        if fname_lower.endswith(".pptx"):
+            from pptx import Presentation as _Pres
+            prs = _Pres(file_path)
+            chunks = []
+            for s in prs.slides:
+                for shp in s.shapes:
+                    if shp.has_text_frame:
+                        chunks.append(shp.text_frame.text)
+            return "\n".join(chunks)[:10000]
+    except Exception as e:
+        logging.warning(f"preview text extraction failed: {e}")
+    return ""
 
 
 @super_admin_router.post("/public-content/upload")
 async def sa_upload_public_content(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: str = Form(...),
     description: str = Form(""),
@@ -13626,51 +13659,41 @@ async def sa_upload_public_content(
     is_summit: bool = Form(True),
     current_user: dict = Depends(require_super_admin),
 ):
-    """Upload a public document (PDF/DOCX/PPT/PPTX/audio/video). super_admin only."""
-    content = await file.read()
-    if len(content) > 200 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File too large. Max 200MB.")
+    """Upload a public document (PDF/DOCX/PPT/PPTX/audio/video). super_admin only.
+    
+    Stores the file on disk (not base64-in-Mongo) to bypass the 16 MB BSON document limit.
+    Heavy text extraction is deferred to a background task so the upload returns within
+    the K8s ingress 60s window even for large PPTX/PDF files.
+    """
     filename = file.filename or "document"
-
-    # Detect media type
     fname_lower = filename.lower()
+    doc_id = str(uuid.uuid4())
+    ext = fname_lower.rsplit(".", 1)[-1] if "." in fname_lower else "bin"
+    disk_path = f"{PUBLIC_CONTENT_DOCS_DIR}/{doc_id}.{ext}"
+
+    # Stream file to disk in chunks (memory-safe; no 200MB-in-RAM spike)
+    total = 0
+    with open(disk_path, "wb") as out:
+        while True:
+            chunk = await file.read(1024 * 1024)  # 1MB chunks
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > 200 * 1024 * 1024:
+                out.close()
+                try: os.remove(disk_path)
+                except Exception: pass
+                raise HTTPException(status_code=400, detail="File too large. Max 200MB.")
+            out.write(chunk)
+
     media_kind = "document"
     if fname_lower.endswith((".mp4", ".mov", ".webm", ".mkv")):
         media_kind = "video"
     elif fname_lower.endswith((".mp3", ".wav", ".m4a", ".aac", ".ogg")):
         media_kind = "audio"
 
-    # Try to extract preview text for documents
-    preview_text = ""
-    try:
-        if fname_lower.endswith(".pdf"):
-            from PyPDF2 import PdfReader
-            import io as _io
-            reader = PdfReader(_io.BytesIO(content))
-            pages = []
-            for i, p in enumerate(reader.pages):
-                if i > 10: break
-                pages.append(p.extract_text() or "")
-            preview_text = "\n".join(pages)[:10000]
-        elif fname_lower.endswith(".docx"):
-            import docx as _docx, io as _io
-            d = _docx.Document(_io.BytesIO(content))
-            preview_text = "\n".join(p.text for p in d.paragraphs[:200])[:10000]
-        elif fname_lower.endswith(".pptx"):
-            from pptx import Presentation as _Pres
-            import io as _io
-            prs = _Pres(_io.BytesIO(content))
-            chunks = []
-            for s in prs.slides:
-                for shp in s.shapes:
-                    if shp.has_text_frame:
-                        chunks.append(shp.text_frame.text)
-            preview_text = "\n".join(chunks)[:10000]
-    except Exception as e:
-        logging.warning(f"Preview text extraction failed: {e}")
-
     doc = {
-        "id": str(uuid.uuid4()),
+        "id": doc_id,
         "title": title,
         "description": description,
         "category": category,
@@ -13678,9 +13701,9 @@ async def sa_upload_public_content(
         "media_kind": media_kind,
         "filename": filename,
         "content_type": file.content_type or "application/octet-stream",
-        "file_size": len(content),
-        "preview_text": preview_text,
-        "file_data": base64.b64encode(content).decode(),
+        "file_size": total,
+        "file_path": disk_path,        # NEW: on-disk path (replaces file_data)
+        "preview_text": "",            # populated by background task
         "audio_url": None,
         "video_url": None,
         "slides": [],
@@ -13690,8 +13713,34 @@ async def sa_upload_public_content(
         "is_active": True,
     }
     await db.public_content.insert_one(doc)
-    # MongoDB mutates the dict adding _id; strip it before returning
-    safe = {k: v for k, v in doc.items() if k not in ("file_data", "_id")}
+
+    # Background: extract preview text + broadcast email notification
+    async def _post_upload(_doc_id: str, _path: str, _fname: str, _title: str, _category: str, _uploader_id: str):
+        text = await asyncio.to_thread(_extract_preview_text_sync, _path, _fname.lower())
+        if text:
+            await db.public_content.update_one({"id": _doc_id}, {"$set": {"preview_text": text}})
+        # Email blast to ALL active users (public content is global, not org-scoped)
+        try:
+            from services.smtp_notifications import send_notification_email
+            users = await db.users.find({"is_active": {"$ne": False}, "id": {"$ne": _uploader_id}},
+                                        {"_id": 0, "email": 1, "full_name": 1}).to_list(2000)
+            recipients = [u["email"] for u in users if u.get("email")]
+            if recipients:
+                await send_notification_email(
+                    recipients=recipients,
+                    subject=f"[Cognify] New {('summit' if _category == 'summit' else 'public')} content: {_title}",
+                    title=f"New {_category} content available",
+                    message=f"A new presentation '{_title}' has just been published to the Cognify Public Library. Sign in to access the AI-generated audio narration, video version, pictorial slides, and avatar-led explanation.",
+                    action_label="Open in Cognify",
+                    action_url=f"/public/{_doc_id}",
+                )
+                logging.info(f"public-content notification sent to {len(recipients)} recipients for {_doc_id}")
+        except Exception as _e:
+            logging.warning(f"public-content notification failed: {_e}")
+
+    background_tasks.add_task(_post_upload, doc_id, disk_path, filename, title, category, current_user["id"])
+
+    safe = {k: v for k, v in doc.items() if k not in ("file_path", "_id")}
     return {"message": "Public content uploaded", "document": safe}
 
 
@@ -13701,6 +13750,116 @@ async def sa_delete_public_content(doc_id: str, current_user: dict = Depends(req
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
     return {"status": "deactivated"}
+
+
+@super_admin_router.post("/test-email")
+async def sa_test_email(current_user: dict = Depends(require_super_admin)):
+    """Send a test email to the super admin's address so they can verify SMTP delivery."""
+    from services.smtp_notifications import send_notification_email
+    to = current_user.get("email")
+    if not to:
+        raise HTTPException(status_code=400, detail="No email on super admin account")
+    base = os.environ.get("PUBLIC_FRONTEND_URL") or os.environ.get("REACT_APP_BACKEND_URL", "")
+    res = await send_notification_email(
+        recipients=[to],
+        subject="[Cognify] SMTP delivery test",
+        title="Email pipeline test",
+        message="If you received this email, the Cognify notification pipeline is fully wired and Gmail SMTP is delivering messages. New content / assignment / exam uploads will email all org users (or all active users for public content).",
+        action_label="Open Cognify",
+        action_url="/super-admin",
+        frontend_base_url=base,
+    )
+    return {"status": "ok", "to": to, **res}
+
+
+@super_admin_router.post("/public-content/bulk-delete")
+async def sa_bulk_delete_public(ids: list[str], hard: bool = False,
+                                 current_user: dict = Depends(require_super_admin)):
+    """Soft-delete (default) or hard-delete a batch of public content items."""
+    if not ids:
+        return {"affected": 0}
+    if hard:
+        # Delete on-disk files too
+        docs = await db.public_content.find({"id": {"$in": ids}}, {"_id": 0, "file_path": 1, "audio_file": 1, "video_file": 1}).to_list(len(ids))
+        for d in docs:
+            for k in ("file_path", "audio_file", "video_file"):
+                p = d.get(k)
+                if p and os.path.exists(p):
+                    try: os.remove(p)
+                    except Exception: pass
+        r = await db.public_content.delete_many({"id": {"$in": ids}})
+        return {"affected": r.deleted_count, "hard": True}
+    r = await db.public_content.update_many({"id": {"$in": ids}}, {"$set": {"is_active": False}})
+    return {"affected": r.modified_count, "hard": False}
+
+
+@super_admin_router.post("/wipe-demo-data")
+async def sa_wipe_demo_data(current_user: dict = Depends(require_super_admin)):
+    """Remove demo/seed/mock data: demo.* user accounts, demo orgs, test public content.
+    Preserves the super admin and any production users.
+    """
+    # Identify demo users by email pattern
+    demo_user_filter = {
+        "$or": [
+            {"email": {"$regex": "^(demo\\.|test\\.|testbulk|demo_)", "$options": "i"}},
+            {"email": {"$regex": "@example\\.com$", "$options": "i"}},
+        ],
+        "role": {"$ne": "super_admin"},
+    }
+    demo_users = await db.users.find(demo_user_filter, {"_id": 0, "id": 1, "email": 1}).to_list(1000)
+    demo_user_ids = [u["id"] for u in demo_users]
+
+    # Identify demo orgs by name/slug pattern
+    demo_org_filter = {"$or": [
+        {"slug": {"$regex": "^(demo|test|sample)", "$options": "i"}},
+        {"name": {"$regex": "(demo|test|sample) ", "$options": "i"}},
+    ]}
+    demo_orgs = await db.organizations.find(demo_org_filter, {"_id": 0, "id": 1, "name": 1}).to_list(100)
+    demo_org_ids = [o["id"] for o in demo_orgs]
+
+    # Identify test public content (titles starting with 'Test', 'Big Test', 'Sample', etc.)
+    demo_public_filter = {"$or": [
+        {"title": {"$regex": "^(test |big test|sample |demo )", "$options": "i"}},
+        {"filename": {"$regex": "^(test|big|sample|demo)", "$options": "i"}},
+    ]}
+    demo_public = await db.public_content.find(demo_public_filter, {"_id": 0, "id": 1, "file_path": 1}).to_list(500)
+    demo_public_ids = [d["id"] for d in demo_public]
+    # Remove demo public files from disk
+    for d in demo_public:
+        p = d.get("file_path")
+        if p and os.path.exists(p):
+            try: os.remove(p)
+            except Exception: pass
+
+    # Counts before delete
+    counts = {
+        "demo_users_removed": len(demo_user_ids),
+        "demo_orgs_removed": len(demo_org_ids),
+        "demo_public_content_removed": len(demo_public_ids),
+    }
+
+    # Cascade delete: courses, content, enrollments tied to demo orgs and demo users
+    if demo_user_ids:
+        await db.users.delete_many({"id": {"$in": demo_user_ids}})
+        await db.student_profiles.delete_many({"user_id": {"$in": demo_user_ids}})
+        await db.enrollments.delete_many({"user_id": {"$in": demo_user_ids}})
+    if demo_org_ids:
+        # Delete courses + their content
+        demo_courses = await db.courses.find({"organization_id": {"$in": demo_org_ids}}, {"_id": 0, "id": 1}).to_list(2000)
+        demo_course_ids = [c["id"] for c in demo_courses]
+        if demo_course_ids:
+            await db.course_contents.delete_many({"course_id": {"$in": demo_course_ids}})
+            await db.assignments.delete_many({"course_id": {"$in": demo_course_ids}})
+            await db.exams.delete_many({"course_id": {"$in": demo_course_ids}})
+            counts["demo_courses_removed"] = len(demo_course_ids)
+        await db.courses.delete_many({"organization_id": {"$in": demo_org_ids}})
+        await db.organizations.delete_many({"id": {"$in": demo_org_ids}})
+    if demo_public_ids:
+        await db.public_content.delete_many({"id": {"$in": demo_public_ids}})
+
+    return {"status": "ok", **counts,
+            "demo_user_emails": [u["email"] for u in demo_users][:20]}
+
 
 
 @super_admin_router.post("/public-content/{doc_id}/generate-audio")
@@ -13858,7 +14017,7 @@ async def public_list_content(category: Optional[str] = None, q: Optional[str] =
             {"description": {"$regex": q, "$options": "i"}},
         ]
     docs = await db.public_content.find(
-        query, {"_id": 0, "file_data": 0}
+        query, {"_id": 0, "file_data": 0, "file_path": 0}
     ).sort("created_at", -1).to_list(length=500)
     # Strip audio_url/video_url from public listing — they are auth-gated
     public_safe = []
@@ -13877,7 +14036,14 @@ async def public_view_content(doc_id: str, raw: bool = False):
     if not doc:
         raise HTTPException(status_code=404, detail="Not found")
     filename = (doc.get("filename") or "document").lower()
-    raw_bytes = base64.b64decode(doc["file_data"])
+    # Prefer on-disk file_path; fall back to legacy base64 file_data for older docs
+    if doc.get("file_path") and os.path.exists(doc["file_path"]):
+        with open(doc["file_path"], "rb") as f:
+            raw_bytes = f.read()
+    elif doc.get("file_data"):
+        raw_bytes = base64.b64decode(doc["file_data"])
+    else:
+        raise HTTPException(status_code=410, detail="File data missing")
     ext = filename.rsplit(".", 1)[-1] if "." in filename else ""
     headers = {
         "Content-Disposition": f"inline; filename=\"{filename}\"",
