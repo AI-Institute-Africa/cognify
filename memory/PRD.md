@@ -1,14 +1,44 @@
 # Cognify - Product Requirements Document
 
 ## Overview
-AI-Powered School Management, Learning & Career Intelligence Platform with HeyGen Avatar Integration, async AI Video/Slides generation, original-format document viewer with python-pptx fallback, robust PDF.js worker loading, strict org-isolation for premade courses, browser-TTS audio fallback, and Course Analytics.
+AI-Powered School Management, Learning & Career Intelligence Platform with HeyGen Avatar Integration, async AI Video/Slides generation, original-format document viewer with python-pptx fallback, robust PDF.js worker loading, strict org-isolation for premade courses, browser-TTS audio fallback, Course Analytics, **Super Admin Console**, and a **Public Content portal** for summit presentations.
 
-**Version:** 15.0 (Iteration 44)
-**Date:** May 19, 2026
+**Version:** 16.0 (Iteration 41 — Super Admin & Public Content frontend complete)
+**Date:** June 23, 2026
 
 ---
 
-## LATEST - ITERATION 44 (production upload + render fixes)
+## LATEST - ITERATION 41 (Super Admin & Public Content frontend)
+
+### 1. Super Admin Console (`/super-admin`) — NEW
+- Top-level role `super_admin` that bypasses org_isolation
+- Tabs: **Analytics** (system-wide stat cards + users-by-role + top organizations), **Users** (search, role filter, active filter, soft-delete/reactivate), **Organizations** (cascading deactivate + per-org counts), **Public Content** (upload, delete, audio/video generation polling)
+- Auto-redirect from `/dashboard` to `/super-admin` for super_admin users
+- Role-gated sidebar with only the items super admin needs
+- Seed: `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` env on startup
+
+### 2. Public Content Portal (`/public`, `/public/:docId`) — NEW
+- No-login listing of summit presentations and public resources (PDF/PPTX/DOCX)
+- Search + 5 category chips (All / Summit / Public / Keynotes / Workshops)
+- Native document rendering: react-pdf for PDF, slides_json fallback for PPTX (via python-pptx) when LibreOffice is unavailable
+- Audio narration and Video presentation versions are gated behind login (Sign-in CTA in sidebar)
+- Audio/Video generation triggered by Super Admin in background; polling job endpoint
+
+### 3. Soft-delete enforcement at login
+- `/api/auth/login` now rejects `is_active=false` accounts with HTTP 403 ("Account has been deactivated")
+- Verified live by deactivating demo.student → 403 → reactivate → 200
+
+### 4. SMTP email notifications (backend hook, already deployed)
+- `/app/backend/services/smtp_notifications.py` ready for course content / assignment / exam triggers
+
+## Testing — Iteration 41
+- Backend: 8/8 pytest cases pass (`/app/backend/tests/test_iteration41_super_admin_public.py`)
+- Frontend: 9/9 user scenarios verified by testing agent (analytics, user toggle, org cascade, public listing, sign-in gate, role-gated sidebar)
+
+---
+
+## Inherited from earlier iterations
+
 
 ### 1. Upload Failure → FIXED
 - **Root cause**: Frontend was sending `Content-Type: 'multipart/form-data'` explicitly, which strips the auto-generated `boundary` parameter. Many proxies (incl. K8s ingress) reject body parts without boundary, returning "Failed to upload document"
