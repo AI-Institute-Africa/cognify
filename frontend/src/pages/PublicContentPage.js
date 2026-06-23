@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
 import {
   Sparkles, Search, FileText, Headphones, Video, Eye, Lock,
-  Calendar, BookOpen, ArrowRight, LogIn
+  Calendar, BookOpen, ArrowRight, LogIn, Download
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -177,6 +177,14 @@ export default function PublicContentPage() {
                     {d.has_video ? <Lock className="w-3 h-3 mr-1" /> : null}
                     <Video className="w-4 h-4 mr-1" /> Video
                   </Button>
+                  <a
+                    href={`${API}/api/public/content/${d.id}/download`}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-white/10 hover:bg-white/5 text-xs text-zinc-300 transition-colors"
+                    data-testid={`public-download-${d.id}`}
+                    title={`Download original ${(d.filename || '').split('.').pop()?.toUpperCase()}`}
+                  >
+                    <Download className="w-4 h-4 mr-1" /> Download
+                  </a>
                 </div>
               </div>
             ))}

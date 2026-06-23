@@ -14089,6 +14089,33 @@ async def public_list_content(category: Optional[str] = None, q: Optional[str] =
     return {"documents": public_safe, "total": len(public_safe)}
 
 
+@public_router.get("/content/{doc_id}/download")
+async def public_download_content(doc_id: str):
+    """Download the ORIGINAL document in its original format (no auth required).
+    Always returns Content-Disposition: attachment so the browser saves it."""
+    doc = await db.public_content.find_one({"id": doc_id, "is_active": {"$ne": False}}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    filename = doc.get("filename") or f"document-{doc_id}"
+    # Quote filename to handle spaces / unicode safely
+    from urllib.parse import quote as _q
+    safe_name = _q(filename)
+    headers = {
+        "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{safe_name}",
+        "Cache-Control": "private, max-age=0",
+    }
+    media_type = doc.get("content_type") or "application/octet-stream"
+    # Prefer on-disk file; fall back to legacy base64 file_data
+    file_path = doc.get("file_path")
+    if file_path and os.path.exists(file_path):
+        return FileResponse(file_path, media_type=media_type, headers=headers, filename=filename)
+    if doc.get("file_data"):
+        raw_bytes = base64.b64decode(doc["file_data"])
+        return StreamingResponse(io.BytesIO(raw_bytes), media_type=media_type, headers=headers)
+    raise HTTPException(status_code=410, detail="File data missing")
+
+
+
 @public_router.get("/content/{doc_id}/view")
 async def public_view_content(doc_id: str, raw: bool = False):
     """Public view of a document (no auth). PDF/DOCX/PPTX/images/text inline view.

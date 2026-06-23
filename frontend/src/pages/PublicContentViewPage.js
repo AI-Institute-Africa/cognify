@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
 import { toast } from 'sonner';
 import {
   Sparkles, ArrowLeft, Headphones, Video, Lock, Loader2, FileText, LogIn,
-  Play, Pause, Languages, Wand2, Bot, BookOpen, Menu, Image as ImageIcon,
+  Play, Pause, Languages, Wand2, Bot, BookOpen, Menu, Image as ImageIcon, Download,
 } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -465,6 +465,14 @@ export default function PublicContentViewPage() {
                 </SelectContent>
               </Select>
               {translating && <Loader2 className="w-4 h-4 animate-spin text-violet-400" />}
+              <a
+                href={`${API}/api/public/content/${docId}/download`}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-sm text-zinc-200 transition-colors"
+                data-testid="download-original-btn"
+                title={`Download original ${(doc.filename || '').split('.').pop()?.toUpperCase()}`}
+              >
+                <Download className="w-4 h-4" /> Download
+              </a>
             </div>
           </div>
         </header>
@@ -887,6 +895,20 @@ function GuestPublicView({ doc, docId, navigate, pdfContainerRef, docxContainerR
             </div>
           </div>
           <aside className="lg:col-span-1 space-y-4">
+            <div className="glass-card p-5">
+              <h3 className="font-semibold mb-2 text-sm">Original document</h3>
+              <p className="text-xs text-zinc-500 mb-3">
+                Download the file in its original format ({(doc.filename || '').split('.').pop()?.toUpperCase() || '—'}).
+              </p>
+              <a
+                href={`${API}/api/public/content/${docId}/download`}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-zinc-200 text-sm transition-colors"
+                data-testid="guest-download-btn"
+              >
+                <Download className="w-4 h-4" /> Download original
+              </a>
+              <p className="text-xs text-zinc-500 mt-2 truncate">{doc.filename}</p>
+            </div>
             <div className="glass-card p-5">
               <Sparkles className="w-8 h-8 text-violet-400 mb-3" />
               <h3 className="font-semibold mb-2">Unlock the full experience</h3>
