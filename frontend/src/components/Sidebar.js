@@ -62,6 +62,15 @@ const navItems = {
         { path: '/org-catalog', icon: Building2, label: 'Organization Catalog', orgOnly: true },
       ]
     },
+    { 
+      icon: Globe, 
+      label: 'Public Library & Summits',
+      subItems: [
+        { path: '/public', icon: Globe, label: 'Browse Public Library' },
+        { path: '/public?tab=summit', icon: Award, label: 'Summit Presentations' },
+        { path: '/public?tab=keynote', icon: Sparkles, label: 'Keynotes & Workshops' },
+      ]
+    },
     { path: '/multi-subject', icon: Layers, label: 'Multi-Subject Learning' },
     { path: '/assignments', icon: FileText, labelKey: 'assignments' },
     { path: '/exams', icon: ClipboardList, labelKey: 'exams' },
@@ -98,6 +107,15 @@ const navItems = {
         { path: '/org-catalog', icon: Building2, label: 'Organization Catalog', orgOnly: true },
       ]
     },
+    { 
+      icon: Globe, 
+      label: 'Public Library & Summits',
+      subItems: [
+        { path: '/public', icon: Globe, label: 'Browse Public Library' },
+        { path: '/public?tab=summit', icon: Award, label: 'Summit Presentations' },
+        { path: '/public?tab=keynote', icon: Sparkles, label: 'Keynotes & Workshops' },
+      ]
+    },
     { path: '/multi-subject', icon: Layers, label: 'Multi-Subject' },
     { path: '/exams', icon: ClipboardList, labelKey: 'exams' },
     { path: '/students', icon: Users, label: 'Students' },
@@ -131,6 +149,15 @@ const navItems = {
         { path: '/create-custom-course', icon: FileUp, label: 'Customized Courses' },
         { path: '/premade-courses', icon: FolderOpen, label: 'Premade Courses' },
         { path: '/org-catalog', icon: Building2, label: 'Organization Catalog' },
+      ]
+    },
+    { 
+      icon: Globe, 
+      label: 'Public Library & Summits',
+      subItems: [
+        { path: '/public', icon: Globe, label: 'Browse Public Library' },
+        { path: '/public?tab=summit', icon: Award, label: 'Summit Presentations' },
+        { path: '/public?tab=keynote', icon: Sparkles, label: 'Keynotes & Workshops' },
       ]
     },
     { path: '/multi-subject', icon: Layers, label: 'Multi-Subject' },
@@ -171,6 +198,15 @@ const navItems = {
         { path: '/create-custom-course', icon: FileUp, label: 'Add Course' },
         { path: '/premade-courses', icon: FolderOpen, label: 'Premade Courses' },
         { path: '/org-catalog', icon: Building2, label: 'Organization Catalog' },
+      ]
+    },
+    { 
+      icon: Globe, 
+      label: 'Public Library & Summits',
+      subItems: [
+        { path: '/public', icon: Globe, label: 'Browse Public Library' },
+        { path: '/public?tab=summit', icon: Award, label: 'Summit Presentations' },
+        { path: '/public?tab=keynote', icon: Sparkles, label: 'Keynotes & Workshops' },
       ]
     },
     { path: '/multi-subject', icon: Layers, label: 'Multi-Subject' },

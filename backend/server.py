@@ -13933,13 +13933,18 @@ async def public_view_content(doc_id: str, raw: bool = False):
 
 @public_router.get("/content/{doc_id}/media-info")
 async def public_media_info(doc_id: str, current_user: dict = Depends(get_current_user)):
-    """Returns audio_url / video_url for a public document. Requires login."""
+    """Returns audio_url / video_url / preview_text for a public document. Requires login.
+    The logged-in user gets full multi-modal access (text + media + on-demand TTS/slides/translate)."""
     doc = await db.public_content.find_one({"id": doc_id, "is_active": {"$ne": False}}, {"_id": 0, "file_data": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Not found")
     return {
         "id": doc["id"],
         "title": doc.get("title"),
+        "description": doc.get("description"),
+        "category": doc.get("category"),
+        "filename": doc.get("filename"),
+        "preview_text": doc.get("preview_text") or "",
         "audio_url": doc.get("audio_url"),
         "video_url": doc.get("video_url"),
     }
