@@ -305,23 +305,28 @@ export default function PublicContentViewPage() {
     setAvatarBusy(true);
     setAvatarText('');
     try {
-      // Use the lesson generator to produce a structured avatar-style explanation
-      const params = new URLSearchParams({ topic: doc?.title || 'Public talk', duration_minutes: '5' });
-      ['Understand the key points', 'Apply the main ideas', 'Reflect on takeaways']
-        .forEach(o => params.append('learning_objectives', o));
-      const { data } = await axios.post(`${API}/api/advanced/lesson/generate?${params}`, {}, { headers: TOKEN_HEADER() });
-      const script = data.lesson?.script || data.lesson?.content || data.script || JSON.stringify(data).slice(0, 2000);
+      // Use the AI mentor chat — student-accessible, returns a teaching response
+      const prompt = `You are my personal AI tutor. Walk me through the following ${doc?.category || 'public'} presentation titled "${doc?.title}" in a clear, structured 5-minute lesson. Cover: the key ideas, why they matter, two examples, and reflection questions at the end. Here is the content:\n\n${source.slice(0, 4000)}`;
+      const { data } = await axios.post(`${API}/api/mentor/chat`,
+        { message: prompt, language, include_audio: false },
+        { headers: TOKEN_HEADER() });
+      const script = data.response || data.reply || data.message || JSON.stringify(data).slice(0, 2000);
       setAvatarText(script);
-      // Auto-narrate the avatar script using browser TTS as a fallback experience
+      // Auto-narrate via browser TTS as the avatar voice
       if ('speechSynthesis' in window) {
         const utter = new SpeechSynthesisUtterance(script.slice(0, 6000));
-        utter.lang = 'en-US';
+        utter.lang = language === 'en' ? 'en-US' : language;
+        utter.onend = () => setAudioPlaying(false);
+        utter.onerror = () => setAudioPlaying(false);
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(utter);
         setAudioPlaying(true);
       }
     } catch (e) {
-      toast.error('Avatar teaching unavailable: ' + (e.response?.data?.detail || e.message));
+      const detail = e.response?.data?.detail;
+      const msg = Array.isArray(detail) ? detail.map(d => d.msg || JSON.stringify(d)).join('; ')
+                : (typeof detail === 'string' ? detail : (e.message || 'unknown error'));
+      toast.error('Avatar teaching unavailable: ' + msg);
     } finally { setAvatarBusy(false); }
   };
 
@@ -616,7 +621,7 @@ function GuestPublicView({ doc, docId, navigate, pdfContainerRef, pdfContainerWi
     <div className="min-h-screen bg-[#0a0a0b] text-zinc-100">
       <nav className="border-b border-white/5 bg-zinc-950/90 backdrop-blur sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-          <Link to="/public" className="flex items-center gap-2 text-zinc-400 hover:text-white">
+          <Link to="/public" className="flex items-center gap-2 text-zinc-400 hover:text-white" data-testid="back-to-public">
             <ArrowLeft className="w-4 h-4" /> Back to Public Library
           </Link>
           <Button onClick={() => navigate(`/login?next=/public/${docId}`)} className="bg-violet-500 hover:bg-violet-600" data-testid="guest-signin-cta">
