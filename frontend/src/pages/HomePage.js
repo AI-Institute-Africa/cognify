@@ -395,6 +395,8 @@ export default function HomePage() {
   const [isRecording, setIsRecording] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [publicDocs, setPublicDocs] = useState([]);
+  const [publicLoading, setPublicLoading] = useState(true);
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -435,6 +437,21 @@ export default function HomePage() {
   useEffect(() => {
     localStorage.setItem('cognify_language', language);
   }, [language]);
+
+  useEffect(() => {
+    // Fetch public/summit content (no auth required) for the landing-page showcase
+    (async () => {
+      try {
+        const r = await fetch(`${API_URL}/api/public/content`);
+        const data = await r.json();
+        setPublicDocs((data.documents || []).slice(0, 6));
+      } catch (_) {
+        setPublicDocs([]);
+      } finally {
+        setPublicLoading(false);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -644,6 +661,7 @@ export default function HomePage() {
             <div className="hidden lg:flex items-center gap-8">
               <a href="#features" className="text-sm text-zinc-400 hover:text-white transition-colors">{t.nav.features}</a>
               <a href="#organizations" className="text-sm text-zinc-400 hover:text-white transition-colors">{t.nav.organizations}</a>
+              <a href="#public" className="text-sm text-zinc-400 hover:text-white transition-colors">Public Library</a>
               <a href="#assistant" className="text-sm text-zinc-400 hover:text-white transition-colors">AI Assistant</a>
               <a href="https://aiinstituteafrica.com/" className="text-sm text-zinc-400 hover:text-white transition-colors">AIIA Portal</a>
             </div>
@@ -784,6 +802,78 @@ export default function HomePage() {
           </Button>
         </div>
       </section>
+
+
+      {/* Public Library / Summit Showcase — no login required */}
+      <section id="public" className="py-16 sm:py-20 px-4 sm:px-6 bg-gradient-to-b from-zinc-950 to-zinc-900/40 border-t border-white/5">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/20 border border-violet-500/30 mb-3">
+                <Globe className="w-3.5 h-3.5 text-violet-400" />
+                <span className="text-xs text-violet-300">Open access · no login required</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-2">
+                Summit talks &amp; public resources
+              </h2>
+              <p className="text-sm sm:text-base text-zinc-400 max-w-2xl">
+                Read the latest summit presentations, keynotes, and public docs for free.
+                Sign in to unlock audio narration and full-length video versions.
+              </p>
+            </div>
+            <Link to="/public" className="shrink-0" data-testid="landing-public-cta">
+              <Button variant="outline" className="border-violet-500/40 text-violet-300 hover:bg-violet-500/10">
+                Browse public library <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </div>
+
+          {publicLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-violet-400" />
+            </div>
+          ) : publicDocs.length === 0 ? (
+            <div className="text-center py-12 rounded-2xl border border-white/5 bg-zinc-900/50">
+              <BookOpen className="w-10 h-10 text-zinc-600 mx-auto mb-3" />
+              <p className="text-zinc-400 text-sm">No public content yet — check back soon.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {publicDocs.map((d) => (
+                <Link
+                  key={d.id}
+                  to={`/public/${d.id}`}
+                  className="group block p-5 rounded-2xl bg-zinc-900/60 border border-white/5 hover:border-violet-500/40 hover:bg-zinc-900 transition-all hover:-translate-y-0.5"
+                  data-testid={`landing-public-card-${d.id}`}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <span className="text-xs uppercase tracking-wider px-2 py-1 rounded bg-violet-500/15 text-violet-300">
+                      {d.category || 'public'}
+                    </span>
+                    <BookOpen className="w-5 h-5 text-violet-400" />
+                  </div>
+                  <h3 className="text-base sm:text-lg font-semibold mb-2 group-hover:text-violet-300 transition-colors line-clamp-2">
+                    {d.title}
+                  </h3>
+                  {d.description ? (
+                    <p className="text-xs sm:text-sm text-zinc-400 line-clamp-2 mb-4">{d.description}</p>
+                  ) : (
+                    <p className="text-xs sm:text-sm text-zinc-500 italic mb-4">Tap to read the full presentation</p>
+                  )}
+                  <div className="flex items-center justify-between text-xs text-zinc-500">
+                    <span className="truncate max-w-[60%]">{d.filename}</span>
+                    <span className="inline-flex items-center gap-3">
+                      {d.has_audio && <span className="inline-flex items-center gap-1 text-emerald-400"><Volume2 className="w-3 h-3" />Audio</span>}
+                      {d.has_video && <span className="inline-flex items-center gap-1 text-blue-400"><Video className="w-3 h-3" />Video</span>}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
 
       {/* AI Assistant Section */}
       <section id="assistant" className="py-20 px-6">
