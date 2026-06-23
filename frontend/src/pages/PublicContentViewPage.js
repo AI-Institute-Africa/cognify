@@ -27,7 +27,7 @@ if (typeof window !== 'undefined' && !window.__pdfWorkerBlobUrl) {
         window.__pdfWorkerBlobUrl = u;
         pdfjs.GlobalWorkerOptions.workerSrc = u;
         return;
-      } catch (_) {}
+      } catch (_) { /* ignore and continue */ }
     }
   })();
 }
@@ -92,7 +92,7 @@ export default function PublicContentViewPage() {
               headers: { Authorization: `Bearer ${token}` },
             });
             setMediaInfo(mi.data);
-          } catch (_) {}
+          } catch (_) { /* ignore and continue */ }
         }
       } catch (e) {
         toast.error('Failed to load document');
@@ -126,19 +126,39 @@ export default function PublicContentViewPage() {
       const token = localStorage.getItem('cognify_token');
       // Audio URL needs auth header — use fetch + blob to bypass header-on-Audio limitation
       fetch(`${API}${mediaInfo.audio_url}`, { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.blob())
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.blob();
+        })
         .then(b => {
+          if (!b || b.size < 256) throw new Error('Empty audio file');
           const url = URL.createObjectURL(b);
           const a = new Audio(url);
           audioRef.current = a;
           a.onended = () => setAudioPlaying(false);
-          a.play(); setAudioPlaying(true);
+          a.onerror = () => {
+            toast.error('This audio file is invalid or unsupported. Please ask the admin to regenerate it.');
+            setAudioPlaying(false);
+            audioRef.current = null;
+          };
+          a.play().then(() => setAudioPlaying(true)).catch((err) => {
+            toast.error('Audio playback failed: ' + (err?.message || 'unsupported format'));
+            setAudioPlaying(false);
+            audioRef.current = null;
+          });
         })
-        .catch(() => toast.error('Audio playback failed'));
+        .catch((err) => {
+          toast.error('Audio unavailable: ' + (err?.message || 'unknown error'));
+        });
       return;
     }
     if (audioPlaying) { audioRef.current.pause(); setAudioPlaying(false); }
-    else { audioRef.current.play(); setAudioPlaying(true); }
+    else {
+      audioRef.current.play().then(() => setAudioPlaying(true)).catch(() => {
+        toast.error('Audio playback failed');
+        setAudioPlaying(false);
+      });
+    }
   };
 
   return (
@@ -255,10 +275,15 @@ export default function PublicContentViewPage() {
                           const token = localStorage.getItem('cognify_token');
                           try {
                             const r = await fetch(`${API}${mediaInfo.video_url}`, { headers: { Authorization: `Bearer ${token}` } });
+                            if (!r.ok) throw new Error(`HTTP ${r.status}`);
                             const b = await r.blob();
+                            if (!b || b.size < 1024) throw new Error('Empty video file');
                             const u = URL.createObjectURL(b);
-                            window.open(u, '_blank');
-                          } catch (_) { toast.error('Video playback failed'); }
+                            const w = window.open(u, '_blank');
+                            if (!w) toast.info('Pop-up blocked — allow pop-ups for video playback');
+                          } catch (err) {
+                            toast.error('Video unavailable: ' + (err?.message || 'unsupported format'));
+                          }
                         }}
                         className="w-full bg-blue-500 hover:bg-blue-600"
                       >
