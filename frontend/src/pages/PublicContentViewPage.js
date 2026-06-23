@@ -314,8 +314,8 @@ export default function PublicContentViewPage() {
   };
 
   const handleAvatarTeach = async () => {
-    const source = (translated || mediaInfo?.preview_text || doc?.preview_text || '').trim();
-    if (!source) { toast.error('No text available for avatar teaching'); return; }
+    const source = (translated || mediaInfo?.preview_text || doc?.preview_text || doc?.description || `${doc?.title}.`).trim();
+    if (!source) { toast.error('No content available for avatar teaching'); return; }
     setAvatarBusy(true);
     setAvatarText('');
     try {

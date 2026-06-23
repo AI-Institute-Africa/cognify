@@ -1,6 +1,7 @@
-"""Gmail SMTP-based notification service.
-Used to broadcast notifications when new content / assignments / exams are created
-within an organization. Org-scoped: recipients are looked up by organization_id.
+"""Notification service.
+Prefers Resend HTTP API (port 443) for delivery — falls back to Gmail SMTP if Resend
+isn't configured or fails. The Resend path works inside Kubernetes preview pods where
+outbound SMTP port 587 is blocked.
 """
 import os
 import smtplib
@@ -19,6 +20,39 @@ SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 SMTP_FROM_EMAIL = os.environ.get("SMTP_FROM_EMAIL", SMTP_USER)
 SMTP_USE_TLS = os.environ.get("SMTP_USE_TLS", "True").lower() in ("1", "true", "yes")
 
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+RESEND_SENDER = os.environ.get("SENDER_EMAIL") or SMTP_FROM_EMAIL or "onboarding@resend.dev"
+
+_resend = None
+if RESEND_API_KEY and not RESEND_API_KEY.startswith("re_test_"):
+    try:
+        import resend as _resend_lib
+        _resend_lib.api_key = RESEND_API_KEY
+        _resend = _resend_lib
+        logger.info("smtp_notifications: Resend HTTP API ready (sender=%s)", RESEND_SENDER)
+    except Exception as e:
+        logger.warning("Resend client init failed, will fall back to SMTP: %s", e)
+
+
+def _send_via_resend_sync(to_email: str, subject: str, html_body: str) -> bool:
+    if not _resend:
+        return False
+    try:
+        params = {
+            "from": RESEND_SENDER,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_body,
+        }
+        resp = _resend.Emails.send(params)
+        ok = bool(resp and (resp.get("id") if isinstance(resp, dict) else True))
+        if not ok:
+            logger.warning("Resend returned no id for %s: %r", to_email, resp)
+        return ok
+    except Exception as e:
+        logger.error("Resend send to %s failed: %s", to_email, e)
+        return False
+
 
 def _send_email_sync(to_email: str, subject: str, html_body: str, plain_body: Optional[str] = None) -> bool:
     """Synchronous SMTP send. Returns True on success."""
@@ -34,7 +68,7 @@ def _send_email_sync(to_email: str, subject: str, html_body: str, plain_body: Op
             msg.attach(MIMEText(plain_body, "plain"))
         msg.attach(MIMEText(html_body, "html"))
 
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as server:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
             if SMTP_USE_TLS:
                 server.starttls()
             server.login(SMTP_USER, SMTP_PASSWORD)
@@ -46,7 +80,13 @@ def _send_email_sync(to_email: str, subject: str, html_body: str, plain_body: Op
 
 
 async def send_email(to_email: str, subject: str, html_body: str, plain_body: Optional[str] = None) -> bool:
-    """Async wrapper — runs the blocking SMTP send in a thread."""
+    """Async send — Resend (HTTPS) first, SMTP fallback. Returns True on success."""
+    # Prefer Resend (HTTP API, never blocked by container egress rules)
+    if _resend:
+        ok = await asyncio.to_thread(_send_via_resend_sync, to_email, subject, html_body)
+        if ok:
+            return True
+    # Fallback to SMTP
     return await asyncio.to_thread(_send_email_sync, to_email, subject, html_body, plain_body)
 
 
@@ -146,18 +186,19 @@ async def send_notification_email(recipients: List[str], subject: str, title: st
             full_action_url = base.rstrip("/") + action_url
     html_body = render_notification(title=title, message=message,
                                     action_label=action_label, action_url=full_action_url)
-    sent = 0
-    failed = 0
-    for email in recipients:
+
+    # Parallel fan-out — cap concurrency at 10 to be polite to the provider
+    sem = asyncio.Semaphore(10)
+
+    async def _one(email: str) -> bool:
         email = (email or "").strip()
         if not email or "@" not in email:
-            failed += 1
-            continue
-        personalized = html_body.replace("{{name}}", "there")
-        ok = await send_email(email, subject, personalized)
-        if ok:
-            sent += 1
-        else:
-            failed += 1
+            return False
+        async with sem:
+            return await send_email(email, subject, html_body.replace("{{name}}", "there"))
+
+    results = await asyncio.gather(*[_one(e) for e in recipients], return_exceptions=True)
+    sent = sum(1 for r in results if r is True)
+    failed = len(results) - sent
     logger.info("notification: sent=%d failed=%d total=%d subject=%r", sent, failed, len(recipients), subject)
     return {"sent": sent, "failed": failed, "total": len(recipients)}
