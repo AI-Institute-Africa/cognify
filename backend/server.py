@@ -1535,6 +1535,12 @@ async def upload_course_content(
     await db.course_contents.insert_one(content_doc)
     content_doc.pop('_id', None)
     
+    # Fire email notification to org members (non-blocking)
+    try:
+        await _notify_org_new_content(course_id, content.title, current_user['id'])
+    except Exception as _e:
+        logging.warning(f"notify_org_new_content failed: {_e}")
+    
     return serialize_doc(content_doc)
 
 @content_router.get("/course/{course_id}/content")
@@ -1681,6 +1687,12 @@ async def upload_course_file_content(
         "created_at": datetime.now(timezone.utc)
     }
     await db.course_contents.insert_one(content)
+    
+    # Fire email notification to org members (non-blocking)
+    try:
+        await _notify_org_new_content(course_id, title, current_user['id'])
+    except Exception as _e:
+        logging.warning(f"notify_org_new_content failed: {_e}")
     
     return {
         "id": content["id"],
@@ -13773,6 +13785,55 @@ async def sa_generate_public_video(doc_id: str, background_tasks: BackgroundTask
     return {"job_id": job_id, "status": "processing"}
 
 
+@super_admin_router.post("/public-content/{doc_id}/upload-audio")
+async def sa_upload_public_audio(doc_id: str,
+                                  file: UploadFile = File(...),
+                                  current_user: dict = Depends(require_super_admin)):
+    """Attach a pre-recorded audio (MP3/WAV/M4A) to a public document."""
+    doc = await db.public_content.find_one({"id": doc_id}, {"_id": 0, "id": 1})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    fname = (file.filename or "").lower()
+    if not fname.endswith((".mp3", ".wav", ".m4a", ".aac", ".ogg")):
+        raise HTTPException(status_code=400, detail="Unsupported audio format")
+    content = await file.read()
+    if len(content) > 200 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Max 200MB.")
+    audio_id = str(uuid.uuid4())
+    ext = fname.rsplit(".", 1)[-1]
+    audio_path = f"{PUBLIC_CONTENT_AUDIO_DIR}/{audio_id}.{ext}"
+    with open(audio_path, "wb") as f:
+        f.write(content)
+    audio_url = f"/api/public/{doc_id}/audio/{audio_id}"
+    await db.public_content.update_one({"id": doc_id}, {"$set": {"audio_url": audio_url, "audio_file": audio_path}})
+    return {"status": "uploaded", "audio_url": audio_url}
+
+
+@super_admin_router.post("/public-content/{doc_id}/upload-video")
+async def sa_upload_public_video(doc_id: str,
+                                  file: UploadFile = File(...),
+                                  current_user: dict = Depends(require_super_admin)):
+    """Attach a pre-recorded video (MP4/MOV/WEBM) to a public document."""
+    doc = await db.public_content.find_one({"id": doc_id}, {"_id": 0, "id": 1})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    fname = (file.filename or "").lower()
+    if not fname.endswith((".mp4", ".mov", ".webm", ".mkv")):
+        raise HTTPException(status_code=400, detail="Unsupported video format")
+    content = await file.read()
+    if len(content) > 500 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Max 500MB.")
+    video_id = str(uuid.uuid4())
+    ext = fname.rsplit(".", 1)[-1]
+    video_path = f"{PUBLIC_CONTENT_VIDEO_DIR}/{video_id}.{ext}"
+    with open(video_path, "wb") as f:
+        f.write(content)
+    video_url = f"/api/public/{doc_id}/video/{video_id}"
+    await db.public_content.update_one({"id": doc_id}, {"$set": {"video_url": video_url, "video_file": video_path}})
+    return {"status": "uploaded", "video_url": video_url}
+
+
+
 @super_admin_router.get("/public-content/job/{job_id}")
 async def sa_get_public_job(job_id: str, current_user: dict = Depends(require_super_admin)):
     j = await db.public_content_jobs.find_one({"id": job_id}, {"_id": 0})
@@ -13890,7 +13951,10 @@ async def public_serve_audio(doc_id: str, audio_id: str, current_user: dict = De
     doc = await db.public_content.find_one({"id": doc_id, "is_active": {"$ne": False}}, {"_id": 0, "audio_file": 1})
     if not doc or not doc.get("audio_file") or not os.path.exists(doc["audio_file"]):
         raise HTTPException(status_code=404, detail="Audio not available")
-    return FileResponse(doc["audio_file"], media_type="audio/mpeg")
+    ext = doc["audio_file"].rsplit(".", 1)[-1].lower()
+    mime = {"mp3": "audio/mpeg", "wav": "audio/wav", "m4a": "audio/mp4",
+            "aac": "audio/aac", "ogg": "audio/ogg"}.get(ext, "audio/mpeg")
+    return FileResponse(doc["audio_file"], media_type=mime)
 
 
 @public_router.get("/{doc_id}/video/{video_id}")
@@ -13899,7 +13963,10 @@ async def public_serve_video(doc_id: str, video_id: str, current_user: dict = De
     doc = await db.public_content.find_one({"id": doc_id, "is_active": {"$ne": False}}, {"_id": 0, "video_file": 1})
     if not doc or not doc.get("video_file") or not os.path.exists(doc["video_file"]):
         raise HTTPException(status_code=404, detail="Video not available")
-    return FileResponse(doc["video_file"], media_type="video/mp4")
+    ext = doc["video_file"].rsplit(".", 1)[-1].lower()
+    mime = {"mp4": "video/mp4", "mov": "video/quicktime",
+            "webm": "video/webm", "mkv": "video/x-matroska"}.get(ext, "video/mp4")
+    return FileResponse(doc["video_file"], media_type=mime)
 
 
 api_router.include_router(super_admin_router)

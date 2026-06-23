@@ -378,6 +378,7 @@ function PublicContentTab() {
   const [loading, setLoading] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [working, setWorking] = useState({}); // {docId: 'audio'|'video'|'delete'}
+  const mediaInputRefs = useRef({}); // {docId-kind: HTMLInputElement}
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -406,7 +407,6 @@ function PublicContentTab() {
     try {
       const { data } = await axios.post(`${API}/api/super-admin/public-content/${id}/generate-${kind}`, {}, { headers: TOKEN_HEADER() });
       toast.success(`${kind === 'audio' ? 'Audio' : 'Video'} generation started`);
-      // Poll
       const jobId = data.job_id;
       const poll = async () => {
         try {
@@ -428,6 +428,24 @@ function PublicContentTab() {
       setTimeout(poll, 4000);
     } catch (e) {
       toast.error(e.response?.data?.detail || `Failed to start ${kind} generation`);
+      setWorking((w) => { const n = { ...w }; delete n[id]; return n; });
+    }
+  };
+
+  const uploadMedia = async (id, kind, file) => {
+    if (!file) return;
+    setWorking((w) => ({ ...w, [id]: `upload-${kind}` }));
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await axios.post(`${API}/api/super-admin/public-content/${id}/upload-${kind}`, fd, {
+        headers: { ...TOKEN_HEADER(), 'Content-Type': 'multipart/form-data' },
+      });
+      toast.success(`${kind === 'audio' ? 'Audio' : 'Video'} attached`);
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || `Failed to attach ${kind}`);
+    } finally {
       setWorking((w) => { const n = { ...w }; delete n[id]; return n; });
     }
   };
@@ -483,15 +501,43 @@ function PublicContentTab() {
                     <Eye className="w-3 h-3 mr-1" /> View
                   </Button>
                   <Button size="sm" variant="outline" className="border-white/10"
-                    disabled={!!busy} onClick={() => generate(d.id, 'audio')} data-testid={`sa-gen-audio-${d.id}`}>
+                    disabled={!!busy} onClick={() => generate(d.id, 'audio')} data-testid={`sa-gen-audio-${d.id}`}
+                    title="AI-generate audio narration">
                     {busy === 'audio' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Headphones className="w-3 h-3 mr-1" />}
-                    Audio
+                    AI Audio
                   </Button>
                   <Button size="sm" variant="outline" className="border-white/10"
-                    disabled={!!busy} onClick={() => generate(d.id, 'video')} data-testid={`sa-gen-video-${d.id}`}>
+                    disabled={!!busy} onClick={() => generate(d.id, 'video')} data-testid={`sa-gen-video-${d.id}`}
+                    title="AI-generate explainer video">
                     {busy === 'video' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Video className="w-3 h-3 mr-1" />}
-                    Video
+                    AI Video
                   </Button>
+                  <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-300"
+                    disabled={!!busy}
+                    onClick={() => mediaInputRefs.current[`${d.id}-audio`]?.click()}
+                    data-testid={`sa-upload-audio-${d.id}`}
+                    title="Upload pre-recorded audio file">
+                    {busy === 'upload-audio' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Upload className="w-3 h-3 mr-1" />}
+                    Audio file
+                  </Button>
+                  <input
+                    type="file" accept=".mp3,.wav,.m4a,.aac,.ogg" hidden
+                    ref={(el) => { mediaInputRefs.current[`${d.id}-audio`] = el; }}
+                    onChange={(e) => { uploadMedia(d.id, 'audio', e.target.files?.[0]); e.target.value = ''; }}
+                  />
+                  <Button size="sm" variant="outline" className="border-blue-500/30 text-blue-300"
+                    disabled={!!busy}
+                    onClick={() => mediaInputRefs.current[`${d.id}-video`]?.click()}
+                    data-testid={`sa-upload-video-${d.id}`}
+                    title="Upload pre-recorded video file">
+                    {busy === 'upload-video' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Upload className="w-3 h-3 mr-1" />}
+                    Video file
+                  </Button>
+                  <input
+                    type="file" accept=".mp4,.mov,.webm,.mkv" hidden
+                    ref={(el) => { mediaInputRefs.current[`${d.id}-video`] = el; }}
+                    onChange={(e) => { uploadMedia(d.id, 'video', e.target.files?.[0]); e.target.value = ''; }}
+                  />
                   <Button size="sm" variant="outline" className="border-rose-500/20 text-rose-300"
                     disabled={!!busy} onClick={() => onDelete(d.id)} data-testid={`sa-delete-${d.id}`}>
                     {busy === 'delete' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
