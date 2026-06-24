@@ -1,14 +1,46 @@
 # Cognify - Product Requirements Document
 
 ## Overview
-AI-Powered School Management, Learning & Career Intelligence Platform with HeyGen Avatar Integration, async AI Video/Slides generation, original-format document viewer with python-pptx fallback, robust PDF.js worker loading, strict org-isolation for premade courses, browser-TTS audio fallback, Course Analytics, **Super Admin Console**, and a **Public Content portal** for summit presentations.
+AI-Powered School Management, Learning & Career Intelligence Platform with HeyGen Avatar Integration, async AI Video/Slides generation, original-format document viewer with python-pptx fallback, robust PDF.js worker loading, strict org-isolation for premade courses, browser-TTS audio fallback, Course Analytics, Super Admin Console, Public Content portal for summit presentations, original-file download, multi-modal learner viewer (PDF/DOCX/PPTX/image/text) with on-demand AI video/audio generation, animated avatar teacher, multi-language translation, and Resend HTTP-API email notifications.
 
-**Version:** 16.0 (Iteration 41 — Super Admin & Public Content frontend complete)
+**Version:** 17.0 (Iteration 45 — Learner AI video, prod email URLs, animated avatar)
 **Date:** June 23, 2026
 
 ---
 
-## LATEST - ITERATION 41 (Super Admin & Public Content frontend)
+## LATEST - ITERATION 45 (Avatar gestures + Learner AI video + Production email URLs)
+
+### 1. Learner-side AI video generation — NEW
+- Any logged-in user can generate an AI explainer video for a public/summit doc if none is attached
+- `POST /api/public/content/{id}/generate-video?duration=8` + `GET /api/public/content/{id}/video-job/{jobId}` polling
+- Uses the same Sora 2 chain as courses, idempotent (same doc returns same job_id while in-flight)
+- Result is shared across all learners — once generated, everyone sees the same video
+- Video tab on `/public/{id}` now shows "Generate AI video" button when no video exists
+
+### 2. Animated Avatar Teacher — NEW
+- Avatar face now has CSS keyframe animations: `avatar-breathe` (idle), `avatar-talk` (scale + rotation), `avatar-blink-anim` (eye-blink overlay), `avatar-bar-bounce` (speaking bars)
+- New GestureCaption chip cycles through 8 action phrases (✋ gestures, 🤔 pauses, 👀 looks, 👉 highlights, 🙌 emphasises, etc.) while narrating
+- Halo + ping animations + brightness boost on the avatar while speaking
+- 3-stage progress indicator on Avatar button: "Generating lesson…" → "Generating voice…" → speaking
+
+### 3. Email notifications point to production
+- `PUBLIC_FRONTEND_URL=https://cognify.aiinstituteafrica.com` in backend/.env
+- All 3 org notification hooks (new content, new assignment, new exam) now use `PUBLIC_FRONTEND_URL || FRONTEND_URL` fallback chain
+- Resend HTTP API delivery confirmed (sent=1) to the verified owner; cross-recipient delivery requires domain verification at resend.com/domains
+
+### 4. Audio route regression — FIXED
+- An orphan `@public_router.get` decorator left over from a previous edit was binding to the wrong function, breaking `/api/public/{id}/audio/{aid}` registration
+- Decorator removed; `public_serve_audio` re-registered with proper `Depends(get_current_user)` gating
+- Regression test confirms 401/403 without auth, 404 only when authed with non-existent ids
+
+## Testing — Iteration 45
+- 8/9 backend pytest pass + 1 expected skip
+- Frontend Playwright: all 3 new feature flows + audio regression verified
+
+---
+
+## Inherited from earlier iterations
+
 
 ### 1. Super Admin Console (`/super-admin`) — NEW
 - Top-level role `super_admin` that bypasses org_isolation

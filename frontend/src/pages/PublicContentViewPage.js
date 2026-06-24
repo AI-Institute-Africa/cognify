@@ -108,6 +108,7 @@ export default function PublicContentViewPage() {
   const [slidesBusy, setSlidesBusy] = useState(false);
   const [avatarText, setAvatarText] = useState('');
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarStage, setAvatarStage] = useState(''); // 'script' | 'voice' | 'speaking'
   const [avatarImage, setAvatarImage] = useState(null); // dataURL OR preset image url
   const [avatarVoice, setAvatarVoice] = useState('nova');
   const avatarFileRef = useRef(null);
@@ -425,6 +426,7 @@ export default function PublicContentViewPage() {
     if (!source) { toast.error('No content available for avatar teaching'); return; }
     setAvatarBusy(true);
     setAvatarText('');
+    setAvatarStage('script');
     try {
       // 1) Generate the teaching script via the AI mentor
       const prompt = `You are my personal AI tutor. Walk me through the ${doc?.category || 'public'} presentation titled "${doc?.title}" in a clear, structured 5-minute lesson. Cover: the key ideas, why they matter, two examples, and two reflection questions at the end. Use the selected language. Content:\n\n${source.slice(0, 4000)}`;
@@ -433,6 +435,7 @@ export default function PublicContentViewPage() {
         { headers: TOKEN_HEADER() });
       const script = data.response || data.reply || data.message || JSON.stringify(data).slice(0, 2000);
       setAvatarText(script);
+      setAvatarStage('voice');
 
       // 2) Narrate the script using the chosen avatar voice (OpenAI TTS) — with browser-TTS fallback
       stopAudio();
@@ -441,6 +444,7 @@ export default function PublicContentViewPage() {
           { text: script.slice(0, 6000), voice: avatarVoice, speed: 1.0 },
           { headers: TOKEN_HEADER() });
         if (tts.data?.audio_url) {
+          setAvatarStage('speaking');
           await playAudioFromUrl(tts.data.audio_url, false);
         } else {
           throw new Error('no audio_url');
@@ -449,11 +453,12 @@ export default function PublicContentViewPage() {
         if ('speechSynthesis' in window) {
           const utter = new SpeechSynthesisUtterance(script.slice(0, 6000));
           utter.lang = language === 'en' ? 'en-US' : language;
-          utter.onend = () => setAudioPlaying(false);
-          utter.onerror = () => setAudioPlaying(false);
+          utter.onend = () => { setAudioPlaying(false); setAvatarStage(''); };
+          utter.onerror = () => { setAudioPlaying(false); setAvatarStage(''); };
           window.speechSynthesis.cancel();
           window.speechSynthesis.speak(utter);
           setAudioPlaying(true);
+          setAvatarStage('speaking');
         }
       }
     } catch (e) {
@@ -461,6 +466,7 @@ export default function PublicContentViewPage() {
       const msg = Array.isArray(detail) ? detail.map(d => d.msg || JSON.stringify(d)).join('; ')
                 : (typeof detail === 'string' ? detail : (e.message || 'unknown error'));
       toast.error('Avatar teaching unavailable: ' + msg);
+      setAvatarStage('');
     } finally { setAvatarBusy(false); }
   };
 
@@ -823,7 +829,11 @@ export default function PublicContentViewPage() {
                           data-testid="learner-avatar-btn"
                         >
                           {avatarBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Bot className="w-4 h-4 mr-2" />}
-                          {avatarBusy ? 'Preparing…' : audioPlaying ? 'Re-teach' : 'Start avatar teaching'}
+                          {avatarBusy
+                            ? (avatarStage === 'script' ? 'Generating lesson…'
+                               : avatarStage === 'voice' ? 'Generating voice…'
+                               : 'Preparing…')
+                            : audioPlaying ? 'Re-teach' : 'Start avatar teaching'}
                         </Button>
                       </div>
                     </div>
