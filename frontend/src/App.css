@@ -105,3 +105,50 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* --- Avatar teacher animations (used by PublicContentViewPage Avatar tab) --- */
+.avatar-idle {
+  animation: avatar-breathe 5s ease-in-out infinite;
+}
+.avatar-talking {
+  animation: avatar-talk 0.55s ease-in-out infinite alternate;
+  filter: brightness(1.05) saturate(1.15);
+}
+@keyframes avatar-breathe {
+  0%, 100% { transform: scale(1) translateY(0); }
+  50%      { transform: scale(1.015) translateY(-2px); }
+}
+@keyframes avatar-talk {
+  0%   { transform: scale(1) translateY(0)   rotate(-0.6deg); }
+  25%  { transform: scale(1.02) translateY(-1px) rotate(0.3deg); }
+  50%  { transform: scale(1.035) translateY(-2px) rotate(0deg); }
+  75%  { transform: scale(1.02) translateY(-1px) rotate(0.4deg); }
+  100% { transform: scale(1.01) translateY(0)  rotate(-0.5deg); }
+}
+.avatar-blink {
+  background: linear-gradient(to bottom, transparent 0%, transparent 35%,
+              rgba(20,20,25,0.92) 35%, rgba(20,20,25,0.92) 38%,
+              transparent 38%, transparent 100%);
+  animation: avatar-blink-anim 5.2s ease-in-out infinite;
+  opacity: 0;
+}
+@keyframes avatar-blink-anim {
+  0%, 92%, 100% { opacity: 0; }
+  94%, 96%      { opacity: 1; }
+}
+.avatar-bar {
+  height: 30%;
+  animation: avatar-bar-bounce 0.7s ease-in-out infinite alternate;
+}
+@keyframes avatar-bar-bounce {
+  0%   { height: 18%; }
+  100% { height: 100%; }
+}
+.animate-fade-cycle {
+  animation: avatar-fade-cycle 3.2s ease-in-out infinite;
+}
+@keyframes avatar-fade-cycle {
+  0%, 100% { opacity: 0.0; transform: translateY(-4px); }
+  10%, 80% { opacity: 1; transform: translateY(0); }
+  90%      { opacity: 0; transform: translateY(-4px); }
+}

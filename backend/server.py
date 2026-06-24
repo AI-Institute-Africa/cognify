@@ -14234,6 +14234,82 @@ async def public_media_info(doc_id: str, current_user: dict = Depends(get_curren
     }
 
 
+@public_router.post("/content/{doc_id}/generate-video")
+async def public_learner_generate_video(doc_id: str, background_tasks: BackgroundTasks,
+                                         duration: int = 12,
+                                         current_user: dict = Depends(get_current_user)):
+    """A logged-in learner can ask the platform to generate an AI explainer video
+    for a public/summit presentation if one isn't already attached. This is the
+    same Sora 2 chain used for course videos. Result is shared across all users —
+    once generated, everyone sees the same video."""
+    doc = await db.public_content.find_one({"id": doc_id, "is_active": {"$ne": False}}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    # If a video is already attached or one is in-flight, return its status (idempotent)
+    if doc.get("video_url"):
+        return {"status": "already_available", "video_url": doc["video_url"]}
+    existing = await db.public_content_jobs.find_one(
+        {"doc_id": doc_id, "kind": "video", "status": {"$in": ["processing", "queued"]}},
+        {"_id": 0, "id": 1, "status": 1}
+    )
+    if existing:
+        return {"job_id": existing["id"], "status": existing["status"]}
+
+    job_id = str(uuid.uuid4())
+    duration = max(4, min(int(duration or 12), 12))
+    await db.public_content_jobs.insert_one({
+        "id": job_id, "doc_id": doc_id, "kind": "video", "status": "processing",
+        "requested_by": current_user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+
+    async def _run():
+        try:
+            from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+            vg = OpenAIVideoGeneration(api_key=api_key)
+            title = doc.get("title", "")
+            preview = (doc.get("preview_text") or doc.get("description") or "")[:600]
+            prompt = (f"Professional educational explainer video about: {title}. "
+                      f"Context: {preview}. Clean diagrams, modern visuals, smooth transitions, "
+                      f"suitable for adult learners. No on-screen text spelling.")
+            video_bytes = await asyncio.to_thread(
+                vg.text_to_video, prompt=prompt, model="sora-2",
+                size="1280x720", duration=duration, max_wait_time=600)
+            if not video_bytes:
+                raise RuntimeError("No video returned (likely LLM budget exhausted)")
+            video_id = str(uuid.uuid4())
+            video_path = f"{PUBLIC_CONTENT_VIDEO_DIR}/{video_id}.mp4"
+            vg.save_video(video_bytes, video_path)
+            video_url = f"/api/public/{doc_id}/video/{video_id}"
+            await db.public_content.update_one(
+                {"id": doc_id},
+                {"$set": {"video_url": video_url, "video_file": video_path}})
+            await db.public_content_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "completed", "video_url": video_url}})
+        except Exception as e:
+            err = str(e)
+            friendly = "Emergent LLM Key budget exceeded. Please top up via Profile → Universal Key → Add Balance." if "budget" in err.lower() else err
+            await db.public_content_jobs.update_one({"id": job_id}, {"$set": {"status": "failed", "error": friendly}})
+
+    background_tasks.add_task(_run)
+    return {"job_id": job_id, "status": "processing"}
+
+
+@public_router.get("/content/{doc_id}/video-job/{job_id}")
+async def public_video_job_status(doc_id: str, job_id: str,
+                                   current_user: dict = Depends(get_current_user)):
+    """Poll the status of a learner-initiated video generation job."""
+    job = await db.public_content_jobs.find_one(
+        {"id": job_id, "doc_id": doc_id},
+        {"_id": 0, "id": 1, "status": 1, "error": 1, "video_url": 1, "kind": 1}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
 @public_router.get("/{doc_id}/audio/{audio_id}")
 async def public_serve_audio(doc_id: str, audio_id: str, current_user: dict = Depends(get_current_user)):
     """Stream audio for a public doc (login required)."""
@@ -14272,7 +14348,7 @@ async def _notify_org_new_content(course_id: str, content_title: str, actor_id: 
             return
         org_id = course["organization_id"]
         course_name = course.get("title") or course.get("name") or "your course"
-        frontend = os.environ.get("FRONTEND_URL", "")
+        frontend = os.environ.get("PUBLIC_FRONTEND_URL") or os.environ.get("FRONTEND_URL", "")
         html = render_notification(
             title=f"New content available: {content_title}",
             message=f"A new lesson <strong>{content_title}</strong> has been added to <em>{course_name}</em>. Sign in to start learning.",
@@ -14293,7 +14369,7 @@ async def _notify_org_new_assignment(assignment: dict, actor_id: str):
             org_id = c.get("organization_id") if c else None
         if not org_id:
             return
-        frontend = os.environ.get("FRONTEND_URL", "")
+        frontend = os.environ.get("PUBLIC_FRONTEND_URL") or os.environ.get("FRONTEND_URL", "")
         html = render_notification(
             title=f"New assignment: {assignment.get('title', 'Assignment')}",
             message=f"A new assignment has been posted. Due: <strong>{assignment.get('due_date', 'TBD')}</strong>.",
@@ -14314,7 +14390,7 @@ async def _notify_org_new_exam(exam: dict, actor_id: str):
             org_id = c.get("organization_id") if c else None
         if not org_id:
             return
-        frontend = os.environ.get("FRONTEND_URL", "")
+        frontend = os.environ.get("PUBLIC_FRONTEND_URL") or os.environ.get("FRONTEND_URL", "")
         html = render_notification(
             title=f"New exam scheduled: {exam.get('title', 'Exam')}",
             message=f"A new exam has been scheduled. Date: <strong>{exam.get('scheduled_at', 'TBD')}</strong>.",

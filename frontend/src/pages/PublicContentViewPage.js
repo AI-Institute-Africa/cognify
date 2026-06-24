@@ -111,6 +111,8 @@ export default function PublicContentViewPage() {
   const [avatarImage, setAvatarImage] = useState(null); // dataURL OR preset image url
   const [avatarVoice, setAvatarVoice] = useState('nova');
   const avatarFileRef = useRef(null);
+  const [videoGenBusy, setVideoGenBusy] = useState(false);
+  const [videoJob, setVideoJob] = useState(null); // {status, error}
 
   // Load doc metadata + PDF blob
   useEffect(() => {
@@ -306,7 +308,7 @@ export default function PublicContentViewPage() {
 
   const handleWatch = async () => {
     if (!mediaInfo?.video_url) {
-      toast.info('No video version yet. Ask the admin to generate or upload one.');
+      toast.info('No video version yet. Click "Generate AI video" below.');
       return;
     }
     try {
@@ -319,6 +321,67 @@ export default function PublicContentViewPage() {
       if (!w) toast.info('Pop-up blocked — allow pop-ups to watch the video');
     } catch (e) {
       toast.error('Video unavailable: ' + (e?.message || 'unsupported'));
+    }
+  };
+
+  const handleGenerateVideo = async () => {
+    if (videoGenBusy) return;
+    setVideoGenBusy(true);
+    setVideoJob({ status: 'starting' });
+    try {
+      const { data } = await axios.post(
+        `${API}/api/public/content/${docId}/generate-video?duration=10`,
+        {}, { headers: TOKEN_HEADER() });
+      if (data.video_url) {
+        // Already existed — refresh media-info and auto-play
+        setMediaInfo((mi) => ({ ...(mi || {}), video_url: data.video_url }));
+        toast.success('Video is already available — opening now…');
+        setVideoGenBusy(false);
+        setTimeout(() => handleWatch(), 300);
+        return;
+      }
+      const jobId = data.job_id;
+      toast.success('AI video generation started — typically takes 1-3 minutes');
+      setVideoJob({ status: 'processing', jobId });
+      const poll = async () => {
+        try {
+          const { data: j } = await axios.get(
+            `${API}/api/public/content/${docId}/video-job/${jobId}`,
+            { headers: TOKEN_HEADER() });
+          setVideoJob(j);
+          if (j.status === 'completed') {
+            setVideoGenBusy(false);
+            toast.success('Video ready! Opening now…');
+            // Refresh media-info to get the new video_url
+            try {
+              const mi = await axios.get(`${API}/api/public/content/${docId}/media-info`, { headers: TOKEN_HEADER() });
+              setMediaInfo(mi.data);
+              setTimeout(() => {
+                if (mi.data?.video_url) {
+                  fetch(`${API}${mi.data.video_url}`, { headers: TOKEN_HEADER() })
+                    .then(r => r.blob())
+                    .then(b => {
+                      const u = URL.createObjectURL(b);
+                      window.open(u, '_blank');
+                    })
+                    .catch(() => {});
+                }
+              }, 300);
+            } catch (_) { /* ignore */ }
+          } else if (j.status === 'failed') {
+            setVideoGenBusy(false);
+            toast.error(j.error || 'Video generation failed');
+          } else {
+            setTimeout(poll, 5000);
+          }
+        } catch (_) {
+          setVideoGenBusy(false);
+        }
+      };
+      setTimeout(poll, 5000);
+    } catch (e) {
+      setVideoGenBusy(false);
+      toast.error('Failed to start video: ' + (e.response?.data?.detail || e.message));
     }
   };
 
@@ -562,18 +625,39 @@ export default function PublicContentViewPage() {
                 <p className="text-zinc-400 text-sm mb-6 max-w-md">
                   {mediaInfo?.video_url
                     ? 'Watch the full video version of this presentation.'
-                    : 'A video version is not yet available. Ask the admin to generate or upload one.'}
+                    : 'No video version uploaded yet. Generate an AI explainer video using Sora 2 — it takes 1-3 minutes and is shared with everyone once ready.'}
                 </p>
-                <Button
-                  size="lg"
-                  onClick={handleWatch}
-                  disabled={!mediaInfo?.video_url}
-                  className="bg-blue-500 hover:bg-blue-600 disabled:opacity-50"
-                  data-testid="learner-video-btn"
-                >
-                  <Play className="w-5 h-5 mr-2" />
-                  {mediaInfo?.video_url ? 'Watch video' : 'Not available yet'}
-                </Button>
+                {mediaInfo?.video_url ? (
+                  <Button
+                    size="lg"
+                    onClick={handleWatch}
+                    className="bg-blue-500 hover:bg-blue-600"
+                    data-testid="learner-video-btn"
+                  >
+                    <Play className="w-5 h-5 mr-2" />
+                    Watch video
+                  </Button>
+                ) : videoGenBusy ? (
+                  <div className="flex flex-col items-center gap-3" data-testid="video-gen-status">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
+                    <p className="text-sm text-zinc-300">
+                      {videoJob?.status === 'starting' && 'Starting Sora 2 job…'}
+                      {videoJob?.status === 'processing' && 'Sora 2 is rendering your explainer video…'}
+                      {!videoJob?.status && 'Working…'}
+                    </p>
+                    <p className="text-xs text-zinc-500">This typically takes 1-3 minutes. You can switch tabs and come back.</p>
+                  </div>
+                ) : (
+                  <Button
+                    size="lg"
+                    onClick={handleGenerateVideo}
+                    className="bg-gradient-to-r from-blue-500 to-violet-500 hover:from-blue-600 hover:to-violet-600"
+                    data-testid="learner-gen-video-btn"
+                  >
+                    <Wand2 className="w-5 h-5 mr-2" />
+                    Generate AI video
+                  </Button>
+                )}
               </div>
             </TabsContent>
 
@@ -632,9 +716,28 @@ export default function PublicContentViewPage() {
                   {/* LEFT — avatar face + controls */}
                   <div className="lg:col-span-4">
                     <div className="rounded-2xl bg-gradient-to-br from-zinc-900 to-zinc-950 border border-white/5 overflow-hidden">
-                      <div className="aspect-square bg-zinc-900 flex items-center justify-center relative">
+                      <div className="aspect-square bg-zinc-900 flex items-center justify-center relative overflow-hidden">
                         {avatarImage ? (
-                          <img src={avatarImage} alt="Avatar" className="w-full h-full object-cover" data-testid="avatar-face" />
+                          <>
+                            {/* Animated halo + glow when speaking */}
+                            {audioPlaying && (
+                              <>
+                                <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 via-transparent to-emerald-500/20 animate-pulse" />
+                                <div className="absolute inset-3 rounded-full border-2 border-violet-400/40 animate-ping" />
+                                <div className="absolute inset-6 rounded-full border border-emerald-400/30 animate-ping" style={{ animationDelay: '500ms' }} />
+                              </>
+                            )}
+                            <img
+                              src={avatarImage}
+                              alt="Avatar"
+                              className={`w-full h-full object-cover relative z-10 ${audioPlaying ? 'avatar-talking' : 'avatar-idle'}`}
+                              data-testid="avatar-face"
+                            />
+                            {/* Eye-blink overlay */}
+                            {audioPlaying && (
+                              <div className="absolute inset-0 z-20 pointer-events-none avatar-blink" />
+                            )}
+                          </>
                         ) : (
                           <div className="text-center text-zinc-500">
                             <Bot className="w-16 h-16 mx-auto mb-2" />
@@ -642,15 +745,19 @@ export default function PublicContentViewPage() {
                           </div>
                         )}
                         {audioPlaying && avatarImage && (
-                          <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 px-3 py-2 rounded-full bg-black/60 backdrop-blur border border-white/10">
+                          <div className="absolute bottom-3 left-3 right-3 z-30 flex items-center gap-2 px-3 py-2 rounded-full bg-black/70 backdrop-blur border border-white/10">
                             <div className="flex gap-1 items-end h-4">
                               {[0,1,2,3,4].map(i => (
-                                <span key={i} className="w-1 bg-emerald-400 rounded-full animate-pulse"
-                                  style={{ height: `${30 + (i*15)%70}%`, animationDelay: `${i*120}ms` }} />
+                                <span key={i} className="w-1 bg-emerald-400 rounded-full avatar-bar"
+                                  style={{ animationDelay: `${i*120}ms` }} />
                               ))}
                             </div>
                             <span className="text-xs text-zinc-300">Speaking…</span>
                           </div>
+                        )}
+                        {/* Gesture caption rotates while speaking */}
+                        {audioPlaying && avatarImage && (
+                          <GestureCaption />
                         )}
                       </div>
                       <div className="p-3 space-y-2">
@@ -827,6 +934,29 @@ function DocRenderer({ doc, renderKind, pdfFileSource, pdfNumPages, setPdfNumPag
 }
 
 // ---------- Slides JSON viewer (re-used) ----------
+function GestureCaption() {
+  const phrases = React.useMemo(() => [
+    '✋ gestures to the slide',
+    '🤔 pauses thoughtfully',
+    '👀 looks at the audience',
+    '👉 highlights this point',
+    '🙌 emphasises a key idea',
+    '😊 smiles warmly',
+    '🧠 reasons through it',
+    '✍️ notes a detail',
+  ], []);
+  const [idx, setIdx] = React.useState(0);
+  React.useEffect(() => {
+    const t = setInterval(() => setIdx((i) => (i + 1) % phrases.length), 3200);
+    return () => clearInterval(t);
+  }, [phrases.length]);
+  return (
+    <div className="absolute top-3 left-3 z-30 px-3 py-1 rounded-full bg-black/70 backdrop-blur border border-white/10 text-xs text-zinc-200 animate-fade-cycle">
+      {phrases[idx]}
+    </div>
+  );
+}
+
 function SlidesJSONViewer({ slides, total }) {
   return (
     <div className="w-full h-full overflow-y-auto p-4 bg-zinc-950 space-y-6">
