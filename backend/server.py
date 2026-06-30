@@ -14440,6 +14440,35 @@ async def _seed_super_admin():
 # Include all routes in the app
 app.include_router(api_router)
 
+
+# ---- Payment Management Platform (Super Admin) ----
+try:
+    import sys
+    sys.path.insert(0, '/app/backend')
+    from routes.payment_routes import make_router as _pay_make_router
+    from middleware.activity_tracker import install as _install_activity
+    _sa_pay, _cust_pay, _act_router = _pay_make_router(db, require_super_admin, get_current_user)
+    api_router_pay = APIRouter(prefix="/api")
+    api_router_pay.include_router(_sa_pay)
+    api_router_pay.include_router(_cust_pay)
+    api_router_pay.include_router(_act_router)
+    app.include_router(api_router_pay)
+    _install_activity(app, db)
+    logging.info("Payment platform + activity tracker wired")
+except Exception as _e:
+    logging.error("Payment platform wiring failed: %s", _e)
+
+
+@app.on_event("startup")
+async def _start_research_digest():
+    try:
+        from services.research_digest import start as _start_digest
+        asyncio.create_task(_start_digest(db))
+        logging.info("Research digest scheduler started")
+    except Exception as e:
+        logging.error("Research digest scheduler failed to start: %s", e)
+
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()

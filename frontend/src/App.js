@@ -72,6 +72,7 @@ import CourseAnalyticsDashboardPage from './pages/CourseAnalyticsDashboardPage';
 import PublicContentPage from './pages/PublicContentPage';
 import PublicContentViewPage from './pages/PublicContentViewPage';
 import SuperAdminDashboardPage from './pages/SuperAdminDashboardPage';
+import PaymentManagementPage from './pages/PaymentManagementPage';
 
 import './App.css';
 
