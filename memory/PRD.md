@@ -1,10 +1,55 @@
 # Cognify - Product Requirements Document
 
 ## Overview
-AI-Powered School Management, Learning & Career Intelligence Platform with HeyGen Avatar Integration, async AI Video/Slides generation, original-format document viewer with python-pptx fallback, robust PDF.js worker loading, strict org-isolation for premade courses, browser-TTS audio fallback, Course Analytics, Super Admin Console, Public Content portal for summit presentations, original-file download, multi-modal learner viewer (PDF/DOCX/PPTX/image/text) with on-demand AI video/audio generation, animated avatar teacher, multi-language translation, and Resend HTTP-API email notifications.
+AI-Powered School Management, Learning & Career Intelligence Platform with HeyGen Avatar Integration, async AI Video/Slides generation, original-format document viewer with python-pptx fallback, robust PDF.js worker loading, strict org-isolation for premade courses, browser-TTS audio fallback, Course Analytics, Super Admin Console, Public Content portal for summit presentations, original-file download, multi-modal learner viewer (PDF/DOCX/PPTX/image/text) with on-demand AI video/audio generation, animated avatar teacher, multi-language translation, Resend HTTP-API email notifications, and a complete provider-independent Payment Management Platform.
 
-**Version:** 17.0 (Iteration 45 — Learner AI video, prod email URLs, animated avatar)
-**Date:** June 23, 2026
+**Version:** 18.0 (Iteration 46 — Payment Management Platform, Activity Tracking, Research Digest)
+**Date:** June 30, 2026
+
+---
+
+## LATEST — ITERATION 46 (Payment Management Platform — Pre-Paynow Live)
+
+### 1. Super Admin → Payment Management (`/super-admin/payment-management`)
+- 22 sub-modules in a single left-rail navigation page:
+  Dashboard · Providers · Products · Subscriptions · Transactions · Invoices · Receipts · Refunds · Payment Logs · Webhook Logs · Audit Logs · Revenue Analytics · Pricing Plans · Coupons · Taxes · Currencies · Settings · API Configuration · Notification Settings · Email Templates · User Activity · Security
+- 40+ backend endpoints under `/api/super-admin/payments/*` and `/api/payments/*` (`/app/backend/routes/payment_routes.py`)
+- `PaymentPlatform` service facade (`/app/backend/services/payment_platform.py`) — single entry point for `create_payment / verify_payment / refund_payment / cancel_payment`
+- Provider-independent architecture: `PaynowProvider` (primary) + 4 stub providers (Stripe, Flutterwave, Pesepay, PayPal) ready for activation
+
+### 2. 14 new MongoDB collections
+- `payment_providers, payment_products, payment_transactions, payment_subscriptions, payment_invoices, payment_receipts, payment_refunds, payment_logs, payment_audit_logs, payment_webhook_events, payment_settings, payment_pricing_plans, payment_coupons, payment_taxes, payment_currencies, payment_email_templates`
+- All timestamped, with `deleted_at` soft-delete
+
+### 3. Fernet-encrypted secrets
+- `PAYMENT_ENCRYPTION_KEY` (backend/.env) encrypts `integration_key, api_key, secret_key, webhook_secret, encryption_key, client_secret`
+- Secrets are NEVER returned in list responses — masked with `…•••…1234` previews
+
+### 4. Fail-open contract — VERIFIED
+- `/api/payments/status` returns `{available:false, fail_open:true, message:"Payment service is temporarily unavailable…"}` HTTP 200 until a provider is enabled
+- Customers continue to access premium features — the platform never blocks while Paynow merchant activation is pending
+
+### 5. Activity tracking middleware
+- `/app/backend/middleware/activity_tracker.py` updates `users.last_seen_at` and increments `users.total_active_seconds` (max +300s per request to filter idle time)
+- Anonymous public-page hits logged to `anonymous_visits` collection (IP + referrer + UA)
+- External-referrer detection populates `users.last_referrer`
+- Surfaced in **User Activity** panel: Online now / Hours spent / Anonymous visitors / External-referred users
+
+### 6. 4-hour Research Digest
+- `/app/backend/services/research_digest.py` — scheduler runs every 4h; emails new Live Research + Public Library items to `RESEARCH_DIGEST_EMAIL=dennis@rubiem.com`
+- Skips email when no new items; daily summary email at 09:00 UTC regardless
+
+## Testing — Iteration 46
+- Backend: 25/25 pytest pass (`/app/backend/tests/test_iteration46_payment_platform.py`)
+- Frontend: 22/22 sub-modules + Products CRUD + Providers Configure + Settings + Notifications + API Config + Activity + Security + Revenue verified by Playwright
+
+## How to go live with Paynow
+1. Open Super Admin → Payment Management → Providers → Paynow → Configure
+2. Enter Integration ID + Integration Key + Result URL + Return URL
+3. Click "Test" — must return healthy
+4. Switch environment to `production`
+5. Enable the Paynow provider toggle
+6. Optionally toggle off `fail_open` in Settings once live
 
 ---
 
@@ -123,10 +168,13 @@ AI-Powered School Management, Learning & Career Intelligence Platform with HeyGe
 - **LibreOffice missing on production base image**: PPTX uses python-pptx slides_json fallback automatically.
 
 ## NEXT / BACKLOG
-- (P0) Top up Emergent LLM Key budget
-- (P0) **Deploy** to push the upload + PDF.js fixes to production
-- (P1) Refactor `server.py` (~13.4k lines) into `/app/backend/routes/`
-- (P1) Fix `demo.teacher@eduos.edu` seed (organization_id=None)
-- (P2) CSV export from Course Analytics + PDF page-navigation controls
+- (P0) Activate Paynow merchant account → paste real Integration ID/Key into Providers → enable Paynow toggle
+- (P0) "Pin to course" action on Premade Documents: one-click promote a verified PDF/PPT/DOCX to a live course lesson
+- (P0) Verify a domain at resend.com/domains so org-wide notification emails escape Resend test mode
+- (P1) "Save to My Knowledge Base": save verified Live Research articles directly into course materials
+- (P1) Refactor `server.py` (~14.5k lines) into `/app/backend/routes/*` modular routers (`payment_routes.py` already extracted)
+- (P1) Split `PaymentManagementPage.js` (1074 lines) into per-panel files under `/pages/payment-management/`
+- (P2) Object Storage integration for persistent uploads (production disk is ephemeral)
+- (P2) Resolve PPTX `DocumentTooLarge` regression for doc id `fa26b059-d70d-4dbe-a6c9-3907a0408956`
 
-**Last Updated:** May 19, 2026
+**Last Updated:** June 30, 2026
