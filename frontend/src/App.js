@@ -483,6 +483,12 @@ function AppRoutes() {
           <SuperAdminDashboardPage />
         </ProtectedRoute>
       } />
+
+      <Route path="/super-admin/payment-management" element={
+        <ProtectedRoute allowedRoles={['super_admin']}>
+          <PaymentManagementPage />
+        </ProtectedRoute>
+      } />
       
       {/* Home Page (Public) */}
       <Route path="/" element={<HomePage />} />

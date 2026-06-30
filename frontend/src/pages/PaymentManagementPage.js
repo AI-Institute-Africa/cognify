@@ -35,6 +35,8 @@ const MENU = [
   { key: 'taxes',         label: 'Taxes',             icon: Tag },
   { key: 'currencies',    label: 'Currencies',        icon: Globe },
   { key: 'settings',      label: 'Settings',          icon: SettingsIcon },
+  { key: 'api-config',    label: 'API Configuration', icon: SettingsIcon },
+  { key: 'notifications', label: 'Notification Settings', icon: Mail },
   { key: 'email-templates', label: 'Email Templates', icon: Mail },
   { key: 'activity',      label: 'User Activity',     icon: UsersIcon },
   { key: 'security',      label: 'Security',          icon: Shield },
@@ -118,6 +120,8 @@ export default function PaymentManagementPage() {
             {active === 'taxes' && <CRUDPanel endpoint="taxes" label="Taxes" fields={['name','rate','country','description']} />}
             {active === 'currencies' && <CRUDPanel endpoint="currencies" label="Currencies" fields={['code','name','symbol','rate_to_usd']} />}
             {active === 'settings' && <SettingsPanel />}
+            {active === 'api-config' && <ApiConfigPanel />}
+            {active === 'notifications' && <NotificationSettingsPanel />}
             {active === 'email-templates' && <CRUDPanel endpoint="email-templates" label="Email Templates" fields={['name','subject','body']} largeFields={['body']} />}
             {active === 'activity' && <ActivityPanel />}
             {active === 'security' && <SecurityPanel />}
@@ -205,7 +209,7 @@ function DashboardPanel() {
         <div className="glass-card p-5">
           <h3 className="font-semibold mb-3">Avg Transaction</h3>
           <p className="text-3xl font-bold text-violet-300">${(d.revenue?.avg_transaction || 0).toFixed(2)}</p>
-          <p className="text-xs text-zinc-500 mt-1">across today's successful payments</p>
+          <p className="text-xs text-zinc-500 mt-1">across today&apos;s successful payments</p>
         </div>
       </div>
       <div className="glass-card p-5">
@@ -960,10 +964,10 @@ function SecurityPanel() {
             <ul className="text-sm text-zinc-300 mt-2 space-y-1 list-disc list-inside">
               <li>Add Paynow Integration ID and Integration Key</li>
               <li>Set Result URL and Return URL to production paths</li>
-              <li>Click "Test Connection" — must return healthy</li>
+              <li>Click &quot;Test Connection&quot; — must return healthy</li>
               <li>Switch environment to <strong>production</strong></li>
               <li>Toggle the Paynow provider <strong>enabled</strong></li>
-              <li>Turn off "fail-open" in Settings once payments are live</li>
+              <li>Turn off &quot;fail-open&quot; in Settings once payments are live</li>
             </ul>
           </div>
         </div>
@@ -971,3 +975,99 @@ function SecurityPanel() {
     </div>
   );
 }
+
+/* ============== API CONFIGURATION ============== */
+function ApiConfigPanel() {
+  const [providers, setProviders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    axios.get(`${API}/api/super-admin/payments/providers`, { headers: TOKEN() })
+      .then(({ data }) => setProviders(data.providers || []))
+      .catch(() => toast.error('Failed to load API config'))
+      .finally(() => setLoading(false));
+  }, []);
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-violet-400" /></div>;
+  return (
+    <div className="space-y-4">
+      <h2 className="text-2xl font-semibold">API Configuration</h2>
+      <p className="text-sm text-zinc-400">Encrypted API credentials and webhook endpoints. Use Providers page to edit secrets — this view is read-only summary.</p>
+      <div className="glass-card overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-zinc-900/60 text-zinc-400">
+            <tr>
+              <th className="text-left p-3">Provider</th>
+              <th className="text-left p-3">Environment</th>
+              <th className="text-left p-3">Webhook URL</th>
+              <th className="text-left p-3">Webhook Secret</th>
+              <th className="text-left p-3">API Key</th>
+              <th className="text-left p-3">Health</th>
+            </tr>
+          </thead>
+          <tbody>
+            {providers.map((p) => (
+              <tr key={p.slug} className="border-t border-white/5" data-testid={`apicfg-row-${p.slug}`}>
+                <td className="p-3 font-medium">{p.display_name}</td>
+                <td className="p-3 capitalize">{p.environment}</td>
+                <td className="p-3 font-mono text-xs text-violet-300">
+                  {`${window.location.origin}/api/payments/webhook/${p.slug}`}
+                </td>
+                <td className="p-3 font-mono text-xs">{p.webhook_secret_preview || '— not set —'}</td>
+                <td className="p-3 font-mono text-xs">{p.integration_key_preview || p.api_key_preview || p.secret_key_preview || '— not set —'}</td>
+                <td className="p-3">
+                  {p.health_status === 'healthy'
+                    ? <Badge className="bg-emerald-500/20 text-emerald-300">healthy</Badge>
+                    : p.health_status === 'error'
+                      ? <Badge className="bg-rose-500/20 text-rose-300">error</Badge>
+                      : <Badge className="bg-zinc-700 text-zinc-300">untested</Badge>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ============== NOTIFICATION SETTINGS ============== */
+function NotificationSettingsPanel() {
+  const [s, setS] = useState(null);
+  useEffect(() => {
+    axios.get(`${API}/api/super-admin/payments/settings`, { headers: TOKEN() })
+      .then(({ data }) => setS(data))
+      .catch(() => toast.error('Failed to load notification settings'));
+  }, []);
+  const save = async (patch) => {
+    const { data } = await axios.put(`${API}/api/super-admin/payments/settings`, patch, { headers: TOKEN() });
+    setS(data);
+    toast.success('Notification setting saved');
+  };
+  if (!s) return <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-violet-400" /></div>;
+  const toggles = [
+    ['email_notifications', 'Send customer emails (payment initiated / successful / failed)'],
+    ['sms_notifications', 'Send SMS notifications (where supported)'],
+    ['admin_notifications', 'Notify administrators on key events'],
+    ['auto_send_email', 'Auto-send invoice & receipt emails'],
+  ];
+  return (
+    <div className="space-y-4">
+      <h2 className="text-2xl font-semibold">Notification Settings</h2>
+      <div className="glass-card p-5 space-y-3">
+        {toggles.map(([k, label]) => (
+          <div key={k} className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/40 border border-white/5">
+            <span className="text-sm">{label}</span>
+            <Switch checked={!!s[k]} onCheckedChange={(v) => save({ [k]: v })} data-testid={`notif-${k}`} />
+          </div>
+        ))}
+      </div>
+      <div className="glass-card p-5 space-y-2">
+        <h3 className="font-semibold">Email channel</h3>
+        <p className="text-sm text-zinc-400">
+          Transactional emails are sent via the platform-wide Resend HTTP integration.
+          Manage templates in <span className="text-violet-300">Email Templates</span>.
+        </p>
+      </div>
+    </div>
+  );
+}
+
