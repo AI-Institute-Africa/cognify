@@ -1,10 +1,48 @@
 # Cognify - Product Requirements Document
 
 ## Overview
-AI-Powered School Management, Learning & Career Intelligence Platform with HeyGen Avatar Integration, async AI Video/Slides generation, original-format document viewer with python-pptx fallback, robust PDF.js worker loading, strict org-isolation for premade courses, browser-TTS audio fallback, Course Analytics, Super Admin Console, Public Content portal for summit presentations, original-file download, multi-modal learner viewer (PDF/DOCX/PPTX/image/text) with on-demand AI video/audio generation, animated avatar teacher, multi-language translation, Resend HTTP-API email notifications, and a complete provider-independent Payment Management Platform.
+AI-Powered School Management, Learning & Career Intelligence Platform with HeyGen Avatar Integration, async AI Video/Slides generation, original-format document viewer with python-pptx fallback, robust PDF.js worker loading, strict org-isolation for premade courses, browser-TTS audio fallback, Course Analytics, Super Admin Console, Public Content portal for summit presentations, original-file download, multi-modal learner viewer (PDF/DOCX/PPTX/image/text) with on-demand AI video/audio generation, animated avatar teacher, multi-language translation, Resend HTTP-API email notifications, a complete provider-independent Payment Management Platform, and Emergent-Object-Storage-backed persistent file/video storage.
 
-**Version:** 18.0 (Iteration 46 — Payment Management Platform, Activity Tracking, Research Digest)
-**Date:** June 30, 2026
+**Version:** 19.0 (Iteration 47 — Persistent Object Storage + Real-Time AI Research Digest)
+**Date:** July 03, 2026
+
+---
+
+## LATEST — ITERATION 47 (Production Bug Fixes)
+
+### 1. Persistent Object Storage (fixes ephemeral-disk data loss on production)
+- New helper `/app/backend/services/object_storage.py` wraps Emergent Object Storage (`put_file`, `get_object`, `stream_object`, `make_path`)
+- Public content **upload** endpoint now writes to disk AND persists to object storage (`storage_path`)
+- Public content **download** endpoint (`/api/public/content/{id}/download`) now cascades: disk → object storage → legacy base64
+- Public content **video** endpoint (`/api/public/{doc_id}/video/{video_id}`) same cascade with `video_storage_path`
+- Both AI-generated and manually-uploaded videos push to object storage
+- **Startup migration**: on backend boot, all existing docs with `file_path` (disk) but no `storage_path` are automatically backfilled to object storage in a background task
+- **Verified in production scenario**: physically moved `.pptx` and `.mp4` files off disk — endpoints STILL returned 200 with correct bytes from object storage
+- Files now survive pod restarts, redeploys, and preview↔production cutover
+
+### 2. Real-time AI Research Digest (replaces stale DB-only digest)
+- New `/app/backend/services/research_digest.py` fetches from 21 live RSS feeds:
+  - OpenAI Blog, Anthropic, Google DeepMind, Google AI, Google Research, Microsoft AI, Meta AI, Hugging Face
+  - arXiv cs.AI / cs.LG / cs.CL (peer-reviewed research)
+  - TechCrunch AI, MIT Tech Review, The Verge, Wired, VentureBeat
+  - Google News RSS: AI, Labs, Policy, Funding, Africa AI (with `when:1d` scope)
+- URL-based deduplication against `research_digest_sent` collection (unique index on `url`)
+- Optional GPT-5.2 "why-it-matters" enrichment (best-effort, non-blocking)
+- Runs every 4 hours, delivers to `dennis@rubiem.com` AND `takuechakanyuka@gmail.com`
+- Concurrency-safe: `asyncio.Lock` prevents scheduler-vs-manual double-runs
+- Manual trigger: `POST /api/super-admin/research-digest/run-now`
+- Status: `GET /api/super-admin/research-digest/status`
+
+### 3. External constraint noted
+- Resend is in TEST MODE — emails to `dennis@rubiem.com` are accepted by the API but blocked from delivery until user verifies a domain at `resend.com/domains`. `takuechakanyuka@gmail.com` (verified owner) receives them normally. This is a Resend account state, not a code issue.
+
+## Testing — Iteration 47
+- **Backend**: 10/10 pytest pass — `/app/backend/tests/test_iteration47_object_storage_and_digest.py`
+- Verified download & video endpoints work with disk file removed (fallback to object storage)
+- Verified digest fetches 136 real items across 21 feeds, dedups correctly, sends to both recipients
+
+## Previous — Iteration 46 (Payment Management Platform)
+[unchanged — see below]
 
 ---
 

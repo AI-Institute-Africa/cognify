@@ -227,19 +227,29 @@ async def _filter_new(db, items: list[dict]) -> list[dict]:
 async def _record_sent(db, items: list[dict]):
     if not items:
         return
+    # Ensure a unique index so a concurrent second run cannot duplicate URLs
+    try:
+        await db.research_digest_sent.create_index("url", unique=True, background=True)
+    except Exception:
+        pass
     now = datetime.now(timezone.utc).isoformat()
     docs = [{"url": i["url"], "title": i.get("title", "")[:280],
              "source": i.get("source", ""), "sent_at": now} for i in items]
     try:
         await db.research_digest_sent.insert_many(docs, ordered=False)
-    except Exception:
-        pass
+    except Exception as e:
+        # Swallow only the expected BulkWriteError from duplicate-key races
+        if "duplicate key" not in str(e).lower() and "E11000" not in str(e):
+            logger.warning("Recording sent digest items failed: %s", e)
 
 
 CATEGORY_ICON = {
     "research": "🔬", "product": "🚀", "policy": "📜",
     "funding": "💰", "africa": "🌍", "applied": "⚙️",
 }
+
+# Prevents scheduler-vs-manual concurrent execution
+_run_lock = asyncio.Lock()
 
 
 def _format_html(items: list[dict], subject: str) -> str:
@@ -286,53 +296,55 @@ def _format_html(items: list[dict], subject: str) -> str:
 
 
 async def _run_once(db) -> dict:
-    all_items = await _fetch_all_feeds()
-    new_items = await _filter_new(db, all_items)
-    if not new_items:
-        logger.info("AI research digest: no new items this cycle (fetched=%d)", len(all_items))
+    async with _run_lock:
+        all_items = await _fetch_all_feeds()
+        new_items = await _filter_new(db, all_items)
+        if not new_items:
+            logger.info("AI research digest: no new items this cycle (fetched=%d)", len(all_items))
+            await db.scheduler_state.update_one(
+                {"_id": STATE_KEY},
+                {"$set": {"last_run_at": datetime.now(timezone.utc).isoformat(),
+                          "last_items_fetched": len(all_items),
+                          "last_items_sent": 0}},
+                upsert=True)
+            return {"sent": 0, "fetched": len(all_items), "new": 0,
+                    "recipients": RECIPIENTS}
+
+        # Cap and enrich
+        new_items = new_items[:MAX_ITEMS_PER_DIGEST]
+        await _enrich_with_llm(new_items)
+
+        subject = (
+            f"[Cognify AI Briefing] {len(new_items)} new AI stor"
+            f"{'y' if len(new_items) == 1 else 'ies'} — "
+            f"{datetime.now(timezone.utc).strftime('%b %d, %H:%M UTC')}"
+        )
+        html = _format_html(new_items, subject)
+
+        sent_count = 0
+        for recipient in RECIPIENTS:
+            try:
+                ok = await send_email(recipient, subject, html)
+                if ok:
+                    sent_count += 1
+                    logger.info("AI research digest sent to %s (%d items)", recipient, len(new_items))
+                else:
+                    logger.warning("AI research digest send to %s returned False", recipient)
+            except Exception as e:
+                logger.exception("AI research digest send to %s crashed: %s", recipient, e)
+
+        await _record_sent(db, new_items)
         await db.scheduler_state.update_one(
             {"_id": STATE_KEY},
             {"$set": {"last_run_at": datetime.now(timezone.utc).isoformat(),
                       "last_items_fetched": len(all_items),
-                      "last_items_sent": 0}},
+                      "last_items_sent": len(new_items),
+                      "recipients": RECIPIENTS,
+                      "sent_count": sent_count}},
             upsert=True)
-        return {"sent": 0, "fetched": len(all_items), "new": 0}
-
-    # Cap and enrich
-    new_items = new_items[:MAX_ITEMS_PER_DIGEST]
-    await _enrich_with_llm(new_items)
-
-    subject = (
-        f"[Cognify AI Briefing] {len(new_items)} new AI stor"
-        f"{'y' if len(new_items) == 1 else 'ies'} — "
-        f"{datetime.now(timezone.utc).strftime('%b %d, %H:%M UTC')}"
-    )
-    html = _format_html(new_items, subject)
-
-    sent_count = 0
-    for recipient in RECIPIENTS:
-        try:
-            ok = await send_email(recipient, subject, html)
-            if ok:
-                sent_count += 1
-                logger.info("AI research digest sent to %s (%d items)", recipient, len(new_items))
-            else:
-                logger.warning("AI research digest send to %s returned False", recipient)
-        except Exception as e:
-            logger.exception("AI research digest send to %s crashed: %s", recipient, e)
-
-    await _record_sent(db, new_items)
-    await db.scheduler_state.update_one(
-        {"_id": STATE_KEY},
-        {"$set": {"last_run_at": datetime.now(timezone.utc).isoformat(),
-                  "last_items_fetched": len(all_items),
-                  "last_items_sent": len(new_items),
-                  "recipients": RECIPIENTS,
-                  "sent_count": sent_count}},
-        upsert=True)
-    return {"sent": sent_count, "items": len(new_items),
-            "fetched": len(all_items), "new": len(new_items),
-            "recipients": RECIPIENTS}
+        return {"sent": sent_count, "items": len(new_items),
+                "fetched": len(all_items), "new": len(new_items),
+                "recipients": RECIPIENTS}
 
 
 async def start(db):
