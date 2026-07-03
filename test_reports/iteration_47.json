@@ -1,0 +1,38 @@
+{
+  "summary": "Verified all three production bug fixes (public download, public video, AI research digest). 10/10 pytest tests pass. Object-storage fallback for both PPTX and MP4 confirmed working by physically moving on-disk files aside — endpoints still returned 200 with valid PPTX (PK header) and MP4 (ftyp header) bytes fetched from Emergent Object Storage. Research digest fetches 136 live items from 21 RSS feeds, dedups against research_digest_sent, and backend logs prove send_email is called for BOTH dennis@rubiem.com and takuechakanyuka@gmail.com every tick. Payment platform (dashboard/providers/settings) regression-clean.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/super-admin/research-digest/run-now", "issue": "Duplicate URLs recorded in research_digest_sent under concurrency. Root cause: (a) no unique index on the 'url' field, (b) no lock preventing the scheduler loop and manual /run-now from firing concurrently. Backend log timestamps show two send passes 400ms apart delivering identical items twice. Recipients may receive duplicate emails and the dedup pool bloats. Fix: create unique index db.research_digest_sent.create_index('url', unique=True); use insert_many(ordered=False) with BulkWriteError swallow, AND wrap _run_once in an asyncio.Lock."},
+      {"endpoint": "research_digest scheduler", "issue": "Scheduler restarts fresh on every backend hot-reload with a 30s delay then immediately fires — combined with hot-reload during development this causes multiple back-to-back sends. In production a single-run guard would prevent this. Consider gating with a scheduler_state cooldown check (only run if now - last_run_at >= INTERVAL_HOURS)."},
+      {"endpoint": "research_digest response shape", "issue": "When new==0 the /run-now response omits the 'recipients' field, which is inconsistent with the non-empty branch. Add 'recipients': RECIPIENTS to the no-op return dict for consistency."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration47_object_storage_and_digest.py",
+    "/app/test_reports/pytest/iteration47.xml"
+  ],
+  "action_items": [
+    "Add unique index on research_digest_sent.url and wrap insert_many BulkWriteError to swallow dupe-key errors: this closes the duplicate-email exposure completely.",
+    "Wrap _run_once() with an asyncio.Lock and/or a DB-level 'in_progress' flag on scheduler_state to prevent scheduler-vs-manual concurrent execution.",
+    "Optionally return 'recipients' key even when new==0 for consistent API shape.",
+    "Verify Resend domain for rubiem.com so dennis@rubiem.com actually receives the email (Resend currently blocks unverified-domain recipients in test mode — code is correct, external constraint)."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 14,644 lines — must be split into routers/modules; several 5-hop nested try/except blocks make failure paths hard to reason about.",
+    "research_digest._record_sent swallows all exceptions with a bare `except Exception: pass` — hides the dupe-key BulkWriteError that would otherwise surface the concurrency bug.",
+    "object_storage helpers reference a module-global _storage_key without a lock — safe today because init_storage is short-circuited, but note this if init concurrency ever changes.",
+    "public download endpoint correctly cascades disk → object-storage → base64 legacy; the 410 code for missing data is a nice touch but should also log which fallback branch failed for future debugging."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration47_object_storage_and_digest.py"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "not tested (skipped per request)"},
+  "test_credentials": "Super Admin takuechakanyuka@gmail.com / SuperAdmin@2026! — used for both video and super-admin endpoints.",
+  "seed_data_creation": "None. Used existing public content doc 6a207bae-1b06-4857-87c8-94d9aeb5d28f and its video 03c0b8aa-f1d8-4e75-ab64-77bd702f0ad4.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Bugs 1, 2, and 3 are functionally fixed. Only remaining item is the duplicate-URL race in research_digest_sent (minor, does not break user-facing behaviour but causes duplicate emails on concurrent runs). If main agent applies the unique-index + asyncio.Lock fix, retesting only requires running: python -m pytest /app/backend/tests/test_iteration47_object_storage_and_digest.py -v",
+  "rca of the issue": "Bug 1 & 2 RCA: production disk was ephemeral — files vanished on pod restart while DB records pointed to non-existent paths, giving 'File data missing' and 'HTTP 404' errors. Fix (verified): all uploads now double-write to Emergent Object Storage; every read endpoint tries disk first, then falls back to object storage. Startup backfill task migrates pre-existing docs. Verified by physically moving both /app/uploaded_public_docs/{doc_id}.pptx and /app/generated_video_public/{video_id}.mp4 away — endpoints still returned 200 with valid PPTX and MP4 bytes. Bug 3 RCA: previous digest only re-emailed cached DB rows and did not fetch fresh news. Fix (verified): new services/research_digest.py pulls 136 real items from 21 live RSS feeds (OpenAI, Anthropic, DeepMind, arXiv, TechCrunch, MIT Tech Review, Wired, Verge, VentureBeat, Google News AI/Labs/Policy/Funding/Africa), URL-dedups against research_digest_sent, GPT-5.2 enriches with 'why-it-matters', and Resend send_email is invoked for BOTH RESEARCH_DIGEST_RECIPIENTS (confirmed via backend logs: 'AI research digest sent to dennis@rubiem.com' and '...to takuechakanyuka@gmail.com'). External constraint: Resend blocks dennis@rubiem.com delivery until rubiem.com domain is verified at resend.com/domains — this is a delivery issue, not a code bug."
+}

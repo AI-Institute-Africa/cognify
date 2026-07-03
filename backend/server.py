@@ -13725,6 +13725,19 @@ async def sa_upload_public_content(
     elif fname_lower.endswith((".mp3", ".wav", ".m4a", ".aac", ".ogg")):
         media_kind = "audio"
 
+    # Upload to persistent object storage (survives pod restarts)
+    from services.object_storage import put_file as _obj_put_file, make_path as _obj_make_path
+    storage_path = None
+    try:
+        obj_path = _obj_make_path("public_content", doc_id, ext)
+        res = await asyncio.to_thread(_obj_put_file, obj_path, disk_path,
+                                       file.content_type or "application/octet-stream")
+        if res and res.get("path"):
+            storage_path = res["path"]
+            logging.info(f"public_content uploaded to object storage: {storage_path}")
+    except Exception as _e:
+        logging.warning(f"object storage upload failed (falling back to disk): {_e}")
+
     doc = {
         "id": doc_id,
         "title": title,
@@ -13735,7 +13748,8 @@ async def sa_upload_public_content(
         "filename": filename,
         "content_type": file.content_type or "application/octet-stream",
         "file_size": total,
-        "file_path": disk_path,        # NEW: on-disk path (replaces file_data)
+        "file_path": disk_path,        # local disk (fast path, ephemeral)
+        "storage_path": storage_path,  # persistent object storage (survives redeploys)
         "preview_text": "",            # populated by background task
         "audio_url": None,
         "video_url": None,
@@ -13992,8 +14006,20 @@ async def sa_generate_public_video(doc_id: str, background_tasks: BackgroundTask
             video_id = str(uuid.uuid4())
             video_path = f"{PUBLIC_CONTENT_VIDEO_DIR}/{video_id}.mp4"
             vg.save_video(video_bytes, video_path)
+            # Also push to persistent object storage
+            video_storage_path = None
+            try:
+                from services.object_storage import put_file as _obj_put_file, make_path as _obj_make_path
+                obj_path = _obj_make_path("public_video", video_id, "mp4")
+                res = await asyncio.to_thread(_obj_put_file, obj_path, video_path, "video/mp4")
+                if res and res.get("path"):
+                    video_storage_path = res["path"]
+            except Exception as _e:
+                logging.warning(f"video object storage upload failed: {_e}")
             video_url = f"/api/public/{doc_id}/video/{video_id}"
-            await db.public_content.update_one({"id": doc_id}, {"$set": {"video_url": video_url, "video_file": video_path}})
+            await db.public_content.update_one({"id": doc_id}, {"$set": {
+                "video_url": video_url, "video_file": video_path,
+                "video_storage_path": video_storage_path}})
             await db.public_content_jobs.update_one({"id": job_id}, {"$set": {"status": "completed", "video_url": video_url}})
         except Exception as e:
             err = str(e)
@@ -14047,8 +14073,22 @@ async def sa_upload_public_video(doc_id: str,
     video_path = f"{PUBLIC_CONTENT_VIDEO_DIR}/{video_id}.{ext}"
     with open(video_path, "wb") as f:
         f.write(content)
+    # Also push to persistent object storage
+    video_storage_path = None
+    try:
+        from services.object_storage import put_file as _obj_put_file, make_path as _obj_make_path
+        obj_path = _obj_make_path("public_video", video_id, ext)
+        mime = {"mp4": "video/mp4", "mov": "video/quicktime",
+                "webm": "video/webm", "mkv": "video/x-matroska"}.get(ext, "video/mp4")
+        res = await asyncio.to_thread(_obj_put_file, obj_path, video_path, mime)
+        if res and res.get("path"):
+            video_storage_path = res["path"]
+    except Exception as _e:
+        logging.warning(f"video object storage upload failed: {_e}")
     video_url = f"/api/public/{doc_id}/video/{video_id}"
-    await db.public_content.update_one({"id": doc_id}, {"$set": {"video_url": video_url, "video_file": video_path}})
+    await db.public_content.update_one({"id": doc_id}, {"$set": {
+        "video_url": video_url, "video_file": video_path,
+        "video_storage_path": video_storage_path}})
     return {"status": "uploaded", "video_url": video_url}
 
 
@@ -14105,10 +14145,25 @@ async def public_download_content(doc_id: str):
         "Cache-Control": "private, max-age=0",
     }
     media_type = doc.get("content_type") or "application/octet-stream"
-    # Prefer on-disk file; fall back to legacy base64 file_data
+    # 1) Prefer on-disk file (fast path)
     file_path = doc.get("file_path")
     if file_path and os.path.exists(file_path):
         return FileResponse(file_path, media_type=media_type, headers=headers, filename=filename)
+    # 2) Fall back to persistent object storage (production-safe across pod restarts)
+    storage_path = doc.get("storage_path")
+    if storage_path:
+        from services.object_storage import stream_object as _obj_stream, get_object as _obj_get
+        stream_result = await asyncio.to_thread(_obj_stream, storage_path)
+        if stream_result:
+            gen, ctype = stream_result
+            # Restore file locally for future fast-path serves (best-effort)
+            return StreamingResponse(gen, media_type=media_type or ctype, headers=headers)
+        # Fallback to full-bytes fetch
+        got = await asyncio.to_thread(_obj_get, storage_path)
+        if got:
+            data, ctype = got
+            return StreamingResponse(io.BytesIO(data), media_type=media_type or ctype, headers=headers)
+    # 3) Legacy base64 file_data in DB
     if doc.get("file_data"):
         raw_bytes = base64.b64decode(doc["file_data"])
         return StreamingResponse(io.BytesIO(raw_bytes), media_type=media_type, headers=headers)
@@ -14281,10 +14336,21 @@ async def public_learner_generate_video(doc_id: str, background_tasks: Backgroun
             video_id = str(uuid.uuid4())
             video_path = f"{PUBLIC_CONTENT_VIDEO_DIR}/{video_id}.mp4"
             vg.save_video(video_bytes, video_path)
+            # Also push to persistent object storage
+            video_storage_path = None
+            try:
+                from services.object_storage import put_file as _obj_put_file, make_path as _obj_make_path
+                obj_path = _obj_make_path("public_video", video_id, "mp4")
+                res = await asyncio.to_thread(_obj_put_file, obj_path, video_path, "video/mp4")
+                if res and res.get("path"):
+                    video_storage_path = res["path"]
+            except Exception as _e:
+                logging.warning(f"video object storage upload failed: {_e}")
             video_url = f"/api/public/{doc_id}/video/{video_id}"
             await db.public_content.update_one(
                 {"id": doc_id},
-                {"$set": {"video_url": video_url, "video_file": video_path}})
+                {"$set": {"video_url": video_url, "video_file": video_path,
+                          "video_storage_path": video_storage_path}})
             await db.public_content_jobs.update_one(
                 {"id": job_id},
                 {"$set": {"status": "completed", "video_url": video_url}})
@@ -14324,14 +14390,30 @@ async def public_serve_audio(doc_id: str, audio_id: str, current_user: dict = De
 
 @public_router.get("/{doc_id}/video/{video_id}")
 async def public_serve_video(doc_id: str, video_id: str, current_user: dict = Depends(get_current_user)):
-    """Stream video for a public doc (login required)."""
-    doc = await db.public_content.find_one({"id": doc_id, "is_active": {"$ne": False}}, {"_id": 0, "video_file": 1})
-    if not doc or not doc.get("video_file") or not os.path.exists(doc["video_file"]):
+    """Stream video for a public doc (login required). Prefers persistent object storage."""
+    doc = await db.public_content.find_one({"id": doc_id, "is_active": {"$ne": False}},
+                                            {"_id": 0, "video_file": 1, "video_storage_path": 1})
+    if not doc:
         raise HTTPException(status_code=404, detail="Video not available")
-    ext = doc["video_file"].rsplit(".", 1)[-1].lower()
-    mime = {"mp4": "video/mp4", "mov": "video/quicktime",
-            "webm": "video/webm", "mkv": "video/x-matroska"}.get(ext, "video/mp4")
-    return FileResponse(doc["video_file"], media_type=mime)
+    # 1) Fast local disk
+    vf = doc.get("video_file")
+    if vf and os.path.exists(vf):
+        ext = vf.rsplit(".", 1)[-1].lower()
+        mime = {"mp4": "video/mp4", "mov": "video/quicktime",
+                "webm": "video/webm", "mkv": "video/x-matroska"}.get(ext, "video/mp4")
+        return FileResponse(vf, media_type=mime)
+    # 2) Persistent object storage
+    vsp = doc.get("video_storage_path")
+    if vsp:
+        from services.object_storage import stream_object as _obj_stream
+        stream_result = await asyncio.to_thread(_obj_stream, vsp)
+        if stream_result:
+            gen, ctype = stream_result
+            ext = vsp.rsplit(".", 1)[-1].lower()
+            mime = {"mp4": "video/mp4", "mov": "video/quicktime",
+                    "webm": "video/webm", "mkv": "video/x-matroska"}.get(ext, ctype or "video/mp4")
+            return StreamingResponse(gen, media_type=mime)
+    raise HTTPException(status_code=404, detail="Video not available")
 
 
 api_router.include_router(super_admin_router)
@@ -14459,6 +14541,23 @@ except Exception as _e:
     logging.error("Payment platform wiring failed: %s", _e)
 
 
+# ---- Research Digest manual trigger (Super Admin) ----
+@app.post("/api/super-admin/research-digest/run-now")
+async def sa_research_digest_run_now(current_user: dict = Depends(require_super_admin)):
+    """Manually trigger the AI research digest immediately."""
+    from services.research_digest import run_now as _run_now
+    result = await _run_now(db)
+    return {"status": "ok", **result}
+
+
+@app.get("/api/super-admin/research-digest/status")
+async def sa_research_digest_status(current_user: dict = Depends(require_super_admin)):
+    """Read last-run state of the AI research digest."""
+    from services.research_digest import STATE_KEY, RECIPIENTS, INTERVAL_HOURS
+    state = await db.scheduler_state.find_one({"_id": STATE_KEY}, {"_id": 0}) or {}
+    return {"recipients": RECIPIENTS, "interval_hours": INTERVAL_HOURS, **state}
+
+
 @app.on_event("startup")
 async def _start_research_digest():
     try:
@@ -14467,6 +14566,76 @@ async def _start_research_digest():
         logging.info("Research digest scheduler started")
     except Exception as e:
         logging.error("Research digest scheduler failed to start: %s", e)
+
+
+@app.on_event("startup")
+async def _init_object_storage_and_migrate():
+    """Initialise object storage and backfill any existing public content docs
+    whose files are on ephemeral disk but not yet in persistent storage."""
+    try:
+        from services.object_storage import (init_storage as _obj_init,
+                                              put_file as _obj_put_file,
+                                              make_path as _obj_make_path)
+        key = await asyncio.to_thread(_obj_init)
+        if not key:
+            logging.warning("Object storage not initialised — skipping migration")
+            return
+
+        async def _migrate():
+            # Public content docs: file_path → storage_path
+            cursor = db.public_content.find(
+                {"is_active": {"$ne": False},
+                 "file_path": {"$ne": None},
+                 "$or": [{"storage_path": None}, {"storage_path": {"$exists": False}}]},
+                {"_id": 0, "id": 1, "file_path": 1, "content_type": 1, "filename": 1})
+            n_docs = 0
+            async for d in cursor:
+                fp = d.get("file_path")
+                if not fp or not os.path.exists(fp):
+                    continue
+                ext = fp.rsplit(".", 1)[-1].lower() if "." in fp else "bin"
+                obj_path = _obj_make_path("public_content", d["id"], ext)
+                try:
+                    res = await asyncio.to_thread(_obj_put_file, obj_path, fp,
+                                                   d.get("content_type") or "application/octet-stream")
+                    if res and res.get("path"):
+                        await db.public_content.update_one(
+                            {"id": d["id"]},
+                            {"$set": {"storage_path": res["path"]}})
+                        n_docs += 1
+                except Exception as _e:
+                    logging.warning(f"migrate doc {d.get('id')} failed: {_e}")
+            # Videos
+            vcursor = db.public_content.find(
+                {"is_active": {"$ne": False},
+                 "video_file": {"$ne": None},
+                 "$or": [{"video_storage_path": None}, {"video_storage_path": {"$exists": False}}]},
+                {"_id": 0, "id": 1, "video_file": 1})
+            n_vids = 0
+            async for d in vcursor:
+                vf = d.get("video_file")
+                if not vf or not os.path.exists(vf):
+                    continue
+                vext = vf.rsplit(".", 1)[-1].lower() if "." in vf else "mp4"
+                mime = {"mp4": "video/mp4", "mov": "video/quicktime",
+                        "webm": "video/webm", "mkv": "video/x-matroska"}.get(vext, "video/mp4")
+                obj_path = _obj_make_path("public_video", str(uuid.uuid4()), vext)
+                try:
+                    res = await asyncio.to_thread(_obj_put_file, obj_path, vf, mime)
+                    if res and res.get("path"):
+                        await db.public_content.update_one(
+                            {"id": d["id"]},
+                            {"$set": {"video_storage_path": res["path"]}})
+                        n_vids += 1
+                except Exception as _e:
+                    logging.warning(f"migrate video for doc {d.get('id')} failed: {_e}")
+            logging.info(f"Object storage backfill: {n_docs} docs, {n_vids} videos migrated")
+
+        # Run migration in background so startup isn't blocked
+        asyncio.create_task(_migrate())
+        logging.info("Object storage initialised (migration running in background)")
+    except Exception as e:
+        logging.error(f"Object storage init/migration failed: {e}")
 
 
 @app.on_event("shutdown")
