@@ -1,7 +1,7 @@
 # Here are your Instructions
 Cognify 2026 🎓
-AI-Powered School Management, Learning & Career Intelligence Platform
-Cognify 2026 is a full-stack, enterprise-grade school management platform that combines AI-driven learning tools, biometric attendance, multilingual support, and career intelligence into a single unified system. Designed for schools, universities, and training organizations across Africa and beyond.
+AI-Powered Cognitive Development System, Learning & Career Intelligence Platform
+Cognify 2026 is a full-stack platform that combines AI-driven learning tools, biometric attendance, multilingual support, and career intelligence into a single unified system. Designed for schools, universities, and training organizations across Africa and beyond.
 ---
 Table of Contents
 Overview
