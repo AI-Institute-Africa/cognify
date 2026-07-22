@@ -14107,8 +14107,8 @@ async def sa_get_public_job(job_id: str, current_user: dict = Depends(require_su
 async def public_list_content(category: Optional[str] = None, q: Optional[str] = None):
     """List public documents (no auth required) — text/doc preview only.
     Audio/Video URLs are gated separately by /audio and /video endpoints.
-    """
-    query = {"is_active": {"$ne": False}}
+    Documents whose files have been archived (file_lost=True) are hidden."""
+    query = {"is_active": {"$ne": False}, "file_lost": {"$ne": True}}
     if category:
         query["category"] = category
     if q:
@@ -14156,9 +14156,7 @@ async def public_download_content(doc_id: str):
         stream_result = await asyncio.to_thread(_obj_stream, storage_path)
         if stream_result:
             gen, ctype = stream_result
-            # Restore file locally for future fast-path serves (best-effort)
             return StreamingResponse(gen, media_type=media_type or ctype, headers=headers)
-        # Fallback to full-bytes fetch
         got = await asyncio.to_thread(_obj_get, storage_path)
         if got:
             data, ctype = got
@@ -14167,7 +14165,19 @@ async def public_download_content(doc_id: str):
     if doc.get("file_data"):
         raw_bytes = base64.b64decode(doc["file_data"])
         return StreamingResponse(io.BytesIO(raw_bytes), media_type=media_type, headers=headers)
-    raise HTTPException(status_code=410, detail="File data missing")
+    # 4) File is gone — mark it so it stops appearing in public listings
+    try:
+        await db.public_content.update_one(
+            {"id": doc_id},
+            {"$set": {"file_lost": True,
+                      "file_lost_at": datetime.now(timezone.utc).isoformat()}})
+    except Exception:
+        pass
+    raise HTTPException(
+        status_code=410,
+        detail=("This file has been archived and is no longer available for download. "
+                "Please contact the administrator to re-upload the original document."),
+    )
 
 
 
@@ -14199,6 +14209,20 @@ async def public_view_content(doc_id: str, raw: bool = False):
 
     # On-disk path → use FileResponse for zero-copy streaming with Range support
     file_path = doc.get("file_path")
+    if file_path and not os.path.exists(file_path):
+        # Try to restore from persistent object storage into the local cache
+        storage_path = doc.get("storage_path")
+        if storage_path:
+            try:
+                from services.object_storage import get_object as _obj_get
+                got = await asyncio.to_thread(_obj_get, storage_path)
+                if got:
+                    data, _ctype = got
+                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                    with open(file_path, "wb") as _f:
+                        _f.write(data)
+            except Exception as _e:
+                logging.warning(f"view: object-storage restore failed for {doc_id}: {_e}")
     if file_path and os.path.exists(file_path):
         mime_map = {
             "pdf": "application/pdf",
@@ -14556,6 +14580,102 @@ async def sa_research_digest_status(current_user: dict = Depends(require_super_a
     from services.research_digest import STATE_KEY, RECIPIENTS, INTERVAL_HOURS
     state = await db.scheduler_state.find_one({"_id": STATE_KEY}, {"_id": 0}) or {}
     return {"recipients": RECIPIENTS, "interval_hours": INTERVAL_HOURS, **state}
+
+
+# ---- Public content orphan management (Super Admin) ----
+@app.get("/api/super-admin/public-content/orphans")
+async def sa_list_orphaned_content(current_user: dict = Depends(require_super_admin)):
+    """List public docs whose files are unreachable (neither on disk nor in object storage).
+    Used to identify content that must be re-uploaded after an ephemeral-disk wipe."""
+    from services.object_storage import get_object as _obj_get
+    orphans = []
+    healthy = 0
+    cursor = db.public_content.find({"is_active": {"$ne": False}},
+                                     {"_id": 0, "id": 1, "title": 1, "filename": 1,
+                                      "file_path": 1, "storage_path": 1,
+                                      "file_data": 1, "created_at": 1, "uploader_name": 1})
+    async for d in cursor:
+        fp = d.get("file_path")
+        sp = d.get("storage_path")
+        has_disk = bool(fp and os.path.exists(fp))
+        has_obj = False
+        if not has_disk and sp:
+            # Cheap existence check via get_object (small overhead per orphan lookup)
+            got = await asyncio.to_thread(_obj_get, sp)
+            has_obj = bool(got)
+        has_legacy = bool(d.get("file_data"))
+        if has_disk or has_obj or has_legacy:
+            healthy += 1
+            continue
+        orphans.append({
+            "id": d.get("id"),
+            "title": d.get("title"),
+            "filename": d.get("filename"),
+            "created_at": d.get("created_at"),
+            "uploader_name": d.get("uploader_name"),
+            "has_file_path_in_db": bool(fp),
+            "has_storage_path_in_db": bool(sp),
+        })
+    return {"total_documents": healthy + len(orphans),
+            "healthy": healthy,
+            "orphaned": len(orphans),
+            "orphans": orphans}
+
+
+@app.post("/api/super-admin/public-content/orphans/mark")
+async def sa_mark_orphaned_content(current_user: dict = Depends(require_super_admin)):
+    """Sweep all public docs and mark truly-unreachable ones with file_lost=True
+    so they stop appearing in the public listing. Idempotent."""
+    from services.object_storage import get_object as _obj_get
+    marked = 0
+    unmarked = 0
+    cursor = db.public_content.find({"is_active": {"$ne": False}},
+                                     {"_id": 0, "id": 1, "file_path": 1,
+                                      "storage_path": 1, "file_data": 1})
+    async for d in cursor:
+        fp = d.get("file_path")
+        sp = d.get("storage_path")
+        has_disk = bool(fp and os.path.exists(fp))
+        has_legacy = bool(d.get("file_data"))
+        has_obj = False
+        if not has_disk and not has_legacy and sp:
+            got = await asyncio.to_thread(_obj_get, sp)
+            has_obj = bool(got)
+        if has_disk or has_obj or has_legacy:
+            # Reachable — clear any prior lost flag
+            r = await db.public_content.update_one(
+                {"id": d["id"], "file_lost": True},
+                {"$unset": {"file_lost": "", "file_lost_at": ""}})
+            if r.modified_count:
+                unmarked += 1
+        else:
+            r = await db.public_content.update_one(
+                {"id": d["id"]},
+                {"$set": {"file_lost": True,
+                          "file_lost_at": datetime.now(timezone.utc).isoformat()}})
+            if r.modified_count:
+                marked += 1
+    return {"marked_lost": marked, "restored": unmarked}
+
+
+@app.delete("/api/super-admin/public-content/orphans/{doc_id}")
+async def sa_delete_orphaned_content(doc_id: str, current_user: dict = Depends(require_super_admin)):
+    """Permanently delete an orphaned document record."""
+    doc = await db.public_content.find_one({"id": doc_id}, {"_id": 0, "file_path": 1, "storage_path": 1, "file_data": 1})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    fp = doc.get("file_path")
+    if fp and os.path.exists(fp):
+        raise HTTPException(status_code=400, detail="Refusing to delete: file still on disk")
+    sp = doc.get("storage_path")
+    if sp:
+        from services.object_storage import get_object as _obj_get
+        if await asyncio.to_thread(_obj_get, sp):
+            raise HTTPException(status_code=400, detail="Refusing to delete: file still in object storage")
+    if doc.get("file_data"):
+        raise HTTPException(status_code=400, detail="Refusing to delete: file_data still present")
+    r = await db.public_content.delete_one({"id": doc_id})
+    return {"deleted": r.deleted_count}
 
 
 @app.on_event("startup")
