@@ -46,7 +46,8 @@ import {
   Zap,
   Award,
   BarChart3,
-  Shield
+  Shield,
+  UserCheck
 } from 'lucide-react';
 
 const navItems = {
@@ -187,6 +188,7 @@ const navItems = {
   org_admin: [
     { path: '/dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
     { path: '/org-admin', icon: Users, label: 'Org Dashboard' },
+    { path: '/org-admin/members', icon: UserCheck, label: 'Members & Join Link' },
     { path: '/organization-settings', icon: Settings, label: 'Organization Settings' },
     { path: '/students', icon: Users, labelKey: 'participants' },
     { path: '/teachers', icon: GraduationCap, label: 'Staff' },

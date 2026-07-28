@@ -2185,6 +2185,12 @@ async def login(credentials: UserLogin):
         raise HTTPException(status_code=403, detail="Your account is pending approval by the organization administrator. Please wait for approval.")
     if user.get('org_status') == 'rejected':
         raise HTTPException(status_code=403, detail="Your registration was not approved. Contact the organization administrator.")
+
+    # NEW: gate public-link signups by member_status
+    if user.get('member_status') == 'pending':
+        raise HTTPException(status_code=403, detail="Your application is pending approval by the organization administrator. You will receive an email once approved.")
+    if user.get('member_status') == 'rejected':
+        raise HTTPException(status_code=403, detail="Your application to this organization was not accepted. Please contact them if you have questions.")
     
     token = create_token(user['id'], user['role'], user.get('organization_id'))
     return TokenResponse(
@@ -7654,6 +7660,73 @@ async def get_org_students(current_user: dict = Depends(get_current_user)):
     
     return students
 
+async def _generate_pdf_course_background(course_id: str, text_content: str, filename: str, api_key: str):
+    """Background LLM task for PDF-based course creation."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    import json
+
+    try:
+        if not api_key:
+            await db.courses.update_one({"id": course_id}, {"$set": {
+                "generation_status": "failed",
+                "generation_error": "AI service not configured",
+            }})
+            return
+
+        system_msg = """You are a curriculum designer. Analyze the document and create a structured course outline.
+Return JSON with: {
+    "description": "course description",
+    "lessons": [{"title": "...", "content": "..."}],
+    "learning_objectives": ["..."]
+}"""
+        chat = LlmChat(api_key=api_key, session_id=f"pdf-course-{course_id}", system_message=system_msg)
+        chat.with_model("openai", "gpt-5.2")
+
+        response = await asyncio.wait_for(
+            chat.send_message(UserMessage(text=f"Create a course structure from this content:\n\n{text_content[:8000]}")),
+            timeout=180,
+        )
+        parsed = {}
+        try:
+            js_start = response.find('{')
+            js_end = response.rfind('}') + 1
+            if js_start >= 0:
+                parsed = json.loads(response[js_start:js_end])
+        except Exception as _e:
+            logging.warning(f"pdf-course LLM parse failed: {_e}")
+
+        lesson_ids = []
+        for idx, lesson in enumerate(parsed.get('lessons', [])):
+            lesson_id = str(uuid.uuid4())
+            lesson_record = {
+                "id": lesson_id,
+                "course_id": course_id,
+                "content_type": "text",
+                "title": lesson.get('title', f'Lesson {idx+1}'),
+                "description": lesson.get('content', '')[:500],
+                "content_text": lesson.get('content', ''),
+                "order": idx,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            await db.course_content.insert_one(lesson_record)
+            lesson_ids.append(lesson_id)
+
+        await db.courses.update_one({"id": course_id}, {"$set": {
+            "description": parsed.get("description") or f"Course created from PDF: {filename}",
+            "learning_objectives": parsed.get("learning_objectives", []),
+            "content_ids": lesson_ids,
+            "generation_status": "ready",
+            "generation_completed_at": datetime.now(timezone.utc).isoformat(),
+            "num_lessons_generated": len(lesson_ids),
+        }})
+    except Exception as e:
+        logging.exception(f"PDF course background failed: {e}")
+        await db.courses.update_one({"id": course_id}, {"$set": {
+            "generation_status": "failed",
+            "generation_error": str(e)[:400],
+        }})
+
+
 @org_admin_router.post("/create-course-from-pdf")
 async def create_course_from_pdf(
     file: UploadFile = File(...),
@@ -7662,90 +7735,55 @@ async def create_course_from_pdf(
     price: float = Form(0),
     current_user: dict = Depends(get_current_user)
 ):
-    """Create a course by uploading PDF syllabus/content"""
+    """Create a course from a PDF. Returns immediately after saving the placeholder
+    course; runs LLM structuring in the background to stay under Cloudflare's 100s
+    edge timeout. Poll GET /api/courses/{id}/generation-status for completion."""
     if current_user.get('role') not in ['org_admin', 'admin']:
         raise HTTPException(status_code=403, detail="Organization admin access required")
-    
+
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
         import fitz  # PyMuPDF
-        
         api_key = os.environ.get('EMERGENT_LLM_KEY')
-        
-        # Read PDF content
+
         content = await file.read()
         pdf_doc = fitz.open(stream=content, filetype="pdf")
-        
         text_content = ""
         for page in pdf_doc:
             text_content += page.get_text()
         pdf_doc.close()
-        
-        # Use AI to structure the course
+
         course_id = str(uuid.uuid4())
-        lessons = []
-        
-        if api_key:
-            system_msg = """You are a curriculum designer. Analyze the document and create a structured course outline.
-            Return JSON with: {
-                "description": "course description",
-                "lessons": [{"title": "...", "content": "..."}],
-                "learning_objectives": ["..."]
-            }"""
-            
-            chat = LlmChat(api_key=api_key, session_id=f"pdf-course-{course_id}", system_message=system_msg)
-            chat.with_model("openai", "gpt-5.2")
-            
-            response = await chat.send_message(UserMessage(text=f"Create a course structure from this content:\n\n{text_content[:8000]}"))
-            
-            try:
-                import json
-                json_start = response.find('{')
-                json_end = response.rfind('}') + 1
-                if json_start >= 0:
-                    parsed = json.loads(response[json_start:json_end])
-                    
-                    # Create lessons
-                    for idx, lesson in enumerate(parsed.get('lessons', [])):
-                        lesson_id = str(uuid.uuid4())
-                        lesson_record = {
-                            "id": lesson_id,
-                            "course_id": course_id,
-                            "content_type": "text",
-                            "title": lesson.get('title', f'Lesson {idx+1}'),
-                            "description": lesson.get('content', '')[:500],
-                            "content_text": lesson.get('content', ''),
-                            "order": idx,
-                            "created_at": datetime.now(timezone.utc).isoformat()
-                        }
-                        await db.course_content.insert_one(lesson_record)
-                        lessons.append(lesson_id)
-            except:
-                pass
-        
-        # Create the course
         course = {
             "id": course_id,
             "name": title,
+            "title": title,
             "code": f"ORG-{course_id[:6].upper()}",
-            "description": f"Course created from PDF: {file.filename}",
+            "description": f"Generating course from PDF: {file.filename}…",
             "organization_id": current_user.get('organization_id'),
             "teacher_id": current_user['id'],
+            "created_by": current_user['id'],
             "category": category,
             "price": price,
             "fee_type": "paid" if price > 0 else "free",
-            "content_ids": lessons,
+            "content_ids": [],
             "status": "active",
-            "created_at": datetime.now(timezone.utc).isoformat()
+            "is_published": False,
+            "generation_status": "generating",
+            "generation_started_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.courses.insert_one(course)
-        
+
+        # Kick off background AI generation
+        asyncio.create_task(_generate_pdf_course_background(course_id, text_content, file.filename, api_key))
+
         return {
-            "message": "Course created successfully",
+            "message": "Course creation started. Poll /api/courses/{id}/generation-status for progress.",
             "course_id": course_id,
-            "lessons_created": len(lessons)
+            "title": title,
+            "lessons_created": 0,
+            "generation_status": "generating",
         }
-        
     except Exception as e:
         logging.error(f"PDF course creation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -10084,128 +10122,91 @@ class CustomCourseRequest(BaseModel):
     include_slides: bool = True
     language: str = "en"
 
-@courses_router.post("/generate-custom")
-async def generate_custom_course(
-    request: CustomCourseRequest,
-    current_user: dict = Depends(get_current_user)
-):
-    """Generate a custom course using AI - starts background generation and returns task ID"""
+async def _generate_course_background(course_id: str, request_data: dict, current_user_id: str, api_key: str):
+    """Background task: run LLM, create lessons, mark course ready."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    import json
+
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        
-        api_key = os.environ.get('EMERGENT_LLM_KEY')
-        if not api_key:
-            raise HTTPException(status_code=500, detail="AI service not configured")
-        
-        pricing = {"free_custom": 0, "custom_basic": 49.99, "custom_advanced": 149.99}
-        price = pricing.get(request.course_type, 0)
-        
-        # Limit lessons to prevent timeout
-        num_lessons = min(request.num_lessons, 8)
-        
+        request_language = request_data.get("language", "English")
+        num_lessons = min(request_data.get("num_lessons", 5), 10)
+        title = request_data.get("title", "")
+        learning_goal = request_data.get("learning_goal", "")
+        description = request_data.get("description", "")
+        target_audience = request_data.get("target_audience", "")
+        duration_weeks = request_data.get("duration_weeks", 4)
+        include_quizzes = request_data.get("include_quizzes", False)
+
         system_message = f"""You are a curriculum designer. Return ONLY valid JSON.
 {{
     "course_title": "title",
     "description": "short description",
     "lessons": [
-        {{"title": "Lesson title", "description": "Brief summary", "duration": "30 min", "content": "lesson content (100-150 words)", "key_points": ["point1", "point2"]}}
+        {{"title": "Lesson title", "description": "Brief summary", "duration": "30 min", "content": "lesson content (100-150 words)", "key_points": ["point1", "point2"]{', "quiz_questions": [{"question": "...", "options": ["a","b","c","d"], "correct": 0}]' if include_quizzes else ''}}}
     ],
     "learning_objectives": ["obj1", "obj2"]
 }}
-Create exactly {num_lessons} lessons. Keep content concise. Language: {request.language}."""
-        
-        import litellm
-        litellm.num_retries = 0
-        litellm.request_timeout = 50
-        
-        chat = LlmChat(api_key=api_key, session_id=f"custom-course-{uuid.uuid4()}", system_message=system_message)
+Create exactly {num_lessons} lessons. Keep content concise. Language: {request_language}."""
+
+        chat = LlmChat(api_key=api_key, session_id=f"custom-course-{course_id}", system_message=system_message)
         chat.with_model("openai", "gpt-5.2")
-        
-        prompt = f"""Create a {request.duration_weeks}-week course with {num_lessons} lessons.
-Title: {request.title}
-Goal: {request.learning_goal}
-Description: {request.description}
-Audience: {request.target_audience}
+
+        prompt = f"""Create a {duration_weeks}-week course with {num_lessons} lessons.
+Title: {title}
+Goal: {learning_goal}
+Description: {description}
+Audience: {target_audience}
 Keep each lesson concise (100-150 words)."""
-        
-        import asyncio
+
         response = None
         try:
             response = await asyncio.wait_for(
                 chat.send_message(UserMessage(text=prompt)),
-                timeout=55
+                timeout=180  # give the background task room to breathe
             )
-        except (asyncio.TimeoutError, Exception) as err:
-            logging.warning(f"LLM attempt failed: {err}")
-        
-        # Parse AI response
-        import json
-        try:
-            if not response:
-                raise ValueError("AI service timed out, using fallback structure")
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
-            if json_start >= 0 and json_end > json_start:
-                course_structure = json.loads(response[json_start:json_end])
-            else:
-                raise ValueError("No JSON found in response")
-        except (json.JSONDecodeError, ValueError):
-            # Generate fallback structure
+        except Exception as err:
+            logging.warning(f"LLM background attempt failed: {err}")
+
+        # Parse
+        course_structure = None
+        if response:
+            try:
+                json_start = response.find('{')
+                json_end = response.rfind('}') + 1
+                if json_start >= 0 and json_end > json_start:
+                    course_structure = json.loads(response[json_start:json_end])
+            except Exception as _e:
+                logging.warning(f"LLM json parse failed: {_e}")
+
+        if not course_structure:
+            # Fallback structure so the course is still usable
             course_structure = {
-                "course_title": request.title,
-                "description": request.description or request.learning_goal,
+                "course_title": title,
+                "description": description or learning_goal,
                 "lessons": [
-                    {
-                        "title": f"Lesson {i+1}: Introduction",
-                        "description": f"Part {i+1} of {request.title}",
-                        "duration": "30 min",
-                        "content": response[:1000] if i == 0 else f"Content for lesson {i+1}",
-                        "key_points": ["Key concept 1", "Key concept 2", "Key concept 3"],
-                        "quiz_questions": []
-                    }
-                    for i in range(min(request.num_lessons, 5))
+                    {"title": f"Lesson {i+1}: {title}",
+                     "description": f"Part {i+1} of {title}",
+                     "duration": "30 min",
+                     "content": (response[:1000] if response and i == 0 else f"Content for lesson {i+1} of {title}."),
+                     "key_points": ["Key concept 1", "Key concept 2", "Key concept 3"],
+                     "quiz_questions": []}
+                    for i in range(min(num_lessons, 5))
                 ],
                 "learning_objectives": ["Master the fundamentals", "Apply knowledge practically"],
-                "prerequisites": []
             }
-        
-        # Create course in database
-        course_id = str(uuid.uuid4())
-        course = {
-            "id": course_id,
-            "name": course_structure.get("course_title", request.title),
-            "title": course_structure.get("course_title", request.title),
-            "description": course_structure.get("description", request.description),
-            "learning_goal": request.learning_goal,
-            "category": request.course_type,
-            "course_type": "Custom Course",
-            "course_branch": "customized",
-            "is_accredited": False,
-            "target_audience": request.target_audience,
-            "duration_weeks": request.duration_weeks,
-            "num_lessons": request.num_lessons,
-            "price": price,
-            "language": request.language,
+
+        # Update the course header
+        await db.courses.update_one({"id": course_id}, {"$set": {
+            "name": course_structure.get("course_title") or title,
+            "title": course_structure.get("course_title") or title,
+            "description": course_structure.get("description") or description,
             "learning_objectives": course_structure.get("learning_objectives", []),
             "prerequisites": course_structure.get("prerequisites", []),
-            "created_by": current_user['id'],
-            "teacher_id": current_user['id'],
-            "teacher_name": current_user.get('full_name', 'Unknown'),
-            "organization_id": current_user.get('organization_id'),
-            "is_user_created": True,
-            "is_active": True,
-            "is_published": True,
-            "enrolled_count": 0,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        
-        await db.courses.insert_one(course)
-        # Remove _id added by insert_one to avoid ObjectId serialization error
-        course.pop('_id', None)
-        
+        }})
+
         # Create lessons
         lessons = []
-        for idx, lesson_data in enumerate(course_structure.get("lessons", [])[:request.num_lessons]):
+        for idx, lesson_data in enumerate(course_structure.get("lessons", [])[:num_lessons]):
             lesson_id = str(uuid.uuid4())
             lesson = {
                 "id": lesson_id,
@@ -10216,43 +10217,141 @@ Keep each lesson concise (100-150 words)."""
                 "duration": lesson_data.get("duration", "30 min"),
                 "key_points": lesson_data.get("key_points", []),
                 "order": idx + 1,
-                "created_at": datetime.now(timezone.utc).isoformat()
+                "created_at": datetime.now(timezone.utc).isoformat(),
             }
             await db.lessons.insert_one(lesson)
-            # Remove _id added by insert_one to avoid ObjectId serialization error
-            lesson.pop('_id', None)
+            lesson.pop("_id", None)
             lessons.append(lesson)
-            
-            # Create quiz questions if included
-            if request.include_quizzes and lesson_data.get("quiz_questions"):
+
+            if include_quizzes and lesson_data.get("quiz_questions"):
                 for q_idx, quiz in enumerate(lesson_data.get("quiz_questions", [])[:3]):
-                    quiz_id = str(uuid.uuid4())
                     quiz_record = {
-                        "id": quiz_id,
+                        "id": str(uuid.uuid4()),
                         "lesson_id": lesson_id,
                         "course_id": course_id,
                         "question": quiz.get("question", ""),
                         "options": quiz.get("options", []),
                         "correct_answer": quiz.get("correct", 0),
-                        "order": q_idx + 1
+                        "order": q_idx + 1,
                     }
                     await db.lesson_quizzes.insert_one(quiz_record)
-                    quiz_record.pop('_id', None)
-        
-        return {
-            "message": "Course generated successfully",
-            "course_id": course_id,
-            "title": course.get("title"),
-            "description": course.get("description"),
-            "duration_weeks": request.duration_weeks,
-            "lessons": lessons,
-            "learning_objectives": course_structure.get("learning_objectives", []),
-            "price": price
-        }
-        
+
+        # Mark ready
+        await db.courses.update_one({"id": course_id}, {"$set": {
+            "generation_status": "ready",
+            "generation_completed_at": datetime.now(timezone.utc).isoformat(),
+            "num_lessons_generated": len(lessons),
+        }})
+        logging.info(f"Course {course_id} generation complete — {len(lessons)} lessons")
     except Exception as e:
-        logging.error(f"Custom course generation error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate course: {str(e)}")
+        logging.exception(f"Course generation task failed for {course_id}: {e}")
+        await db.courses.update_one({"id": course_id}, {"$set": {
+            "generation_status": "failed",
+            "generation_error": str(e)[:400],
+        }})
+
+
+@courses_router.post("/generate-custom")
+async def generate_custom_course(
+    request: CustomCourseRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Kick off asynchronous course generation and return the course_id immediately.
+    Frontend polls GET /api/courses/{id}/generation-status for completion.
+
+    Returns 202 with a placeholder course so the request never exceeds Cloudflare's
+    100-second edge timeout regardless of LLM latency."""
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="AI service not configured")
+
+    pricing = {"free_custom": 0, "custom_basic": 49.99, "custom_advanced": 149.99}
+    price = pricing.get(request.course_type, 0)
+
+    # Insert placeholder course immediately
+    course_id = str(uuid.uuid4())
+    course = {
+        "id": course_id,
+        "name": request.title,
+        "title": request.title,
+        "description": request.description or request.learning_goal or "Generating…",
+        "learning_goal": request.learning_goal,
+        "category": request.course_type,
+        "course_type": "Custom Course",
+        "course_branch": "customized",
+        "is_accredited": False,
+        "target_audience": request.target_audience,
+        "duration_weeks": request.duration_weeks,
+        "num_lessons": request.num_lessons,
+        "price": price,
+        "language": request.language,
+        "learning_objectives": [],
+        "prerequisites": [],
+        "created_by": current_user['id'],
+        "teacher_id": current_user['id'],
+        "teacher_name": current_user.get('full_name', 'Unknown'),
+        "organization_id": current_user.get('organization_id'),
+        "is_user_created": True,
+        "is_active": True,
+        "is_published": False,  # published only after generation completes + user clicks Publish
+        "enrolled_count": 0,
+        "generation_status": "generating",
+        "generation_started_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.courses.insert_one(course)
+    course.pop('_id', None)
+
+    # Kick off background generation
+    request_data = request.model_dump()
+    asyncio.create_task(_generate_course_background(course_id, request_data, current_user['id'], api_key))
+
+    return {
+        "message": "Course generation started. Poll /api/courses/{id}/generation-status for progress.",
+        "course_id": course_id,
+        "title": course["title"],
+        "description": course["description"],
+        "duration_weeks": request.duration_weeks,
+        "lessons": [],
+        "learning_objectives": [],
+        "price": price,
+        "generation_status": "generating",
+    }
+
+
+@courses_router.get("/{course_id}/generation-status")
+async def course_generation_status(course_id: str,
+                                    current_user: dict = Depends(get_current_user)):
+    """Poll endpoint for async course generation. Returns:
+       - generating: still working
+       - ready: lessons populated, safe to render + publish
+       - failed: with generation_error string
+    """
+    c = await db.courses.find_one({"id": course_id},
+                                   {"_id": 0, "id": 1, "title": 1, "description": 1,
+                                    "duration_weeks": 1, "generation_status": 1,
+                                    "generation_error": 1, "learning_objectives": 1,
+                                    "num_lessons_generated": 1, "price": 1})
+    if not c:
+        raise HTTPException(status_code=404, detail="Course not found")
+    # If access should be gated, uncomment:
+    # if c.get("created_by") not in (current_user['id'], None) and current_user['role'] != 'admin':
+    #     raise HTTPException(403, "Forbidden")
+    lessons = []
+    if c.get("generation_status") == "ready":
+        lessons = await db.lessons.find({"course_id": course_id}, {"_id": 0}).sort("order", 1).to_list(50)
+    return {
+        "course_id": c["id"],
+        "status": c.get("generation_status", "ready"),
+        "title": c.get("title"),
+        "description": c.get("description"),
+        "duration_weeks": c.get("duration_weeks"),
+        "learning_objectives": c.get("learning_objectives", []),
+        "num_lessons_generated": c.get("num_lessons_generated", len(lessons)),
+        "lessons": lessons,
+        "generation_error": c.get("generation_error"),
+        "price": c.get("price", 0),
+    }
 
 @courses_router.post("/{course_id}/publish")
 async def publish_custom_course(
@@ -14552,6 +14651,7 @@ try:
     import sys
     sys.path.insert(0, '/app/backend')
     from routes.payment_routes import make_router as _pay_make_router
+    from routes.org_join_routes import make_router as _join_make_router
     from middleware.activity_tracker import install as _install_activity
     _sa_pay, _cust_pay, _act_router = _pay_make_router(db, require_super_admin, get_current_user)
     api_router_pay = APIRouter(prefix="/api")
@@ -14560,7 +14660,17 @@ try:
     api_router_pay.include_router(_act_router)
     app.include_router(api_router_pay)
     _install_activity(app, db)
-    logging.info("Payment platform + activity tracker wired")
+
+    # Org-admin dependency wrapper (allows org_admin, admin, and super_admin roles)
+    async def _require_org_admin(current_user: dict = Depends(get_current_user)):
+        if current_user.get("role") not in ("org_admin", "admin", "super_admin"):
+            raise HTTPException(status_code=403, detail="Organization admin access required")
+        return current_user
+
+    _join_router = _join_make_router(db, _require_org_admin, get_current_user,
+                                      hash_password, create_token, verify_password)
+    app.include_router(_join_router)
+    logging.info("Payment platform + activity tracker + org-join routes wired")
 except Exception as _e:
     logging.error("Payment platform wiring failed: %s", _e)
 
@@ -14650,7 +14760,7 @@ async def sa_mark_orphaned_content(current_user: dict = Depends(require_super_ad
                 unmarked += 1
         else:
             r = await db.public_content.update_one(
-                {"id": d["id"]},
+                {"id": d["id"], "file_lost": {"$ne": True}},
                 {"$set": {"file_lost": True,
                           "file_lost_at": datetime.now(timezone.utc).isoformat()}})
             if r.modified_count:

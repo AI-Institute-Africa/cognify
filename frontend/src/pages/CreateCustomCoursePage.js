@@ -236,9 +236,51 @@ export default function CreateCustomCoursePage() {
         timeout: 90000
       });
 
-      setGeneratedCourse(result);
-      setStep(5);
-      toast.success('Course generated successfully!');
+      // Async generation — poll status until 'ready' or 'failed'
+      if (result.generation_status === 'generating' && result.course_id) {
+        toast.success('Course generation started. This may take a minute…');
+        const started = Date.now();
+        // Poll every 3s for up to 5 minutes
+        const maxMs = 5 * 60 * 1000;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          await new Promise((r) => setTimeout(r, 3000));
+          try {
+            const { data: status } = await axios.get(
+              `${API}/api/courses/${result.course_id}/generation-status`,
+              { headers: getAuthHeaders(), timeout: 20000 }
+            );
+            if (status.status === 'ready') {
+              setGeneratedCourse({
+                course_id: status.course_id,
+                title: status.title,
+                description: status.description,
+                duration_weeks: status.duration_weeks,
+                lessons: status.lessons,
+                learning_objectives: status.learning_objectives,
+                price: status.price,
+              });
+              setStep(5);
+              toast.success('Course generated successfully!');
+              break;
+            }
+            if (status.status === 'failed') {
+              toast.error(status.generation_error || 'Course generation failed. Please try again.');
+              break;
+            }
+            if (Date.now() - started > maxMs) {
+              toast.error('Generation is still running. Please check the Courses page in a moment.');
+              break;
+            }
+          } catch (pollErr) {
+            console.warn('poll error', pollErr);
+          }
+        }
+      } else {
+        setGeneratedCourse(result);
+        setStep(5);
+        toast.success('Course generated successfully!');
+      }
     } catch (error) {
       console.error('Course generation error:', error);
       let message = error.response?.data?.detail || error.message || 'Failed to generate course.';

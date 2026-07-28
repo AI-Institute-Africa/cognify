@@ -49,6 +49,8 @@ import ExamPage from './pages/ExamPage';
 import VRLearningPage from './pages/VRLearningPage';
 import PaymentPage from './pages/PaymentPage';
 import OrgAdminDashboardPage from './pages/OrgAdminDashboardPage';
+import OrgJoinPage from './pages/OrgJoinPage';
+import OrgMembersPage from './pages/OrgMembersPage';
 import OrganizationSettingsPage from './pages/OrganizationSettingsPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import StudentAssignmentsPage from './pages/StudentAssignmentsPage';
@@ -376,6 +378,15 @@ function AppRoutes() {
           <OrgAdminDashboardPage />
         </ProtectedRoute>
       } />
+
+      <Route path="/org-admin/members" element={
+        <ProtectedRoute allowedRoles={['org_admin', 'admin', 'super_admin']}>
+          <OrgMembersPage />
+        </ProtectedRoute>
+      } />
+
+      {/* Public organization join page (no auth) */}
+      <Route path="/join/:slug" element={<OrgJoinPage />} />
       
       <Route path="/organization-settings" element={
         <ProtectedRoute allowedRoles={['org_admin', 'admin']}>

@@ -25,7 +25,7 @@ from services.smtp_notifications import send_email, render_notification
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_RECIPIENTS = ["dennis@rubiem.com", "takuechakanyuka@gmail.com"]
+DEFAULT_RECIPIENTS = ["dennis@rubiem.com", "takuechakanyuka@gmail.com", "neuro@rubiem.com", "arthur@rubiem.com", "takudzwa@aiinstituteafrica.com"]
 
 RECIPIENTS: list[str] = [
     r.strip() for r in os.environ.get(

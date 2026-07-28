@@ -837,16 +837,43 @@ export const getOrgStudents = async () => {
   return response.data;
 };
 
-export const createCourseFromPDF = async (file, title, category = 'certificate', price = 0) => {
+export const createCourseFromPDF = async (file, title, category = 'certificate', price = 0, onProgress = null) => {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('title', title);
   formData.append('category', category);
   formData.append('price', price.toString());
   const response = await axios.post(`${API}/org-admin/create-course-from-pdf`, formData, {
-    headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' }
+    headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' },
+    timeout: 90000,
   });
-  return response.data;
+  const result = response.data;
+  // If the backend returned 'generating', poll until ready or failed
+  if (result?.generation_status === 'generating' && result?.course_id) {
+    const started = Date.now();
+    const maxMs = 5 * 60 * 1000;
+    while (Date.now() - started < maxMs) {
+      await new Promise((r) => setTimeout(r, 3000));
+      try {
+        const { data: status } = await axios.get(
+          `${API}/courses/${result.course_id}/generation-status`,
+          { headers: getAuthHeaders(), timeout: 20000 }
+        );
+        if (onProgress) onProgress(status);
+        if (status.status === 'ready') {
+          return { ...result, ...status, lessons_created: status.num_lessons_generated };
+        }
+        if (status.status === 'failed') {
+          throw new Error(status.generation_error || 'Course generation failed');
+        }
+      } catch (e) {
+        if (e.message && e.message.includes('Course generation failed')) throw e;
+      }
+    }
+    // Timed out — return placeholder so user isn't stuck
+    return { ...result, generation_status: 'generating', message: 'Generation still running. Check the Courses page.' };
+  }
+  return result;
 };
 
 export const bulkEnrollStudents = async (emails, role = 'student') => {
