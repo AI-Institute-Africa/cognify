@@ -7738,7 +7738,7 @@ async def create_course_from_pdf(
     """Create a course from a PDF. Returns immediately after saving the placeholder
     course; runs LLM structuring in the background to stay under Cloudflare's 100s
     edge timeout. Poll GET /api/courses/{id}/generation-status for completion."""
-    if current_user.get('role') not in ['org_admin', 'admin']:
+    if current_user.get('role') not in ['org_admin', 'admin', 'super_admin']:
         raise HTTPException(status_code=403, detail="Organization admin access required")
 
     try:

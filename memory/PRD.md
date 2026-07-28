@@ -1,10 +1,44 @@
 # Cognify - Product Requirements Document
 
 ## Overview
-AI-Powered School Management, Learning & Career Intelligence Platform with HeyGen Avatar Integration, async AI Video/Slides generation, original-format document viewer with python-pptx fallback, robust PDF.js worker loading, strict org-isolation for premade courses, browser-TTS audio fallback, Course Analytics, Super Admin Console, Public Content portal for summit presentations, original-file download, multi-modal learner viewer (PDF/DOCX/PPTX/image/text) with on-demand AI video/audio generation, animated avatar teacher, multi-language translation, Resend HTTP-API email notifications, a complete provider-independent Payment Management Platform, and Emergent-Object-Storage-backed persistent file/video storage.
+AI-Powered School Management, Learning & Career Intelligence Platform with HeyGen Avatar Integration, async AI Video/Slides generation, original-format document viewer with python-pptx fallback, robust PDF.js worker loading, strict org-isolation for premade courses, browser-TTS audio fallback, Course Analytics, Super Admin Console, Public Content portal for summit presentations, original-file download, multi-modal learner viewer (PDF/DOCX/PPTX/image/text) with on-demand AI video/audio generation, animated avatar teacher, multi-language translation, Resend HTTP-API email notifications, complete provider-independent Payment Management Platform, Emergent Object Storage for persistent file/video storage, live RSS-based AI research digest, Organization Public Join Link with pending-approval workflow, and async (Cloudflare-safe) course generation.
 
-**Version:** 19.0 (Iteration 47 — Persistent Object Storage + Real-Time AI Research Digest)
-**Date:** July 03, 2026
+**Version:** 20.0 (Iteration 49 — Org Join Link, Async Course Gen)
+**Date:** July 28, 2026
+
+---
+
+## LATEST — ITERATION 49
+
+### 1. Organization Public Join Link
+- Public URL `/join/<org-slug>` — anonymous landing page with org info, member count, list of public courses
+- New endpoints in `/app/backend/routes/org_join_routes.py`:
+  - `GET  /api/public/org/{slug}` — landing data
+  - `POST /api/public/org/{slug}/signup` — application (pending by default)
+  - `GET/PUT /api/org-admin/join-settings` — enable, require-approval, domain allow-list
+  - `GET  /api/org-admin/pending-members` / `members`
+  - `POST /api/org-admin/pending-members/{uid}/approve` / `/reject`
+- Frontend: `/app/frontend/src/pages/OrgJoinPage.js` (landing) + `OrgMembersPage.js` (3-tab admin: Pending / Members / Join Link Settings with copy button, QR, toggles, domain chips)
+- Login now blocks users with `member_status='pending'` or `'rejected'`
+- Email notifications on: new signup (to org admin), approval, rejection
+
+### 2. Cloudflare-524 fix: Async Course Generation
+- `/api/courses/generate-custom` and `/api/org-admin/create-course-from-pdf` now return in <15s with `generation_status='generating'`
+- LLM structuring runs via `asyncio.create_task()` in the background
+- New endpoint `GET /api/courses/{id}/generation-status` for polling
+- Frontend polls every 3s for up to 5 minutes; renders full course once `status='ready'`
+- Fixes the Cloudflare 100-second edge timeout that was blocking course creation from PDFs and from scratch
+
+### 3. Small fixes
+- Mark-orphans endpoint now idempotent (second call returns marked_lost=0)
+- `create-course-from-pdf` role gate now includes `super_admin`
+
+## Testing — Iteration 49
+- **Backend**: 26/26 pytest pass (`tests/test_iteration49_org_join_and_async_courses.py` + iteration 47 regression)
+- **Frontend**: `/join/:slug` landing and `/org-admin/members` 3-tab console verified by Playwright
+
+## Previous — Iteration 47 (Persistent Object Storage + Real-Time AI Digest)
+[unchanged — see below]
 
 ---
 
