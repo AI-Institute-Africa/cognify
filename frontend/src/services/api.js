@@ -806,8 +806,31 @@ export const getAvatarSettings = async () => {
 };
 
 export const avatarTeachLesson = async (lessonId, voiceId = 'nova') => {
-  const response = await axios.post(`${API}/content/lesson/${lessonId}/avatar-teach?voice_id=${voiceId}`, {}, { headers: getAuthHeaders() });
-  return response.data;
+  // Kick off async job
+  const kickoff = await axios.post(
+    `${API}/content/lesson/${lessonId}/avatar-teach?voice_id=${voiceId}`,
+    {},
+    { headers: getAuthHeaders(), timeout: 30000 }
+  );
+  const { job_id, status } = kickoff.data;
+  if (status !== 'generating') return kickoff.data;
+  // Poll for completion (up to 5 minutes)
+  const started = Date.now();
+  const maxMs = 5 * 60 * 1000;
+  while (Date.now() - started < maxMs) {
+    await new Promise((r) => setTimeout(r, 3000));
+    try {
+      const { data } = await axios.get(
+        `${API}/content/avatar-teach/${job_id}/status`,
+        { headers: getAuthHeaders(), timeout: 15000 }
+      );
+      if (data.status === 'ready') return data;
+      if (data.status === 'failed') throw new Error(data.error || 'Avatar generation failed');
+    } catch (e) {
+      if (e.message && e.message.includes('Avatar generation failed')) throw e;
+    }
+  }
+  throw new Error('Avatar generation timed out — please try again');
 };
 
 // ==================== STUDENT VIRTUAL CLASSROOM ====================

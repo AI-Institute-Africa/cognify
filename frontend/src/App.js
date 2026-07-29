@@ -51,6 +51,9 @@ import PaymentPage from './pages/PaymentPage';
 import OrgAdminDashboardPage from './pages/OrgAdminDashboardPage';
 import OrgJoinPage from './pages/OrgJoinPage';
 import OrgMembersPage from './pages/OrgMembersPage';
+import PublicNewsPage from './pages/PublicNewsPage';
+import PublicNewsArticlePage from './pages/PublicNewsArticlePage';
+import PublishingConfigPage from './pages/PublishingConfigPage';
 import OrganizationSettingsPage from './pages/OrganizationSettingsPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import StudentAssignmentsPage from './pages/StudentAssignmentsPage';
@@ -387,6 +390,17 @@ function AppRoutes() {
 
       {/* Public organization join page (no auth) */}
       <Route path="/join/:slug" element={<OrgJoinPage />} />
+
+      {/* Public Cognify News (no auth) */}
+      <Route path="/news" element={<PublicNewsPage />} />
+      <Route path="/news/:slug" element={<PublicNewsArticlePage />} />
+
+      {/* Super Admin — Publishing Configuration */}
+      <Route path="/super-admin/publishing" element={
+        <ProtectedRoute allowedRoles={['super_admin']}>
+          <PublishingConfigPage />
+        </ProtectedRoute>
+      } />
       
       <Route path="/organization-settings" element={
         <ProtectedRoute allowedRoles={['org_admin', 'admin']}>

@@ -1,0 +1,59 @@
+{
+  "summary": "Iteration 50 tested (A) new Publishing pipeline with ISO-week rotation, (B) /api/public/news public endpoints, (C) super-admin publishing console UI, and (D) avatar-teach async bug fix. Backend pytest for iteration 50: 8/8 passed. Regression iter47 + iter49: 24/26 passed (1 skipped, 1 latency flaky — same async-latency symptom as avatar-teach, see RCA below). Frontend: /news public page + /news/:slug detail render perfectly with all documented data-testids. Super-admin /super-admin/publishing Overview tab is perfect; Destinations tab was throwing a React 'destroy is not a function' runtime error — FIXED by wrapping the useEffect callback that was implicitly returning a Promise. After fix all 3 tabs, all data-testids (pub-new-*, pub-dest-*, pub-hist-*) render as spec'd.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/content/lesson/{lesson_id}/avatar-teach",
+        "issue": "Endpoint DOES return the correct async response body ({job_id, lesson_id, status:'generating'}), but response is delayed by 13–17 seconds on both public URL and localhost:8001 (measured 3× in a row: 13.7s, 13.5s, 16.7s). Endpoint is right at/over the 15-second spec ceiling and Cloudflare's ~15s edge idle limit — occasionally trips the 15s pytest assertion. Same symptom seen on POST /api/courses/generate-custom (iteration49 regression test flapped at 17.2s). Root cause hypothesis: even though `asyncio.create_task(_avatar_teach_background(...))` is used, the LiteLLM/emergentintegrations SDK inside the background task appears to block the event loop long enough that the FastAPI response for the *outer* request is not flushed until the first LLM completion returns. Ship-critical because it exactly reproduces the previously reported Cloudflare 502 scenario if the LLM takes >15s (which it does in practice — see logs: LiteLLM completion timings 13–15s per call).",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "background /content/lesson/*/avatar-teach TTS",
+        "issue": "Backend log shows every avatar-teach run silently fails TTS: `No module named 'emergentintegrations.llm.openai.tts'`. Job still finishes with status=ready but audio_url is always null. Either fix the import path in server.py:7443 or remove/gate TTS block. Users will never get audio."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "PublishingConfigPage.js (Destinations tab)",
+        "issue": "React runtime crash 'destroy is not a function' when Destinations tab mounts — `useEffect(load, [])` where `load = () => axios.get(...).then(...)` returns a Promise; React treats the Promise as the cleanup function on unmount. FIXED in this run by wrapping in `useEffect(() => { load(); }, [])` and switching `load` to block-body arrow. History tab was also blocked because runtime error persisted.",
+        "selector": "[data-testid='pub-tab-destinations']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration50_publishing_and_avatar.py",
+    "/app/test_reports/pytest/iteration50.xml",
+    "/app/test_reports/pytest/iter47_49_regression.xml"
+  ],
+  "action_items": [
+    "Investigate why avatar-teach and generate-custom endpoints still return in ~15s despite asyncio.create_task pattern — likely LiteLLM/emergentintegrations sync call blocks the event loop. Consider wrapping the FIRST LLM call inside the background task with `asyncio.to_thread(...)` or add `await asyncio.sleep(0)` immediately before returning from the endpoint to force the event loop to flush the response.",
+    "Fix TTS import in server.py line 7443: `from emergentintegrations.llm.openai.tts import OpenAITextToSpeech` — module path does not exist. Every avatar-teach job finishes with audio_url=null.",
+    "Verify my PublishingConfigPage.js fix (wrapped useEffect for DestinationsPanel + OverviewPanel) — the pattern was leaking a Promise as cleanup callback."
+  ],
+  "critical_code_review_comments": [
+    "PublishingConfigPage.js has 3 useEffect calls that pass a function reference directly (`useEffect(load, [])`). This is a common React footgun when the referenced function returns a Promise. Standardise on `useEffect(() => { load(); }, [])`.",
+    "publishing_service.py: `_iso_week_index()` uses `date.isocalendar()[1]` which returns 1..53 depending on year. Modulo len(dests) is correct, but week 53 in some years followed by week 1 breaks strict alternation (2× odd-parity in a row). Acceptable trade-off; document it.",
+    "server.py:14775 DELETE destination endpoint always returns `{deleted: N}` even when N=0 — should raise 404 when destination doesn't exist.",
+    "server.py:14829 /api/public/news is PUBLIC but has no rate-limiting; consider throttling to prevent scraping abuse.",
+    "publishing_service.publish_articles uses blocking `requests.post` for webhook delivery inside an async function (line 142). Wrap in `asyncio.to_thread(...)` or switch to `httpx.AsyncClient` — currently the digest cycle can block the event loop per external destination × retries.",
+    "server.py is now 15,035 lines — modularisation still overdue (called out in iter49 as well)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration50_publishing_and_avatar.py",
+    "/app/frontend/src/pages/PublishingConfigPage.js"
+  ],
+  "success_rate": {"backend": "94% (8/8 iter50 + 24/26 regression iter47+49)", "frontend": "100% after PublishingConfigPage.js useEffect fix"},
+  "test_credentials": "Super Admin takuechakanyuka@gmail.com / SuperAdmin@2026!",
+  "seed_data_creation": "Test publish articles were inserted via /api/super-admin/publishing/test (kept — they are the diagnostic breadcrumbs shown in /news). One test destination 'TEST_Partner_*' was created AND deleted within test_create_toggle_delete. No orphaned test data.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Publishing pipeline is fully functional end-to-end: destinations rotate by ISO week, digest publishes BEFORE email, public /news renders, super-admin console works after my useEffect fix. Two things remain for main agent: (1) real async-latency fix for avatar-teach + generate-custom (both endpoints return correct body but with 13–17s latency, indicating the background LLM call blocks response flush), and (2) TTS import path fix so avatar audio actually generates. Regression test test_iteration49_org_join_and_async_courses.py::TestAsyncCourseGen::test_generate_custom_fast is flaky at exactly the same 15-17s boundary.",
+  "rca of the issue": "Publishing config page runtime crash — RCA: `DestinationsPanel` defined `const load = () => axios.get(...).then(...)` (implicit arrow return → returns a Promise) and then called `useEffect(load, [])`. React 18/19 treats the useEffect callback's return value as the cleanup function; when a Promise is returned instead of a function-or-undefined, React later tries to call `promise()` on unmount and throws 'destroy is not a function'. Symptom: white-screen crash the moment the Destinations tab mounts. Repro: log in as super admin → /super-admin/publishing → click 'Destinations' tab. Fix applied: wrap the call — `useEffect(() => { load(); }, [])` — so the effect returns undefined instead of the axios Promise. Same anti-pattern also existed on OverviewPanel; both fixed. Avatar-teach latency RCA: emergentintegrations LlmChat.send_message runs LiteLLM which apparently blocks long enough (13-15s per completion visible in backend logs) that even with asyncio.create_task the FastAPI response isn't flushed until after the first await yields. Mitigation options: (a) `await asyncio.sleep(0)` immediately before `return {job_id...}` to force a yield after task creation; (b) push background LLM into a thread via `asyncio.to_thread` inside the task."
+}

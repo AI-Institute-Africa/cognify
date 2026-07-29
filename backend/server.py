@@ -7412,58 +7412,39 @@ async def get_avatar_settings(current_user: dict = Depends(get_current_user)):
 
 # ==================== AVATAR LESSON TEACHING ====================
 
-@content_router.post("/lesson/{lesson_id}/avatar-teach")
-async def avatar_teach_lesson(
-    lesson_id: str,
-    voice_id: str = "nova",
-    current_user: dict = Depends(get_current_user)
-):
-    """Generate avatar teaching for a specific lesson"""
+async def _avatar_teach_background(job_id: str, lesson_id: str, voice_id: str, api_key: str):
+    """Background LLM + TTS for avatar teaching."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        
-        # Get lesson content from course_contents collection
         lesson = await db.course_contents.find_one({"id": lesson_id}, {"_id": 0})
         if not lesson:
-            # Try alternative collections
             lesson = await db.lessons.find_one({"id": lesson_id}, {"_id": 0})
         if not lesson:
-            raise HTTPException(status_code=404, detail="Lesson not found")
-        
-        api_key = os.environ.get('EMERGENT_LLM_KEY')
-        if not api_key:
-            raise HTTPException(status_code=500, detail="AI service not configured")
-        
-        # Generate teaching script
+            await db.avatar_teach_jobs.update_one({"id": job_id}, {"$set": {
+                "status": "failed", "error": "Lesson not found"}})
+            return
         system_msg = """You are an engaging AI tutor. Convert the lesson content into a conversational teaching script.
-        Make it engaging, use examples, ask rhetorical questions, and break down complex concepts.
-        Keep it natural as if speaking to a student."""
-        
+Make it engaging, use examples, ask rhetorical questions, and break down complex concepts.
+Keep it natural as if speaking to a student."""
         chat = LlmChat(api_key=api_key, session_id=f"avatar-teach-{lesson_id}", system_message=system_msg)
         chat.with_model("openai", "gpt-5.2")
-        
         content_text = lesson.get('text', lesson.get('content_text', lesson.get('description', 'No content available')))
         lesson_title = lesson.get('title', 'Lesson')
-        
         prompt = f"""Convert this lesson into an engaging teaching script:
 
 Title: {lesson_title}
 Content: {content_text[:3000]}
 
 Create a natural, conversational teaching script that an AI avatar would speak."""
-        
-        teaching_script = await chat.send_message(UserMessage(text=prompt))
-        
-        # Try to generate TTS audio
+        teaching_script = await asyncio.wait_for(
+            chat.send_message(UserMessage(text=prompt)), timeout=180)
         audio_url = None
         try:
             from emergentintegrations.llm.openai.tts import OpenAITextToSpeech
             tts = OpenAITextToSpeech(api_key=api_key)
-            audio_bytes = await asyncio.to_thread(
-                tts.text_to_speech,
-                text=teaching_script[:4000],
-                voice=voice_id
-            )
+            audio_bytes = await asyncio.wait_for(
+                asyncio.to_thread(tts.text_to_speech, text=teaching_script[:4000], voice=voice_id),
+                timeout=180)
             if audio_bytes:
                 audio_id = str(uuid.uuid4())
                 os.makedirs("/app/generated_audio", exist_ok=True)
@@ -7473,17 +7454,51 @@ Create a natural, conversational teaching script that an AI avatar would speak."
                 audio_url = f"/api/content/audio/{audio_id}"
         except Exception as tts_error:
             logging.warning(f"TTS generation failed: {tts_error}")
-        
-        return {
-            "lesson_id": lesson_id,
+        await db.avatar_teach_jobs.update_one({"id": job_id}, {"$set": {
+            "status": "ready",
             "teaching_script": teaching_script,
             "audio_url": audio_url,
-            "voice_id": voice_id
-        }
-        
+            "completed_at": datetime.now(timezone.utc).isoformat()}})
     except Exception as e:
-        logging.error(f"Avatar teaching error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.exception(f"avatar-teach background failed: {e}")
+        await db.avatar_teach_jobs.update_one({"id": job_id}, {"$set": {
+            "status": "failed", "error": str(e)[:400]}})
+
+
+@content_router.post("/lesson/{lesson_id}/avatar-teach")
+async def avatar_teach_lesson(
+    lesson_id: str,
+    voice_id: str = "nova",
+    current_user: dict = Depends(get_current_user)
+):
+    """Kick off avatar teaching generation as a background job. Returns job_id
+    immediately. Poll GET /api/content/avatar-teach/{job_id}/status."""
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="AI service not configured")
+
+    # Quick existence check so user gets an immediate 404 if the lesson is invalid
+    exists = await db.course_contents.find_one({"id": lesson_id}, {"_id": 0, "id": 1}) or \
+             await db.lessons.find_one({"id": lesson_id}, {"_id": 0, "id": 1})
+    if not exists:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+
+    job_id = str(uuid.uuid4())
+    await db.avatar_teach_jobs.insert_one({
+        "id": job_id, "lesson_id": lesson_id, "voice_id": voice_id,
+        "status": "generating", "created_by": current_user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    asyncio.create_task(_avatar_teach_background(job_id, lesson_id, voice_id, api_key))
+    return {"job_id": job_id, "lesson_id": lesson_id, "status": "generating"}
+
+
+@content_router.get("/avatar-teach/{job_id}/status")
+async def avatar_teach_status(job_id: str, current_user: dict = Depends(get_current_user)):
+    job = await db.avatar_teach_jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
 
 @content_router.get("/audio/{audio_id}")
 async def get_generated_audio(audio_id: str):
@@ -14690,6 +14705,152 @@ async def sa_research_digest_status(current_user: dict = Depends(require_super_a
     from services.research_digest import STATE_KEY, RECIPIENTS, INTERVAL_HOURS
     state = await db.scheduler_state.find_one({"_id": STATE_KEY}, {"_id": 0}) or {}
     return {"recipients": RECIPIENTS, "interval_hours": INTERVAL_HOURS, **state}
+
+
+# ---- Publishing Configuration (Super Admin) ----
+@app.get("/api/super-admin/publishing/stats")
+async def sa_publishing_stats(current_user: dict = Depends(require_super_admin)):
+    from services.publishing_service import publishing_stats as _stats
+    return await _stats(db)
+
+
+@app.get("/api/super-admin/publishing/destinations")
+async def sa_publishing_destinations(current_user: dict = Depends(require_super_admin)):
+    from services.publishing_service import list_destinations as _list
+    return {"destinations": await _list(db)}
+
+
+class _DestinationPayload(BaseModel):
+    name: str
+    site_url: str
+    scope: str = "internal"          # internal | external
+    webhook_url: Optional[str] = None
+    webhook_secret: Optional[str] = None
+    order: Optional[int] = None
+    enabled: bool = True
+
+
+@app.post("/api/super-admin/publishing/destinations")
+async def sa_add_destination(payload: _DestinationPayload,
+                              current_user: dict = Depends(require_super_admin)):
+    from services.publishing_service import ensure_defaults, list_destinations
+    await ensure_defaults(db)
+    if payload.scope not in ("internal", "external"):
+        raise HTTPException(status_code=400, detail="scope must be internal or external")
+    existing_order_max = 0
+    async for d in db.publishing_destinations.find({}, {"order": 1}):
+        existing_order_max = max(existing_order_max, d.get("order", 0))
+    doc = {
+        "id": str(uuid.uuid4()),
+        "name": payload.name.strip(),
+        "site_url": payload.site_url.strip().rstrip("/"),
+        "scope": payload.scope,
+        "webhook_url": (payload.webhook_url or "").strip() or None,
+        "webhook_secret": (payload.webhook_secret or "").strip() or None,
+        "order": payload.order if payload.order is not None else existing_order_max + 1,
+        "enabled": bool(payload.enabled),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.publishing_destinations.insert_one(doc)
+    return {"status": "created", "destination": {k: v for k, v in doc.items() if k != "_id"}}
+
+
+@app.put("/api/super-admin/publishing/destinations/{dest_id}")
+async def sa_update_destination(dest_id: str, payload: dict = Body(...),
+                                 current_user: dict = Depends(require_super_admin)):
+    allowed = {"name", "site_url", "scope", "webhook_url", "webhook_secret", "order", "enabled"}
+    patch = {k: v for k, v in payload.items() if k in allowed}
+    if "site_url" in patch:
+        patch["site_url"] = str(patch["site_url"]).strip().rstrip("/")
+    if "scope" in patch and patch["scope"] not in ("internal", "external"):
+        raise HTTPException(status_code=400, detail="scope must be internal or external")
+    if not patch:
+        raise HTTPException(status_code=400, detail="No valid fields")
+    r = await db.publishing_destinations.update_one({"id": dest_id}, {"$set": patch})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Destination not found")
+    return await db.publishing_destinations.find_one({"id": dest_id}, {"_id": 0})
+
+
+@app.delete("/api/super-admin/publishing/destinations/{dest_id}")
+async def sa_delete_destination(dest_id: str,
+                                 current_user: dict = Depends(require_super_admin)):
+    r = await db.publishing_destinations.delete_one({"id": dest_id})
+    return {"deleted": r.deleted_count}
+
+
+@app.put("/api/super-admin/publishing/settings")
+async def sa_publishing_settings(payload: dict = Body(...),
+                                  current_user: dict = Depends(require_super_admin)):
+    """Toggle rotation, set/clear manual override for the current week."""
+    from services.publishing_service import SETTINGS_KEY, ensure_defaults, _iso_week_index
+    await ensure_defaults(db)
+    patch = {}
+    if "rotation_enabled" in payload:
+        patch["rotation_enabled"] = bool(payload["rotation_enabled"])
+    if "manual_override_destination_id" in payload:
+        patch["manual_override_destination_id"] = payload["manual_override_destination_id"] or None
+        # Auto-apply override to current ISO week when set; clear week when destination cleared
+        patch["manual_override_week"] = _iso_week_index() if patch["manual_override_destination_id"] else None
+    if not patch:
+        raise HTTPException(status_code=400, detail="No valid fields")
+    patch["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.scheduler_state.update_one(
+        {"_id": SETTINGS_KEY}, {"$set": patch}, upsert=True)
+    return await db.scheduler_state.find_one({"_id": SETTINGS_KEY}, {"_id": 0})
+
+
+@app.get("/api/super-admin/publishing/history")
+async def sa_publishing_history(limit: int = 100,
+                                 current_user: dict = Depends(require_super_admin)):
+    docs = await db.published_articles.find(
+        {}, {"_id": 0}).sort("published_at", -1).limit(min(limit, 500)).to_list(500)
+    return {"articles": docs, "count": len(docs)}
+
+
+@app.post("/api/super-admin/publishing/test")
+async def sa_publishing_test(current_user: dict = Depends(require_super_admin)):
+    """Publish a single test article to the current active destination."""
+    from services.publishing_service import publish_articles as _publish
+    now = datetime.now(timezone.utc)
+    test_item = {
+        "title": f"Publishing pipeline test — {now.strftime('%Y-%m-%d %H:%M UTC')}",
+        "url": "https://cognify.aiinstituteafrica.com/news",
+        "source": "Cognify Test",
+        "category": "product",
+        "summary": "Automatic publishing pipeline diagnostic message.",
+        "impact": "Confirms end-to-end write path from research engine to the active destination.",
+        "date": now.strftime("%Y-%m-%d %H:%M UTC"),
+    }
+    return await _publish(db, [test_item])
+
+
+# ---- Public news page (rendered on this codebase for 'internal' destination) ----
+@app.get("/api/public/news")
+async def public_news(limit: int = 50):
+    """Serve articles published to the active INTERNAL destination.
+    This powers /news on cognify.aiinstituteafrica.com."""
+    from services.publishing_service import get_active_destination, _iso_week_index
+    active = await get_active_destination(db)
+    # Always list articles targeted to any internal destination, prioritising the active one.
+    filter_ = {"destination_scope": "internal"}
+    docs = await db.published_articles.find(filter_, {"_id": 0}).sort("published_at", -1).limit(min(limit, 200)).to_list(200)
+    return {
+        "active_destination": active,
+        "iso_week": _iso_week_index(),
+        "articles": docs,
+        "count": len(docs),
+    }
+
+
+@app.get("/api/public/news/{slug_or_id}")
+async def public_news_article(slug_or_id: str):
+    doc = await db.published_articles.find_one(
+        {"$or": [{"id": slug_or_id}, {"slug": slug_or_id}]},
+        {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Article not found")
+    return doc
 
 
 # ---- Public content orphan management (Super Admin) ----

@@ -47,7 +47,8 @@ import {
   Award,
   BarChart3,
   Shield,
-  UserCheck
+  UserCheck,
+  Newspaper
 } from 'lucide-react';
 
 const navItems = {
@@ -245,6 +246,7 @@ const navItems = {
   super_admin: [
     { path: '/super-admin', icon: Shield, label: 'Super Admin Console' },
     { path: '/super-admin/payment-management', icon: CreditCard, label: 'Payment Management' },
+    { path: '/super-admin/publishing', icon: Newspaper, label: 'Publishing Config' },
     { divider: true, label: 'System' },
     { path: '/public', icon: Globe, label: 'Public Library' },
     { path: '/courses', icon: BookOpen, label: 'All Courses' },

@@ -89,6 +89,8 @@ def _clean_text(html_or_text: str) -> str:
     if not html_or_text:
         return ""
     s = re.sub(r"<[^>]+>", " ", html_or_text)
+    # Decode common HTML entities and strip &nbsp;
+    s = s.replace("&nbsp;", " ").replace("&amp;", "&").replace("&quot;", '"').replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">")
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
@@ -252,7 +254,7 @@ CATEGORY_ICON = {
 _run_lock = asyncio.Lock()
 
 
-def _format_html(items: list[dict], subject: str) -> str:
+def _format_html(items: list[dict], subject: str, action_url: str | None = None) -> str:
     if not items:
         body = "<p style='color:#71717a;'>No new AI publications in the last 4 hours.</p>"
     else:
@@ -287,11 +289,13 @@ def _format_html(items: list[dict], subject: str) -> str:
         f"{len(items)} item(s) after deduplication."
         "</p>"
     )
+    # Fallback if publishing pipeline failed to give us a destination
+    fallback = (os.environ.get("PUBLIC_FRONTEND_URL", "").rstrip("/") + "/news") or None
     return render_notification(
         title=subject,
         message=intro + body,
         action_label="Open Cognify",
-        action_url=(os.environ.get("PUBLIC_FRONTEND_URL", "").rstrip("/") + "/research") or None,
+        action_url=action_url or fallback,
     )
 
 
@@ -314,12 +318,32 @@ async def _run_once(db) -> dict:
         new_items = new_items[:MAX_ITEMS_PER_DIGEST]
         await _enrich_with_llm(new_items)
 
+        # Publish to the currently-active destination BEFORE emailing (spec requirement).
+        # If publishing fails, we still email (do NOT affect existing email workflow).
+        publish_result = {}
+        try:
+            from services.publishing_service import publish_articles as _publish
+            publish_result = await _publish(db, new_items)
+            active_dest = publish_result.get("active_destination") or {}
+            active_url = active_dest.get("site_url")
+            logger.info(
+                "Published %d/%d articles to %s (week %s) — failed=%d",
+                publish_result.get("published", 0),
+                len(new_items),
+                active_dest.get("name"),
+                publish_result.get("week"),
+                publish_result.get("failed", 0),
+            )
+        except Exception as e:
+            logger.exception("Publishing pipeline failed (email will still be sent): %s", e)
+            active_url = None
+
         subject = (
             f"[Cognify AI Briefing] {len(new_items)} new AI stor"
             f"{'y' if len(new_items) == 1 else 'ies'} — "
             f"{datetime.now(timezone.utc).strftime('%b %d, %H:%M UTC')}"
         )
-        html = _format_html(new_items, subject)
+        html = _format_html(new_items, subject, action_url=active_url)
 
         sent_count = 0
         for recipient in RECIPIENTS:
@@ -344,7 +368,14 @@ async def _run_once(db) -> dict:
             upsert=True)
         return {"sent": sent_count, "items": len(new_items),
                 "fetched": len(all_items), "new": len(new_items),
-                "recipients": RECIPIENTS}
+                "recipients": RECIPIENTS,
+                "publishing": {
+                    "published": publish_result.get("published", 0),
+                    "failed": publish_result.get("failed", 0),
+                    "week": publish_result.get("week"),
+                    "destination": (publish_result.get("active_destination") or {}).get("name"),
+                    "destination_url": (publish_result.get("active_destination") or {}).get("site_url"),
+                }}
 
 
 async def start(db):
