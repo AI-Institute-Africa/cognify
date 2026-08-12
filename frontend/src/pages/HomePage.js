@@ -664,6 +664,7 @@ export default function HomePage() {
               <a href="#public" className="text-sm text-zinc-400 hover:text-white transition-colors">Public Library</a>
               <a href="#assistant" className="text-sm text-zinc-400 hover:text-white transition-colors">AI Assistant</a>
               <a href="https://aiinstituteafrica.com/" className="text-sm text-zinc-400 hover:text-white transition-colors">AIIA Portal</a>
+              <a href="https://cognify.aiinstituteafrica.com/news" className="text-sm text-zinc-400 hover:text-white transition-colors">Cognify News</a>
             </div>
             
             <div className="flex items-center gap-2 sm:gap-3">
