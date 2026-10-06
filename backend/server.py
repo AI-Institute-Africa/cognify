@@ -7440,10 +7440,10 @@ Create a natural, conversational teaching script that an AI avatar would speak."
             chat.send_message(UserMessage(text=prompt)), timeout=180)
         audio_url = None
         try:
-            from emergentintegrations.llm.openai.tts import OpenAITextToSpeech
+            from emergentintegrations.llm.openai.text_to_speech import OpenAITextToSpeech
             tts = OpenAITextToSpeech(api_key=api_key)
             audio_bytes = await asyncio.wait_for(
-                asyncio.to_thread(tts.text_to_speech, text=teaching_script[:4000], voice=voice_id),
+                tts.generate_speech(text=teaching_script[:4000], voice=voice_id),
                 timeout=180)
             if audio_bytes:
                 audio_id = str(uuid.uuid4())
@@ -7490,6 +7490,8 @@ async def avatar_teach_lesson(
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     asyncio.create_task(_avatar_teach_background(job_id, lesson_id, voice_id, api_key))
+    # Force event loop to yield the response before the background task grabs it
+    await asyncio.sleep(0)
     return {"job_id": job_id, "lesson_id": lesson_id, "status": "generating"}
 
 
@@ -10320,6 +10322,7 @@ async def generate_custom_course(
     # Kick off background generation
     request_data = request.model_dump()
     asyncio.create_task(_generate_course_background(course_id, request_data, current_user['id'], api_key))
+    await asyncio.sleep(0)  # Ensure response is flushed before background task starts
 
     return {
         "message": "Course generation started. Poll /api/courses/{id}/generation-status for progress.",
@@ -14685,7 +14688,14 @@ try:
     _join_router = _join_make_router(db, _require_org_admin, get_current_user,
                                       hash_password, create_token, verify_password)
     app.include_router(_join_router)
-    logging.info("Payment platform + activity tracker + org-join routes wired")
+
+    # Paynow customer-facing routes
+    from routes.paynow_routes import make_router as _paynow_make_router
+    from services.payment_platform import PaymentPlatform as _PP
+    _paynow_router = _paynow_make_router(db, get_current_user, _PP(db))
+    app.include_router(_paynow_router)
+
+    logging.info("Payment platform + activity tracker + org-join + paynow routes wired")
 except Exception as _e:
     logging.error("Payment platform wiring failed: %s", _e)
 

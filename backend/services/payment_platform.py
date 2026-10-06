@@ -114,6 +114,13 @@ class PaymentPlatform:
 
     def __init__(self, db): self.db = db
 
+    def decrypt_secret(self, encrypted_value: str) -> str:
+        """Public helper for other services (paynow_routes, etc.)."""
+        return decrypt_str(encrypted_value) if encrypted_value else ""
+
+    def encrypt_secret(self, plain_value: str) -> str:
+        return encrypt_str(plain_value) if plain_value else ""
+
     async def settings(self) -> dict:
         doc = await self.db.payment_settings.find_one({"_id": "global"})
         if not doc:
