@@ -52,6 +52,8 @@ import {
   TableRow,
 } from '../components/ui/table';
 import { toast } from 'sonner';
+import PaymentStatusBadge from '../components/PaymentStatusBadge';
+import { ExternalPaymentWorkflow } from './OrgAdminExternalPaymentPage';
 
 export default function OrgAdminDashboardPage() {
   const { user } = useAuth();
@@ -746,6 +748,10 @@ export default function OrgAdminDashboardPage() {
                 <BookOpen className="w-4 h-4 mr-2" />
                 Courses
               </TabsTrigger>
+              <TabsTrigger value="payments" className="data-[state=active]:bg-emerald-500/20">
+                <DollarSign className="w-4 h-4 mr-2" />
+                Record Payment
+              </TabsTrigger>
             </TabsList>
 
             {/* Organization Profile Tab */}
@@ -924,7 +930,11 @@ export default function OrgAdminDashboardPage() {
                         </TableCell>
                         <TableCell>{student.enrolled_courses || 0}</TableCell>
                         <TableCell>
-                          <Badge className="bg-blue-500/20 text-blue-400">Active</Badge>
+                          {student.payment_status ? (
+                            <PaymentStatusBadge status={student.payment_status} />
+                          ) : (
+                            <Badge className="bg-blue-500/20 text-blue-400">Active</Badge>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1069,6 +1079,13 @@ export default function OrgAdminDashboardPage() {
             {/* Courses Tab */}
             <TabsContent value="courses">
               <OrgCoursesSection />
+            </TabsContent>
+
+            {/* Record External (EcoCash/offline) Payment Tab */}
+            <TabsContent value="payments">
+              <div className="max-w-3xl">
+                <ExternalPaymentWorkflow />
+              </div>
             </TabsContent>
           </Tabs>
         </div>

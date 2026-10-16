@@ -71,6 +71,7 @@ class UserRole(str, Enum):
     STUDENT = "student"
     PARENT = "parent"
     ORG_ADMIN = "org_admin"
+    SUPER_ADMIN = "super_admin"
 
 class OrgType(str, Enum):
     SCHOOL = "school"
@@ -273,6 +274,12 @@ class User(UserBase):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_active: bool = True
     profile_image: Optional[str] = None
+    # Phone/WhatsApp identity (BRD FR-03, FR-09, section 6.5, section 9 data model)
+    phone_number: Optional[str] = None
+    phone_verified: bool = False
+    phone_verified_at: Optional[datetime] = None
+    preferred_contact_method: str = "email"  # email | sms | whatsapp
+    updated_at: Optional[datetime] = None
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -333,6 +340,7 @@ class Course(BaseModel):
     price: float = 0.0
     is_paid: bool = False
     duration_weeks: int = 4
+    duration_months: Optional[int] = None  # BRD FR-18: used for minimum-monthly-payment calculation
     preview_content: List[str] = []  # IDs of content available for preview
     is_active: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -349,6 +357,85 @@ class CourseCreate(BaseModel):
     price: float = 0.0
     is_paid: bool = False
     duration_weeks: int = 4
+    duration_months: Optional[int] = None
+
+# ==================== ENROLLMENT / PAYMENT / AUDIT MODELS (BRD CR 2026-10) ====================
+# Canonical enrollment + payment records. Replaces the previously-dead db.enrollments
+# reads at the content and assignment gates, which nothing ever wrote to.
+
+class PaymentStatus(str, Enum):
+    UNPAID = "unpaid"
+    CURRENT = "current"
+    PARTIALLY_PAID = "partially_paid"
+    PAYMENT_DUE = "payment_due"
+    OVERDUE = "overdue"
+    COMPLETED = "completed"
+
+class EnrollmentSource(str, Enum):
+    ONLINE = "online"
+    MANUAL = "manual"
+
+class Enrollment(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    course_id: str
+    organization_id: Optional[str] = None
+    status: str = "active"  # active | cancelled
+    enrolled_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    payment_status: PaymentStatus = PaymentStatus.UNPAID
+    current_paid_until: Optional[datetime] = None
+    current_period_start: Optional[datetime] = None
+    current_period_paid_amount: float = 0.0
+    source: EnrollmentSource = EnrollmentSource.ONLINE
+    created_by: Optional[str] = None
+
+class PaymentMethod(str, Enum):
+    ECOCASH = "ecocash"
+    PAYNOW = "paynow"
+    MASTERCARD = "mastercard"
+    INNBUCKS = "innbucks"
+    OTHER_MANUAL = "other_manual"
+
+class PaymentSource(str, Enum):
+    GATEWAY = "gateway"
+    MANUAL = "manual"
+
+class ManualPaymentRecord(BaseModel):
+    """A single recorded payment against an enrollment (online or offline/manual)."""
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    enrollment_id: str
+    user_id: str
+    course_id: str
+    organization_id: Optional[str] = None
+    amount: float
+    currency: str = "USD"
+    method: PaymentMethod
+    source: PaymentSource
+    status: str = "completed"  # completed | voided
+    payment_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    reference: Optional[str] = None
+    notes: Optional[str] = None
+    created_by: str
+    verified_by: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    voided_at: Optional[datetime] = None
+    voided_by: Optional[str] = None
+    void_reason: Optional[str] = None
+
+class AuditLogEntry(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    actor_id: str
+    organisation_id: Optional[str] = None
+    action: str
+    entity: str
+    entity_id: Optional[str] = None
+    old_value: Optional[dict] = None
+    new_value: Optional[dict] = None
+    reason: Optional[str] = None
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class Attendance(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -504,6 +591,32 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+def require_roles(*roles: str):
+    """BRD section 7/8 (least-privilege RBAC): a reusable role-check dependency for
+    new endpoints, instead of another inline `if role not in [...]` check. Usage:
+        current_user: dict = Depends(require_roles("org_admin", "admin"))
+    """
+    async def _dependency(current_user: dict = Depends(get_current_user)) -> dict:
+        if current_user.get('role') not in roles:
+            raise HTTPException(status_code=403, detail=f"Requires one of roles: {', '.join(roles)}")
+        return current_user
+    return _dependency
+
+
+def enforce_org_scope(current_user: dict, target_organization_id: Optional[str]) -> None:
+    """BR-08: an Organisation Admin may only act on learners/courses within their own
+    organisation unless they hold a higher-level role (admin/super_admin)."""
+    if current_user.get('role') in ('admin', 'super_admin'):
+        return
+    admin_org_id = current_user.get('organization_id')
+    if not admin_org_id or admin_org_id != target_organization_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You may only manage learners and courses within your own organisation",
+        )
+
 
 def serialize_doc(doc: dict) -> dict:
     if not doc:
@@ -1598,25 +1711,33 @@ async def get_course_content_list(
     contents.sort(key=lambda x: x.get('order', 999))
     
     # ENROLLMENT GATE: Check if student has access to paid course content
+    # (BRD FR-21/FR-23: payment status calculated and enforced server-side)
     course = await db.courses.find_one({"id": course_id}, {"_id": 0})
     if course and course.get('is_paid', False) and current_user.get('role') == 'student':
-        enrollment = await db.enrollments.find_one({
-            "course_id": course_id,
-            "student_id": current_user['id'],
-            "payment_status": "completed"
-        })
-        
-        if not enrollment:
+        from services.payment_status_service import (
+            get_or_create_enrollment, is_assessment_eligible, amount_required_to_restore_access
+        )
+        enrollment = await get_or_create_enrollment(
+            db, user_id=current_user['id'], course_id=course_id,
+            organization_id=current_user.get('organization_id'),
+        )
+        if not is_assessment_eligible(enrollment):
             preview_contents = [c for c in contents if c.get('order', 0) <= 1]
+            amount_due = amount_required_to_restore_access(course, enrollment)
             return {
                 "contents": [serialize_doc(c) for c in preview_contents],
                 "access_restricted": True,
-                "message": "Please complete payment to access full course content",
+                "message": (
+                    f"Please pay ${amount_due:.2f} to access full course content"
+                    if amount_due > 0 else
+                    "Please complete payment to access full course content"
+                ),
+                "amount_required": amount_due,
                 "course_price": course.get('price', 0),
                 "total_items": len(contents),
                 "preview_items": len(preview_contents)
             }
-    
+
     return [serialize_doc(c) for c in contents]
 
 
@@ -6404,21 +6525,55 @@ async def confirm_payment(payment_id: str, current_user: dict = Depends(get_curr
     payment = await db.payments.find_one({"id": payment_id}, {"_id": 0})
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found")
-    
+
     # Update payment status
     await db.payments.update_one({"id": payment_id}, {"$set": {"status": "completed", "completed_at": datetime.now(timezone.utc).isoformat()}})
-    
+
     # Enroll student in course
     await db.student_profiles.update_one(
         {"user_id": current_user['id']},
         {"$addToSet": {"enrolled_courses": payment['course_id']}}
     )
-    
+
     await db.courses.update_one(
         {"id": payment['course_id']},
         {"$addToSet": {"enrolled_students": current_user['id']}}
     )
-    
+
+    # BRD FR-18 to FR-20: route the online payment through the same authoritative
+    # payment-status engine as offline/manual payments, so minimum-payment and
+    # assessment eligibility apply consistently regardless of payment source.
+    course = await db.courses.find_one({"id": payment['course_id']}, {"_id": 0})
+    if course:
+        from services.payment_status_service import record_payment
+        await record_payment(
+            db,
+            course=course,
+            user_id=current_user['id'],
+            amount=payment.get('amount', 0),
+            method=payment.get('method', 'other_manual'),
+            source="online",
+            created_by=current_user['id'],
+            organization_id=current_user.get('organization_id'),
+            reference=payment_id,
+        )
+
+        # BRD FR-13/FR-15: payment confirmation + enrolment notification
+        from services.notification_service import send_notification
+        await send_notification(
+            user_id=current_user['id'],
+            notification_type="payment_success",
+            channels=["email", "whatsapp", "sms"],
+            template_type="payment_success",
+            template_data={
+                "amount": payment.get('amount', 0),
+                "currency": "USD",
+                "reference": payment_id,
+                "course_name": course.get('name', ''),
+            },
+            db=db,
+        )
+
     return {"status": "success", "message": "Payment confirmed. You are now enrolled in the course."}
 
 @payments_router.get("/history")
@@ -7842,6 +7997,309 @@ async def get_org_analytics(current_user: dict = Depends(get_current_user)):
         "monthly_revenue": monthly_revenue,
         "total_payments": len(payments)
     }
+
+# ==================== OFFLINE / EXTERNAL PAYMENT & ECOCASH WORKFLOW (BRD section 6) ====================
+# Organisation Admin workflow for learners who pay the organisation outside the
+# online payment gateway (EcoCash and other manual methods). Every mutation here
+# is org-scoped (BR-08) and audit-logged (section 6.2, section 8).
+
+class LearnerCreateRequest(BaseModel):
+    full_name: str
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
+    password: str
+
+class ManualPaymentRequest(BaseModel):
+    learner_id: str
+    course_id: str
+    amount: float
+    method: str  # ecocash | other_manual
+    payment_date: Optional[str] = None
+    reference: Optional[str] = None
+    notes: Optional[str] = None
+
+class VoidPaymentRequest(BaseModel):
+    reason: str
+
+class AdminVerifyPhoneRequest(BaseModel):
+    phone_number: str
+    code: str
+
+
+def _require_org_admin(current_user: dict) -> str:
+    if current_user.get('role') not in ['org_admin', 'admin', 'super_admin']:
+        raise HTTPException(status_code=403, detail="Organization admin access required")
+    return current_user.get('organization_id')
+
+
+@org_admin_router.get("/learners/search")
+async def search_learners(q: str, current_user: dict = Depends(get_current_user)):
+    """Search for an existing learner by phone number, email or Cognify user ID,
+    scoped to the admin's own organisation (BR-08). Section 6.1."""
+    org_id = _require_org_admin(current_user)
+    query: dict = {
+        "$or": [
+            {"id": q},
+            {"email": q},
+            {"phone_number": q},
+        ]
+    }
+    if current_user.get('role') not in ('admin', 'super_admin'):
+        query["organization_id"] = org_id
+    learners = await db.users.find(query, {"_id": 0, "password_hash": 0}).to_list(length=20)
+    return [serialize_doc(l) for l in learners]
+
+
+@org_admin_router.post("/learners", status_code=201)
+async def create_learner(request: LearnerCreateRequest, current_user: dict = Depends(get_current_user)):
+    """Create a learner account that does not yet exist, as part of the offline
+    payment workflow. Section 6.1."""
+    org_id = _require_org_admin(current_user)
+    if not request.email and not request.phone_number:
+        raise HTTPException(status_code=400, detail="Provide an email or a phone number")
+
+    if request.email:
+        existing = await db.users.find_one({"email": request.email})
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
+    if request.phone_number:
+        existing = await db.users.find_one({"phone_number": request.phone_number})
+        if existing:
+            raise HTTPException(status_code=400, detail="Phone number already registered")
+
+    user_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    user_dict = {
+        "id": user_id,
+        "email": request.email,
+        "phone_number": request.phone_number,
+        "phone_verified": False,
+        "phone_verified_at": None,
+        "preferred_contact_method": "whatsapp" if request.phone_number else "email",
+        "full_name": request.full_name,
+        "role": "student",
+        "organization_id": org_id,
+        "preferred_language": "en",
+        "created_at": now.isoformat(),
+        "is_active": True,
+        "profile_image": None,
+        "password_hash": hash_password(request.password),
+    }
+    await db.users.insert_one(user_dict)
+
+    student_profile = StudentProfile(
+        user_id=user_id,
+        student_id=f"STU{str(uuid.uuid4())[:8].upper()}",
+        grade_level="Grade 10",
+        section="A",
+        organization_id=org_id,
+        phone=request.phone_number,
+    )
+    profile_dict = student_profile.model_dump()
+    profile_dict['created_at'] = profile_dict['created_at'].isoformat()
+    await db.student_profiles.insert_one(profile_dict)
+
+    from services.audit_service import log_action
+    await log_action(
+        db, actor_id=current_user['id'], action="create_learner", entity="user",
+        entity_id=user_id, organisation_id=org_id,
+        new_value={"full_name": request.full_name, "email": request.email, "phone_number": request.phone_number},
+        reason="Created during offline-payment admin workflow",
+    )
+
+    return serialize_doc({k: v for k, v in user_dict.items() if k != 'password_hash'})
+
+
+@org_admin_router.post("/learners/{learner_id}/verify-phone")
+async def verify_learner_phone(learner_id: str, request: AdminVerifyPhoneRequest, current_user: dict = Depends(get_current_user)):
+    """Verify/update the learner's phone number, per section 6.1. Requires a prior
+    /auth/phone/send-otp call (purpose=admin_verification) for this phone number."""
+    org_id = _require_org_admin(current_user)
+    learner = await db.users.find_one({"id": learner_id}, {"_id": 0})
+    if not learner:
+        raise HTTPException(status_code=404, detail="Learner not found")
+    enforce_org_scope(current_user, learner.get('organization_id') or org_id)
+
+    from services.otp_service import verify_otp
+    result = await verify_otp(db, phone_number=request.phone_number, code=request.code, purpose="admin_verification")
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Verification failed"))
+
+    now = datetime.now(timezone.utc)
+    await db.users.update_one(
+        {"id": learner_id},
+        {"$set": {
+            "phone_number": request.phone_number,
+            "phone_verified": True,
+            "phone_verified_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+        }},
+    )
+
+    from services.audit_service import log_action
+    await log_action(
+        db, actor_id=current_user['id'], action="verify_learner_phone", entity="user",
+        entity_id=learner_id, organisation_id=learner.get('organization_id') or org_id,
+        new_value={"phone_number": request.phone_number, "phone_verified": True},
+    )
+
+    return {"success": True, "phone_number": request.phone_number, "phone_verified": True}
+
+
+@org_admin_router.post("/payments/manual", status_code=201)
+async def record_manual_payment(request: ManualPaymentRequest, current_user: dict = Depends(get_current_user)):
+    """Record an external/manual payment (EcoCash or other) and enrol the learner.
+    BRD section 6.1-6.4: amount is recorded exactly as given (BR-07), assessment
+    access only activates once the accumulated payment meets the calculated
+    minimum for the course (section 6.4 partial-payment scenario)."""
+    org_id = _require_org_admin(current_user)
+    if request.method not in ("ecocash", "other_manual"):
+        raise HTTPException(status_code=400, detail="method must be 'ecocash' or 'other_manual'")
+    if request.amount <= 0:
+        raise HTTPException(status_code=400, detail="amount must be greater than zero")
+
+    learner = await db.users.find_one({"id": request.learner_id}, {"_id": 0})
+    if not learner:
+        raise HTTPException(status_code=404, detail="Learner not found")
+    enforce_org_scope(current_user, learner.get('organization_id') or org_id)
+
+    course = await db.courses.find_one({"id": request.course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    from services.payment_status_service import record_payment, calculate_minimum_monthly_payment
+    result = await record_payment(
+        db,
+        course=course,
+        user_id=request.learner_id,
+        amount=request.amount,
+        method=request.method,
+        source="manual",
+        created_by=current_user['id'],
+        organization_id=learner.get('organization_id') or org_id,
+        reference=request.reference,
+        notes=request.notes,
+        verified_by=current_user['id'],
+        payment_date=request.payment_date,
+    )
+
+    from services.audit_service import log_action
+    await log_action(
+        db, actor_id=current_user['id'], action="record_manual_payment", entity="payment",
+        entity_id=result["payment"]["id"], organisation_id=learner.get('organization_id') or org_id,
+        new_value={
+            "learner_id": request.learner_id, "course_id": request.course_id,
+            "amount": request.amount, "method": request.method, "reference": request.reference,
+        },
+        reason=request.notes,
+    )
+
+    # BRD section 6.3 step 12 / FR-13 / FR-15: notify the learner where SMS/WhatsApp
+    # is enabled, distinguishing this from an online gateway payment.
+    from services.notification_service import send_notification
+    await send_notification(
+        user_id=request.learner_id,
+        notification_type="payment_success",
+        channels=["email", "whatsapp", "sms"],
+        template_type="payment_success" if result["enrollment"]["payment_status"] == "current" else "course_enrolled",
+        template_data={
+            "amount": request.amount,
+            "currency": "USD",
+            "reference": request.reference or result["payment"]["id"],
+            "course_name": course.get('name', ''),
+        },
+        db=db,
+    )
+
+    return {
+        "payment": serialize_doc(result["payment"]),
+        "enrollment": serialize_doc(result["enrollment"]),
+        "minimum_monthly_payment": result["minimum_monthly_payment"],
+        "assessment_access_activated": result["enrollment"]["payment_status"] in ("current", "completed"),
+    }
+
+
+@org_admin_router.post("/payments/{payment_id}/void")
+async def void_manual_payment(payment_id: str, request: VoidPaymentRequest, current_user: dict = Depends(get_current_user)):
+    """Reversal instead of hard deletion (section 8: 'prefer reversal/void records
+    over hard deletion of financial records so the audit history is preserved')."""
+    org_id = _require_org_admin(current_user)
+    payment = await db.manual_payments.find_one({"id": payment_id}, {"_id": 0})
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    enforce_org_scope(current_user, payment.get('organization_id') or org_id)
+    if payment.get('status') == 'voided':
+        raise HTTPException(status_code=400, detail="Payment already voided")
+
+    now = datetime.now(timezone.utc)
+    await db.manual_payments.update_one(
+        {"id": payment_id},
+        {"$set": {
+            "status": "voided", "voided_at": now.isoformat(),
+            "voided_by": current_user['id'], "void_reason": request.reason,
+        }},
+    )
+
+    from services.audit_service import log_action
+    await log_action(
+        db, actor_id=current_user['id'], action="void_manual_payment", entity="payment",
+        entity_id=payment_id, organisation_id=payment.get('organization_id') or org_id,
+        old_value={"status": payment.get('status')}, new_value={"status": "voided"},
+        reason=request.reason,
+    )
+
+    return {"success": True, "payment_id": payment_id, "status": "voided"}
+
+
+@org_admin_router.get("/learners/{learner_id}/payment-status")
+async def get_learner_payment_status(learner_id: str, course_id: str, current_user: dict = Depends(get_current_user)):
+    """View the resulting payment and enrolment status for a learner/course pair
+    (section 6.1 'View the resulting payment and enrolment status')."""
+    org_id = _require_org_admin(current_user)
+    learner = await db.users.find_one({"id": learner_id}, {"_id": 0})
+    if not learner:
+        raise HTTPException(status_code=404, detail="Learner not found")
+    enforce_org_scope(current_user, learner.get('organization_id') or org_id)
+
+    enrollment = await db.enrollments.find_one({"user_id": learner_id, "course_id": course_id}, {"_id": 0})
+    payments = await db.manual_payments.find(
+        {"user_id": learner_id, "course_id": course_id}, {"_id": 0}
+    ).sort("payment_date", -1).to_list(length=100)
+
+    return {
+        "enrollment": serialize_doc(enrollment) if enrollment else None,
+        "payments": [serialize_doc(p) for p in payments],
+    }
+
+
+@org_admin_router.get("/reports/course-pricing")
+async def export_course_pricing_report(current_user: dict = Depends(get_current_user)):
+    """FR-18: on-demand export of course price/duration/minimum-payment, for the
+    reporting the BRD asks to deliver to reports@aiinstituteafrica.com / RIFTS-X.
+    A scheduled email/RIFTS-X push is a separate integration to confirm with the
+    team before building; this provides the data on demand in the meantime."""
+    org_id = _require_org_admin(current_user)
+    from services.payment_status_service import calculate_minimum_monthly_payment
+
+    query = {} if current_user.get('role') in ('admin', 'super_admin') else {"organization_id": org_id}
+    courses = await db.courses.find(query, {"_id": 0}).to_list(length=1000)
+
+    rows = ["course_id,name,price,duration_months,duration_weeks,minimum_monthly_payment"]
+    for c in courses:
+        rows.append(",".join([
+            c.get('id', ''),
+            (c.get('name', '') or '').replace(',', ' '),
+            str(c.get('price', 0)),
+            str(c.get('duration_months') or ''),
+            str(c.get('duration_weeks', '')),
+            str(calculate_minimum_monthly_payment(c)),
+        ]))
+    csv_content = "\n".join(rows)
+    return StreamingResponse(
+        io.BytesIO(csv_content.encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=course_pricing_report.csv"},
+    )
 
 
 # ==================== COURSE ANALYTICS DASHBOARD ====================
@@ -9458,6 +9916,105 @@ from services.email_service import (
     generate_reset_token
 )
 
+# ==================== PHONE/WHATSAPP OTP VERIFICATION (BRD CR 2026-10, section 6.5) ====================
+# Minimal OTP engine supporting WhatsApp registration and the Organisation Admin's
+# "verify the learner's phone number" step (section 6.1). Full phone-only
+# self-registration (FR-01 to FR-05) is out of scope.
+
+class SendPhoneOtpRequest(BaseModel):
+    phone_number: str
+    channel: str = "whatsapp"  # whatsapp | sms
+    purpose: str = "registration"  # registration | phone_change | admin_verification
+
+class VerifyPhoneOtpRequest(BaseModel):
+    phone_number: str
+    code: str
+    purpose: str = "registration"
+
+class RegisterWhatsAppRequest(BaseModel):
+    phone_number: str
+    code: str
+    password: str
+    full_name: str
+    role: str = "student"
+
+@auth_router.post("/phone/send-otp")
+async def send_phone_otp(request: SendPhoneOtpRequest):
+    """FR-06/FR-08: send a one-time code by SMS/WhatsApp, rate-limited."""
+    from services.otp_service import send_otp, mask_phone
+    result = await send_otp(db, phone_number=request.phone_number, channel=request.channel, purpose=request.purpose)
+    if not result["success"]:
+        raise HTTPException(status_code=429, detail=result.get("error", "Could not send code"))
+    return {**result, "masked_phone": mask_phone(request.phone_number)}
+
+@auth_router.post("/phone/verify-otp")
+async def verify_phone_otp(request: VerifyPhoneOtpRequest):
+    """FR-09: a phone is not verified until this succeeds."""
+    from services.otp_service import verify_otp
+    result = await verify_otp(db, phone_number=request.phone_number, code=request.code, purpose=request.purpose)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Verification failed"))
+    return result
+
+@auth_router.post("/register-whatsapp", response_model=TokenResponse)
+async def register_via_whatsapp(request: RegisterWhatsAppRequest):
+    """BRD section 6.5: 'Allow people to create accounts using WhatsApp'.
+    Requires a prior successful /auth/phone/verify-otp for this phone number."""
+    from services.otp_service import verify_otp
+
+    existing = await db.users.find_one({"phone_number": request.phone_number})
+    if existing:
+        raise HTTPException(status_code=400, detail="Phone number already registered")
+
+    verified = await db.phone_otp_verifications.find_one({
+        "phone_number": request.phone_number,
+        "purpose": "registration",
+        "status": "verified",
+    }, sort=[("verified_at", -1)])
+    if not verified:
+        raise HTTPException(status_code=400, detail="Phone number not verified. Verify with an OTP first.")
+
+    valid_roles = ["student", "teacher", "parent", "org_admin"]
+    role = request.role if request.role in valid_roles else "student"
+
+    user_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    user_dict = {
+        "id": user_id,
+        "email": None,
+        "phone_number": request.phone_number,
+        "phone_verified": True,
+        "phone_verified_at": now.isoformat(),
+        "preferred_contact_method": "whatsapp",
+        "full_name": request.full_name,
+        "role": role,
+        "organization_id": None,
+        "preferred_language": "en",
+        "created_at": now.isoformat(),
+        "is_active": True,
+        "profile_image": None,
+        "password_hash": hash_password(request.password),
+    }
+    await db.users.insert_one(user_dict)
+
+    if role == UserRole.STUDENT:
+        student_profile = StudentProfile(
+            user_id=user_id,
+            student_id=f"STU{str(uuid.uuid4())[:8].upper()}",
+            grade_level="Grade 10",
+            section="A",
+            phone=request.phone_number,
+        )
+        profile_dict = student_profile.model_dump()
+        profile_dict['created_at'] = profile_dict['created_at'].isoformat()
+        await db.student_profiles.insert_one(profile_dict)
+
+    token = create_token(user_id, role)
+    return TokenResponse(
+        access_token=token,
+        user={"id": user_id, "phone_number": request.phone_number, "full_name": request.full_name, "role": role}
+    )
+
 class RegisterWithVerificationRequest(BaseModel):
     email: EmailStr
     password: str
@@ -10356,12 +10913,13 @@ async def get_student_assignments(current_user: dict = Depends(get_current_user)
                 paid_course_ids.append(course_id)
             else:
                 # Paid course - check enrollment payment status
-                enrollment = await db.enrollments.find_one({
-                    "course_id": course_id,
-                    "student_id": current_user['id'],
-                    "payment_status": "completed"
-                })
-                if enrollment:
+                # (BRD FR-21/FR-23: server-side payment eligibility check)
+                from services.payment_status_service import get_or_create_enrollment, is_assessment_eligible
+                enrollment = await get_or_create_enrollment(
+                    db, user_id=current_user['id'], course_id=course_id,
+                    organization_id=current_user.get('organization_id'),
+                )
+                if is_assessment_eligible(enrollment):
                     paid_course_ids.append(course_id)
     
     # Get assignments for paid/free enrolled courses only
@@ -13832,6 +14390,44 @@ async def sa_test_email(current_user: dict = Depends(require_super_admin)):
     return {"status": "ok", "to": to, **res}
 
 
+# ==================== NOTIFICATION TEMPLATE CONFIGURATION (BRD FR-16) ====================
+
+class NotificationTemplateUpsert(BaseModel):
+    event: str  # e.g. payment_success, payment_due, course_enrolled, otp_verification
+    channel: str  # email | whatsapp | sms
+    subject: Optional[str] = None  # email only; ignored for whatsapp/sms
+    body: str  # Python str.format() template, e.g. "Hi {name}, ..."
+
+@super_admin_router.get("/notification-templates")
+async def sa_list_notification_templates(current_user: dict = Depends(require_super_admin)):
+    templates = await db.notification_templates.find({}, {"_id": 0}).to_list(length=500)
+    return templates
+
+@super_admin_router.put("/notification-templates")
+async def sa_upsert_notification_template(request: NotificationTemplateUpsert, current_user: dict = Depends(require_super_admin)):
+    """FR-16: SMS/WhatsApp (and email) templates configurable by authorised admins,
+    checked by services.notification_service.send_notification before the
+    hardcoded defaults."""
+    if request.channel not in ("email", "whatsapp", "sms"):
+        raise HTTPException(status_code=400, detail="channel must be 'email', 'whatsapp' or 'sms'")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.notification_templates.update_one(
+        {"event": request.event, "channel": request.channel},
+        {"$set": {
+            "event": request.event, "channel": request.channel,
+            "subject": request.subject, "body": request.body,
+            "updated_by": current_user['id'], "updated_at": now,
+        }},
+        upsert=True,
+    )
+    return {"success": True}
+
+@super_admin_router.delete("/notification-templates")
+async def sa_delete_notification_template(event: str, channel: str, current_user: dict = Depends(require_super_admin)):
+    await db.notification_templates.delete_one({"event": event, "channel": channel})
+    return {"success": True}
+
+
 @super_admin_router.post("/public-content/bulk-delete")
 async def sa_bulk_delete_public(ids: list[str], hard: bool = False,
                                  current_user: dict = Depends(require_super_admin)):
@@ -14467,6 +15063,17 @@ async def _start_research_digest():
         logging.info("Research digest scheduler started")
     except Exception as e:
         logging.error("Research digest scheduler failed to start: %s", e)
+
+
+@app.on_event("startup")
+async def _start_payment_reminder_scheduler():
+    """BRD FR-14: payment due/overdue reminders."""
+    try:
+        from services.payment_reminder_scheduler import start as _start_reminders
+        asyncio.create_task(_start_reminders(db))
+        logging.info("Payment reminder scheduler started")
+    except Exception as e:
+        logging.error("Payment reminder scheduler failed to start: %s", e)
 
 
 @app.on_event("shutdown")

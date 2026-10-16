@@ -257,7 +257,9 @@ def make_router(db, require_super_admin, get_current_user):
 
     sa.add_api_route("/payment-logs", _logs(db.payment_logs), methods=["GET"])
     sa.add_api_route("/webhook-logs", _logs(db.payment_webhook_events), methods=["GET"])
-    sa.add_api_route("/audit-logs", _logs(db.payment_audit_logs), methods=["GET"])
+    # Unified audit log (BRD CR 2026-10): covers payments, manual enrolment,
+    # phone verification, and role changes, not just payment-platform events.
+    sa.add_api_route("/audit-logs", _logs(db.audit_logs), methods=["GET"])
 
     # ----- Revenue Analytics ----------------------------------------------
     @sa.get("/revenue/timeseries")

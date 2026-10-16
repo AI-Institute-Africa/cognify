@@ -1286,3 +1286,88 @@ export const getStudentProfileForTeacher = async (studentId) => {
   const response = await axios.get(`${API}/teacher/student-profile/${studentId}`, { headers: getAuthHeaders() });
   return response.data;
 };
+
+// ==================== PHONE / WHATSAPP OTP (PUBLIC) ====================
+// These endpoints are public (no JWT) — used for self-registration via
+// WhatsApp/SMS and for org-admin-assisted phone verification.
+export const sendPhoneOtp = async (phoneNumber, channel = 'whatsapp', purpose = 'registration') => {
+  const response = await axios.post(`${API}/auth/phone/send-otp`, {
+    phone_number: phoneNumber,
+    channel,
+    purpose,
+  });
+  return response.data;
+};
+
+export const verifyPhoneOtp = async (phoneNumber, code, purpose = 'registration') => {
+  const response = await axios.post(`${API}/auth/phone/verify-otp`, {
+    phone_number: phoneNumber,
+    code,
+    purpose,
+  });
+  return response.data;
+};
+
+export const registerWithWhatsApp = async (phoneNumber, code, password, fullName, role = 'student') => {
+  const response = await axios.post(`${API}/auth/register-whatsapp`, {
+    phone_number: phoneNumber,
+    code,
+    password,
+    full_name: fullName,
+    role,
+  });
+  return response.data;
+};
+
+// ==================== ORG ADMIN - OFFLINE / ECOCASH PAYMENTS ====================
+export const orgAdminSearchLearners = async (query) => {
+  const response = await axios.get(`${API}/org-admin/learners/search`, {
+    params: { q: query },
+    headers: getAuthHeaders(),
+  });
+  return response.data;
+};
+
+export const orgAdminCreateLearner = async (learnerData) => {
+  const response = await axios.post(`${API}/org-admin/learners`, learnerData, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const orgAdminVerifyLearnerPhone = async (learnerId, phoneNumber, code) => {
+  const response = await axios.post(
+    `${API}/org-admin/learners/${learnerId}/verify-phone`,
+    { phone_number: phoneNumber, code },
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+export const orgAdminRecordManualPayment = async (paymentData) => {
+  const response = await axios.post(`${API}/org-admin/payments/manual`, paymentData, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const orgAdminVoidPayment = async (paymentId, reason) => {
+  const response = await axios.post(
+    `${API}/org-admin/payments/${paymentId}/void`,
+    { reason },
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
+export const orgAdminGetLearnerPaymentStatus = async (learnerId, courseId) => {
+  const response = await axios.get(`${API}/org-admin/learners/${learnerId}/payment-status`, {
+    params: { course_id: courseId },
+    headers: getAuthHeaders(),
+  });
+  return response.data;
+};
+
+export const orgAdminDownloadPricingReport = async () => {
+  const response = await axios.get(`${API}/org-admin/reports/course-pricing`, {
+    headers: getAuthHeaders(),
+    responseType: 'blob',
+  });
+  return response.data;
+};

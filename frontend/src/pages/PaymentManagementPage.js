@@ -13,6 +13,7 @@ import {
   CheckCircle2, XCircle, Loader2, Eye, Plus, Trash2, AlertCircle, Menu, Users as UsersIcon,
   ExternalLink, Clock,
 } from 'lucide-react';
+import PaymentStatusBadge from '../components/PaymentStatusBadge';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const TOKEN = () => ({ Authorization: `Bearer ${localStorage.getItem('cognify_token')}` });
@@ -253,7 +254,7 @@ function TxTable({ rows }) {
               <td className="py-2 px-2 font-mono text-xs">{r.reference || r.id?.slice(0,8)}</td>
               <td className="py-2 px-2">{r.currency} {r.amount}</td>
               <td className="py-2 px-2 capitalize">{r.provider}</td>
-              <td className="py-2 px-2"><StatusBadge s={r.status} /></td>
+              <td className="py-2 px-2"><StatusCell row={r} /></td>
               <td className="py-2 px-2 text-xs text-zinc-500">{(r.created_at || '').slice(0,16).replace('T', ' ')}</td>
             </tr>
           ))}
@@ -274,6 +275,19 @@ function StatusBadge({ s }) {
     paused: 'bg-amber-500/20 text-amber-300',
   };
   return <Badge className={`capitalize ${map[s] || 'bg-zinc-700 text-zinc-300'}`}>{s}</Badge>;
+}
+
+// Some transactions/invoices are tied to a course enrollment and carry the
+// enrollment's payment_status (unpaid/current/partially_paid/payment_due/
+// overdue/completed) in addition to the raw transaction status. Surface it
+// when present so admins can see enrollment health at a glance (BRD 15).
+function StatusCell({ row }) {
+  return (
+    <div className="flex items-center gap-2">
+      <StatusBadge s={row.status} />
+      {row.payment_status && <PaymentStatusBadge status={row.payment_status} />}
+    </div>
+  );
 }
 
 /* ============== PROVIDERS ============== */
@@ -592,7 +606,7 @@ function SimpleListPanel({ endpoint, label, empty, showAmount }) {
                 <tr key={r.id} className="border-t border-white/5">
                   <td className="p-3 font-mono text-xs">{r.reference || r.id?.slice(0, 12)}</td>
                   {showAmount && <td className="p-3">{r.currency} {r.amount}</td>}
-                  <td className="p-3"><StatusBadge s={r.status} /></td>
+                  <td className="p-3"><StatusCell row={r} /></td>
                   <td className="p-3 text-xs text-zinc-500">{(r.created_at || '').slice(0,16).replace('T', ' ')}</td>
                 </tr>
               ))}

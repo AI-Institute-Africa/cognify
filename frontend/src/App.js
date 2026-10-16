@@ -73,6 +73,7 @@ import PublicContentPage from './pages/PublicContentPage';
 import PublicContentViewPage from './pages/PublicContentViewPage';
 import SuperAdminDashboardPage from './pages/SuperAdminDashboardPage';
 import PaymentManagementPage from './pages/PaymentManagementPage';
+import OrgAdminExternalPaymentPage from './pages/OrgAdminExternalPaymentPage';
 
 import './App.css';
 
@@ -377,6 +378,12 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      <Route path="/org-admin/payments" element={
+        <ProtectedRoute allowedRoles={['org_admin', 'admin']}>
+          <OrgAdminExternalPaymentPage />
+        </ProtectedRoute>
+      } />
+
       <Route path="/organization-settings" element={
         <ProtectedRoute allowedRoles={['org_admin', 'admin']}>
           <OrganizationSettingsPage />

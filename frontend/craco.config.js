@@ -68,6 +68,18 @@ const webpackConfig = {
       return webpackConfig;
     },
   },
+  // CRA's Jest config (used by `craco test`) does not automatically pick up
+  // the webpack `@` alias configured above, so it has to be mirrored here as
+  // a moduleNameMapper or every "@/..." import fails to resolve under Jest.
+  jest: {
+    configure: (jestConfig) => {
+      jestConfig.moduleNameMapper = {
+        ...jestConfig.moduleNameMapper,
+        '^@/(.*)$': '<rootDir>/src/$1',
+      };
+      return jestConfig;
+    },
+  },
 };
 
 // Only add babel metadata plugin during dev server

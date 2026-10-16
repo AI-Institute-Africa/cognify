@@ -202,11 +202,15 @@ class PaymentPlatform:
         return None
 
     async def audit(self, *, actor_id, action, target_type, target_id=None, metadata=None):
-        await self.db.payment_audit_logs.insert_one({
-            "id": str(uuid.uuid4()), "actor_id": actor_id, "action": action,
-            "target_type": target_type, "target_id": target_id,
-            "metadata": metadata or {}, "ip": (metadata or {}).get("ip"),
-            "created_at": datetime.now(timezone.utc).isoformat()})
+        from services.audit_service import log_action
+        await log_action(
+            self.db,
+            actor_id=actor_id,
+            action=action,
+            entity=target_type,
+            entity_id=target_id,
+            new_value=metadata or {},
+        )
 
     async def log_event(self, *, level, provider, event, message, payload=None):
         await self.db.payment_logs.insert_one({

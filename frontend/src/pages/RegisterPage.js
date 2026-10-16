@@ -11,11 +11,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import { GraduationCap, Mail, Lock, User, Eye, EyeOff, ArrowRight, ArrowLeft, CheckCircle, RefreshCw, Linkedin } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
+import { GraduationCap, Mail, Lock, User, Eye, EyeOff, ArrowRight, ArrowLeft, CheckCircle, RefreshCw, Linkedin, Phone, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
-import { register, registerWithVerification, verifyEmail, resendVerification, initiateGoogleLogin } from '../services/api';
+import { register, registerWithVerification, verifyEmail, resendVerification, initiateGoogleLogin, registerWithWhatsApp } from '../services/api';
+import PhoneOtpVerification from '../components/PhoneOtpVerification';
 
 export default function RegisterPage() {
+  // 'email' | 'phone' — BRD 11: registration shall clearly offer both Phone
+  // Number and Email registration options where both are enabled.
+  const [registerMethod, setRegisterMethod] = useState('email');
+
   const [step, setStep] = useState('register'); // 'register' | 'verify'
   const [formData, setFormData] = useState({
     fullName: '',
@@ -30,6 +36,65 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // ---- WhatsApp / Phone registration state ----
+  const [waStep, setWaStep] = useState('details'); // 'details' | 'otp'
+  const [waForm, setWaForm] = useState({
+    fullName: '',
+    phoneNumber: '',
+    password: '',
+    confirmPassword: '',
+    role: 'student',
+    channel: 'whatsapp',
+  });
+  const [waLoading, setWaLoading] = useState(false);
+  const [waShowPassword, setWaShowPassword] = useState(false);
+
+  const handleWaChange = (field, value) => {
+    setWaForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleWaContinue = (e) => {
+    e.preventDefault();
+    if (!waForm.fullName || !waForm.phoneNumber || !waForm.password) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+    if (waForm.password !== waForm.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    if (waForm.password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    setWaStep('otp');
+  };
+
+  const handleWaVerified = async (code) => {
+    setWaLoading(true);
+    try {
+      const result = await registerWithWhatsApp(
+        waForm.phoneNumber,
+        code,
+        waForm.password,
+        waForm.fullName,
+        waForm.role
+      );
+      if (result.access_token) {
+        localStorage.setItem('cognify_token', result.access_token);
+        localStorage.setItem('cognify_user', JSON.stringify(result.user));
+        toast.success('Account created successfully!');
+        // Full navigation so AuthContext re-reads the freshly stored token.
+        window.location.href = '/dashboard';
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Registration failed');
+      setWaStep('details');
+    } finally {
+      setWaLoading(false);
+    }
+  };
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -132,7 +197,23 @@ export default function RegisterPage() {
                 <h2 className="text-2xl font-bold">Create your account</h2>
                 <p className="text-zinc-500 mt-2">Join Cognify and start your learning journey</p>
               </div>
-              
+
+              {/* Registration method: Email vs Phone/WhatsApp.
+                  BRD 11: registration shall clearly offer both options. */}
+              <Tabs value={registerMethod} onValueChange={setRegisterMethod} className="mb-6">
+                <TabsList className="w-full grid grid-cols-2 bg-zinc-900/50 border border-white/10">
+                  <TabsTrigger value="email" data-testid="register-method-email" className="data-[state=active]:bg-blue-500/20">
+                    <Mail className="w-4 h-4 mr-2" />
+                    Email
+                  </TabsTrigger>
+                  <TabsTrigger value="phone" data-testid="register-method-phone" className="data-[state=active]:bg-emerald-500/20">
+                    <Phone className="w-4 h-4 mr-2" />
+                    Phone / WhatsApp
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="email" className="mt-6">
+
               {/* Google Sign Up Button */}
               <Button
                 type="button"
@@ -292,6 +373,160 @@ export default function RegisterPage() {
                   )}
                 </Button>
               </form>
+                </TabsContent>
+
+                <TabsContent value="phone" className="mt-6">
+                  {waStep === 'details' ? (
+                    <form onSubmit={handleWaContinue} className="space-y-5" data-testid="whatsapp-register-form">
+                      <div className="space-y-2">
+                        <Label htmlFor="waFullName" className="text-zinc-400">Full Name</Label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                          <Input
+                            id="waFullName"
+                            type="text"
+                            placeholder="John Doe"
+                            value={waForm.fullName}
+                            onChange={(e) => handleWaChange('fullName', e.target.value)}
+                            data-testid="whatsapp-register-name-input"
+                            className="pl-11 bg-zinc-900/50 border-white/10 h-12 focus:border-emerald-500/50"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="waPhoneNumber" className="text-zinc-400">Phone Number</Label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                          <Input
+                            id="waPhoneNumber"
+                            type="tel"
+                            placeholder="+263771234567"
+                            value={waForm.phoneNumber}
+                            onChange={(e) => handleWaChange('phoneNumber', e.target.value)}
+                            data-testid="whatsapp-register-phone-input"
+                            className="pl-11 bg-zinc-900/50 border-white/10 h-12 focus:border-emerald-500/50"
+                          />
+                        </div>
+                        <p className="text-xs text-zinc-600">Include your country code, e.g. +263...</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-zinc-400">Receive code via</Label>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={waForm.channel === 'whatsapp' ? 'default' : 'outline'}
+                            onClick={() => handleWaChange('channel', 'whatsapp')}
+                            data-testid="whatsapp-register-channel-whatsapp"
+                          >
+                            <MessageSquare className="w-4 h-4 mr-1" /> WhatsApp
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={waForm.channel === 'sms' ? 'default' : 'outline'}
+                            onClick={() => handleWaChange('channel', 'sms')}
+                            data-testid="whatsapp-register-channel-sms"
+                          >
+                            SMS
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="waRole" className="text-zinc-400">I am a</Label>
+                        <Select value={waForm.role} onValueChange={(value) => handleWaChange('role', value)}>
+                          <SelectTrigger
+                            data-testid="whatsapp-register-role-select"
+                            className="h-12 bg-zinc-900/50 border-white/10 focus:border-emerald-500/50"
+                          >
+                            <SelectValue placeholder="Select your role" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-zinc-900 border-white/10">
+                            <SelectItem value="student">Student</SelectItem>
+                            <SelectItem value="teacher">Teacher</SelectItem>
+                            <SelectItem value="parent">Parent</SelectItem>
+                            <SelectItem value="org_admin">Organization Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="waPassword" className="text-zinc-400">Password</Label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                          <Input
+                            id="waPassword"
+                            type={waShowPassword ? 'text' : 'password'}
+                            placeholder="••••••••"
+                            value={waForm.password}
+                            onChange={(e) => handleWaChange('password', e.target.value)}
+                            data-testid="whatsapp-register-password-input"
+                            className="pl-11 pr-11 bg-zinc-900/50 border-white/10 h-12 focus:border-emerald-500/50"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setWaShowPassword(!waShowPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                          >
+                            {waShowPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="waConfirmPassword" className="text-zinc-400">Confirm Password</Label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                          <Input
+                            id="waConfirmPassword"
+                            type={waShowPassword ? 'text' : 'password'}
+                            placeholder="••••••••"
+                            value={waForm.confirmPassword}
+                            onChange={(e) => handleWaChange('confirmPassword', e.target.value)}
+                            data-testid="whatsapp-register-confirm-password-input"
+                            className="pl-11 bg-zinc-900/50 border-white/10 h-12 focus:border-emerald-500/50"
+                          />
+                        </div>
+                      </div>
+
+                      <Button
+                        type="submit"
+                        data-testid="whatsapp-register-continue-btn"
+                        className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-white font-medium shadow-lg shadow-emerald-500/20 transition-all duration-200 mt-4"
+                      >
+                        <span className="flex items-center justify-center gap-2">
+                          Continue
+                          <ArrowRight className="w-5 h-5" />
+                        </span>
+                      </Button>
+                    </form>
+                  ) : (
+                    <div className="space-y-5" data-testid="whatsapp-register-otp-step">
+                      <div className="mb-2 text-center">
+                        <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <MessageSquare className="w-8 h-8 text-emerald-400" />
+                        </div>
+                        <h2 className="text-xl font-bold">Verify your phone number</h2>
+                        <p className="text-zinc-500 mt-2 text-sm">
+                          Enter the code we sent you to finish creating your account.
+                        </p>
+                      </div>
+                      <PhoneOtpVerification
+                        phoneNumber={waForm.phoneNumber}
+                        purpose="registration"
+                        channel={waForm.channel}
+                        onChannelChange={(ch) => handleWaChange('channel', ch)}
+                        onVerified={handleWaVerified}
+                        onCancel={() => setWaStep('details')}
+                        verifyLabel={waLoading ? 'Creating account...' : 'Verify & Create Account'}
+                      />
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
             </>
           ) : (
             // Verification Step
