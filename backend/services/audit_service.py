@@ -27,6 +27,9 @@ async def log_action(
     old_value: Optional[dict] = None,
     new_value: Optional[dict] = None,
     reason: Optional[str] = None,
+    actor_role: Optional[str] = None,
+    ip_address: Optional[str] = None,
+    request_id: Optional[str] = None,
 ) -> dict:
     """Write one audit entry. Call this for every manual payment, enrolment,
     phone-verification, or role/permission change — never skip it for a mutation
@@ -35,6 +38,9 @@ async def log_action(
     entry = {
         "id": str(uuid.uuid4()),
         "actor_id": actor_id,
+        "actor_role": actor_role,
+        "ip_address": ip_address,
+        "request_id": request_id,
         "organisation_id": organisation_id,
         "action": action,
         "entity": entity,
@@ -60,8 +66,19 @@ async def list_actions(
     entity: Optional[str] = None,
     organisation_id: Optional[str] = None,
     actor_id: Optional[str] = None,
+    action: Optional[str] = None,
+    entity_id: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     limit: int = 200,
+    page: int = 1,
+    page_size: Optional[int] = None,
 ) -> list:
+    """Filtered, paginated audit query. `limit` is kept for backwards
+    compatibility; prefer `page`/`page_size` (capped at 500). Date filters
+    accept ISO-8601 strings and compare against the stored `timestamp`."""
+    per_page = max(1, min(int(page_size or limit or 200), 500))
+    page = max(1, int(page or 1))
     query: dict = {}
     if entity:
         query["entity"] = entity
@@ -69,5 +86,17 @@ async def list_actions(
         query["organisation_id"] = organisation_id
     if actor_id:
         query["actor_id"] = actor_id
-    cursor = db.audit_logs.find(query, {"_id": 0}).sort("timestamp", -1).limit(limit)
-    return await cursor.to_list(length=limit)
+    if action:
+        query["action"] = action
+    if entity_id:
+        query["entity_id"] = entity_id
+    cursor = db.audit_logs.find(query, {"_id": 0}).sort("timestamp", -1)
+    docs = await cursor.to_list(length=page * per_page + 50)
+    if date_from or date_to:
+        docs = [
+            d for d in docs
+            if (not date_from or str(d.get("timestamp", "")) >= str(date_from))
+            and (not date_to or str(d.get("timestamp", "")) <= str(date_to))
+        ]
+    start = (page - 1) * per_page
+    return docs[start:start + per_page]

@@ -6185,7 +6185,30 @@ async def get_exams(current_user: dict = Depends(get_current_user)):
         if not query_or:
             return []
         exams = await db.exams.find({"$or": query_or}, {"_id": 0}).to_list(200)
-        
+
+        # Payment gate (AC-09/FR-21): exclude paid-course exams the learner has
+        # not qualified for — same rule as the assignment listing gate.
+        from services.payment_status_service import (
+            get_or_create_enrollment, assert_assessment_access,
+        )
+        gated = []
+        for exam in exams:
+            course_id = exam.get('course_id')
+            if not course_id:
+                gated.append(exam)
+                continue
+            course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+            if not course or not course.get('is_paid', False):
+                gated.append(exam)
+                continue
+            enrollment = await get_or_create_enrollment(
+                db, user_id=current_user['id'], course_id=course_id,
+                organization_id=current_user.get('organization_id'),
+            )
+            if assert_assessment_access(course, enrollment)["allowed"]:
+                gated.append(exam)
+        exams = gated
+
         # Add completion status
         for exam in exams:
             submission = await db.exam_submissions.find_one(
@@ -6303,6 +6326,12 @@ async def get_exam(exam_id: str, current_user: dict = Depends(get_current_user))
     exam = await db.exams.find_one({"id": exam_id}, {"_id": 0})
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
+
+    if current_user.get('role') == 'student' and exam.get('course_id'):
+        await _assert_assessment_access(
+            current_user['id'], exam['course_id'],
+            current_user.get('organization_id'),
+        )
     
     # Teachers can't take exams
     if current_user['role'] == 'teacher':
@@ -6326,7 +6355,13 @@ async def submit_exam(exam_id: str, submission: ExamSubmission, current_user: di
     exam = await db.exams.find_one({"id": exam_id}, {"_id": 0})
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
-    
+
+    if exam.get('course_id'):
+        await _assert_assessment_access(
+            current_user['id'], exam['course_id'],
+            current_user.get('organization_id'),
+        )
+
     # Calculate score
     questions = exam.get('questions', [])
     total_points = len(questions)
@@ -8017,6 +8052,7 @@ class ManualPaymentRequest(BaseModel):
     payment_date: Optional[str] = None
     reference: Optional[str] = None
     notes: Optional[str] = None
+    idempotency_key: Optional[str] = None
 
 class VoidPaymentRequest(BaseModel):
     reason: str
@@ -8030,6 +8066,33 @@ def _require_org_admin(current_user: dict) -> str:
     if current_user.get('role') not in ['org_admin', 'admin', 'super_admin']:
         raise HTTPException(status_code=403, detail="Organization admin access required")
     return current_user.get('organization_id')
+
+
+async def _assert_assessment_access(user_id: str, course_id: str, organization_id: Optional[str] = None):
+    """Shared 403 gate for paid-course assignments/exams (AC-08/AC-09, FR-20/21).
+    Free courses and current/completed enrollments pass; anything else raises
+    403 with the amount required to restore access. Never blocks login/browsing."""
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course or not course.get('is_paid', False):
+        return
+    from services.payment_status_service import (
+        get_or_create_enrollment, assert_assessment_access,
+    )
+    enrollment = await get_or_create_enrollment(
+        db, user_id=user_id, course_id=course_id, organization_id=organization_id,
+    )
+    gate = assert_assessment_access(course, enrollment)
+    if not gate["allowed"]:
+        amount = gate.get("amount_required", 0) or 0
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Payment required to access this assessment "
+                f"(status: {gate.get('payment_status', 'unpaid')}). "
+                f"Pay ${amount:.2f} to restore access." if amount > 0
+                else "Payment required to access this assessment."
+            ),
+        )
 
 
 @org_admin_router.get("/learners/search")
@@ -8181,15 +8244,18 @@ async def record_manual_payment(request: ManualPaymentRequest, current_user: dic
         notes=request.notes,
         verified_by=current_user['id'],
         payment_date=request.payment_date,
+        idempotency_key=request.idempotency_key,
     )
 
     from services.audit_service import log_action
     await log_action(
         db, actor_id=current_user['id'], action="record_manual_payment", entity="payment",
         entity_id=result["payment"]["id"], organisation_id=learner.get('organization_id') or org_id,
+        actor_role=current_user.get('role'),
         new_value={
             "learner_id": request.learner_id, "course_id": request.course_id,
             "amount": request.amount, "method": request.method, "reference": request.reference,
+            "duplicate": bool(result.get("duplicate")),
         },
         reason=request.notes,
     )
@@ -8216,13 +8282,17 @@ async def record_manual_payment(request: ManualPaymentRequest, current_user: dic
         "enrollment": serialize_doc(result["enrollment"]),
         "minimum_monthly_payment": result["minimum_monthly_payment"],
         "assessment_access_activated": result["enrollment"]["payment_status"] in ("current", "completed"),
+        "duplicate": bool(result.get("duplicate")),
     }
 
 
 @org_admin_router.post("/payments/{payment_id}/void")
 async def void_manual_payment(payment_id: str, request: VoidPaymentRequest, current_user: dict = Depends(get_current_user)):
     """Reversal instead of hard deletion (section 8: 'prefer reversal/void records
-    over hard deletion of financial records so the audit history is preserved')."""
+    over hard deletion of financial records so the audit history is preserved').
+    The voided amount is subtracted by recomputing the enrollment from the
+    remaining non-voided payments, so assessment access is revoked when the
+    learner no longer qualifies."""
     org_id = _require_org_admin(current_user)
     payment = await db.manual_payments.find_one({"id": payment_id}, {"_id": 0})
     if not payment:
@@ -8244,11 +8314,36 @@ async def void_manual_payment(payment_id: str, request: VoidPaymentRequest, curr
     await log_action(
         db, actor_id=current_user['id'], action="void_manual_payment", entity="payment",
         entity_id=payment_id, organisation_id=payment.get('organization_id') or org_id,
+        actor_role=current_user.get('role'),
         old_value={"status": payment.get('status')}, new_value={"status": "voided"},
         reason=request.reason,
     )
 
-    return {"success": True, "payment_id": payment_id, "status": "voided"}
+    # Recompute eligibility from the remaining non-voided payments so a voided
+    # qualifying payment actually revokes assessment access.
+    enrollment = None
+    try:
+        from services.payment_status_service import recompute_enrollment_after_void
+        course = await db.courses.find_one({"id": payment.get("course_id")}, {"_id": 0})
+        if course and payment.get("user_id"):
+            enrollment = await recompute_enrollment_after_void(
+                db, user_id=payment["user_id"], course=course,
+            )
+            await log_action(
+                db, actor_id=current_user['id'], action="recompute_enrollment_after_void",
+                entity="enrollment", entity_id=enrollment.get("id"),
+                organisation_id=payment.get('organization_id') or org_id,
+                actor_role=current_user.get('role'),
+                new_value={"payment_status": enrollment.get("payment_status")},
+                reason=f"void {payment_id}: {request.reason}",
+            )
+    except Exception as e:
+        logging.warning(f"enrollment recompute after void {payment_id} failed: {e}")
+
+    return {
+        "success": True, "payment_id": payment_id, "status": "voided",
+        "enrollment": serialize_doc(enrollment) if enrollment else None,
+    }
 
 
 @org_admin_router.get("/learners/{learner_id}/payment-status")
@@ -9071,6 +9166,10 @@ async def create_assignment(
 @api_router.get("/assignments/course/{course_id}")
 async def get_course_assignments(course_id: str, current_user: dict = Depends(get_current_user)):
     """Get assignments for a course"""
+    if current_user.get('role') == 'student':
+        await _assert_assessment_access(
+            current_user['id'], course_id, current_user.get('organization_id'),
+        )
     assignments = await db.assignments.find({"course_id": course_id, "status": "active"}, {"_id": 0}).to_list(length=100)
     return assignments
 
@@ -9084,6 +9183,12 @@ async def submit_assignment(
     assignment = await db.assignments.find_one({"id": assignment_id}, {"_id": 0})
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
+
+    if current_user.get('role') == 'student' and assignment.get('course_id'):
+        await _assert_assessment_access(
+            current_user['id'], assignment['course_id'],
+            current_user.get('organization_id'),
+        )
     
     # Auto-grade using AI
     api_key = os.environ.get('EMERGENT_LLM_KEY')
@@ -11046,7 +11151,13 @@ async def submit_assignment_with_auto_grade(
     assignment = await db.assignments.find_one({"id": assignment_id}, {"_id": 0})
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
-    
+
+    if assignment.get('course_id'):
+        await _assert_assessment_access(
+            current_user['id'], assignment['course_id'],
+            current_user.get('organization_id'),
+        )
+
     # Check if already submitted
     existing = await db.assignment_submissions.find_one({
         "assignment_id": assignment_id,
