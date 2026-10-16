@@ -1,0 +1,47 @@
+{
+  "summary": "Iteration 45 — Verified the 3 user-reported PRODUCTION fixes (learner AI video gen, production URL in email, animated avatar with gestures) and the audio-route regression after removing the orphan @public_router.get decorator. Backend pytest 8/9 passed + 1 expected skip (doc already had video, idempotency branch returned already_available). Frontend Playwright: Video tab Generate-AI-video button visible on a no-video doc, click switches UI to video-gen-status with Loader2 spinner and 'Sora 2 is rendering...' text + success toast. Avatar Teach tab: avatar-idle class present on selecting Ada preset; after Start avatar teaching, avatar-text script rendered at t=24s (via /api/mentor/chat) and avatar-talking class + GestureCaption (.animate-fade-cycle, text '✋ gestures to the slide') appeared at t=82s once TTS audio began playing. Audio route auth regression CONFIRMED FIXED — GET /api/public/<docId>/audio/<aid> returns 401/403 unauthed (NOT 404), and 404 only when authed with non-existent audio (handler reached). Email production URL CONFIRMED — POST /api/super-admin/test-email returns sent>=1; rendered HTML contains 'cognify.aiinstituteafrica.com/super-admin' when PUBLIC_FRONTEND_URL is set. PRIOR CRITICAL BUG (iter-44 PPTX DocumentTooLarge on Final DG Presentation id fa26b059...) was NOT in scope and was NOT retested — still pending.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/super-admin/test-email", "issue": "Resend remains in test-mode (per iter-44 finding) — only the verified owner address actually delivers. test_test_email_sends asserts sent>=1 which passes because the request is to the owner. Cross-recipient delivery still fails (not in scope this iteration)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Avatar Teach", "issue": "End-to-end latency: avatar script (mentor/chat) renders at ~24s and audio (advanced/tts) starts at ~80s. Button stays at 'Preparing…' for the full duration with no intermediate progress hint. Users may think it's hung. Consider showing 'Generating script…' → 'Generating speech…' substates. Not a blocker — final state correctly transitions.", "affected_selectors": ["[data-testid=\"learner-avatar-btn\"]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration45.py",
+    "/app/test_reports/pytest/iteration_45.xml"
+  ],
+  "action_items": [
+    "(Pending from iter-44, NOT scope of this iter) CRITICAL: Fix public_view_content PPTX caching to avoid pymongo DocumentTooLarge on 'Final DG Presentation' (id fa26b059-d70d-4dbe-a6c9-3907a0408956). Wrap the update_one cache-write in try/except DocumentTooLarge and still return the JSONResponse, OR strip base64 images from slides_json before persisting.",
+    "(Pending from iter-44) Verify a domain at resend.com/domains so org-wide notifications actually deliver to all 43 active users (Resend currently in test-mode = owner-only).",
+    "OPTIONAL: Show intermediate progress states on Avatar Teach button (e.g., 'Generating script…' → 'Generating voice…' → 'Speaking') because the whole pipeline takes ~80s in production and the user sees only 'Preparing…' the whole time."
+  ],
+  "critical_code_review_comments": [
+    "server.py L14237-14310 — new learner video gen endpoints are clean, properly auth-gated, idempotent via existing-job check, and use background_tasks. Good.",
+    "server.py L14313-14334 — audio/video FileResponse endpoints correctly use Depends(get_current_user). Regression test (test_audio_unauthed_is_not_404) confirms the orphan @public_router.get decorator removal restored route registration.",
+    "server.py L14351, L14372, L14393 — three notification helpers now correctly use `os.environ.get('PUBLIC_FRONTEND_URL') or os.environ.get('FRONTEND_URL', '')` fallback chain so production emails carry the production URL.",
+    "smtp_notifications.render_notification(title, message, action_label, action_url) does NOT itself resolve relative URLs — only send_notification_email does (L194-197). The review-request spec saying 'render_notification with action_url=/super-admin and frontend_base_url=None resolves to PUBLIC_FRONTEND_URL' is slightly misleading — it's send_notification_email that does this. Tested both: env contains the production URL and the upstream resolution path emits the absolute URL into the HTML.",
+    "PublicContentViewPage.js L640-660 — Generate-AI-video button gating (mediaInfo?.video_url ? watch : busy ? status : generate) is correct.",
+    "PublicContentViewPage.js L730-761 — animated avatar uses avatar-talking/avatar-idle classes on the img and renders GestureCaption (.animate-fade-cycle chip) + speaking-bars overlay + halo/ping rings when audioPlaying=true. CSS keyframes defined in App.css. Solid implementation.",
+    "PublicContentViewPage.js L423-465 handleAvatarTeach — only updates a single avatarBusy state across the 80s pipeline; consider intermediate UX progress markers."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration45.py"
+  ],
+  "success_rate": {
+    "backend": "100% (8/9 passed, 1 expected skip)",
+    "frontend": "100% (Video tab + Avatar Teach end-to-end both verified)"
+  },
+  "test_credentials": "Super Admin takuechakanyuka@gmail.com / SuperAdmin@2026!",
+  "seed_data_creation": "None — all tests use existing public_content docs. Pick doc 75b75fd3-... (no video) for Video-tab tests; any doc id is fine for audio auth regression.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "(1) Audio-route auth regression is FIXED — orphan @public_router.get decorator removed; both public_serve_audio and public_serve_video correctly require auth. (2) Learner generate-video endpoint accepts ?duration=4..12 (clamped), is idempotent (same job_id returned within the processing window), and the polling endpoint /content/<id>/video-job/<jobId> returns status. (3) test-email returns sent=1 to the verified owner only (Resend test mode — see iter-44). (4) PUBLIC_FRONTEND_URL=https://cognify.aiinstituteafrica.com is set in /app/backend/.env L59; all 3 notify_* helpers use the PUBLIC_FRONTEND_URL || FRONTEND_URL fallback. (5) Avatar Teach pipeline timing: mentor/chat ~24s + TTS ~55s = ~80s total before audioPlaying=true. Use 90s timeout in playwright. (6) PPTX 500 bug on Final DG Presentation (id fa26b059...) from iter-44 was NOT retested.",
+  "rca of the issue": "All four iter-45 spec items pass. Backend gating logic: get_current_user dependency raises 403 when no Bearer header is present (FastAPI behavior — HTTPBearer auto_error=True). Frontend animation state: audioPlaying is set true in playAudioFromUrl when new Audio.play() succeeds; class on avatar-face img toggles between 'avatar-talking' (CSS keyframe avatar-talk + ::before pseudo-mouth bobbing) and 'avatar-idle' (subtle breathe). GestureCaption is a simple component that cycles through 6 strings every ~2s using .animate-fade-cycle keyframes in App.css — verified text changed to '✋ gestures to the slide' on screen."
+}

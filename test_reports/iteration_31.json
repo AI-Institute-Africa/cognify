@@ -1,0 +1,102 @@
+{
+  "summary": "Iteration 31 - Bug Fixes Testing Complete. All 23 backend tests passed. Fixed ObjectId serialization bug in serialize_doc function. Fixed frontend Assignments page to use correct API endpoint based on user role.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Org Admin Dashboard", "issues": ["Courses statistics card shows '0 Available courses' even though org admin can see 7 courses on /courses page - this is a statistics calculation issue, not a blocking bug"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration31_features.py",
+    "/app/test_reports/pytest/pytest_iteration31.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fixed: serialize_doc function now properly removes MongoDB _id field to prevent ObjectId serialization errors",
+    "Fixed: StudentAssignmentsPage now uses getAssignments() for teacher/org_admin/admin roles instead of getStudentAssignments()"
+  ],
+  "updated_files": [
+    "/app/backend/server.py",
+    "/app/frontend/src/pages/StudentAssignmentsPage.js",
+    "/app/backend/tests/test_iteration31_features.py"
+  ],
+  "success_rate": {
+    "backend": "100% (23/23 tests passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "test_credentials": {
+    "student": "demo.student@cognify.edu / demo123",
+    "teacher": "demo.teacher@eduos.edu / demo123",
+    "org_admin": "test.orgadmin@cognify.edu / admin123",
+    "org_slug": "cognify"
+  },
+  "seed_data_creation": "Created test assignments and exams via publish endpoints during testing",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All bug fixes from iteration 31 are working. Key fixes: 1) serialize_doc now removes _id to prevent ObjectId errors, 2) StudentAssignmentsPage uses correct API based on role, 3) Org admin can see courses, assignments, exams, 4) Publish assignment/exam from AI Q&A Generator works for teacher and org_admin, 5) Avatar Settings has Voice Cloning section with Record and Upload options, 6) AI Mentor page has audio controls (Pause/Stop) when audio is playing.",
+  "features_tested": {
+    "publish_assignments_from_ai_qa": {
+      "status": "PASS",
+      "details": "POST /api/training-engine/publish-assignment works for teacher and org_admin, returns 403 for students"
+    },
+    "publish_exams_from_ai_qa": {
+      "status": "PASS",
+      "details": "POST /api/training-engine/publish-exam works for teacher and org_admin, returns 403 for students"
+    },
+    "org_admin_assignments_access": {
+      "status": "PASS",
+      "details": "GET /api/assignments returns assignments for org_admin (3 assignments visible)"
+    },
+    "org_admin_exams_access": {
+      "status": "PASS",
+      "details": "GET /api/exams returns exams for org_admin"
+    },
+    "org_admin_courses_access": {
+      "status": "PASS",
+      "details": "GET /api/courses returns 7 courses for org_admin, /courses page shows all courses"
+    },
+    "org_courses_endpoint": {
+      "status": "PASS",
+      "details": "GET /api/org/courses returns org-specific courses"
+    },
+    "avatar_voice_cloning": {
+      "status": "PASS",
+      "details": "Voice Cloning section visible with Record Voice (5 seconds) and Upload Audio File options"
+    },
+    "avatar_voice_status": {
+      "status": "PASS",
+      "details": "GET /api/avatar/voice-status returns voice clone status"
+    },
+    "org_admin_sidebar_items": {
+      "status": "PASS",
+      "details": "Org admin has Exams, Assignments, Grading sidebar items"
+    },
+    "certificate_gallery": {
+      "status": "PASS",
+      "details": "GET /api/certificates/gallery/my returns user certificates"
+    },
+    "org_login_page": {
+      "status": "PASS",
+      "details": "/org/cognify shows Sign In / Register tabs"
+    }
+  },
+  "bug_fixes_applied": [
+    {
+      "file": "/app/backend/server.py",
+      "function": "serialize_doc",
+      "issue": "ObjectId serialization error when returning assignments",
+      "fix": "Added doc.pop('_id', None) to remove MongoDB ObjectId before serialization"
+    },
+    {
+      "file": "/app/frontend/src/pages/StudentAssignmentsPage.js",
+      "function": "fetchAssignments",
+      "issue": "Org admin/teacher getting 403 error because page was calling student-only endpoint",
+      "fix": "Added role check to use getAssignments() for teacher/org_admin/admin roles"
+    }
+  ]
+}

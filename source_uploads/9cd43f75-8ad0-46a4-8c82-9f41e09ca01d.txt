@@ -1,0 +1,2 @@
+This is a test document about Python programming.
+Python is a versatile language.

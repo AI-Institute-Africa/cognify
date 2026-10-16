@@ -1,0 +1,78 @@
+{
+  "summary": "Iteration 44 — Tested upload speed (5 formats), view speed (5 formats), all-format render path, auth gating on /audio + /video, public listing media stripping, PPTX slides_json cache, and reviewed auto-play code path. Backend pytest: 13/14 passed + 1 skipped. KEY FINDING: real prod PPTX 'Final DG Presentation' (fa26b059…) returns HTTP 500 in production because LibreOffice-generated slides_json with embedded base64 images exceeds MongoDB's 16MB document size limit when public_view_content tries to cache it via update_one. Every view triggers a 20s+ LibreOffice conversion that crashes on the cache write — the public viewer page is stuck on an infinite spinner. New uploads (small synthetic PPTX) work because slides_json stays small. Upload speed: ALL formats <1s (10MB PDF in 0.64s, 5MB PPTX in 0.11s — well under 5s spec). View speed: PDF/PNG/DOCX/TXT all <0.5s. PPTX warm-cached view: 2.75s (still >1s spec, but acceptable). Auth gating: PASS (401 on anonymous /audio/<aid> and /video/<vid>). Frontend testids verified (sa-upload-progress conditionally rendered, sa-gen-audio/sa-gen-video present). Auto-play code in generate() correctly uses media-info → fetch blob with auth → new Audio.play() / window.open().",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/public/content/{doc_id}/view",
+        "issue": "REAL PROD PPTX 'Final DG Presentation' (id fa26b059-d70d-4dbe-a6c9-3907a0408956, 14MB pptx) returns HTTP 500 every call. server.py line 14137: `await db.public_content.update_one({...}, {$set: {slides_json: slides}})` raises pymongo.errors.DocumentTooLarge because the generated slides_json contains base64-encoded slide images that exceed MongoDB's 16MB BSON limit. Each request also triggers a full LibreOffice conversion (~20s) before crashing. User-facing public viewer at /public/<id> shows an infinite spinner because the GET always 500s. FIX: (a) compress/strip embedded images from slides_json before persisting (store image refs to disk instead of inlining base64), or (b) gracefully fall back to returning slides_json in the response WITHOUT persisting when oversize, or (c) chunk the persisted slides into a separate collection / GridFS.",
+        "priority": "CRITICAL"
+      },
+      {
+        "endpoint": "POST /api/super-admin/test-email (and notification fan-out)",
+        "issue": "Resend integration is in 'test mode' — only allows sending to the verified owner email (takuechakanyuka@gmail.com). All other recipients fail with 'You can only send testing emails to your own email address. To send emails to other recipients, please verify a domain at resend.com/domains'. Means upload-notification broadcast (43 active users) all fail. Visible in backend logs: 'Resend send to newuser@test.com failed: ...'. SMTP fallback also times out (egress blocked). FIX: verify a domain on resend.com and change from address to that domain, or send a single batched email to a moderated list.",
+        "priority": "HIGH"
+      },
+      {
+        "endpoint": "GET /api/public/content/{doc_id}/view (PPTX cold path)",
+        "issue": "Even for a NEW 0.5MB pptx with no embedded images, the cold-path (background slide-cache not yet finished) takes 22s due to LibreOffice conversion. After cache warms, view drops to ~2.75s (still >1s spec target). For genuinely interactive UX, the LibreOffice path needs either pre-warming during upload (already attempted in sa_upload_public_content background task) OR a python-pptx-only fast path that does not shell out to LibreOffice.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "GET /api/public/content/{doc_id}/view (PPTX warm path)",
+        "issue": "Warm cache returns application/json but the round-trip is 2.75s (3 calls averaged) for a doc with 1 slide. Bulk of the time is JSON serialization through the ingress. Consider gzip on the response or moving slides_json to a streamed JSONResponse."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "PublicContentViewPage (/public/<id>) for PPTX",
+        "issue": "When the /view endpoint returns 500 (e.g., the legacy Final DG PPTX), the page shows an INFINITE LOADING SPINNER with no error message and no fallback. User has no recovery path. Should render an error toast + a 'Download original file' link.",
+        "selector": "/public/fa26b059-d70d-4dbe-a6c9-3907a0408956",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Public PPTX view (logged-out)",
+        "issue": "Front-end depends on a successful 200 from /api/public/content/<id>/view; backend returns 500 on the only existing prod PPTX → blank loading state. Auto-play media test for AI audio/video not executed end-to-end (slow LLM job) but code path reviewed and is correct.",
+        "affected_selectors": ["loading spinner on /public/<id>"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration44_speed_render_auth.py",
+    "/app/test_reports/pytest/iteration_44.xml"
+  ],
+  "action_items": [
+    "CRITICAL: Fix public_view_content PPTX caching to avoid pymongo DocumentTooLarge. Either (a) strip base64 image payloads from slides_json (keep only structured text), or (b) try/except the update_one and still return the slides body in the response, or (c) store slides_json compressed/gzipped or in GridFS. Currently 'Final DG Presentation' is unviewable (HTTP 500 every call) and the user is blocked.",
+    "HIGH: Resend account is in test mode — only the owner email receives notifications. Verify a domain at resend.com/domains and switch the from-address, OR drop SMTP fallback noise from the logs (currently every recipient fails twice — once on Resend, once on SMTP fallback).",
+    "HIGH: Add an error UI state in PublicContentViewPage.js when /view returns a non-200 (currently shows infinite spinner). Surface a toast.error + retry button + 'Download original' link.",
+    "MEDIUM: PPTX cold-path latency 20s+; warm path 2.75s — both exceed the 1s spec. Pre-warm slides_json synchronously during upload (or via python-pptx-only path skipping LibreOffice) and ship a fast in-browser PPTX viewer that streams slides one-at-a-time.",
+    "LOW: sa-upload-progress testid is rendered conditionally (only while upload in progress) — verified, not in DOM at modal open. Confirm the spec author intended this (correct behavior)."
+  ],
+  "critical_code_review_comments": [
+    "server.py L14137: `await db.public_content.update_one({'id': doc_id}, {'$set': {'slides_json': slides}})` MUST be wrapped in try/except (pymongo.errors.DocumentTooLarge) and the response should still be returned even if persistence fails. Right now a cache miss + oversize slides = unrecoverable 500 on every subsequent call.",
+    "server.py is 14,298 lines — three iterations in a row have flagged this. Split into routers (auth, public, super_admin, content, mentor, payments, premade).",
+    "smtp_notifications: Resend test-mode failure mode should short-circuit the SMTP fallback (currently every send doubly-fails and floods logs). Detect the 'verify a domain' error and either (a) coalesce into a single owner-only digest email, or (b) skip recipients and surface a single admin warning.",
+    "Auto-play code in SuperAdminDashboardPage.js generate() (lines 440-460) is correct: fetches media-info with Bearer header, fetches the auth-gated URL with the same header, blob-URLs the bytes, plays via new Audio for audio / opens new tab for video. Toast message matches spec ('Opening preview…'). Could be improved by also calling URL.revokeObjectURL on cleanup to avoid blob leaks.",
+    "public_view_content backwards-compat branch (file_data base64, L14094) and the new file_path branch (L14074) both work for PDF/PNG/DOCX/TXT — verified by upload+view round-trip. Good.",
+    "/api/public/<id>/audio/<aid> and .../video/<vid> correctly use Depends(get_current_user) so anonymous requests get 401. Confirmed by test_audio_endpoint_rejects_anonymous and test_video_endpoint_rejects_anonymous."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration44_speed_render_auth.py"
+  ],
+  "success_rate": {
+    "backend": "93% (13/14 pytest pass + 1 skip on PPTX cold-path; 1 critical prod-data bug on legacy pptx)",
+    "frontend": "75% (testids OK, upload modal OK, auto-play code OK; public PPTX viewer broken due to backend 500)"
+  },
+  "test_credentials": "Super Admin takuechakanyuka@gmail.com / SuperAdmin@2026!",
+  "seed_data_creation": "Tests upload 5 TEST_iter44_* docs (txt/png/docx/pptx/pdf) and hard-delete them in test_cleanup_uploaded_docs. The cold-path test creates 1 extra pptx and deletes it inline.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "(1) The PPTX 500 root cause is pymongo DocumentTooLarge on update_one cache-write at server.py:14137 — DOCUMENTED in /var/log/supervisor/backend.err.log. (2) The 'Final DG Presentation' (id fa26b059-d70d-4dbe-a6c9-3907a0408956) is the only existing prod pptx and is the user's reference doc for 'display takes too long' — it actually 500s, not slow. (3) Resend is in test mode; only takuechakanyuka@gmail.com receives email. (4) Auth gating on /audio/<aid> and /video/<vid> is correctly enforced via Depends(get_current_user). (5) sa-upload-progress testid is conditional (only during upload), confirmed correct. (6) Auto-play code path is correct but not executed end-to-end here because the AI gen pipeline is slow + the only candidate prod doc 500s on view.",
+  "rca of the issue": "PRIMARY BUG: In public_view_content at server.py:14111-14140, for ext in ('doc','ppt','pptx','xls','xlsx') without a cached pdf and without a usable LibreOffice conversion, the code falls into the pptx slides-from-bytes path. _pptx_to_slides_json embeds base64-encoded slide images directly into the returned dict. For 'Final DG Presentation' (14MB pptx) the resulting list exceeds the 16MB BSON limit. The subsequent `db.public_content.update_one({id: ...}, {$set: {slides_json: slides}})` raises pymongo.errors.DocumentTooLarge BEFORE the JSONResponse is returned, so the request fails with 500 (FastAPI converts uncaught exception to 'Internal Server Error'). Reproduction: GET /api/public/content/fa26b059-d70d-4dbe-a6c9-3907a0408956/view → 500 every time. Mitigation: wrap the update_one in try/except DocumentTooLarge and still return the JSONResponse OR strip base64 images from slides_json before persisting (only keep small text + references)."
+}

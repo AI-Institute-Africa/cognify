@@ -1,0 +1,66 @@
+{
+  "summary": "Iteration 42 — Multi-modal Public Content Viewer + Sidebar 'Public Library & Summits' tested end-to-end as student + guest. Backend: 7 pytest cases PASS + 2 xfail (confirmed bug). Frontend: 6/7 learner-tab scenarios PASS, guest view PASS, sidebar submenu PASS, language translation PASS. ONE BACKEND BUG FOUND: POST /api/advanced/lesson/generate is unparseable (always 422) regardless of payload shape (raw list / embedded object / all-in-body / repeated query params all rejected) → Avatar Teach button click returns 422 in the UI. All other tabs (Read, Text Summary, Audio, Video, Slides) work as specified.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/advanced/lesson/generate",
+        "issue": "Endpoint signature 'topic: str, learning_objectives: list, duration_minutes: int' is REJECTED by FastAPI/Pydantic v2 with HTTP 422 'Field required loc=[body, learning_objectives]' regardless of how the client encodes the payload (raw JSON array body, {learning_objectives:[...]} embedded body, repeated query params, or full body with all 3 keys). The frontend Avatar Teach button (PublicContentViewPage.js line 312) hits this endpoint and ALWAYS errors with 422. Suggested fix: use a Pydantic BaseModel for the request body, e.g. class LessonGenReq(BaseModel): topic: str; learning_objectives: List[str]; duration_minutes: int = 30 — then accept (req: LessonGenReq).",
+        "priority": "HIGH"
+      },
+      {
+        "endpoint": "POST /api/advanced/lesson/generate (role gating)",
+        "issue": "Even when the signature is fixed, the endpoint requires role in (admin, teacher, org_admin). A logged-in STUDENT viewing /public/<id> will get 403 from the Avatar Teach button. Either grant students read access or replace the call with a student-allowed endpoint.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "PublicContentViewPage (guest mode)",
+        "issue": "Guest 'Back to Public Library' header link has no data-testid (it's only added on the logged-in path). Other guest testids (guest-signin-cta, guest-unlock-btn) are present. Low-impact since text-based selector works.",
+        "selector": "header > Link[to='/public']",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Avatar Teach tab",
+        "issue": "Clicking 'Start avatar teaching' as a logged-in student fires POST /api/advanced/lesson/generate → 422 (backend bug above). Toast shown to user reads 'Avatar teaching unavailable: [object Object]' because frontend stringifies the FastAPI 422 detail array poorly. Suggest extracting detail[0].msg or detail when it's a list.",
+        "affected_selectors": ["learner-avatar-btn"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration42_multimodal_public.py",
+    "/app/test_reports/pytest/iteration_42.xml"
+  ],
+  "action_items": [
+    "FIX (HIGH): Refactor /api/advanced/lesson/generate to accept a Pydantic body model so learning_objectives is parseable. Current signature returns 422 for every shape of payload — Avatar Teach feature is completely broken.",
+    "FIX (HIGH): Either drop the (admin/teacher/org_admin) role gate on /api/advanced/lesson/generate or call a student-friendly endpoint from PublicContentViewPage.handleAvatarTeach. As-is, students cannot use Avatar Teach.",
+    "POLISH (LOW): In handleAvatarTeach error toast, format FastAPI 422 detail arrays (currently displays raw object).",
+    "POLISH (LOW): Add data-testid='back-to-public' to the guest-mode Back link (currently only added on logged-in path)."
+  ],
+  "critical_code_review_comments": [
+    "PublicContentViewPage.js is 696 lines — borderline within the 700-line guideline; consider splitting GuestView and LearnerView into separate sub-components.",
+    "handleAvatarTeach passes learning_objectives as REPEATED query params (URLSearchParams.append) but the backend expects them in BODY → guaranteed 422. Even if the backend gets fixed to accept the model, the frontend call needs to be updated to JSON body.",
+    "Backend lesson_generate's `learning_objectives: list` (untyped, no Body() wrapper) is unparseable by Pydantic v2 in every encoding. Strongly recommend a typed Pydantic request model for all multi-arg endpoints to avoid this class of bug.",
+    "GET /api/public/content/<id>/media-info correctly excludes _id and returns the new fields (preview_text, description, category, filename) plus the existing audio_url/video_url. Auth gating works (401/403 without token).",
+    "Translation endpoint round-trips English↔French cleanly in the UI; 'Translated to Français' heading + correct translation rendered on Text Summary tab.",
+    "Sidebar.js: 'Public Library & Summits' expandable group is correctly inserted for all 4 logged-in roles (student/teacher/admin/org_admin) with 3 sub-items each linking to /public.",
+    "Video tab correctly disables the button with label 'Not available yet' when video_url is null on the doc.",
+    "Slides + TTS endpoints both return graceful async/error responses; frontend polls slides-status correctly."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration42_multimodal_public.py"
+  ],
+  "success_rate": {"backend": "78% (7/9 pytest — 2 xfail are documented bugs)", "frontend": "86% (6/7 tabs work; Avatar Teach broken by backend)"},
+  "test_credentials": "Used demo.student@cognify.edu/demo123 + demo.teacher@eduos.edu/demo123 (both from /app/memory/test_credentials.md, no modification).",
+  "seed_data_creation": "None.",
+  "retest_needed": true,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "All testids on PublicContentViewPage learner mode work: learner-tab-{read|text|audio|video|slides|avatar}, learner-text-content, learner-audio-btn, learner-audio-stop, learner-video-btn, learner-slides-btn, learner-avatar-btn, lang-select, back-to-public, open-sidebar-btn. Guest testids: guest-signin-cta, guest-unlock-btn. Backend new endpoint GET /api/public/content/<id>/media-info returns id/title/description/category/filename/preview_text/audio_url/video_url. Translation POST /api/language/translate?text=...&target_language=... returns {original, translated, target_language}. Slides POST /api/content/generate-slides?topic=...&slide_count=N returns {slideshow_id, status, total}; poll /api/content/slides-status/<id>. THE KNOWN BROKEN ENDPOINT is POST /api/advanced/lesson/generate — requires backend refactor to a Pydantic body model.",
+  "rca of the issue": "Avatar Teach 422: FastAPI/Pydantic v2 cannot resolve where `learning_objectives: list` (no annotation/Body wrapper) belongs when other args are mixed query-only types; it ends up looking for a body field named 'learning_objectives' but never finds it regardless of payload encoding. RCA verified by direct curl with all 3 payload variants (raw list / embedded dict / all-in-body) — all return 422 with identical 'loc=[body, learning_objectives]' error. Fix: define a LessonGenerateRequest Pydantic model and accept it as the sole body argument; move topic & duration_minutes inside the model OR keep them as explicit Query() params."
+}

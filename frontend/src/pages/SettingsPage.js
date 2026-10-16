@@ -1,0 +1,776 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
+import { DashboardLayout } from '../components/DashboardLayout';
+import { Header } from '../components/Header';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Switch } from '../components/ui/switch';
+import { Separator } from '../components/ui/separator';
+import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
+import PhoneInputWithCountry from '../components/PhoneInputWithCountry';
+import {
+  updateUserProfileSettings,
+  uploadProfilePhoto,
+  updateNotificationSettings,
+  getUserSettings,
+  updateAppearance,
+  changePassword,
+  getErrorMessage
+} from '../services/api';
+import {
+  User,
+  Bell,
+  Shield,
+  Palette,
+  Globe,
+  Key,
+  Camera,
+  Save,
+  Moon,
+  Sun,
+  Loader2,
+  Check,
+  Eye,
+  EyeOff,
+  FileText,
+  Award,
+  Upload,
+  Trash2,
+  Download
+} from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
+
+export default function SettingsPage() {
+  const { user, refreshUser } = useAuth();
+  const { language, setLanguage, languages } = useLanguage();
+  const fileInputRef = useRef(null);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
+  const [bio, setBio] = useState('');
+  const [appearance, setAppearance] = useState('dark');
+
+  const [notifications, setNotifications] = useState({
+    email_notifications: true,
+    push_notifications: true,
+    grade_notifications: true,
+    attendance_alerts: true,
+    fee_reminders: true
+  });
+
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [showPasswords, setShowPasswords] = useState(false);
+
+  // Document uploads state (for students)
+  const [documents, setDocuments] = useState([]);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const docInputRef = useRef(null);
+
+  // Sync from user object on mount / user change
+  useEffect(() => {
+    if (user) {
+      setFullName(user.full_name || '');
+      setPhone(user.phone || user.phone_number || '');
+      setLinkedinUrl(user.linkedin_url || '');
+      setBio(user.bio || '');
+    }
+  }, [user]);
+
+  const loadSettings = useCallback(async () => {
+    try {
+      const settings = await getUserSettings();
+      setNotifications({
+        email_notifications: settings.email_notifications ?? true,
+        push_notifications: settings.push_notifications ?? true,
+        grade_notifications: settings.grade_notifications ?? true,
+        attendance_alerts: settings.attendance_alerts ?? true,
+        fee_reminders: settings.fee_reminders ?? true
+      });
+      const savedTheme = settings.appearance || 'dark';
+      setAppearance(savedTheme);
+      applyTheme(savedTheme);
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadDocuments = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('cognify_token');
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const response = await fetch(`${API}/api/student/documents`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDocuments(data.documents || []);
+      }
+    } catch (error) {
+      console.error('Failed to load documents:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSettings();
+    if (user?.role === 'student') {
+      loadDocuments();
+    }
+  }, [loadSettings, loadDocuments, user?.role]);
+
+  const applyTheme = (theme) => {
+    if (theme === 'light') {
+      document.documentElement.classList.add('light-mode');
+      document.documentElement.classList.remove('dark-mode');
+      document.body.style.backgroundColor = '#f4f4f5';
+      document.body.style.color = '#09090b';
+    } else {
+      document.documentElement.classList.remove('light-mode');
+      document.documentElement.classList.add('dark-mode');
+      document.body.style.backgroundColor = '#09090B';
+      document.body.style.color = '#FAFAFA';
+    }
+  };
+
+  const handleDocumentUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/jpeg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Please upload PDF, DOC, DOCX, JPG, or PNG files');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File size must be less than 10MB');
+      return;
+    }
+
+    setUploadingDoc(true);
+    try {
+      const token = localStorage.getItem('cognify_token');
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const formData = new FormData();
+      formData.append('file', file);
+      const docType = (file.name.toLowerCase().includes('cv') || file.name.toLowerCase().includes('resume')) ? 'cv' : 'certificate';
+      formData.append('document_type', docType);
+
+      const response = await fetch(`${API}/api/student/documents/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+
+      if (response.ok) {
+        toast.success('Document uploaded successfully!');
+        loadDocuments();
+      } else {
+        const err = await response.json().catch(() => ({}));
+        toast.error(typeof err.detail === 'string' ? err.detail : 'Failed to upload document');
+      }
+    } catch (error) {
+      console.error('Document upload error:', error);
+      toast.error('Failed to upload document');
+    } finally {
+      setUploadingDoc(false);
+      if (docInputRef.current) docInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteDocument = async (docId) => {
+    try {
+      const token = localStorage.getItem('cognify_token');
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const response = await fetch(`${API}/api/student/documents/${docId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        toast.success('Document deleted');
+        loadDocuments();
+      } else {
+        toast.error('Failed to delete document');
+      }
+    } catch (error) {
+      console.error('Delete document error:', error);
+      toast.error('Failed to delete document');
+    }
+  };
+
+  const getInitials = (name) => {
+    return name
+      ?.split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2) || 'U';
+  };
+
+  const handleSaveProfile = async () => {
+    if (!fullName.trim()) {
+      toast.error('Full name is required');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateUserProfileSettings(fullName.trim(), phone || null, linkedinUrl || null, bio || null);
+      if (refreshUser) await refreshUser();
+      toast.success('Profile updated successfully!');
+    } catch (error) {
+      console.error('Save profile error:', error);
+      toast.error(getErrorMessage(error, 'Failed to update profile'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      toast.info('Uploading photo...');
+      await uploadProfilePhoto(file);
+      if (refreshUser) await refreshUser();
+      toast.success('Photo uploaded successfully!');
+    } catch (error) {
+      console.error('Photo upload error:', error);
+      toast.error(getErrorMessage(error, 'Failed to upload photo'));
+    }
+  };
+
+  const handleNotificationChange = async (key, value) => {
+    const newNotifications = { ...notifications, [key]: value };
+    setNotifications(newNotifications);
+
+    try {
+      await updateNotificationSettings(newNotifications);
+      toast.success('Notification settings updated');
+    } catch (error) {
+      console.error('Notification update error:', error);
+      // Revert on failure
+      setNotifications(notifications);
+      toast.error(getErrorMessage(error, 'Failed to update notifications'));
+    }
+  };
+
+  const handleAppearanceChange = async (theme) => {
+    setAppearance(theme);
+    applyTheme(theme);
+    try {
+      await updateAppearance(theme);
+      toast.success(`${theme === 'dark' ? 'Dark' : 'Light'} mode enabled`);
+    } catch (error) {
+      console.error('Appearance update error:', error);
+      toast.error(getErrorMessage(error, 'Failed to update appearance'));
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast.error('New passwords do not match');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      await changePassword(passwordData.currentPassword, passwordData.newPassword);
+      toast.success('Password changed successfully!');
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error) {
+      console.error('Password change error:', error);
+      toast.error(getErrorMessage(error, 'Failed to change password'));
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-screen">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  return (
+    <DashboardLayout>
+      <Header
+        title="Settings"
+        subtitle="Manage your account preferences"
+      />
+
+      <div className="p-8 max-w-4xl">
+        {/* Profile Section */}
+        <div className="glass-card p-6 mb-6">
+          <div className="flex items-center gap-3 mb-6">
+            <User className="w-5 h-5 text-blue-400" />
+            <h2 className="text-lg font-semibold">Profile Information</h2>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-8">
+            <div className="flex flex-col items-center gap-4">
+              <Avatar className="w-24 h-24">
+                <AvatarImage src={user?.profile_image} />
+                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-violet-500 text-white text-2xl">
+                  {getInitials(user?.full_name)}
+                </AvatarFallback>
+              </Avatar>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handlePhotoUpload}
+                accept="image/*"
+                className="hidden"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-white/10"
+                onClick={() => fileInputRef.current?.click()}
+                data-testid="change-photo-btn"
+              >
+                <Camera className="w-4 h-4 mr-2" />
+                Change Photo
+              </Button>
+            </div>
+
+            <div className="flex-1 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Full Name</Label>
+                  <Input
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="bg-zinc-900/50 border-white/10"
+                    data-testid="settings-name-input"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    defaultValue={user?.email}
+                    disabled
+                    className="bg-zinc-900/50 border-white/10 opacity-60"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <PhoneInputWithCountry
+                    value={phone}
+                    onChange={setPhone}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>LinkedIn Profile URL</Label>
+                  <Input
+                    value={linkedinUrl}
+                    onChange={(e) => setLinkedinUrl(e.target.value)}
+                    placeholder="https://linkedin.com/in/yourprofile"
+                    className="bg-zinc-900/50 border-white/10"
+                    data-testid="linkedin-url-input"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Bio</Label>
+                <textarea
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="Tell us about yourself..."
+                  className="w-full p-3 rounded-md bg-zinc-900/50 border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-blue-500/50 min-h-[100px]"
+                  data-testid="bio-input"
+                />
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="space-y-2 flex-1">
+                  <Label>Role</Label>
+                  <Input
+                    defaultValue={user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1)}
+                    disabled
+                    className="bg-zinc-900/50 border-white/10 opacity-60"
+                  />
+                </div>
+              </div>
+
+              <Button
+                onClick={handleSaveProfile}
+                disabled={saving}
+                className="bg-blue-500 hover:bg-blue-600"
+                data-testid="save-profile-btn"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Profile
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Documents Section - Students Only */}
+        {user?.role === 'student' && (
+          <div className="glass-card p-6 mb-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <FileText className="w-5 h-5 text-emerald-400" />
+                <h2 className="text-lg font-semibold">My Documents</h2>
+              </div>
+              <div>
+                <input
+                  type="file"
+                  ref={docInputRef}
+                  onChange={handleDocumentUpload}
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  className="hidden"
+                />
+                <Button
+                  onClick={() => docInputRef.current?.click()}
+                  disabled={uploadingDoc}
+                  variant="outline"
+                  size="sm"
+                  className="border-white/10"
+                  data-testid="upload-document-btn"
+                >
+                  {uploadingDoc ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4 mr-2" />
+                  )}
+                  Upload Document
+                </Button>
+              </div>
+            </div>
+
+            <p className="text-sm text-zinc-500 mb-4">
+              Upload your CV, certificates, and academic achievements. These will be visible to potential employers and institutions.
+            </p>
+
+            <div className="space-y-3">
+              {documents.length === 0 ? (
+                <div className="text-center py-8 border border-dashed border-white/10 rounded-lg">
+                  <Award className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+                  <p className="text-zinc-500">No documents uploaded yet</p>
+                  <p className="text-xs text-zinc-600 mt-1">Upload CVs, certificates, and achievements</p>
+                </div>
+              ) : (
+                documents.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between p-4 rounded-lg bg-zinc-800/50 border border-white/5"
+                    data-testid={`document-${doc.id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${
+                        doc.document_type === 'cv' ? 'bg-blue-500/20' : 'bg-emerald-500/20'
+                      }`}>
+                        {doc.document_type === 'cv' ? (
+                          <FileText className="w-5 h-5 text-blue-400" />
+                        ) : (
+                          <Award className="w-5 h-5 text-emerald-400" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium">{doc.filename}</p>
+                        <p className="text-xs text-zinc-500">
+                          {doc.document_type === 'cv' ? 'CV/Resume' : 'Certificate'} •{' '}
+                          Uploaded {new Date(doc.uploaded_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {doc.url && (
+                        <a
+                          href={`${process.env.REACT_APP_BACKEND_URL}${doc.url}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                          title="Download"
+                        >
+                          <Download className="w-4 h-4 text-zinc-400" />
+                        </a>
+                      )}
+                      <button
+                        onClick={() => handleDeleteDocument(doc.id)}
+                        className="p-2 rounded-lg hover:bg-red-500/20 transition-colors text-zinc-400 hover:text-red-400"
+                        data-testid={`delete-doc-${doc.id}`}
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Notifications Section */}
+        <div className="glass-card p-6 mb-6">
+          <div className="flex items-center gap-3 mb-6">
+            <Bell className="w-5 h-5 text-amber-400" />
+            <h2 className="text-lg font-semibold">Notification Preferences</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="font-medium">Email Notifications</p>
+                <p className="text-sm text-zinc-500">Receive notifications via email</p>
+              </div>
+              <Switch
+                checked={notifications.email_notifications}
+                onCheckedChange={(checked) => handleNotificationChange('email_notifications', checked)}
+                data-testid="email-notifications-switch"
+              />
+            </div>
+
+            <Separator className="bg-white/5" />
+
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="font-medium">Push Notifications</p>
+                <p className="text-sm text-zinc-500">Receive push notifications on your device</p>
+              </div>
+              <Switch
+                checked={notifications.push_notifications}
+                onCheckedChange={(checked) => handleNotificationChange('push_notifications', checked)}
+              />
+            </div>
+
+            <Separator className="bg-white/5" />
+
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="font-medium">Grade Notifications</p>
+                <p className="text-sm text-zinc-500">Get notified when grades are posted</p>
+              </div>
+              <Switch
+                checked={notifications.grade_notifications}
+                onCheckedChange={(checked) => handleNotificationChange('grade_notifications', checked)}
+              />
+            </div>
+
+            <Separator className="bg-white/5" />
+
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="font-medium">Attendance Alerts</p>
+                <p className="text-sm text-zinc-500">Get alerts about attendance</p>
+              </div>
+              <Switch
+                checked={notifications.attendance_alerts}
+                onCheckedChange={(checked) => handleNotificationChange('attendance_alerts', checked)}
+              />
+            </div>
+
+            <Separator className="bg-white/5" />
+
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="font-medium">Fee Reminders</p>
+                <p className="text-sm text-zinc-500">Get reminders about fee payments</p>
+              </div>
+              <Switch
+                checked={notifications.fee_reminders}
+                onCheckedChange={(checked) => handleNotificationChange('fee_reminders', checked)}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Appearance Section */}
+        <div className="glass-card p-6 mb-6">
+          <div className="flex items-center gap-3 mb-6">
+            <Palette className="w-5 h-5 text-violet-400" />
+            <h2 className="text-lg font-semibold">Appearance</h2>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={() => handleAppearanceChange('dark')}
+              className={`p-4 rounded-xl border-2 transition-all ${
+                appearance === 'dark'
+                  ? 'border-blue-500 bg-blue-500/10'
+                  : 'border-white/10 hover:border-white/20'
+              }`}
+              data-testid="dark-mode-btn"
+            >
+              <Moon className="w-8 h-8 mx-auto mb-2 text-violet-400" />
+              <p className="font-medium">Dark Mode</p>
+              {appearance === 'dark' && <Check className="w-4 h-4 text-blue-400 mx-auto mt-2" />}
+            </button>
+
+            <button
+              onClick={() => handleAppearanceChange('light')}
+              className={`p-4 rounded-xl border-2 transition-all ${
+                appearance === 'light'
+                  ? 'border-blue-500 bg-blue-500/10'
+                  : 'border-white/10 hover:border-white/20'
+              }`}
+              data-testid="light-mode-btn"
+            >
+              <Sun className="w-8 h-8 mx-auto mb-2 text-amber-400" />
+              <p className="font-medium">Light Mode</p>
+              {appearance === 'light' && <Check className="w-4 h-4 text-blue-400 mx-auto mt-2" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Language Section */}
+        <div className="glass-card p-6 mb-6">
+          <div className="flex items-center gap-3 mb-6">
+            <Globe className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-lg font-semibold">Language</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <Label>Platform Language</Label>
+              <Select value={language} onValueChange={setLanguage}>
+                <SelectTrigger className="bg-zinc-900/50 border-white/10 mt-2 w-64">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-800 border-white/10">
+                  {languages.map((lang) => (
+                    <SelectItem key={lang.code} value={lang.code}>
+                      {lang.flag} {lang.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-zinc-500 mt-2">
+                This will change the language across all pages
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Security Section */}
+        <div className="glass-card p-6 mb-6">
+          <div className="flex items-center gap-3 mb-6">
+            <Shield className="w-5 h-5 text-red-400" />
+            <h2 className="text-lg font-semibold">Security</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Current Password</Label>
+              <div className="relative">
+                <Input
+                  type={showPasswords ? 'text' : 'password'}
+                  value={passwordData.currentPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                  className="bg-zinc-900/50 border-white/10 pr-10"
+                  placeholder="Enter current password"
+                  data-testid="current-password-input"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswords(!showPasswords)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500"
+                >
+                  {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>New Password</Label>
+                <Input
+                  type={showPasswords ? 'text' : 'password'}
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                  className="bg-zinc-900/50 border-white/10"
+                  placeholder="Min. 6 characters"
+                  data-testid="new-password-input"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Confirm New Password</Label>
+                <Input
+                  type={showPasswords ? 'text' : 'password'}
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                  className="bg-zinc-900/50 border-white/10"
+                  placeholder="Repeat new password"
+                />
+              </div>
+            </div>
+
+            <Button
+              onClick={handleChangePassword}
+              disabled={savingPassword || !passwordData.newPassword}
+              variant="outline"
+              className="border-white/10"
+              data-testid="change-password-btn"
+            >
+              {savingPassword ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Changing...
+                </>
+              ) : (
+                <>
+                  <Key className="w-4 h-4 mr-2" />
+                  Change Password
+                </>
+              )}
+            </Button>
+
+            <Separator className="bg-white/5 my-4" />
+
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="font-medium">Two-Factor Authentication</p>
+                <p className="text-sm text-zinc-500">Add an extra layer of security (Coming Soon)</p>
+              </div>
+              <Switch disabled />
+            </div>
+          </div>
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+}

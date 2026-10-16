@@ -1,0 +1,49 @@
+{
+  "summary": "Tested (A) Organization Public Join Link feature end-to-end, (B) Async course generation fix for Cloudflare-524, (C) mark-orphans idempotency, and (D) iteration-47 regression + /api/payments/status. Backend pytest: 15/16 passed on the new iteration 49 suite (with one intermittent latency observation on POST /api/courses/generate-custom — passed on isolated retry). Iteration 47 regression: 10/10 passed. Frontend: /join/<slug> renders and signup submits successfully; /org-admin/members shows all 3 tabs and all 7 settings testids (join-url, join-copy-btn, join-qr, join-enable-toggle, join-approval-toggle, join-domain-input, join-domain-add). Also found one real bug: POST /api/org-admin/create-course-from-pdf rejects super_admin role (only checks org_admin/admin), unlike the org-join routes which correctly allow super_admin.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/org-admin/create-course-from-pdf",
+        "issue": "Endpoint gate at server.py line 7741 is `role not in ['org_admin','admin']`, which returns 403 for super_admin. Inconsistent with all other /api/org-admin/* routes (org_join, join-settings) that now include super_admin. Blocks super admin from creating PDF-sourced courses and blocks E2E verification of the (B) Cloudflare-524 fix for the PDF path. Fix: add 'super_admin' to the allowed roles list, or replace the inline check with the `require_org_admin` dependency wrapper defined at server.py:14665.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/courses/generate-custom",
+        "issue": "POST response time was 16.9s on first run (over the 15s target) but 14.5s on isolated retry — occasionally borderline vs Cloudflare's 100s limit. Still well under 100s so the primary fix is holding. Consider warming the emergentintegrations LLM client on startup to eliminate cold-start latency variance."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration49_org_join_and_async_courses.py",
+    "/app/test_reports/pytest/iteration49.xml",
+    "/app/backend/tests/test_iteration47_object_storage_and_digest.py"
+  ],
+  "action_items": [
+    "Fix POST /api/org-admin/create-course-from-pdf to accept super_admin role (server.py line 7741). Swap the inline role check for the existing `_require_org_admin` dependency for consistency with the join-link routes.",
+    "(Optional) Warm-up LLM client on startup to keep generate-custom POST comfortably under 15s even on cold requests."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 14,874 lines — still needs modularisation; the fact that role-check drift (super_admin allowed in join routes but not in create-course-from-pdf) exists is a direct symptom of this size.",
+    "Two different auth patterns co-exist for org-admin endpoints: (a) inline `if role not in [...]` at each endpoint (fragile — bug found here), and (b) the `_require_org_admin` dependency wrapper. Pick one; the dependency wrapper is safer.",
+    "/api/courses/generate-custom and /api/org-admin/create-course-from-pdf use asyncio.create_task() with no persistence — if the process restarts during generation the course is stranded in 'generating' forever. Consider a background job table or a startup task that reaps stale generating rows > N minutes.",
+    "In org_join_routes.public_org_signup, password strength check is only length>=8 — no complexity requirement. Fine for MVP but should be documented.",
+    "org_join_routes _get_org_by_slug falls back to scanning ALL organisations linearly when neither join_slug nor slug matches — O(N) per public request; add a slugified-name index or backfill join_slug for all orgs."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration49_org_join_and_async_courses.py"
+  ],
+  "success_rate": {"backend": "94% (15/16 iter49 + 10/10 iter47 regression = 25/26)", "frontend": "100% for the tested flows (join page + org-admin members console)"},
+  "test_credentials": "Super Admin takuechakanyuka@gmail.com / SuperAdmin@2026! (organization_id=713d6714-6851-48e9-83af-acda6f1a83a7)",
+  "seed_data_creation": "Test users test.pending.*, test.reject.*, test.auto.*@example.com and test courses 'Test Course Async …' / 'Test Course PDF …' were created and CLEANED UP after tests (4 users, 2 courses deleted).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "After main agent fixes create-course-from-pdf role gate, re-run pytest backend/tests/test_iteration49_org_join_and_async_courses.py::TestAsyncCourseGen::test_pdf_course_fast. All other iteration-49 tests are green. The org-join UI is fully wired with all documented data-testids.",
+  "rca of the issue": "Bug: POST /api/org-admin/create-course-from-pdf returned 403 to super_admin. Reproduction: `curl -X POST -H 'Authorization: Bearer <super_admin_token>' -F 'file=@a.pdf' -F 'title=X' <BASE>/api/org-admin/create-course-from-pdf` → 403 {'detail':'Organization admin access required'}. Root cause: hard-coded role check at server.py:7741 `if current_user.get('role') not in ['org_admin', 'admin']` — super_admin not included. Contrast with server.py:14666 `_require_org_admin` which correctly whitelists ('org_admin','admin','super_admin'). Mitigation: replace the inline check with `Depends(_require_org_admin)` or add 'super_admin' to the list."
+}

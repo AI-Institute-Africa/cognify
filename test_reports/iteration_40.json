@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 40 - All 4 production bug-fixes verified end-to-end. Backend: 9/9 pytest cases pass (org isolation on list & item, PPTX slides_json fallback when LibreOffice missing, friendly budget error messages for /generate-slides 503 and /generate-video background job). Frontend: PremadeCoursesPage successfully renders application/json slides_json response as 3 white 16:9 cards with title + bullets, footer shows '3 slides | This document is view-only.', and no 'Could not load document' error. The data-testid='premade-view-slides-json' wrapper is present.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/auth/login (seed data)", "issue": "demo.teacher@eduos.edu has organization_id=None in the seed DB. New strict org-isolation correctly hides ALL premade-courses from this user (no leak), but the user account itself looks orphaned. Worth fixing the seed so the teacher belongs to either Cognify or a separate test org."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration40_premade_org_isolation.py",
+    "/app/test_reports/pytest/pytest_iteration40.xml"
+  ],
+  "action_items": [
+    "(Optional, low-priority) Fix the seed data: demo.teacher@eduos.edu currently has organization_id=None. Either assign them to Cognify or to a dedicated 'Demo School' org so the teacher account is fully usable.",
+    "(Already known) Emergent LLM key budget is still exhausted at $29.82/$29.82 — top-up Universal Key to re-enable Slides/Video generation. The new code surfaces this as a friendly 503 / 'Emergent LLM Key budget exceeded' error instead of a raw stack trace."
+  ],
+  "critical_code_review_comments": [
+    "Strict org-isolation in GET /api/premade-courses correctly returns ZERO docs for users without an organization_id who are not platform admins (query: organization_id=__no_match__). Verified: out-of-org teacher saw 0 docs while same-org student and org_admin saw the same 4 docs.",
+    "_ensure_premade_access correctly raises 403 when a cross-org user requests a single doc or /view URL. Verified by 'teacher requesting Cognify doc id' returning 403 on both /{id} and /{id}/view.",
+    "_pptx_to_slides_json (pure-Python python-pptx fallback) extracts {title, bullets[level], images[base64], notes} from each slide. Verified by renaming both /usr/bin/soffice AND /usr/bin/libreoffice (shutil.which checks both), then GET /view returned application/json with slides[] structure as designed.",
+    "Frontend PremadeCoursesPage.js correctly detects Content-Type: application/json, parses the payload, sets slidesJson state, and renders each slide as a white 16:9 card with title + bullets. Footer correctly shows 'N slides'. data-testid='premade-view-slides-json' confirmed.",
+    "/api/content/generate-slides returns HTTP 503 with detail 'Emergent LLM Key budget exceeded. Please top up the Universal Key via Profile → Universal Key → Add Balance, then try again.' — actionable message verified live.",
+    "/api/content/generate-video background task writes user-friendly error 'Emergent LLM Key budget exceeded. Please top up the Universal Key via Profile → Universal Key → Add Balance, then try again.' into generated_videos.error field. Verified by polling /content/video-status/{id} after triggering generation.",
+    "Minor lint: when LibreOffice rename test passed, generated_pdf_cache/{id}.pdf had to be manually purged to invalidate cache; production users will not see this issue because they will not have a cached PDF on a fresh-deploy host with no LibreOffice."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration40_premade_org_isolation.py"
+  ],
+  "success_rate": {"backend": "100% (9/9 pytest)", "frontend": "100% (slides_json renders as designed with all required UI elements)"},
+  "test_credentials": "Org Admin test.orgadmin@cognify.edu/admin123 (Cognify org), Student demo.student@cognify.edu/demo123 (Cognify org), Teacher demo.teacher@eduos.edu/demo123 (NO ORG — used as cross-org user).",
+  "seed_data_creation": "Test uploads a synthetic 3-slide sample.pptx using python-pptx, then deletes it during teardown.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All iteration-40 bug fixes pass. Note: demo.teacher@eduos.edu currently has organization_id=None which actually makes it a perfect cross-org test user for premade-courses isolation. If the main agent assigns the teacher to an org later, the test_premade_courses_list_org_scoped & test_premade_course_item_403_when_other_org tests will need adjusting (the assertion 'teacher_docs.isdisjoint(student_docs)' relies on the teacher being in a different org). To force python-pptx fallback you must rename BOTH /usr/bin/soffice AND /usr/bin/libreoffice (shutil.which finds either). Also delete any cached PDF in /app/generated_pdf_cache/{doc_id}.pdf to bypass the cache.",
+  "rca of the issue": "Bug 1 (PowerPoint not loading on production): Production base image ships without LibreOffice. Fix: server.py now imports JSONResponse, adds _pptx_to_slides_json() pure-Python fallback using python-pptx (already in requirements.txt), and view_premade_course() returns slides_json when LibreOffice conversion fails for PPTX. Frontend PremadeCoursesPage parses application/json response and renders slides natively — no server-side dep needed. Bug 2 (Failed to generate video / slides cryptic errors): server.py now detects 'budget'/'quota' substrings in caught exception messages and translates them to a friendly 'Emergent LLM Key budget exceeded. Please top up the Universal Key via Profile → Universal Key → Add Balance' message — 503 for /generate-slides, persisted in generated_videos.error for /generate-video. Bug 3 (premade courses must be org-isolated): New GET /api/premade-courses applies a strict {organization_id: user.organization_id} query (with __no_match__ sentinel for orphaned users, and {} for platform admins). _ensure_premade_access() raises 403 on the single-doc and /view endpoints when doc_org != user_org. Verified by 3-user cross-test (org_admin + student same org see 4 docs, teacher with no org sees 0, teacher gets 403 on direct id access)."
+}
