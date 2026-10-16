@@ -1,0 +1,8 @@
+Django==5.2.7
+Pillow
+djangorestframework
+reportlab
+python-docx
+mammoth
+requests
+PyJWT

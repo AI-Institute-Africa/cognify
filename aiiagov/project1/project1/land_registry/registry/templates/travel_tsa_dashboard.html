@@ -1,0 +1,254 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-plane-departure text-danger me-2"></i> ZRP Training, Travel & Subsistence Allowance (TSA)</h3>
+            <p class="text-muted small mb-0">End-to-end travel request, TSA rate calculation, payment processing, and acquittal reconciliation platform</p>
+        </div>
+        <button class="btn btn-danger rounded-pill px-4 shadow-sm fw-bold" style="background: #d32f2f;" data-bs-toggle="modal" data-bs-target="#createTravelModal">
+            <i class="fas fa-plus me-2"></i> Schedule Travel / TSA Request
+        </button>
+    </div>
+
+    <!-- Management Dashboard Metrics -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-danger">
+                <span class="text-muted extra-small text-uppercase fw-bold">Total Travel Requests</span>
+                <h2 class="fw-bold text-danger mb-0 mt-1">{{ total_travels }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-success">
+                <span class="text-muted extra-small text-uppercase fw-bold">Total Approved TSA</span>
+                <h2 class="fw-bold text-success mb-0 mt-1">${{ total_tsa_expenditure|floatformat:2 }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-warning">
+                <span class="text-muted extra-small text-uppercase fw-bold">Outstanding Acquittals</span>
+                <h2 class="fw-bold text-warning mb-0 mt-1">{{ outstanding_acquittals }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-danger">
+                <span class="text-muted extra-small text-uppercase fw-bold">Overdue Acquittals</span>
+                <h2 class="fw-bold text-danger mb-0 mt-1">{{ overdue_count }} <i class="fas fa-exclamation-triangle ms-1 fs-6"></i></h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Filter Tabs & Table -->
+    <div class="glass-card p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold text-white mb-0"><i class="fas fa-list-check me-2 text-warning"></i> ZRP Travel & TSA Requests Register</h5>
+            <div class="btn-group btn-group-sm">
+                <a href="{% url 'travel-tsa-dashboard' %}" class="btn btn-outline-light {% if not request.GET.category %}active{% endif %}">All Categories</a>
+                <a href="?category=Training-Related+Travel" class="btn btn-outline-light {% if request.GET.category == 'Training-Related Travel' %}active{% endif %}">Training-Related</a>
+                <a href="?category=Official+Business+Travel" class="btn btn-outline-light {% if request.GET.category == 'Official Business Travel' %}active{% endif %}">Official Business</a>
+                <a href="?category=Other+Authorised+Travel" class="btn btn-outline-light {% if request.GET.category == 'Other Authorised Travel' %}active{% endif %}">Other Authorised</a>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 text-white">
+                <thead>
+                    <tr class="bg-danger bg-opacity-10 text-white">
+                        <th class="ps-4 py-3">Ref & Title</th>
+                        <th class="py-3">Travel Category</th>
+                        <th class="py-3">Requestor & Dept</th>
+                        <th class="py-3">Dates & Duration</th>
+                        <th class="py-3">Calculated TSA Total</th>
+                        <th class="py-3">Workflow Stage</th>
+                        <th class="py-3">Acquittal Status</th>
+                        <th class="pe-4 text-end py-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in travels %}
+                    <tr>
+                        <td class="ps-4">
+                            <div class="fw-bold text-warning font-monospace">{{ t.ref_number }}</div>
+                            <div class="small text-white fw-bold">{{ t.title }}</div>
+                            <div class="extra-small text-muted"><i class="fas fa-location-dot me-1"></i> {{ t.destination }}</div>
+                        </td>
+                        <td>
+                            <span class="badge bg-danger bg-opacity-20 text-danger border border-danger border-opacity-25 rounded-pill px-3 py-1 extra-small fw-bold">
+                                {{ t.travel_category }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-white small">{{ t.requestor.get_full_name|default:t.requestor.username }}</div>
+                            <div class="extra-small text-muted">{{ t.department.name }}</div>
+                        </td>
+                        <td>
+                            <div class="small text-white">{{ t.start_date|date:"d M Y" }} to {{ t.end_date|date:"d M Y" }}</div>
+                            <div class="extra-small text-muted">{{ t.num_days }} Days / {{ t.num_nights }} Nights</div>
+                        </td>
+                        <td>
+                            <h5 class="fw-bold text-success mb-0">${{ t.total_tsa_calculated|floatformat:2 }}</h5>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary rounded-pill px-3 py-1 extra-small">{{ t.workflow_stage }}</span>
+                        </td>
+                        <td>
+                            {% if t.acquittal_status == 'Overdue' %}
+                            <span class="badge bg-danger text-white rounded-pill px-3 py-1 fw-bold animate-pulse"><i class="fas fa-triangle-exclamation me-1"></i> OVERDUE ACQUITTAL</span>
+                            {% elif t.acquittal_status == 'Cleared' %}
+                            <span class="badge bg-success rounded-pill px-3 py-1 fw-bold"><i class="fas fa-check-circle me-1"></i> CLEARED</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark rounded-pill px-3 py-1 extra-small">{{ t.acquittal_status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="pe-4 text-end">
+                            <a href="{% url 'submit-travel-acquittal' t.pk %}" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold">
+                                <i class="fas fa-file-invoice-dollar me-1"></i> Acquittal Studio
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="fas fa-plane-slash fs-3 d-block mb-2"></i>
+                            No travel or TSA requests recorded. Click <strong>Schedule Travel / TSA Request</strong> to create one.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Travel Modal -->
+<div class="modal fade" id="createTravelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content glass-card text-white border border-danger border-opacity-25">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-warning"><i class="fas fa-plane-departure me-2"></i> Schedule ZRP Travel & TSA Request</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'create-travel-request' %}" method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label small fw-bold">Travel / Training Title</label>
+                            <input type="text" name="title" class="form-control bg-dark text-white border-secondary" placeholder="e.g. Media Law Reform Workshop in Bulawayo" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Travel Category</label>
+                            <select name="travel_category" class="form-select bg-dark text-white border-secondary" required>
+                                <option value="Training-Related Travel">Training-Related Travel</option>
+                                <option value="Official Business Travel" selected>Official Business Travel</option>
+                                <option value="Other Authorised Travel">Other Authorised Travel</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Department</label>
+                            <select name="department" class="form-select bg-dark text-white border-secondary" required>
+                                {% for d in departments %}
+                                <option value="{{ d.id }}">{{ d.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Destination / Location</label>
+                            <input type="text" name="destination" class="form-control bg-dark text-white border-secondary" placeholder="e.g. Bulawayo HQ / Cresta Hotel" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Start Date</label>
+                            <input type="date" name="start_date" id="t_start" class="form-control bg-dark text-white border-secondary" required onchange="calcTSA()">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Return Date</label>
+                            <input type="date" name="end_date" id="t_end" class="form-control bg-dark text-white border-secondary" required onchange="calcTSA()">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label small fw-bold">Purpose / Justification</label>
+                            <textarea name="purpose" class="form-control bg-dark text-white border-secondary" rows="2" placeholder="Provide detailed justification and objectives..." required></textarea>
+                        </div>
+
+                        <!-- Approved TSA Rates & Calculator -->
+                        <div class="col-md-12">
+                            <div class="glass-card p-3 border border-warning border-opacity-25">
+                                <h6 class="fw-bold text-warning mb-2"><i class="fas fa-calculator me-1"></i> ZRP Approved TSA Rate Calculator</h6>
+                                <div class="row g-2">
+                                    <div class="col-md-4">
+                                        <label class="extra-small text-muted fw-bold">Daily Subsistence Rate ($/day)</label>
+                                        <input type="number" step="0.01" name="daily_subsistence_rate" id="t_daily" class="form-control form-control-sm bg-dark text-white border-secondary" value="80.00" oninput="calcTSA()">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="extra-small text-muted fw-bold">Nightly Accommodation Rate ($/night)</label>
+                                        <input type="number" step="0.01" name="nightly_accommodation_rate" id="t_night" class="form-control form-control-sm bg-dark text-white border-secondary" value="120.00" oninput="calcTSA()">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="extra-small text-muted fw-bold">Transport / Mileage Allowance ($)</label>
+                                        <input type="number" step="0.01" name="transport_mileage_cost" id="t_trans" class="form-control form-control-sm bg-dark text-white border-secondary" value="50.00" oninput="calcTSA()">
+                                    </div>
+                                    <div class="col-md-12 mt-2 text-end">
+                                        <span class="text-muted extra-small me-2">Calculated Total TSA Expenditure:</span>
+                                        <strong class="text-success fs-5" id="calcTotalTSA">$250.00</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Budget Line</label>
+                            <select name="budget_line" class="form-select bg-dark text-white border-secondary">
+                                {% for b in budgets %}
+                                <option value="{{ b.id }}">{{ b.department.name }} - {{ b.fiscal_year }} (${{ b.total_allocation }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Supporting Document (Invitation / Agenda)</label>
+                            <input type="file" name="supporting_document" class="form-control bg-dark text-white border-secondary">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label small fw-bold">Select Attendees / Staff Members</label>
+                            <select name="attendees" class="form-select bg-dark text-white border-secondary" multiple style="height: 90px;">
+                                {% for u in users %}
+                                <option value="{{ u.id }}">{{ u.username }} ({{ u.email }})</option>
+                                {% endfor %}
+                            </select>
+                            <span class="extra-small text-muted">Hold Ctrl / Cmd to select multiple attendees.</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold" style="background: #d32f2f;">Submit Travel & TSA Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function calcTSA() {
+    const s = document.getElementById('t_start').value;
+    const e = document.getElementById('t_end').value;
+    const daily = parseFloat(document.getElementById('t_daily').value) || 0;
+    const night = parseFloat(document.getElementById('t_night').value) || 0;
+    const trans = parseFloat(document.getElementById('t_trans').value) || 0;
+
+    let days = 1;
+    let nights = 0;
+    if (s && e) {
+        const d1 = new Date(s);
+        const d2 = new Date(e);
+        const diff = Math.max(0, (d2 - d1) / (1000 * 60 * 60 * 24));
+        days = diff + 1;
+        nights = diff;
+    }
+    const tot = (days * daily) + (nights * night) + trans;
+    document.getElementById('calcTotalTSA').innerText = '$' + tot.toFixed(2);
+}
+</script>
+{% endblock pageContent %}

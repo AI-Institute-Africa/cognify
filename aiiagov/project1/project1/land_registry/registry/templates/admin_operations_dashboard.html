@@ -1,0 +1,192 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-boxes-packing text-info me-2"></i> ZRP Admin & Operations Management Dashboard</h3>
+            <p class="text-muted small mb-0">Stores requisitions, vehicle & driver allocation, fuel coupon tracking, and Goods Received Vouchers (GRV)</p>
+        </div>
+        <a href="{% url 'executive-analytics-dashboard' %}" class="btn btn-outline-warning rounded-pill px-4 fw-bold">
+            <i class="fas fa-chart-line me-1"></i> Executive Dashboard
+        </a>
+    </div>
+
+    <!-- Admin Operations Tabs -->
+    <div class="glass-card p-4">
+        <ul class="nav nav-pills nav-justified mb-4" id="adminTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-bold rounded-pill" id="stores-tab" data-bs-toggle="tab" data-bs-target="#storesTabPane" type="button" role="tab">
+                    <i class="fas fa-boxes-stacked me-2"></i> Stores Requests & Inventory
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold rounded-pill" id="vehicle-tab" data-bs-toggle="tab" data-bs-target="#vehicleTabPane" type="button" role="tab">
+                    <i class="fas fa-car me-2"></i> Vehicle & Driver Allocations
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold rounded-pill" id="fuel-tab" data-bs-toggle="tab" data-bs-target="#fuelTabPane" type="button" role="tab">
+                    <i class="fas fa-gas-pump me-2"></i> Fuel Requests & Coupons
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold rounded-pill" id="grv-tab" data-bs-toggle="tab" data-bs-target="#grvTabPane" type="button" role="tab">
+                    <i class="fas fa-truck-ramp-box me-2"></i> Goods Received Vouchers (GRV)
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="adminTabsContent">
+            <!-- 1. Stores Requests & Inventory -->
+            <div class="tab-pane fade show active" id="storesTabPane" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-white">
+                        <thead>
+                            <tr class="bg-dark text-uppercase extra-small">
+                                <th>Ref & Item</th>
+                                <th>Requestor</th>
+                                <th>Department</th>
+                                <th>Qty Requested</th>
+                                <th>Qty Issued</th>
+                                <th>Status</th>
+                                <th>Requested Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in stores_requests %}
+                            <tr>
+                                <td>
+                                    <strong class="text-warning font-monospace">{{ s.ref_number }}</strong>
+                                    <div class="small text-white">{{ s.item.item_name }}</div>
+                                </td>
+                                <td>{{ s.requestor.get_full_name|default:s.requestor.username }}</td>
+                                <td>{{ s.department.name }}</td>
+                                <td class="fw-bold text-info">{{ s.quantity_requested }}</td>
+                                <td class="fw-bold text-success">{{ s.quantity_issued }}</td>
+                                <td><span class="badge bg-secondary rounded-pill">{{ s.status }}</span></td>
+                                <td class="extra-small text-muted">{{ s.date_requested|date:"d M Y" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">No stores requests recorded.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 2. Vehicle Allocations -->
+            <div class="tab-pane fade" id="vehicleTabPane" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-white">
+                        <thead>
+                            <tr class="bg-dark text-uppercase extra-small">
+                                <th>Ref & Destination</th>
+                                <th>Requestor & Dept</th>
+                                <th>Travel Date</th>
+                                <th>Vehicle Allocated</th>
+                                <th>Driver Allocated</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in vehicle_requests %}
+                            <tr>
+                                <td>
+                                    <strong class="text-warning font-monospace">{{ v.ref_number }}</strong>
+                                    <div class="small text-white">{{ v.destination }}</div>
+                                </td>
+                                <td>{{ v.requestor.username }} ({{ v.department.name }})</td>
+                                <td>{{ v.travel_date|date:"d M Y" }}</td>
+                                <td><strong class="text-info">{{ v.vehicle_allocated|default:"Pending Allocation" }}</strong></td>
+                                <td><strong class="text-success">{{ v.driver_allocated|default:"Pending Driver" }}</strong></td>
+                                <td><span class="badge bg-secondary rounded-pill">{{ v.status }}</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">No vehicle allocation requests logged.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 3. Fuel Requests & Coupons -->
+            <div class="tab-pane fade" id="fuelTabPane" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-white">
+                        <thead>
+                            <tr class="bg-dark text-uppercase extra-small">
+                                <th>Ref & Vehicle Reg</th>
+                                <th>Requestor & Dept</th>
+                                <th>Fuel Type</th>
+                                <th>Litres Requested</th>
+                                <th>Coupon Number</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for f in fuel_requests %}
+                            <tr>
+                                <td>
+                                    <strong class="text-warning font-monospace">{{ f.ref_number }}</strong>
+                                    <div class="small text-white font-monospace">{{ f.vehicle_registration }}</div>
+                                </td>
+                                <td>{{ f.requestor.username }} ({{ f.department.name }})</td>
+                                <td><span class="badge bg-secondary rounded-pill">{{ f.fuel_type }}</span></td>
+                                <td><h5 class="fw-bold text-success mb-0">{{ f.litres_requested }} L</h5></td>
+                                <td><span class="font-monospace text-info">{{ f.coupon_number|default:"Pending Issue" }}</span></td>
+                                <td><span class="badge bg-secondary rounded-pill">{{ f.status }}</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">No fuel requests logged.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 4. Goods Received Vouchers (GRV) -->
+            <div class="tab-pane fade" id="grvTabPane" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-white">
+                        <thead>
+                            <tr class="bg-dark text-uppercase extra-small">
+                                <th>GRV Number</th>
+                                <th>Supplier Name</th>
+                                <th>Invoice Number</th>
+                                <th>Date Received</th>
+                                <th>Received By</th>
+                                <th>Inspection Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for g in grvs %}
+                            <tr>
+                                <td><strong class="text-warning font-monospace">{{ g.grv_number }}</strong></td>
+                                <td class="fw-bold text-white">{{ g.supplier_name }}</td>
+                                <td><span class="font-monospace text-info">{{ g.invoice_number }}</span></td>
+                                <td>{{ g.date_received|date:"d M Y" }}</td>
+                                <td>{{ g.received_by.get_full_name|default:g.received_by.username }}</td>
+                                <td><span class="badge bg-success rounded-pill">{{ g.inspection_status }}</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">No Goods Received Vouchers (GRV) recorded.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock pageContent %}

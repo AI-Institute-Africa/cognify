@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block title %}Revenue Streams - Confluence Nexus{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">Revenue Streams</h1>
+        <p class="text-muted mb-0">Track income from InDrive, toner cartridge sales, salary, and other sources.</p>
+    </div>
+    <a href="{% url 'dashboard:revenue_create' %}" class="btn btn-primary">Add Revenue Stream</a>
+</div>
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead>
+            <tr>
+                <th>Stream</th>
+                <th>Amount</th>
+                <th>Date</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for stream in revenue_streams %}
+            <tr>
+                <td>{{ stream.get_stream_type_display }}</td>
+                <td>{{ stream.amount }}</td>
+                <td>{{ stream.date }}</td>
+                <td>{{ stream.description|default:'—' }}</td>
+                <td class="text-end">
+                    <a href="{% url 'dashboard:revenue_edit' stream.pk %}" class="btn btn-sm btn-outline-secondary me-2">Edit</a>
+                    <a href="{% url 'dashboard:revenue_delete' stream.pk %}" class="btn btn-sm btn-danger">Delete</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center text-muted">No revenue streams recorded yet.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

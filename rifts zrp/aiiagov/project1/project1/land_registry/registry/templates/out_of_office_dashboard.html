@@ -1,0 +1,108 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-plane-departure text-warning me-2"></i> ZRP Who is Away / Out-of-Office Dashboard</h3>
+            <p class="text-muted small mb-0">Real-time departmental visibility of absent staff, leave durations, and assigned acting/alternative officers</p>
+        </div>
+        <a href="{% url 'employee-self-service' %}" class="btn btn-outline-light rounded-pill px-4">
+            <i class="fas fa-id-card me-1"></i> Self-Service Portal
+        </a>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="glass-card p-3 mb-4 border border-warning border-opacity-25">
+        <form action="" method="GET" class="row g-2 align-items-center">
+            <div class="col-md-9">
+                <select name="department" class="form-select bg-dark text-white border-secondary" onchange="this.form.submit()">
+                    <option value="">All ZRP Departments & Directorates</option>
+                    {% for d in departments %}
+                    <option value="{{ d.id }}" {% if request.GET.department == d.id|stringformat:"i" %}selected{% endif %}>{{ d.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <a href="{% url 'out-of-office-dashboard' %}" class="btn btn-outline-warning w-100 rounded-pill fw-bold">
+                    <i class="fas fa-rotate-left me-1"></i> Reset Filters
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Out of Office Table -->
+    <div class="glass-card p-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 text-white">
+                <thead>
+                    <tr class="bg-warning bg-opacity-10 text-white">
+                        <th class="ps-4 py-3">Employee Name</th>
+                        <th class="py-3">Department</th>
+                        <th class="py-3">Type of Absence</th>
+                        <th class="py-3">Start Date</th>
+                        <th class="py-3">Return Date</th>
+                        <th class="py-3">Acting / Alternative Officer</th>
+                        <th class="pe-4 text-end py-3">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for leave in away_leaves %}
+                    <tr>
+                        <td class="ps-4">
+                            <div class="fw-bold text-white">{{ leave.user.get_full_name|default:leave.user.username }}</div>
+                            <span class="badge bg-light text-dark font-monospace extra-small">@{{ leave.user.username }}</span>
+                        </td>
+                        <td>
+                            <div class="small text-white">{{ leave.user.security_profile.department.name|default:"General Staff" }}</div>
+                        </td>
+                        <td>
+                            <span class="badge bg-warning text-dark fw-bold rounded-pill px-3 py-1">
+                                <i class="fas fa-umbrella-beach me-1"></i> {{ leave.leave_type }} Leave
+                            </span>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-white small">{{ leave.start_date|date:"d M Y" }}</div>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-success small">{{ leave.end_date|date:"d M Y" }}</div>
+                        </td>
+                        <td>
+                            {% if leave.acting_officer %}
+                            <div class="badge bg-info bg-opacity-20 text-info border border-info border-opacity-25 rounded-pill px-3 py-1 fw-bold">
+                                <i class="fas fa-user-check me-1"></i> {{ leave.acting_officer.get_full_name|default:leave.acting_officer.username }}
+                            </div>
+                            {% else %}
+                            <span class="text-muted extra-small italic">No acting officer designated</span>
+                            {% endif %}
+                        </td>
+                        <td class="pe-4 text-end">
+                            {% if request.user.is_superuser or request.user.security_profile.role == 'HODs' %}
+                            <form action="{% url 'advance-leave-workflow' leave.pk %}" method="POST" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="return_leave">
+                                <button type="submit" class="btn btn-success btn-sm rounded-pill px-3 fw-bold" style="background: #003EA6;" onclick="return confirm('Mark employee as Returned from Leave?')">
+                                    <i class="fas fa-check-double me-1"></i> Mark Returned
+                                </button>
+                            </form>
+                            {% else %}
+                            <span class="badge bg-secondary rounded-pill extra-small px-3">Active Leave</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="fas fa-users-slash fs-2 d-block mb-2"></i>
+                            No staff currently out of office on active approved leave.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock pageContent %}

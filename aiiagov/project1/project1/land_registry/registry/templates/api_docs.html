@@ -1,0 +1,486 @@
+{% extends "base.html" %}
+{% block pageContent %}
+<style>
+:root {
+    --accent-green: #00e676;
+    --accent-blue: #2196f3;
+    --accent-purple: #9c27b0;
+    --card-bg: rgba(255,255,255,0.04);
+    --border-color: rgba(255,255,255,0.08);
+}
+.api-sidebar {
+    position: sticky; top: 20px;
+    height: calc(100vh - 100px); overflow-y: auto; scrollbar-width: thin;
+}
+.api-sidebar::-webkit-scrollbar { width: 4px; }
+.api-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+.sidebar-link {
+    display: block; padding: 7px 14px; color: rgba(255,255,255,0.5);
+    text-decoration: none; font-size: 0.78rem; border-left: 2px solid transparent;
+    transition: all 0.2s ease; border-radius: 0 6px 6px 0;
+}
+.sidebar-link:hover, .sidebar-link.active {
+    color: #fff; border-left-color: var(--accent-green); background: rgba(0,230,118,0.07);
+}
+.sidebar-section-title {
+    font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.12em;
+    color: rgba(255,255,255,0.25); padding: 14px 14px 4px; font-weight: 700;
+}
+.endpoint-card {
+    background: var(--card-bg); border: 1px solid var(--border-color);
+    border-radius: 14px; margin-bottom: 16px; overflow: hidden;
+    transition: border-color 0.2s;
+}
+.endpoint-card:hover { border-color: rgba(255,255,255,0.18); }
+.endpoint-header {
+    display: flex; align-items: center; gap: 12px; padding: 15px 20px;
+    cursor: pointer; user-select: none;
+}
+.endpoint-body { padding: 0 20px 20px; border-top: 1px solid var(--border-color); }
+.method-badge {
+    font-size: 0.68rem; font-weight: 800; letter-spacing: 0.08em;
+    padding: 4px 10px; border-radius: 6px; font-family: monospace;
+    min-width: 52px; text-align: center;
+}
+.method-get    { background: rgba(33,150,243,0.18); color: #64b5f6; border: 1px solid rgba(33,150,243,0.3); }
+.method-post   { background: rgba(0,230,118,0.15); color: #69f0ae; border: 1px solid rgba(0,230,118,0.3); }
+.method-put    { background: rgba(255,152,0,0.15); color: #ffcc02; border: 1px solid rgba(255,152,0,0.3); }
+.method-delete { background: rgba(244,67,54,0.15); color: #ef9a9a; border: 1px solid rgba(244,67,54,0.3); }
+.code-block {
+    background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 10px; padding: 14px 16px 14px 16px;
+    font-family: 'JetBrains Mono','Fira Code',monospace; font-size: 0.78rem;
+    color: #b2dfdb; white-space: pre; overflow-x: auto; position: relative;
+}
+.copy-btn {
+    position: absolute; top: 8px; right: 10px;
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.5); font-size: 0.7rem; padding: 3px 8px;
+    border-radius: 5px; cursor: pointer; transition: all 0.15s;
+}
+.copy-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
+.tab-code-btn {
+    background: transparent; border: none; color: rgba(255,255,255,0.4);
+    font-size: 0.75rem; padding: 6px 12px; border-radius: 6px 6px 0 0; cursor: pointer;
+    transition: all 0.15s;
+}
+.tab-code-btn.active { background: rgba(0,0,0,0.5); color: #fff; }
+.hero-badge {
+    display: inline-block; padding: 4px 12px; border-radius: 20px;
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.badge-stable { background: rgba(0,230,118,0.15); color: var(--accent-green); border: 1px solid rgba(0,230,118,0.3); }
+.badge-v2     { background: rgba(33,150,243,0.15); color: #90caf9; border: 1px solid rgba(33,150,243,0.3); }
+.badge-ai     { background: rgba(156,39,176,0.2); color: #ce93d8; border: 1px solid rgba(156,39,176,0.35); }
+.feature-pill {
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px;
+    border-radius: 20px; font-size: 0.73rem; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); margin: 3px;
+}
+.rc-2xx { background: rgba(0,230,118,0.15); color: #69f0ae; padding: 2px 8px; border-radius:5px; font-family:monospace; font-size:0.75rem; font-weight:700; }
+.rc-4xx { background: rgba(244,67,54,0.15); color: #ef9a9a; padding: 2px 8px; border-radius:5px; font-family:monospace; font-size:0.75rem; font-weight:700; }
+.rc-5xx { background: rgba(255,152,0,0.15); color: #ffcc02; padding: 2px 8px; border-radius:5px; font-family:monospace; font-size:0.75rem; font-weight:700; }
+.ai-glow { box-shadow: 0 0 40px rgba(156,39,176,0.15); border-color: rgba(156,39,176,0.3) !important; }
+</style>
+
+<div class="row g-0">
+  <!-- Sidebar -->
+  <div class="col-lg-2 d-none d-lg-block">
+    <div class="api-sidebar pe-2">
+      <div class="sidebar-section-title">Getting Started</div>
+      <a href="#overview" class="sidebar-link active">Overview</a>
+      <a href="#auth" class="sidebar-link">Authentication</a>
+      <a href="#ai-agents" class="sidebar-link">AI Agent Guide</a>
+      <div class="sidebar-section-title">Registry</div>
+      <a href="#files" class="sidebar-link">Files</a>
+      <a href="#borrows" class="sidebar-link">Borrows</a>
+      <div class="sidebar-section-title">Cloud Vault</div>
+      <a href="#cloud-folders" class="sidebar-link">Folders</a>
+      <a href="#cloud-files" class="sidebar-link">Files</a>
+      <div class="sidebar-section-title">Governance</div>
+      <a href="#requisitions" class="sidebar-link">Requisitions</a>
+      <a href="#brds" class="sidebar-link">BRDs</a>
+      <a href="#projects" class="sidebar-link">Projects</a>
+      <div class="sidebar-section-title">Admin</div>
+      <a href="#users" class="sidebar-link">Users</a>
+      <a href="#orgs" class="sidebar-link">Organizations</a>
+      <div class="sidebar-section-title">Reference</div>
+      <a href="#codes" class="sidebar-link">Response Codes</a>
+      <a href="#download-section" class="sidebar-link">Download Docs</a>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="col-lg-10">
+
+    <!-- Hero -->
+    <div class="mb-5 pb-4 border-bottom border-white border-opacity-10" id="overview">
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <span class="hero-badge badge-stable">Stable</span>
+        <span class="hero-badge badge-v2">v2.0</span>
+        <span class="hero-badge badge-ai"><i class="fas fa-robot me-1"></i> AI-Ready</span>
+      </div>
+      <h1 class="fw-bold mb-2" style="font-size:2rem;letter-spacing:-0.5px;">
+        <span style="background:linear-gradient(135deg,#00e676,#2196f3);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">RIFTS-X</span> API Portal
+      </h1>
+      <p class="text-white-50 mb-4" style="max-width:680px;">Full programmatic access to the Records Intelligence &amp; File Tracking System. Build integrations, automate governance workflows, and connect AI agents to institutional intelligence.</p>
+      <div class="d-flex flex-wrap gap-2 mb-4">
+        <span class="feature-pill"><i class="fas fa-shield-alt text-success"></i> Token Auth</span>
+        <span class="feature-pill"><i class="fas fa-layer-group text-info"></i> REST + JSON</span>
+        <span class="feature-pill"><i class="fas fa-robot text-warning"></i> AI Agent Guide</span>
+        <span class="feature-pill"><i class="fas fa-pen-nib text-danger"></i> Workflow Signing</span>
+        <span class="feature-pill"><i class="fas fa-cloud text-primary"></i> Cloud Vault</span>
+        <span class="feature-pill"><i class="fas fa-file-alt"></i> Procurement</span>
+      </div>
+      <div class="d-flex flex-wrap gap-3">
+        <a href="{% url 'download-api-docs' %}" class="btn btn-success px-4 rounded-pill fw-bold">
+          <i class="fas fa-download me-2"></i> Download API Docs (.md)
+        </a>
+        <span class="d-inline-flex align-items-center gap-2 px-3 py-2 rounded-pill"
+              style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);cursor:pointer;"
+              onclick="copyTokenUrl(this)"
+              title="Click to copy — POST only, use cURL/Python below">
+          <span class="method-badge method-post" style="font-size:.65rem;padding:2px 7px;">POST</span>
+          <code style="font-size:.78rem;color:rgba(255,255,255,0.7);">/registry/api/token-auth/</code>
+          <i class="fas fa-copy text-muted ms-1" style="font-size:.75rem;"></i>
+        </span>
+      </div>
+    </div>
+
+    <!-- Base URL -->
+    <div class="endpoint-card p-4 mb-5" style="border-color:rgba(33,150,243,0.3);">
+      <div class="extra-small text-muted text-uppercase fw-bold mb-2">Base API URL</div>
+      <div class="code-block">{{ request.scheme }}://{{ request.get_host }}/registry/api/<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    </div>
+
+    <!-- Auth -->
+    <div id="auth" class="mb-5">
+      <h4 class="fw-bold mb-3"><i class="fas fa-shield-alt text-success me-2"></i> Authentication</h4>
+      <p class="text-white-50 small">All requests require a token. Obtain one by exchanging credentials at the token endpoint.</p>
+      <div class="endpoint-card">
+        <div class="endpoint-header" onclick="toggleCard(this)">
+          <span class="method-badge method-post">POST</span>
+          <code class="text-white small">/registry/api/token-auth/</code>
+          <span class="text-white-50 small ms-auto">Obtain API Token</span>
+          <i class="fas fa-chevron-down text-muted ms-2" style="font-size:.75rem;"></i>
+        </div>
+        <div class="endpoint-body pt-3">
+          <div class="d-flex gap-1 mb-1">
+            <button class="tab-code-btn active" onclick="switchTab(this,'curl','auth-tabs')">cURL</button>
+            <button class="tab-code-btn" onclick="switchTab(this,'python','auth-tabs')">Python</button>
+            <button class="tab-code-btn" onclick="switchTab(this,'js','auth-tabs')">JavaScript</button>
+          </div>
+          <div id="auth-tabs">
+            <div data-lang="curl" class="code-block">curl -X POST {{ request.scheme }}://{{ request.get_host }}/registry/api/token-auth/ \
+  -H "Content-Type: application/json" \
+  -d '{"username": "your_user", "password": "your_pass"}'<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+            <div data-lang="python" class="code-block d-none">import requests
+resp = requests.post(
+    "{{ request.scheme }}://{{ request.get_host }}/registry/api/token-auth/",
+    json={"username": "your_user", "password": "your_pass"}
+)
+token = resp.json()["token"]<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+            <div data-lang="js" class="code-block d-none">const resp = await fetch("{{ request.scheme }}://{{ request.get_host }}/registry/api/token-auth/", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ username: "your_user", password: "your_pass" })
+});
+const { token } = await resp.json();<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+          </div>
+          <div class="mt-3 small text-white-50 mb-2">Response:</div>
+          <div class="code-block">{"token": "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b"}<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+          <div class="mt-3 small text-white-50 mb-2">Use in all subsequent requests:</div>
+          <div class="code-block">Authorization: Token 9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Agent Guide -->
+    <div id="ai-agents" class="mb-5">
+      <div class="endpoint-card ai-glow p-4">
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <i class="fas fa-robot fa-lg" style="color:#ce93d8;"></i>
+          <h5 class="fw-bold mb-0" style="color:#ce93d8;">AI Agent Integration Guide</h5>
+          <span class="hero-badge badge-ai ms-auto">NEW</span>
+        </div>
+        <p class="text-white-50 small mb-3">RIFTS-X is architected for programmatic orchestration by LLM-based agents (LangChain, AutoGen, CrewAI, OpenAI function-calling, Gemini tool-use etc.).</p>
+        <div class="row g-3 mb-3">
+          <div class="col-md-6"><div class="p-3 rounded-3" style="background:rgba(156,39,176,0.07);border:1px solid rgba(156,39,176,0.2);">
+            <div class="fw-bold small mb-1" style="color:#ce93d8;"><i class="fas fa-key me-2"></i>1. Token in every call</div>
+            <p class="extra-small text-white-50 mb-0">Set <code>Authorization: Token &lt;token&gt;</code> in every HTTP tool call. Store it in agent memory or environment variables.</p>
+          </div></div>
+          <div class="col-md-6"><div class="p-3 rounded-3" style="background:rgba(156,39,176,0.07);border:1px solid rgba(156,39,176,0.2);">
+            <div class="fw-bold small mb-1" style="color:#ce93d8;"><i class="fas fa-sync me-2"></i>2. Workflow Polling</div>
+            <p class="extra-small text-white-50 mb-0">GET <code>/api/requisitions/</code> or <code>/api/brds/</code> periodically to detect state changes and pending items requiring action.</p>
+          </div></div>
+          <div class="col-md-6"><div class="p-3 rounded-3" style="background:rgba(156,39,176,0.07);border:1px solid rgba(156,39,176,0.2);">
+            <div class="fw-bold small mb-1" style="color:#ce93d8;"><i class="fas fa-pen-nib me-2"></i>3. Signature Payloads</div>
+            <p class="extra-small text-white-50 mb-0">Signing endpoints expect: <code>"signature_data": "data:image/png;base64,..."</code>. Generate a synthetic or blank PNG for automated approvals.</p>
+          </div></div>
+          <div class="col-md-6"><div class="p-3 rounded-3" style="background:rgba(156,39,176,0.07);border:1px solid rgba(156,39,176,0.2);">
+            <div class="fw-bold small mb-1" style="color:#ce93d8;"><i class="fas fa-layer-group me-2"></i>4. BRD Quorum Logic</div>
+            <p class="extra-small text-white-50 mb-0">BRD approval flows: PMT → HOD → Board. Check <code>current_level</code> and <code>approval_status</code> before each POST to <code>/brds/{id}/sign/</code>.</p>
+          </div></div>
+        </div>
+        <div class="small text-white-50 mb-2">System prompt snippet for your AI agent:</div>
+        <div class="code-block">You have access to RIFTS-X via REST API.
+Base URL: {{ request.scheme }}://{{ request.get_host }}/registry/api/
+Auth:     Authorization: Token {YOUR_TOKEN}
+
+Available tools:
+- GET  /files/              — Search institutional documents
+- GET  /cloud-files/        — Browse digital document vault
+- POST /requisitions/       — Create supply requisitions
+- POST /requisitions/{id}/sign/  — Advance approval workflows
+- GET  /brds/               — Manage BRDs
+- POST /brds/{id}/sign/     — Submit BRD signatures
+- GET  /projects/           — View kanban projects
+- GET  /users/              — List system users<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+      </div>
+    </div>
+
+    <!-- Files -->
+    <div id="files" class="mb-5">
+      <h4 class="fw-bold mb-3"><i class="fas fa-folder-open text-info me-2"></i> Physical Document Registry</h4>
+      <div class="endpoint-card">
+        <div class="endpoint-header" onclick="toggleCard(this)">
+          <span class="method-badge method-get">GET</span>
+          <code class="text-white small">/registry/api/files/</code>
+          <span class="text-white-50 small ms-auto">List all registry files</span>
+          <i class="fas fa-chevron-down text-muted ms-2" style="font-size:.75rem;"></i>
+        </div>
+        <div class="endpoint-body pt-3 d-none">
+          <div class="code-block">curl {{ request.scheme }}://{{ request.get_host }}/registry/api/files/ \
+  -H "Authorization: Token YOUR_TOKEN"<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+          <div class="mt-3 small text-white-50 mb-1">Response:</div>
+          <div class="code-block">{"count": 45, "results": [
+  {"id": 1, "ref_num": "REF-001", "title": "Blood Bank Records", "f_status": "available"},
+  ...
+]}<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        </div>
+      </div>
+      <div class="endpoint-card" id="borrows">
+        <div class="endpoint-header" onclick="toggleCard(this)">
+          <span class="method-badge method-get">GET</span>
+          <code class="text-white small">/registry/api/borrows/</code>
+          <span class="text-white-50 small ms-auto">Borrowing / custody logs</span>
+          <i class="fas fa-chevron-down text-muted ms-2" style="font-size:.75rem;"></i>
+        </div>
+        <div class="endpoint-body pt-3 d-none">
+          <div class="code-block">curl {{ request.scheme }}://{{ request.get_host }}/registry/api/borrows/ \
+  -H "Authorization: Token YOUR_TOKEN"<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cloud Vault -->
+    <div id="cloud-folders" class="mb-5">
+      <h4 class="fw-bold mb-3"><i class="fas fa-cloud text-primary me-2"></i> Cloud Document Vault</h4>
+      <div class="endpoint-card">
+        <div class="endpoint-header" onclick="toggleCard(this)">
+          <span class="method-badge method-get">GET</span>
+          <code class="text-white small">/registry/api/cloud-folders/</code>
+          <span class="text-white-50 small ms-auto">List vault folders</span>
+          <i class="fas fa-chevron-down text-muted ms-2" style="font-size:.75rem;"></i>
+        </div>
+        <div class="endpoint-body pt-3 d-none">
+          <div class="code-block">curl {{ request.scheme }}://{{ request.get_host }}/registry/api/cloud-folders/ \
+  -H "Authorization: Token YOUR_TOKEN"<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        </div>
+      </div>
+      <div class="endpoint-card" id="cloud-files">
+        <div class="endpoint-header" onclick="toggleCard(this)">
+          <span class="method-badge method-post">POST</span>
+          <code class="text-white small">/registry/api/cloud-files/</code>
+          <span class="text-white-50 small ms-auto">Upload document to vault</span>
+          <i class="fas fa-chevron-down text-muted ms-2" style="font-size:.75rem;"></i>
+        </div>
+        <div class="endpoint-body pt-3 d-none">
+          <div class="code-block">curl -X POST {{ request.scheme }}://{{ request.get_host }}/registry/api/cloud-files/ \
+  -H "Authorization: Token YOUR_TOKEN" \
+  -F "name=MyDocument" \
+  -F "folder=3" \
+  -F "file=@/path/to/document.pdf"<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Requisitions -->
+    <div id="requisitions" class="mb-5">
+      <h4 class="fw-bold mb-3"><i class="fas fa-file-invoice text-warning me-2"></i> Supply Requisitions</h4>
+      <div class="endpoint-card">
+        <div class="endpoint-header" onclick="toggleCard(this)">
+          <span class="method-badge method-get">GET</span>
+          <code class="text-white small">/registry/api/requisitions/</code>
+          <span class="text-white-50 small ms-auto">List requisitions (scoped by role)</span>
+          <i class="fas fa-chevron-down text-muted ms-2" style="font-size:.75rem;"></i>
+        </div>
+        <div class="endpoint-body pt-3 d-none">
+          <p class="text-white-50 extra-small">Results auto-scoped by role. Superusers see all. Includes nested items, quotations, and signatories.</p>
+          <div class="code-block">curl {{ request.scheme }}://{{ request.get_host }}/registry/api/requisitions/ \
+  -H "Authorization: Token YOUR_TOKEN"<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        </div>
+      </div>
+      <div class="endpoint-card">
+        <div class="endpoint-header" onclick="toggleCard(this)">
+          <span class="method-badge method-post">POST</span>
+          <code class="text-white small">/registry/api/requisitions/{id}/sign/</code>
+          <span class="text-white-50 small ms-auto">Sign / Approve / Reject</span>
+          <i class="fas fa-chevron-down text-muted ms-2" style="font-size:.75rem;"></i>
+        </div>
+        <div class="endpoint-body pt-3 d-none">
+          <p class="text-white-50 extra-small mb-3">Advances the 7-stage approval workflow. System validates caller's role against expected stage signatory.</p>
+          <div class="d-flex gap-1 mb-1">
+            <button class="tab-code-btn active" onclick="switchTab(this,'approve','sign-req-tabs')">Approve</button>
+            <button class="tab-code-btn" onclick="switchTab(this,'reject','sign-req-tabs')">Reject</button>
+            <button class="tab-code-btn" onclick="switchTab(this,'purchasing','sign-req-tabs')">Purchasing Officer</button>
+          </div>
+          <div id="sign-req-tabs">
+            <div data-lang="approve" class="code-block">curl -X POST {{ request.scheme }}://{{ request.get_host }}/registry/api/requisitions/5/sign/ \
+  -H "Authorization: Token YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"approve","signature_data":"data:image/png;base64,iVBORw..."}'<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+            <div data-lang="reject" class="code-block d-none">curl -X POST {{ request.scheme }}://{{ request.get_host }}/registry/api/requisitions/5/sign/ \
+  -H "Authorization: Token YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"reject","rejection_reason":"Budget limit exceeded."}'<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+            <div data-lang="purchasing" class="code-block d-none">curl -X POST {{ request.scheme }}://{{ request.get_host }}/registry/api/requisitions/5/sign/ \
+  -H "Authorization: Token YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "approve",
+    "signature_data": "data:image/png;base64,...",
+    "bid_analysis": "Supplier A is most competitive.",
+    "quotations": [
+      {"supplier_name":"Supplier A","quoted_amount":4500,"is_chosen":true},
+      {"supplier_name":"Supplier B","quoted_amount":5100,"is_chosen":false}
+    ]
+  }'<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BRDs -->
+    <div id="brds" class="mb-5">
+      <h4 class="fw-bold mb-3"><i class="fas fa-clipboard-check text-danger me-2"></i> Business Requirement Documents</h4>
+      <div class="row g-3 mb-3">
+        <div class="col-md-6"><div class="endpoint-card p-3"><span class="method-badge method-get">GET</span><code class="text-white small ms-2">/api/brds/</code><p class="extra-small text-white-50 mt-2 mb-0">List all BRDs with approval status</p></div></div>
+        <div class="col-md-6"><div class="endpoint-card p-3"><span class="method-badge method-post">POST</span><code class="text-white small ms-2">/api/brds/</code><p class="extra-small text-white-50 mt-2 mb-0">Create a new BRD</p></div></div>
+      </div>
+      <div class="endpoint-card">
+        <div class="endpoint-header" onclick="toggleCard(this)">
+          <span class="method-badge method-post">POST</span>
+          <code class="text-white small">/registry/api/brds/{id}/sign/</code>
+          <span class="text-white-50 small ms-auto">Sign BRD — PMT / HOD / Board</span>
+          <i class="fas fa-chevron-down text-muted ms-2" style="font-size:.75rem;"></i>
+        </div>
+        <div class="endpoint-body pt-3 d-none">
+          <p class="text-white-50 extra-small mb-3">3-level quorum: PMT → HODs → Board. Once each level's quorum is met, it auto-advances.</p>
+          <div class="code-block">curl -X POST {{ request.scheme }}://{{ request.get_host }}/registry/api/brds/3/sign/ \
+  -H "Authorization: Token YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"approve","signature_data":"data:image/png;base64,..."}'<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+          <div class="mt-3 small text-white-50 mb-1">Response:</div>
+          <div class="code-block">{"status":"approved","brd_status":"Approved","message":"BRD fully approved by all quorums."}<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Projects -->
+    <div id="projects" class="mb-5">
+      <h4 class="fw-bold mb-3"><i class="fas fa-project-diagram text-success me-2"></i> Kanban Projects &amp; Tasks</h4>
+      <div class="row g-3">
+        <div class="col-md-6"><div class="endpoint-card p-3"><span class="method-badge method-get">GET</span><code class="text-white small ms-2">/api/projects/</code><p class="extra-small text-white-50 mt-2 mb-0">List all governance projects</p></div></div>
+        <div class="col-md-6"><div class="endpoint-card p-3"><span class="method-badge method-post">POST</span><code class="text-white small ms-2">/api/project-tasks/</code><p class="extra-small text-white-50 mt-2 mb-0">Create or update kanban task</p></div></div>
+      </div>
+    </div>
+
+    <!-- Users & Orgs -->
+    <div id="users" class="mb-5">
+      <h4 class="fw-bold mb-3"><i class="fas fa-users text-white-50 me-2"></i> Users &amp; Organizations</h4>
+      <div class="row g-3">
+        <div class="col-md-4"><div class="endpoint-card p-3"><span class="method-badge method-get">GET</span><code class="text-white small ms-2">/api/users/</code><p class="extra-small text-white-50 mt-2 mb-0">List all system users</p></div></div>
+        <div class="col-md-4"><div class="endpoint-card p-3 " id="orgs"><span class="method-badge method-get">GET</span><code class="text-white small ms-2">/api/organizations/</code><p class="extra-small text-white-50 mt-2 mb-0">List federated organizations</p></div></div>
+        <div class="col-md-4"><div class="endpoint-card p-3"><span class="method-badge method-get">GET</span><code class="text-white small ms-2">/api/departments/</code><p class="extra-small text-white-50 mt-2 mb-0">List all departments</p></div></div>
+      </div>
+    </div>
+
+    <!-- Response Codes -->
+    <div id="codes" class="mb-5">
+      <h4 class="fw-bold mb-3"><i class="fas fa-signal text-white-50 me-2"></i> Response Codes</h4>
+      <div class="endpoint-card p-4">
+        <table class="table table-dark table-borderless mb-0" style="font-size:.83rem;">
+          <thead><tr class="text-uppercase extra-small text-muted"><th>Code</th><th>Meaning</th><th>Common Cause</th></tr></thead>
+          <tbody>
+            <tr><td><span class="rc-2xx">200 OK</span></td><td>Success</td><td>Request fulfilled</td></tr>
+            <tr><td><span class="rc-2xx">201 Created</span></td><td>Resource created</td><td>POST successful</td></tr>
+            <tr><td><span class="rc-4xx">400 Bad Request</span></td><td>Validation error</td><td>Invalid fields or logic constraint</td></tr>
+            <tr><td><span class="rc-4xx">401 Unauthorized</span></td><td>Auth required</td><td>Missing or invalid token</td></tr>
+            <tr><td><span class="rc-4xx">403 Forbidden</span></td><td>Permission denied</td><td>Role not authorized</td></tr>
+            <tr><td><span class="rc-4xx">404 Not Found</span></td><td>Resource missing</td><td>Invalid ID provided</td></tr>
+            <tr><td><span class="rc-5xx">500 Server Error</span></td><td>Internal error</td><td>Contact administrator</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Download -->
+    <div id="download-section" class="mb-5">
+      <div class="endpoint-card p-5 text-center" style="border-color:rgba(0,230,118,0.3);background:rgba(0,230,118,0.04);">
+        <i class="fas fa-file-download fa-3x mb-3" style="color:var(--accent-green);"></i>
+        <h5 class="fw-bold mb-2">Download Full API Documentation</h5>
+        <p class="text-white-50 small mb-4">Get the complete RIFTS-X API reference in Markdown format — perfect for offline use, embedding into AI agent system prompts, or sharing with your dev team.</p>
+        <a href="{% url 'download-api-docs' %}" class="btn btn-success px-5 rounded-pill fw-bold shadow-lg">
+          <i class="fas fa-download me-2"></i> Download RIFTSX_API_Documentation.md
+        </a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function toggleCard(header) {
+    const body = header.nextElementSibling;
+    const icon = header.querySelector('.fa-chevron-down, .fa-chevron-up');
+    if (!body) return;
+    body.classList.toggle('d-none');
+    if (icon) { icon.classList.toggle('fa-chevron-down'); icon.classList.toggle('fa-chevron-up'); }
+}
+function switchTab(btn, lang, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.querySelectorAll('[data-lang]').forEach(el => el.classList.add('d-none'));
+    const target = container.querySelector('[data-lang="' + lang + '"]');
+    if (target) target.classList.remove('d-none');
+    btn.closest('.d-flex').querySelectorAll('.tab-code-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+function copyCode(btn) {
+    const block = btn.parentElement;
+    const text = block.textContent.replace(/Copy$/, '').replace(/Copied!$/, '').trim();
+    navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied!';
+        btn.style.color = '#69f0ae';
+        setTimeout(() => { btn.textContent = 'Copy'; btn.style.color = ''; }, 2000);
+    });
+}
+document.querySelectorAll('.sidebar-link').forEach(link => {
+    link.addEventListener('click', function () {
+        document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+        this.classList.add('active');
+    });
+});
+function copyTokenUrl(el) {
+    const url = window.location.origin + '/registry/api/token-auth/';
+    navigator.clipboard.writeText(url).then(() => {
+        const icon = el.querySelector('.fa-copy');
+        if (icon) { icon.classList.replace('fa-copy', 'fa-check'); icon.style.color = '#69f0ae'; }
+        setTimeout(() => {
+            if (icon) { icon.classList.replace('fa-check', 'fa-copy'); icon.style.color = ''; }
+        }, 2000);
+    });
+}
+</script>
+{% endblock pageContent %}

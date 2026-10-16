@@ -1,0 +1,145 @@
+{% load static %}
+<div class="container-fluid">
+    <form action="" id="file_doc-form" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{file_doc.id}}">
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <label for="ref_num" class="form-label small fw-bold text-muted text-uppercase mb-1"> Reference Number (ZRP Standard Format)</label>
+                <input type="text" id="ref_num" name="ref_num"
+                    class="form-control border-0 shadow-sm rounded-pill px-3 font-monospace"
+                    value="{{file_doc.ref_num}}" required placeholder="HR-LEAVE-ANNUAL_LEAVE-JOHN_DOE-2026-001-V1">
+                <span class="extra-small text-muted ps-2">Format: Dept-Type-Subject-Ref-Date-Version</span>
+            </div>
+            <div class="col-md-6 mb-4">
+                <label for="classification_level" class="form-label small fw-bold text-muted text-uppercase mb-1"> Security Classification Level</label>
+                <select id="classification_level" name="classification_level" class="form-select border-0 shadow-sm rounded-pill px-3" required>
+                    <option value="Open Access" {% if file_doc.classification_level == 'Open Access' %}selected{% endif %}>Open Access</option>
+                    <option value="Departmental" {% if file_doc.classification_level == 'Departmental' or not file_doc.classification_level %}selected{% endif %}>Departmental</option>
+                    <option value="Confidential" {% if file_doc.classification_level == 'Confidential' %}selected{% endif %}>Confidential</option>
+                    <option value="Restricted/Highly Confidential" {% if file_doc.classification_level == 'Restricted/Highly Confidential' %}selected{% endif %}>Restricted / Highly Confidential</option>
+                </select>
+            </div>
+        </div>
+        <div class="mb-4">
+            <label for="sub_category" class="form-label small fw-bold text-muted text-uppercase mb-2"> ZRP Centralized Hierarchy Folder / Sub-Category</label>
+            <select id="sub_category" name="sub_category" class="form-select border-0 shadow-sm rounded-pill" required>
+                {% if not file_doc.sub_category %}
+                <option value="" disabled selected> Select ZRP Category</option>
+                {% endif %}
+                {% for sub_category in sub_categories %}
+                <option value="{{sub_category.id}}" {% if file_doc.sub_category.id == sub_category.id %}selected{% endif %} > {{sub_category.category.name}} &mdash; {{sub_category.name}}</option>
+                {% endfor %}</select></div>
+        <div class="mb-4">
+            <label for="title" class="form-label small fw-bold text-muted text-uppercase mb-2"> File Title /
+                Label</label>
+            <input type="text" id="title" name="title" class="form-control border-0 shadow-sm rounded-pill px-3"
+                value="{{file_doc.title}}" required placeholder="Enter File Title"></div>
+        <div class="mb-4">
+            <label for="description" class="form-label small fw-bold text-muted text-uppercase mb-2"> Technical
+                Description</label>
+            <textarea rows="3" id="description" name="description"
+                class="form-control border-0 shadow-sm rounded-3 px-3 py-2" required
+                placeholder="Enter record summary..."> {{file_doc.description}}</textarea></div>
+        <div class="mb-4">
+            <label for="status" class="form-label small fw-bold text-muted text-uppercase mb-2"> Record Status</label>
+            <select id="status" name="status" class="form-select border-0 shadow-sm rounded-pill px-3" required>
+                <option value="1" {% if file_doc.status == '1' %}selected{% endif %} > Active</option>
+                <option value="0" {% if file_doc.status == '0' or file_doc.status == '2' %}selected{% endif %} > Inactive</option></select></div>
+
+        <hr class="bg-light my-4">
+        <h6 class="small fw-bold text-muted text-uppercase mb-3"> <i class="fas fa-map-marker-alt me-1"></i> Initial
+            Physical Location</h6>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label class="form-label extra-small fw-bold text-muted"> Building</label>
+                <input type="text" name="building" class="form-control border-0 shadow-sm rounded-pill px-3 py-2"
+                    value="{{ location.building|default:'' }}" placeholder="e.g. Main HQ" required></div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label extra-small fw-bold text-muted"> Floor</label>
+                <input type="text" name="floor" class="form-control border-0 shadow-sm rounded-pill px-3 py-2"
+                    value="{{ location.floor|default:'' }}" placeholder="e.g. 1st Floor" required></div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label extra-small fw-bold text-muted"> Office / Section</label>
+                <input type="text" name="office" class="form-control border-0 shadow-sm rounded-pill px-3 py-2"
+                    value="{{ location.office|default:'' }}" placeholder="e.g. Records Room"></div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label extra-small fw-bold text-muted"> Cabinet</label>
+                <input type="text" name="cabinet" class="form-control border-0 shadow-sm rounded-pill px-3 py-2"
+                    value="{{ location.cabinet|default:'' }}" placeholder="e.g. Cabinet A" required></div>
+            <div class="col-md-12 mb-3">
+                <label class="form-label extra-small fw-bold text-muted"> Shelf / Bin</label>
+                <input type="text" name="shelf" class="form-control border-0 shadow-sm rounded-pill px-3 py-2"
+                    value="{{ location.shelf|default:'' }}" placeholder="e.g. Shelf 5" required></div></div>
+        <div class="mb-4">
+            <label for="file_attachment" class="form-label small fw-bold text-muted text-uppercase mb-2"> Digital
+                Attachment (Optional)</label>
+            <input type="file" id="file_attachment" name="file_attachment"
+                class="form-control border-0 shadow-sm rounded-pill px-3">
+            {% if file_doc.file_attachment %}
+            <div class="mt-2 ps-3">
+                <a href="{{ file_doc.file_attachment.url }}" target="_blank" class="text-primary small"> <i
+                        class="fas fa-file-download me-1"></i> View Current: {{ file_doc.file_attachment.name }}</a></div>
+            {% endif %}</div></form></div>
+<script>$(function () {
+        $('#uni_modal').on('shown.bs.modal', function () {
+            $('#sub_category').select2({
+                width: "100%",
+                placeholder: "Please Select Category Here",
+                dropdownParent: $('#uni_modal'),
+                selectionCssClass: "form-control border-0 shadow-sm rounded-pill"
+            })
+        })
+        $('#file_doc-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg rounded-3 small p-2 mb-3")
+            el.hide()
+            if (_this[0].checkValidity() == false) {
+                _this[0].reportValidity();
+                return false;
+            }
+            start_loader();
+            $.ajax({
+                headers: {
+                    "X-CSRFToken": '{{csrf_token}}'
+                },
+                url: "{% url 'save-file_doc' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.error(err)
+                    alert("An error occured", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.html(resp.msg)
+                    } else {
+                        el.text("An error occured", 'error');
+                        end_loader();
+                        console.error(resp)
+                    }
+                    _this.prepend(el)
+                    el.show('slow')
+                    $("html, body, .modal").scrollTop(0);
+                    end_loader()
+                }
+            })
+        })
+    })</script>
+
+
+
+
+
+

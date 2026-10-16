@@ -1,0 +1,522 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div class="d-flex align-items-center">
+            <a href="{% url 'form27-list' %}" class="btn btn-sm btn-secondary rounded-circle shadow-sm me-3">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <div>
+                <div class="d-flex align-items-center gap-2">
+                    <h3 class="fw-bold mb-0">Z.R.P. Form 27 No. {{ voucher.voucher_no }}</h3>
+                    <span class="badge bg-{% if voucher.status == 'Received' %}success{% elif voucher.status == 'Dispatched' %}primary{% else %}warning text-dark{% endif %} rounded-pill px-3 py-2">
+                        {{ voucher.status }}
+                    </span>
+                </div>
+                <div class="small text-muted">
+                    Issued to <strong>{{ voucher.station }}</strong> on {{ voucher.date|date:"F d, Y" }} &bull; Z.R.POLICE I.C.T Central Radio Stores
+                </div>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            {% if voucher.electronic_signature_confirmed %}
+            <span class="badge bg-success rounded-pill px-3 py-2 shadow-sm">
+                <i class="fas fa-certificate me-1"></i> Electronically Confirmed
+            </span>
+            {% elif can_sign_form27_electronic %}
+            <button class="btn btn-outline-success rounded-pill px-3 shadow-sm fw-bold"
+                onclick="uni_modal('Electronic Receipt Confirmation', '{% url 'sign-form27-electronic' voucher.pk %}', 'modal-md')">
+                <i class="fas fa-file-signature me-1"></i> Confirm Electronic Receipt
+            </button>
+            {% endif %}
+            <a href="{% url 'print-form27' voucher.pk %}" target="_blank" class="btn btn-dark rounded-pill px-4 shadow-sm">
+                <i class="fas fa-print me-2 text-warning"></i> Print Form 27
+            </a>
+            {% if voucher.status != 'Received' %}
+            <button class="btn btn-success rounded-pill px-4 shadow-sm fw-bold" id="btn-receive-voucher">
+                <i class="fas fa-check-double me-2"></i> Station Receiver Signoff
+            </button>
+            {% endif %}
+            <button class="btn btn-outline-secondary rounded-pill px-3 shadow-sm"
+                onclick="uni_modal('Edit Form 27 Voucher Header', '{% url 'manage-form27-pk' voucher.pk %}', 'modal-lg')">
+                <i class="fas fa-edit me-1"></i> Edit Header
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Electronic Signature Verification Banner -->
+{% if voucher.electronic_signature_confirmed %}
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card border-0 bg-success bg-opacity-10 rounded-4 p-3 border-start border-success border-4 shadow-sm">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="icon-circle bg-success text-white"><i class="fas fa-shield-halved"></i></div>
+                    <div>
+                        <div class="fw-bold text-success fs-6">Statutory Electronic Receipt Confirmation Validated</div>
+                        <div class="small text-muted">
+                            Electronically confirmed by: <strong>{{ voucher.electronic_signed_name }}</strong> &bull;
+                            Designation: <span class="badge bg-dark">{{ voucher.electronic_signed_role }}</span> &bull;
+                            Timestamp: {{ voucher.electronic_signed_date|date:"F d, Y H:i" }}
+                            {% if voucher.electronic_signature_notes %}
+                            <div class="mt-1 text-dark">Verification Remarks: <em>"{{ voucher.electronic_signature_notes }}"</em></div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <span class="badge bg-success rounded-pill px-3 py-2"><i class="fas fa-lock me-1"></i> Digitally Recorded</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Status Banner -->
+<div class="row mb-4">
+    <div class="col-12">
+        {% if voucher.status == 'Received' %}
+        <div class="card border-0 bg-success bg-opacity-10 rounded-4 p-3 border-start border-success border-4 shadow-sm">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="icon-circle bg-success text-white"><i class="fas fa-check-circle"></i></div>
+                    <div>
+                        <div class="fw-bold text-success fs-6">Equipment Received and Signed for by Station</div>
+                        <div class="small text-muted">
+                            Received by: <strong>{{ voucher.received_by_name }}</strong> ({{ voucher.received_by_force_no }}) on {{ voucher.received_date|date:"F d, Y" }}.
+                            {% if voucher.signed_voucher_scan %}
+                            <a href="{{ voucher.signed_voucher_scan.url }}" target="_blank" class="badge bg-primary text-white ms-2"><i class="fas fa-file-pdf me-1"></i> View Signed Voucher Scan</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <span class="badge bg-success rounded-pill px-3 py-2">Acknowledged</span>
+            </div>
+        </div>
+        {% elif voucher.status == 'Dispatched' %}
+        <div class="card border-0 bg-primary bg-opacity-10 rounded-4 p-3 border-start border-primary border-4 shadow-sm">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="icon-circle bg-primary text-white"><i class="fas fa-truck"></i></div>
+                    <div>
+                        <div class="fw-bold text-primary fs-6">Items Dispatched &bull; In Transit to {{ voucher.station }}</div>
+                        <div class="small text-muted">Dispatched via: {{ voucher.how_dispatched|default:"Official courier / vehicle" }}. Checked by: {{ voucher.checker }}.</div>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-success rounded-pill px-3 fw-bold" onclick="$('#btn-receive-voucher').click()">
+                    <i class="fas fa-pencil-alt me-1"></i> Record Station Receipt
+                </button>
+            </div>
+        </div>
+        {% else %}
+        <div class="card border-0 bg-warning bg-opacity-10 rounded-4 p-3 border-start border-warning border-4 shadow-sm">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="icon-circle bg-warning text-dark"><i class="fas fa-boxes-packing"></i></div>
+                    <div>
+                        <div class="fw-bold text-dark fs-6">Voucher Issued at Central Radio Stores &bull; Awaiting Delivery / Dispatch</div>
+                        <div class="small text-muted">Checked by: <strong>{{ voucher.checker }}</strong>. Ready for dispatch to {{ voucher.station }}.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Column: Header Information -->
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill extra-small px-3 py-2 fw-bold">
+                        Z.R.P. FORM 27
+                    </span>
+                    <span class="small text-muted font-monospace fw-bold">NO. {{ voucher.voucher_no }}</span>
+                </div>
+
+                <div class="d-flex flex-column gap-3 mb-4">
+                    <div>
+                        <div class="extra-small text-muted text-uppercase fw-bold">Issuing Authority</div>
+                        <div class="fw-bold text-dark">{{ voucher.issued_by }}</div>
+                    </div>
+                    <div>
+                        <div class="extra-small text-muted text-uppercase fw-bold">Destination Station</div>
+                        <div class="fw-bold text-primary">{{ voucher.station }}</div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div class="extra-small text-muted text-uppercase fw-bold">Issue Date</div>
+                            <div class="small fw-semibold">{{ voucher.date|date:"Y-m-d" }}</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="extra-small text-muted text-uppercase fw-bold">Requisition No.</div>
+                            <div class="small fw-semibold">{{ voucher.requisition_no|default:"N/A" }}</div>
+                        </div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div class="extra-small text-muted text-uppercase fw-bold">How Dispatched</div>
+                            <div class="small fw-semibold">{{ voucher.how_dispatched|default:"Direct" }}</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="extra-small text-muted text-uppercase fw-bold">Checker</div>
+                            <div class="small fw-semibold">{% if voucher.checker_user %}{{ voucher.checker_user.get_full_name|default:voucher.checker_user.username }}{% else %}{{ voucher.checker|default:"N/A" }}{% endif %}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="opacity-10">
+                <div class="extra-small text-muted text-uppercase fw-bold mb-2">Station Receiving Signoff</div>
+                {% if voucher.received_by_user or voucher.received_by_name %}
+                <div class="alert alert-light border rounded-3 small p-2 mb-0">
+                    <div><strong>Received by:</strong> {% if voucher.received_by_user %}{{ voucher.received_by_user.get_full_name|default:voucher.received_by_user.username }}{% else %}{{ voucher.received_by_name }}{% endif %}</div>
+                    <div><strong>Force No/Rank:</strong> {{ voucher.received_by_force_no|default:"N/A" }}</div>
+                    <div><strong>Date:</strong> {{ voucher.received_date|date:"Y-m-d"|default:"N/A" }}</div>
+                </div>
+                {% else %}
+                <div class="text-muted small">Pending receiver signoff at station.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Line Items Table -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-header border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center flex-wrap gap-2" style="background: transparent;">
+                <div>
+                    <h5 class="fw-bold mb-0"><i class="fas fa-list-check text-primary me-2"></i>Issued Equipment Ledger</h5>
+                    <div class="small text-muted">Line items listed on Form 27 Requisition/Issue Voucher</div>
+                </div>
+                <button class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm fw-bold" id="btn-add-item-modal">
+                    <i class="fas fa-plus-circle me-1"></i> Add Item to Voucher
+                </button>
+            </div>
+            <div class="card-body p-4">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="extra-small text-uppercase text-muted">
+                            <tr>
+                                <th>#</th>
+                                <th>Description</th>
+                                <th>Linked Asset / Serial No.</th>
+                                <th class="text-center">For Stores Use Only</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for item in items %}
+                            <tr>
+                                <td class="text-muted">{{ forloop.counter }}</td>
+                                <td>
+                                    <div>
+                                        <span class="badge bg-{% if item.item_type == 'Inventory' %}warning text-dark{% else %}primary{% endif %} me-1" style="font-size: 0.65rem;">
+                                            <i class="fas fa-{% if item.item_type == 'Inventory' %}boxes-stacked{% else %}cube{% endif %} me-1"></i>{{ item.item_type|default:'Asset' }}
+                                        </span>
+                                        <span class="fw-bold text-dark">{{ item.description }}</span>
+                                    </div>
+                                    {% if item.remarks %}<div class="extra-small text-muted">{{ item.remarks }}</div>{% endif %}
+                                </td>
+                                <td>
+                                    {% if item.asset %}
+                                    <div class="extra-small fw-bold text-primary">{{ item.asset.name }}</div>
+                                    {% endif %}
+                                    {% if item.serial_number %}
+                                    <div class="extra-small font-monospace text-success"><i class="fas fa-barcode me-1"></i>{{ item.serial_number.serial_number }}</div>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center font-monospace fw-bold fs-6">
+                                    {{ item.stores_use_only|default:item.quantity }}
+                                </td>
+                                <td class="text-end">
+                                    <a href="{% url 'delete-form27-item' voucher.pk item.pk %}" onclick="return confirm('Remove this line item from Form 27?')" class="btn btn-sm btn-outline-danger rounded-circle shadow-sm">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">
+                                    <i class="fas fa-boxes fa-3x mb-2 opacity-25"></i>
+                                    <div>No items added to this voucher yet.</div>
+                                    <button class="btn btn-sm btn-outline-primary rounded-pill px-3 mt-2" onclick="$('#btn-add-item-modal').click()">
+                                        <i class="fas fa-plus me-1"></i> Add First Item (e.g. HM785 VHF Mobile Radio)
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statutory Reverse Side Certifications & Endorsements Card -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-header border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center flex-wrap gap-2" style="background: transparent;">
+                <div>
+                    <h5 class="fw-bold mb-0">
+                        <i class="fas fa-stamp text-warning me-2"></i>Statutory Reverse Side Certifications &amp; Endorsements
+                    </h5>
+                    <div class="small text-muted">Official Standing Endorsements from physical Form 27 reverse side</div>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary rounded-pill px-3"
+                    onclick="uni_modal('Edit Form 27 Endorsements', '{% url 'manage-form27-pk' voucher.pk %}', 'modal-lg')">
+                    <i class="fas fa-edit me-1"></i> Update Endorsements
+                </button>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <!-- Block (1): Member Requisitioning Goods -->
+                    <div class="col-md-6">
+                        <div class="p-3 rounded-3 border bg-light h-100">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <span class="badge bg-dark extra-small">(1) Member Requisitioning</span>
+                                {% if voucher.cert_essential_communication %}
+                                <span class="badge bg-success extra-small"><i class="fas fa-check me-1"></i>Certified</span>
+                                {% else %}
+                                <span class="badge bg-secondary extra-small">Uncertified</span>
+                                {% endif %}
+                            </div>
+                            <div class="small fst-italic mb-2">
+                                "Certified that all items listed overleaf are essential for the maintenance of Police communication."
+                            </div>
+                            <div class="extra-small text-muted">
+                                <div><strong>Officer/Member-in-Charge:</strong> {{ voucher.cert_member_name|default:"____________________" }}</div>
+                                <div><strong>Date:</strong> {{ voucher.cert_member_date|date:"Y-m-d"|default:"__________" }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Block (2): Provincial ICT Officer -->
+                    <div class="col-md-6">
+                        <div class="p-3 rounded-3 border bg-light h-100">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <span class="badge bg-dark extra-small">(2) Provincial ICT Officer</span>
+                                {% if voucher.demand_reasons %}
+                                <span class="badge bg-info text-dark extra-small">Demanded</span>
+                                {% else %}
+                                <span class="badge bg-secondary extra-small">Pending</span>
+                                {% endif %}
+                            </div>
+                            <div class="small fw-bold mb-1">Tools/Equipment Demanded For:</div>
+                            <div class="small text-dark mb-2 font-monospace bg-white p-2 rounded border">
+                                {{ voucher.demand_reasons|default:"No specific demand reason recorded." }}
+                            </div>
+                            <div class="extra-small text-muted">
+                                <div><strong>PICTO:</strong> {{ voucher.picto_name|default:"____________________" }}</div>
+                                <div><strong>Date Stamp:</strong> {{ voucher.picto_date_stamp|date:"Y-m-d"|default:"__________" }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Block (3): Director ICT Approval -->
+                    <div class="col-md-6">
+                        <div class="p-3 rounded-3 border bg-light h-100">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <span class="badge bg-dark extra-small">(3) Director ICT</span>
+                                {% if voucher.director_approved %}
+                                <span class="badge bg-success extra-small"><i class="fas fa-check-double me-1"></i>Approved</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark extra-small">Pending Approval</span>
+                                {% endif %}
+                            </div>
+                            <div class="small fw-bold text-success mb-1">Issues Approved.</div>
+                            {% if voucher.director_remarks %}
+                            <div class="small text-muted mb-2 font-monospace bg-white p-2 rounded border">
+                                Remarks: {{ voucher.director_remarks }}
+                            </div>
+                            {% endif %}
+                            <div class="extra-small text-muted">
+                                <div><strong>Director ICT:</strong> {{ voucher.director_name|default:"DIRECTOR ICT" }}</div>
+                                <div><strong>Date Stamp:</strong> {{ voucher.director_date_stamp|date:"Y-m-d"|default:"__________" }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Block (4): Receiving ICT Officer -->
+                    <div class="col-md-6">
+                        <div class="p-3 rounded-3 border bg-light h-100">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <span class="badge bg-dark extra-small">(4) Receiving ICT Officer</span>
+                                {% if voucher.receipt_ledger_certified %}
+                                <span class="badge bg-success extra-small"><i class="fas fa-check-circle me-1"></i>Recorded</span>
+                                {% else %}
+                                <span class="badge bg-secondary extra-small">Pending Station Entry</span>
+                                {% endif %}
+                            </div>
+                            <div class="small fst-italic mb-2">
+                                "Certified the items overleaf have been received and correctly recorded on the relevant copy of the Stores/Equipment Ledger or Inventory."
+                            </div>
+                            <div class="extra-small text-muted">
+                                <div><strong>Provincial/District ICT Officer:</strong> {{ voucher.receiving_ict_officer|default:"____________________" }}</div>
+                                <div><strong>Date Stamp:</strong> {{ voucher.receiving_date_stamp|date:"Y-m-d"|default:"__________" }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- INSTRUCTIONS (Quadruplicate) -->
+                    <div class="col-12">
+                        <div class="p-3 rounded-3 border" style="background-color: #fcfcfc;">
+                            <div class="extra-small text-uppercase fw-bold text-muted mb-2">
+                                <i class="fas fa-book-open text-secondary me-1"></i> Statutory Quadruplicate Distribution Instructions:
+                            </div>
+                            <div class="row g-2 extra-small text-muted">
+                                <div class="col-md-3">
+                                    <div class="p-2 border rounded bg-white">
+                                        <strong class="text-dark">(1) Original (White)</strong><br>To be returned to Director ICT duly completed.
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="p-2 border rounded" style="background-color: #e8f4fd;">
+                                        <strong class="text-primary">(2) Duplicate (Blue)</strong><br>To be retained by Demanding Officer.
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="p-2 border rounded" style="background-color: #fce8f3;">
+                                        <strong class="text-danger">(3) Triplicate (Pink)</strong><br>To be retained by Demanding Officer for information.
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="p-2 border rounded" style="background-color: #fefde8;">
+                                        <strong class="text-warning text-dark">(4) Quadruplicate (Yellow)</strong><br>To be retained by Provincial/District ICT Officer.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Container: Add Item to Form 27 -->
+<div id="add-item-form-container" style="display:none;">
+    <form action="{% url 'save-form27-item' voucher.pk %}" method="POST" id="add-form27-item">
+        {% csrf_token %}
+        <div class="row g-3">
+            <div class="col-12">
+                <label class="small fw-bold">Select Existing Asset (Optional)</label>
+                {{ item_form.asset }}
+            </div>
+            <div class="col-12">
+                <label class="small fw-bold">Description of Item *</label>
+                {{ item_form.description }}
+                <div class="extra-small text-muted">e.g. HM785 VHFMOBILE RADIO S/N</div>
+            </div>
+            <div class="col-md-6">
+                <label class="small fw-bold">For Stores Use Only *</label>
+                {{ item_form.stores_use_only }}
+                <div class="extra-small text-muted">Quantity, Serial Number, or Ledger Code (e.g. 26)</div>
+            </div>
+            <div class="col-md-6">
+                <label class="small fw-bold">Quantity (Number)</label>
+                {{ item_form.quantity }}
+            </div>
+            <div class="col-12">
+                <label class="small fw-bold">Remarks / Technical Notes</label>
+                {{ item_form.remarks }}
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Modal Container: Station Receiver Signoff -->
+<div id="receive-form-container" style="display:none;">
+    <form action="{% url 'receive-form27' voucher.pk %}" method="POST" enctype="multipart/form-data" id="receive-form27-form">
+        {% csrf_token %}
+        <div class="alert alert-success extra-small rounded-3 mb-3">
+            <i class="fas fa-check-circle me-1"></i> Certifies that the goods/equipment enumerated above have been received in good order by the destination station.
+        </div>
+        <div class="row g-3">
+            <div class="col-12">
+                <label class="small fw-bold"><i class="fas fa-user-check text-primary me-1"></i> Receiving Officer (Select from System Users)</label>
+                {{ receive_form.received_by_user }}
+                <div class="extra-small text-muted">Select registered user acting as station receiving officer</div>
+            </div>
+            <div class="col-md-6">
+                <label class="small fw-bold">Receiving Officer Name (Text Fallback)</label>
+                {{ receive_form.received_by_name }}
+            </div>
+            <div class="col-md-6">
+                <label class="small fw-bold">Rank &amp; Force Number</label>
+                {{ receive_form.received_by_force_no }}
+            </div>
+            <div class="col-md-6">
+                <label class="small fw-bold">Date Received *</label>
+                {{ receive_form.received_date }}
+            </div>
+            <div class="col-md-6">
+                <label class="small fw-bold">Upload Signed Form 27 Voucher (PDF/Image)</label>
+                {{ receive_form.signed_voucher_scan }}
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+$(function() {
+    // Add Item Modal
+    $('#btn-add-item-modal').click(function () {
+        var form = $('#add-item-form-container').html();
+        $('#uni_modal .modal-title').html('<i class="fas fa-plus-circle text-primary me-2"></i>Add Item to Form 27');
+        $('#uni_modal .modal-body').html(form);
+        $('#uni_modal .modal-dialog').addClass('modal-lg');
+        $('#uni_modal .modal-footer').show();
+        $('#uni_modal').modal('show');
+
+        $('#uni_modal form').submit(function (e) {
+            e.preventDefault();
+            start_loader();
+            $.ajax({
+                url: "{% url 'save-form27-item' voucher.pk %}",
+                method: 'POST',
+                data: $(this).serialize(),
+                dataType: 'json',
+                success: function (resp) {
+                    if (resp.status == 'success') {
+                        location.reload();
+                    } else {
+                        alert_toast(resp.msg || "An error occurred", 'error');
+                        end_loader();
+                    }
+                },
+                error: function () {
+                    alert_toast("An error occurred while adding item", 'error');
+                    end_loader();
+                }
+            });
+        });
+    });
+
+    // Receive Signoff Modal
+    $('#btn-receive-voucher').click(function () {
+        var form = $('#receive-form-container').html();
+        $('#uni_modal .modal-title').html('<i class="fas fa-check-double text-success me-2"></i>Station Receiver Signoff (Form 27)');
+        $('#uni_modal .modal-body').html(form);
+        $('#uni_modal .modal-dialog').addClass('modal-lg');
+        $('#uni_modal .modal-footer').show();
+        $('#uni_modal').modal('show');
+
+        // Auto-fill receiver name when user dropdown changes
+        $('#uni_modal select[name="received_by_user"]').change(function() {
+            var selectedText = $(this).find("option:selected").text();
+            if ($(this).val() && selectedText && selectedText.indexOf('--') === -1) {
+                var nameInput = $('#uni_modal input[name="received_by_name"]');
+                if (!nameInput.val()) {
+                    nameInput.val(selectedText.trim());
+                }
+            }
+        });
+
+        $('#uni_modal form').submit(function() {
+            start_loader();
+        });
+    });
+});
+</script>
+{% endblock pageContent %}\n

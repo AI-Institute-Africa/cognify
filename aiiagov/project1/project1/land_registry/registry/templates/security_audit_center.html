@@ -1,0 +1,212 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-shield-halved text-warning me-2"></i> ZRP Security, Access Control & Audit Governance Center</h3>
+            <p class="text-muted small mb-0">Role-Based Access Control (RBAC), multi-factor authentication, forensic activity logs, and system disaster recovery</p>
+        </div>
+        <div class="d-flex gap-2">
+            <form action="{% url 'backup-and-recovery-action' %}" method="POST" onsubmit="return confirm('Trigger full database snapshot backup now?');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold shadow-sm">
+                    <i class="fas fa-database me-2"></i> Trigger System DB Backup
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Security Metrics -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-success">
+                <span class="text-muted extra-small text-uppercase fw-bold">Active User Profiles</span>
+                <h2 class="fw-bold text-success mb-0 mt-1">{{ security_profiles.count }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-info">
+                <span class="text-muted extra-small text-uppercase fw-bold">MFA Protected Users</span>
+                <h2 class="fw-bold text-info mb-0 mt-1">{{ mfa_enabled_count }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-warning">
+                <span class="text-muted extra-small text-uppercase fw-bold">Security Alerts Logged</span>
+                <h2 class="fw-bold text-warning mb-0 mt-1">{{ alerts.count }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-primary">
+                <span class="text-muted extra-small text-uppercase fw-bold">Document Versions Tracked</span>
+                <h2 class="fw-bold text-primary mb-0 mt-1">{{ version_count }}</h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Tabs -->
+    <div class="glass-card p-4">
+        <ul class="nav nav-pills nav-justified mb-4" id="secTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-bold rounded-pill" id="rbac-tab" data-bs-toggle="tab" data-bs-target="#rbacTabPane" type="button" role="tab">
+                    <i class="fas fa-user-shield me-2"></i> Role-Based Access Control (RBAC)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold rounded-pill" id="alerts-tab" data-bs-toggle="tab" data-bs-target="#alertsTabPane" type="button" role="tab">
+                    <i class="fas fa-triangle-exclamation me-2"></i> Real-time Security Alerts
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold rounded-pill" id="audit-tab" data-bs-toggle="tab" data-bs-target="#auditTabPane" type="button" role="tab">
+                    <i class="fas fa-clipboard-list me-2"></i> Forensic Activity Logs
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="secTabsContent">
+            <!-- 1. RBAC User Register -->
+            <div class="tab-pane fade show active" id="rbacTabPane" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-white">
+                        <thead>
+                            <tr class="bg-dark text-uppercase extra-small">
+                                <th>User</th>
+                                <th>Department</th>
+                                <th>Assigned Role</th>
+                                <th>MFA Status</th>
+                                <th>Role Governance</th>
+                                <th>Account Lockout</th>
+                                <th class="text-end pe-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sp in security_profiles %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold text-white">{{ sp.user.get_full_name|default:sp.user.username }}</div>
+                                    <span class="badge bg-light text-dark font-monospace extra-small">@{{ sp.user.username }}</span>
+                                </td>
+                                <td><span class="badge bg-secondary rounded-pill">{{ sp.department.name|default:"Commission General" }}</span></td>
+                                <td><strong class="text-warning">{{ sp.role }}</strong></td>
+                                <td>
+                                    {% if sp.mfa_enabled %}
+                                    <span class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 rounded-pill px-3 py-1 fw-bold"><i class="fas fa-key me-1"></i> MFA Enabled</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary rounded-pill px-3 py-1">Disabled</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if sp.is_role_approved %}
+                                    <span class="badge bg-success rounded-pill extra-small"><i class="fas fa-check me-1"></i> Approved</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark rounded-pill extra-small">Pending Governance</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if sp.is_locked %}
+                                    <span class="badge bg-danger rounded-pill px-3 py-1"><i class="fas fa-lock me-1"></i> Locked</span>
+                                    {% else %}
+                                    <span class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 rounded-pill px-3 py-1">Active</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-4">
+                                    <form action="{% url 'toggle-mfa-action' %}" method="POST" class="d-inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="user_id" value="{{ sp.user.id }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-warning rounded-pill px-3">
+                                            <i class="fas fa-mobile-screen-button me-1"></i> Toggle MFA
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">No security profiles loaded.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 2. Security Alerts -->
+            <div class="tab-pane fade" id="alertsTabPane" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-white">
+                        <thead>
+                            <tr class="bg-dark text-uppercase extra-small">
+                                <th>Timestamp</th>
+                                <th>Alert Category</th>
+                                <th>Severity</th>
+                                <th>User / IP Address</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in alerts %}
+                            <tr>
+                                <td class="text-muted extra-small font-monospace">{{ a.timestamp|date:"d M Y, H:i:s" }}</td>
+                                <td><strong class="text-warning">{{ a.alert_type }}</strong></td>
+                                <td>
+                                    <span class="badge bg-{% if a.severity == 'Critical' or a.severity == 'High' %}danger{% elif a.severity == 'Medium' %}warning text-dark{% else %}info{% endif %} rounded-pill">
+                                        {{ a.severity }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="small text-white">{{ a.user.username|default:"System Guest" }}</div>
+                                    <div class="extra-small text-muted font-monospace">IP: {{ a.ip_address|default:"127.0.0.1" }}</div>
+                                </td>
+                                <td class="small text-muted">{{ a.description }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">No security alerts recorded. System operational.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 3. Forensic Activity Audit Trail -->
+            <div class="tab-pane fade" id="auditTabPane" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-white">
+                        <thead>
+                            <tr class="bg-dark text-uppercase extra-small">
+                                <th>Timestamp</th>
+                                <th>User</th>
+                                <th>Action / Path</th>
+                                <th>Method</th>
+                                <th>IP Address</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for f in forensic_logs %}
+                            <tr>
+                                <td class="text-muted extra-small font-monospace">{{ f.timestamp|date:"d M Y, H:i:s" }}</td>
+                                <td><strong class="text-white">{{ f.user.username|default:"Anonymous" }}</strong></td>
+                                <td>
+                                    <div class="small text-warning">{{ f.action }}</div>
+                                    <div class="extra-small text-muted font-monospace">{{ f.path|slice:":60" }}</div>
+                                </td>
+                                <td><span class="badge bg-secondary rounded-pill extra-small">{{ f.method }}</span></td>
+                                <td class="extra-small text-muted font-monospace">{{ f.ip_address|default:"127.0.0.1" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">No forensic audit logs recorded.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock pageContent %}

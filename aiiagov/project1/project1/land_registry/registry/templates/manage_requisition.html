@@ -1,0 +1,92 @@
+{% load static %}
+<div class="container-fluid">
+    <form action="" id="requisition-form">
+        <input type="hidden" name="id" value="{{ id }}">
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <label for="item_name" class="form-label small fw-bold text-muted text-uppercase mb-2"> Item Name /
+                    Supply</label>
+                {{ form.item_name }}</div>
+            <div class="col-md-6 mb-4">
+                <label for="budget_line" class="form-label small fw-bold text-muted text-uppercase mb-2"> Budget
+                    Line</label>
+                {{ form.budget_line }}</div></div>
+        <div class="row">
+            <div class="col-md-4 mb-4">
+                <label for="quantity" class="form-label small fw-bold text-muted text-uppercase mb-2"> Quantity</label>
+                {{ form.quantity }}</div>
+            <div class="col-md-4 mb-4">
+                <label for="estimated_unit_cost" class="form-label small fw-bold text-muted text-uppercase mb-2"> Unit
+                    Cost</label>
+                {{ form.estimated_unit_cost }}</div>
+            <div class="col-md-4 mb-4">
+                <label for="total_amount" class="form-label small fw-bold text-muted text-uppercase mb-2"> Total
+                    amount</label>
+                {{ form.total_amount }}</div></div>
+        <div class="mb-4">
+            <label for="financial_document" class="form-label small fw-bold text-muted text-uppercase mb-2"> Physical
+                Trail Linkage (PDF/Image)</label>
+            {{ form.financial_document }}</div>
+        <div class="mb-4">
+            <label for="purpose" class="form-label small fw-bold text-muted text-uppercase mb-2"> Purpose of
+                Request</label>
+            {{ form.purpose }}</div></form></div>
+<script>$(function () {
+        function calc_total() {
+            var qty = parseFloat($('#id_quantity').val()) || 0
+            var cost = parseFloat($('#id_unit_cost').val()) || 0
+            $('#id_total_amount').val((qty * cost).toFixed(2))
+        }
+        $('#id_quantity, #id_unit_cost').on('input change', function () {
+            calc_total()
+        })
+        $('#requisition-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg rounded-3 small p-2 mb-3")
+            el.hide()
+            if (_this[0].checkValidity() == false) {
+                _this[0].reportValidity();
+                return false;
+            }
+            start_loader();
+            $.ajax({
+                headers: {
+                    "X-CSRFToken": '{{csrf_token}}'
+                },
+                url: "{% url 'save-requisition' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.error(err)
+                    alert("An error occured", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.text(resp.msg)
+                    } else {
+                        el.text("An error occured", 'error');
+                        end_loader();
+                    }
+                    _this.prepend(el)
+                    el.show('slow')
+                    $("html, body, .modal").scrollTop(0);
+                    end_loader()
+                }
+            })
+        })
+    })</script>
+
+
+
+

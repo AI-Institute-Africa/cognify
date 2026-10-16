@@ -1,0 +1,299 @@
+{% load static %}
+<div class="px-2">
+  <form action="" id="leave-modal-form" enctype="multipart/form-data">
+    <input type="hidden" name="id" value="{{ id|default:'' }}">
+
+    <!-- Hidden Django native inputs -->
+    <div style="display:none">
+      {{ form.leave_type }}
+      {{ form.supporting_document }}
+      {{ form.approvers }}
+    </div>
+
+    <!-- 1. Leave Category Pills -->
+    <div class="mb-4">
+      <label class="form-label extra-small fw-bold text-uppercase text-muted tracking-wider mb-2">
+        <i class="fas fa-layer-group text-success me-1"></i> Leave Category
+      </label>
+      <div class="row g-2" id="modalLeaveTypeGrid">
+        {% for val, label in form.leave_type.field.choices %}
+          {% if val %}
+          <div class="col-6 col-md-4">
+            <div class="mltc p-2.5 rounded-3 border border-secondary border-opacity-25 text-center cursor-pointer transition-all h-100" data-val="{{ val }}">
+              <i class="fas {% if 'Sick' in label %}fa-bed-pulse text-info{% elif 'Maternity' in label or 'Paternity' in label %}fa-baby text-warning{% elif 'Study' in label %}fa-graduation-cap text-primary{% elif 'Special' in label %}fa-star text-danger{% else %}fa-umbrella-beach text-success{% endif %} fs-5 mb-1 d-block"></i>
+              <span class="fw-bold text-white extra-small d-block mb-0">{{ label }}</span>
+            </div>
+          </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- 2. Dates & Duration -->
+    <div class="row g-3 mb-4 align-items-end">
+      <div class="col-md-4">
+        <label for="modal_start_date" class="form-label extra-small text-uppercase text-warning fw-bold mb-1">Start Date</label>
+        <div class="input-group">
+          <span class="input-group-text bg-dark text-warning border-secondary border-opacity-50"><i class="fas fa-calendar"></i></span>
+          <input type="date" name="start_date" id="modal_start_date" class="form-control bg-dark text-white fw-bold border-secondary border-opacity-50" {% if form.start_date.value %}value="{{ form.start_date.value }}"{% endif %} required>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <label for="modal_end_date" class="form-label extra-small text-uppercase text-warning fw-bold mb-1">End Date</label>
+        <div class="input-group">
+          <span class="input-group-text bg-dark text-warning border-secondary border-opacity-50"><i class="fas fa-calendar"></i></span>
+          <input type="date" name="end_date" id="modal_end_date" class="form-control bg-dark text-white fw-bold border-secondary border-opacity-50" {% if form.end_date.value %}value="{{ form.end_date.value }}"{% endif %} required>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label extra-small text-uppercase text-warning fw-bold mb-1">Total Duration</label>
+        <div class="p-2 px-3 rounded-3 bg-success text-white border border-success text-center fw-bold shadow-sm d-flex align-items-center justify-content-center gap-2" style="min-height: 38px;">
+          <i class="fas fa-clock text-warning"></i>
+          <span id="modalCalcDays" class="text-white fw-bold fs-6">0 Days</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Detailed Reason -->
+    <div class="mb-4">
+      <label for="modal_reason" class="form-label extra-small fw-bold text-uppercase text-muted tracking-wider mb-2">
+        <i class="fas fa-pen-to-square text-success me-1"></i> Reason for Leave
+      </label>
+      <textarea name="reason" id="modal_reason" rows="3" class="form-control bg-dark text-white border-secondary border-opacity-25" placeholder="State your reason for leave request…" required>{% if form.reason.value %}{{ form.reason.value }}{% endif %}</textarea>
+    </div>
+
+    <!-- 4. Supporting Document -->
+    <div class="mb-4">
+      <label class="form-label extra-small fw-bold text-uppercase text-muted tracking-wider mb-2">
+        <i class="fas fa-paperclip text-success me-1"></i> Supporting Document <span class="text-muted fw-normal">(Optional)</span>
+      </label>
+      <label id="modalUploadZone" class="w-100 p-3 text-center rounded-3 border border-2 border-dashed border-secondary border-opacity-50 bg-dark bg-opacity-50 cursor-pointer d-block transition-all">
+        <input type="file" name="supporting_document" id="modal_supporting_document" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="d-none">
+        <i class="fas fa-cloud-arrow-up fs-3 text-muted mb-1"></i>
+        <div class="fw-bold text-white extra-small">Click to browse or drag file</div>
+        <div id="modalUzFile" class="extra-small text-success fw-bold mt-1" style="display:none;"></div>
+      </label>
+    </div>
+
+    <!-- 5. Approvers -->
+    <div class="mb-3">
+      <label class="form-label extra-small fw-bold text-uppercase text-muted tracking-wider mb-2">
+        <i class="fas fa-users-gear text-success me-1"></i> Approvers
+      </label>
+      <div id="modalApproverChips" class="p-2.5 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25 min-h-40 d-flex flex-wrap gap-2 align-items-center mb-2">
+        <span id="modalNoApprMsg" class="extra-small text-muted fst-italic">No approvers selected</span>
+      </div>
+      <button type="button" id="modalOpenApproverPicker" class="btn btn-outline-success btn-sm rounded-pill px-3 extra-small fw-bold">
+        <i class="fas fa-user-plus me-1"></i> Add Approvers
+      </button>
+    </div>
+  </form>
+</div>
+
+<!-- Inner Approver Picker Modal -->
+<div class="modal fade" id="innerApproverModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content glass-panel border-secondary border-opacity-25">
+      <div class="modal-header border-bottom border-secondary border-opacity-25 py-2.5">
+        <h6 class="modal-title fw-bold text-white"><i class="fas fa-users-gear text-success me-2"></i>Select Approvers</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-3">
+        <input type="text" id="innerApprSearch" class="form-control bg-dark text-white border-secondary border-opacity-25 mb-2 extra-small" placeholder="Search by name...">
+        <div id="innerApprList" style="max-height: 250px; overflow-y: auto;">
+          <div class="text-center py-3 text-muted extra-small">Loading...</div>
+        </div>
+      </div>
+      <div class="modal-footer border-top border-secondary border-opacity-25 py-2">
+        <button type="button" class="btn btn-success rounded-pill px-4 extra-small fw-bold" data-bs-dismiss="modal">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const leaveSelect = document.querySelector('#leave-modal-form select[name="leave_type"]');
+  const approversSelect = document.querySelector('#leave-modal-form select[name="approvers"]');
+  const startDateInp = document.getElementById('modal_start_date');
+  const endDateInp = document.getElementById('modal_end_date');
+  const calcDaysEl = document.getElementById('modalCalcDays');
+
+  // Category Pills
+  document.querySelectorAll('.mltc').forEach(card => {
+    card.addEventListener('click', function() {
+      const val = this.dataset.val;
+      if (leaveSelect) leaveSelect.value = val;
+      document.querySelectorAll('.mltc').forEach(c => {
+        const isSel = c.dataset.val === val;
+        c.classList.toggle('border-success', isSel);
+        c.classList.toggle('bg-success', isSel);
+        c.classList.toggle('bg-opacity-20', isSel);
+      });
+    });
+  });
+
+  if (leaveSelect && leaveSelect.value) {
+    const card = document.querySelector(`.mltc[data-val="${leaveSelect.value}"]`);
+    if (card) card.click();
+  }
+
+  // Days Calc
+  function calcDays() {
+    if (startDateInp && endDateInp && startDateInp.value && endDateInp.value) {
+      const d1 = new Date(startDateInp.value);
+      const d2 = new Date(endDateInp.value);
+      if (d2 >= d1) {
+        const diffDays = Math.ceil(Math.abs(d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+        calcDaysEl.textContent = diffDays + (diffDays === 1 ? ' day' : ' days');
+        return;
+      }
+    }
+    calcDaysEl.textContent = '0 Days';
+  }
+  if (startDateInp) startDateInp.addEventListener('change', calcDays);
+  if (endDateInp) endDateInp.addEventListener('change', calcDays);
+  calcDays();
+
+  // File Input
+  const fileIn = document.getElementById('modal_supporting_document');
+  const uzFile = document.getElementById('modalUzFile');
+  if (fileIn) {
+    fileIn.addEventListener('change', function() {
+      if (this.files.length) {
+        uzFile.textContent = 'Selected: ' + this.files[0].name;
+        uzFile.style.display = 'block';
+      }
+    });
+  }
+
+  // Approver Chips
+  function updateChips() {
+    const chipsContainer = document.getElementById('modalApproverChips');
+    const noMsg = document.getElementById('modalNoApprMsg');
+
+    chipsContainer.querySelectorAll('.badge-chip').forEach(c => c.remove());
+    const selected = [...(approversSelect ? approversSelect.options : [])].filter(o => o.selected);
+    if (noMsg) noMsg.style.display = selected.length ? 'none' : 'block';
+
+    selected.forEach(o => {
+      const chip = document.createElement('span');
+      chip.className = 'badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 rounded-pill px-2.5 py-1.5 extra-small badge-chip d-inline-flex align-items-center gap-1.5';
+      chip.innerHTML = `<i class="fas fa-user-check"></i> ${o.text} <i class="fas fa-times cursor-pointer remove-appr" data-val="${o.value}"></i>`;
+      chip.querySelector('.remove-appr').addEventListener('click', function() {
+        o.selected = false;
+        updateChips();
+      });
+      chipsContainer.appendChild(chip);
+    });
+  }
+  updateChips();
+
+  // Approver Directory Modal
+  let allApprovers = [];
+  function renderList(q) {
+    const listEl = document.getElementById('innerApprList');
+    const filtered = q ? allApprovers.filter(u => (u.name + u.role + u.department).toLowerCase().includes(q.toLowerCase())) : allApprovers;
+
+    if (!filtered.length) {
+      listEl.innerHTML = '<div class="text-center py-2 text-muted extra-small">No matching personnel.</div>';
+      return;
+    }
+
+    listEl.innerHTML = '';
+    filtered.forEach(u => {
+      const isSel = approversSelect && [...approversSelect.options].some(o => o.value == u.id && o.selected);
+      const row = document.createElement('div');
+      row.className = 'd-flex align-items-center justify-content-between py-2 px-1 border-bottom border-secondary border-opacity-25';
+      row.innerHTML = `
+        <div class="extra-small fw-bold text-white">${u.name} <span class="text-muted fw-normal">(${u.role || 'Officer'})</span></div>
+        <button type="button" class="btn btn-xs ${isSel ? 'btn-success' : 'btn-outline-success'} rounded-pill px-2 extra-small toggle-appr" data-id="${u.id}" data-name="${u.name}">
+          ${isSel ? 'Added' : 'Add'}
+        </button>
+      `;
+      row.querySelector('.toggle-appr').addEventListener('click', function() {
+        const id = this.dataset.id;
+        const name = this.dataset.name;
+        let opt = [...approversSelect.options].find(o => o.value == id);
+        if (!opt) {
+          opt = document.createElement('option');
+          opt.value = id;
+          opt.text = name;
+          approversSelect.appendChild(opt);
+        }
+        opt.selected = !opt.selected;
+        updateChips();
+        renderList(document.getElementById('innerApprSearch').value);
+      });
+      listEl.appendChild(row);
+    });
+  }
+
+  document.getElementById('modalOpenApproverPicker').addEventListener('click', function() {
+    const modal = new bootstrap.Modal(document.getElementById('innerApproverModal'));
+    if (!allApprovers.length) {
+      fetch('{% url "approver-directory" %}?json=1')
+        .then(r => r.json())
+        .then(data => {
+          allApprovers = data;
+          renderList('');
+          modal.show();
+        })
+        .catch(e => {
+          document.getElementById('innerApprList').innerHTML = '<div class="text-danger extra-small py-2 text-center">Error loading.</div>';
+          modal.show();
+        });
+    } else {
+      renderList('');
+      modal.show();
+    }
+  });
+
+  document.getElementById('innerApprSearch').addEventListener('input', function() {
+    renderList(this.value);
+  });
+
+  // AJAX Submit integration with uni_modal
+  $('#leave-modal-form').submit(function(e) {
+    e.preventDefault();
+    const _this = $(this);
+    $('.err-msg').remove();
+    const el = $('<div>').addClass("alert alert-danger err-msg rounded-3 small p-2 mb-3").hide();
+
+    if (_this[0].checkValidity() === false) {
+      _this[0].reportValidity();
+      return false;
+    }
+
+    start_loader();
+    $.ajax({
+      headers: { "X-CSRFToken": '{{ csrf_token }}' },
+      url: "{% url 'save-leave' %}",
+      data: new FormData($(this)[0]),
+      cache: false,
+      contentType: false,
+      processData: false,
+      method: 'POST',
+      type: 'POST',
+      dataType: 'json',
+      error: err => {
+        console.error(err);
+        alert("An error occurred during submission.");
+        end_loader();
+      },
+      success: function(resp) {
+        if (typeof resp === 'object' && resp.status === 'success') {
+          location.reload();
+        } else if (resp.status === 'failed' && !!resp.msg) {
+          el.text(resp.msg);
+        } else {
+          el.text("An error occurred");
+        }
+        _this.prepend(el);
+        el.show('slow');
+        end_loader();
+      }
+    });
+  });
+})();
+</script>

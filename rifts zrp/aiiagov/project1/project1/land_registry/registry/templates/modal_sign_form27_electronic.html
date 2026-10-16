@@ -1,0 +1,96 @@
+<div class="container-fluid">
+    <form action="{% url 'sign-form27-electronic' voucher.pk %}" method="POST" id="electronic-sign-form">
+        {% csrf_token %}
+        <div class="alert alert-success d-flex align-items-center mb-3 rounded-3" role="alert">
+            <i class="fas fa-shield-halved fs-3 me-3 text-success"></i>
+            <div>
+                <strong>Electronic Receipt Signoff &bull; Z.R.P. Form 27 No. {{ voucher.voucher_no }}</strong>
+                <div class="extra-small text-muted">Statutory electronic confirmation of consignment receipt &amp; inspection</div>
+            </div>
+        </div>
+
+        <div class="card border-0 bg-light p-3 rounded-3 mb-3">
+            <div class="row g-2 extra-small">
+                <div class="col-6">
+                    <span class="text-muted text-uppercase fw-bold">Voucher No:</span>
+                    <strong class="text-dark font-monospace">{{ voucher.voucher_no }}</strong>
+                </div>
+                <div class="col-6">
+                    <span class="text-muted text-uppercase fw-bold">Destination Station:</span>
+                    <strong class="text-primary">{{ voucher.station }}</strong>
+                </div>
+                <div class="col-6">
+                    <span class="text-muted text-uppercase fw-bold">Issued By:</span>
+                    <span class="text-dark">{{ voucher.issued_by }}</span>
+                </div>
+                <div class="col-6">
+                    <span class="text-muted text-uppercase fw-bold">Items Count:</span>
+                    <span class="badge bg-secondary">{{ voucher.items.count }} items listed</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1">
+                    <i class="fas fa-user-shield text-success me-1"></i> Signing Officer Full Name *
+                </label>
+                <input type="text" name="officer_name" class="form-control rounded-3" 
+                       value="{{ request.user.get_full_name|default:request.user.username }}" required>
+                <div class="extra-small text-muted">Officer executing electronic confirmation</div>
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1">
+                    <i class="fas fa-id-badge text-primary me-1"></i> Official Role / Designation *
+                </label>
+                <input type="text" name="role_title" class="form-control rounded-3" 
+                       value="{{ scope_info.role }}" readonly>
+                <div class="extra-small text-muted">Authorized hierarchy role in RIFTS-X</div>
+            </div>
+            <div class="col-12">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1">
+                    <i class="fas fa-clipboard-check text-warning me-1"></i> Goods Receipt Verification Notes / Remarks (Optional)
+                </label>
+                <textarea name="notes" class="form-control rounded-3" rows="3" 
+                          placeholder="e.g. All units received in good order and verified against serial numbers."></textarea>
+                <div class="extra-small text-muted">Electronic timestamp and audit trail will be permanently recorded upon confirmation.</div>
+            </div>
+        </div>
+
+        <div class="text-end">
+            <button type="button" class="btn btn-outline-secondary rounded-pill px-3 me-2" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-success rounded-pill px-4 shadow-sm fw-bold">
+                <i class="fas fa-file-signature me-2"></i> Confirm &amp; Sign Electronically
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+$(function() {
+    $('#electronic-sign-form').submit(function(e) {
+        e.preventDefault();
+        start_loader();
+        $.ajax({
+            url: $(this).attr('action'),
+            method: 'POST',
+            data: $(this).serialize() + '&ajax=1',
+            dataType: 'json',
+            success: function(resp) {
+                if (resp.status == 'success') {
+                    $('#uni_modal').modal('hide');
+                    alert_toast(resp.msg || 'Electronic signature recorded successfully.', 'success');
+                    setTimeout(function() { location.reload(); }, 800);
+                } else {
+                    alert_toast(resp.msg || 'Signing failed', 'error');
+                    end_loader();
+                }
+            },
+            error: function(err) {
+                alert_toast('An error occurred during electronic signing.', 'error');
+                end_loader();
+            }
+        });
+    });
+});
+</script>

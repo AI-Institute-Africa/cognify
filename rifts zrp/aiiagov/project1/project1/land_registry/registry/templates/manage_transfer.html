@@ -1,0 +1,121 @@
+<div class="container-fluid px-0">
+    <div class="card border-0 shadow-sm"
+        style="border-radius: 20px; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px);">
+        <div class="card-body p-4">
+            <form action="{% url 'transfer-file' %}" method="POST" id="transfer-form">
+                {% csrf_token %}
+                <input type="hidden" name="file_id" value="{{ file_obj.id }}">
+
+                <div class="mb-4">
+                    <label class="form-label small fw-bold text-dark text-uppercase mb-2"
+                        style="letter-spacing: 0.5px;"> Strategic Target Department</label>
+                    <div class="input-group shadow-sm rounded-pill overflow-hidden">
+                        <span class="input-group-text border-0 bg-white ps-3 text-muted"> <i
+                                class="fas fa-university"></i></span>
+                        <select name="target_dept_id" class="form-select border-0 bg-white py-2 px-3" required
+                            style="font-size: 0.9rem;">
+                            <option value="" disabled selected> Select destination...</option>
+                            {% for dept in departments %}
+                            {% if dept.id != file_obj.current_department.id %}
+                            <option value="{{ dept.id }}"> {{ dept.name }}</option>
+                            {% endif %}
+                            {% endfor %}</select></div></div>
+
+                <div class="mb-4">
+                    <label class="form-label small fw-bold text-dark text-uppercase mb-2"
+                        style="letter-spacing: 0.5px;"> Transfer Rationale</label>
+                    <textarea name="reason" rows="2" class="form-control border-0 shadow-sm rounded-4 px-3 py-3"
+                        placeholder="State the institutional reason for this movement..." required
+                        style="font-size: 0.9rem; background: #fcfcfc;"></textarea></div>
+
+                <div class="p-4 rounded-4 mb-4" style="background: #f8f9ff; border: 1px solid #eef0ff;">
+                    <h6 class="small fw-bold text-primary text-uppercase mb-3"> <i
+                            class="fas fa-map-marker-alt me-1"></i> New Physical Custody Location</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label
+                                class="form-label extra-small fw-bold text-muted text-uppercase mb-1"> Building</label>
+                            <input type="text" name="building"
+                                class="form-control border-0 shadow-sm rounded-pill px-3 py-2"
+                                value="{{ location.building|default:'' }}" placeholder="e.g. HQ Vault"
+                                style="font-size: 0.85rem;"></div>
+                        <div class="col-md-6">
+                            <label class="form-label extra-small fw-bold text-muted text-uppercase mb-1"> Floor</label>
+                            <input type="text" name="floor"
+                                class="form-control border-0 shadow-sm rounded-pill px-3 py-2"
+                                value="{{ location.floor|default:'' }}" placeholder="e.g. Level 2"
+                                style="font-size: 0.85rem;"></div>
+                        <div class="col-md-6">
+                            <label class="form-label extra-small fw-bold text-muted text-uppercase mb-1"> Section</label>
+                            <input type="text" name="office"
+                                class="form-control border-0 shadow-sm rounded-pill px-3 py-2"
+                                value="{{ location.office|default:'' }}" placeholder="e.g. Alpha Section"
+                                style="font-size: 0.85rem;"></div>
+                        <div class="col-md-6">
+                            <label
+                                class="form-label extra-small fw-bold text-muted text-uppercase mb-1"> Cabinet/Vault</label>
+                            <input type="text" name="cabinet"
+                                class="form-control border-0 shadow-sm rounded-pill px-3 py-2"
+                                value="{{ location.cabinet|default:'' }}" placeholder="e.g. Cabinet 12"
+                                style="font-size: 0.85rem;"></div></div></div>
+
+                <div class="alert alert-info border-0 rounded-4 p-3 d-flex align-items-start gap-3"
+                    style="background: #eefbff;">
+                    <i class="fas fa-shield-alt text-info mt-1"></i>
+                    <div class="small text-info-emphasis">
+                        <strong>Security Protocol:</strong> Inter-departmental transfers trigger automated SLA
+                        monitoring and custody tracking protocols.</div></div></form></div></div></div>
+
+<style>#transfer-form .form-control:focus,
+    #transfer-form .form-select:focus {
+        box-shadow: none !important;
+        background-color: #fff !important;
+    }
+
+    .extra-small {
+        font-size: 0.7rem;
+    }</style>
+
+<script>$(function () {
+        $('#transfer-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this);
+            $('.transfer-err-msg').remove();
+            var el = $(' <div>').addClass('alert alert-danger transfer-err-msg rounded-3 small p-2 mt-3').hide();
+            if (_this[0].checkValidity() == false) { _this[0].reportValidity(); return false; }
+            var btn = _this.closest('.modal-content').find('.save_data');
+            btn.attr('disabled', true).html(' <i class="fas fa-spinner fa-spin me-1"></i> Processing...');
+            start_loader();
+            $.ajax({
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                url: _this.attr('action'),
+                method: 'POST',
+                data: _this.serialize(),
+                dataType: 'json',
+                success: function (resp) {
+                    end_loader();
+                    btn.attr('disabled', false).html('Save');
+                    if (resp.status == 'success') {
+                        alert_toast(resp.msg || 'Transfer successful!', 'success');
+                        setTimeout(function () { location.reload(); }, 1500);
+                    } else {
+                        el.html(' <i class="fas fa-exclamation-circle me-1"></i> ' + (resp.msg || 'Transfer failed.'));
+                        _this.prepend(el);
+                        el.show('slow');
+                    }
+                },
+                error: function (err) {
+                    end_loader();
+                    btn.attr('disabled', false).html('Save');
+                    console.error(err);
+                    el.text("A server error occurred. Please try again.");
+                    _this.prepend(el);
+                    el.show('slow');
+                }
+            });
+        });
+    });</script>
+
+
+
+

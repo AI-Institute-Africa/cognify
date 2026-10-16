@@ -1,0 +1,232 @@
+{% extends 'base.html' %} {% load static %} {% block pageContent %}
+<section class="py-4">
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div><h3 class="fw-bold mb-0"> File Transactions</h3>
+                <p class="text-muted small mb-0"> Track file movement and issuance records</p></div>
+            <button class="btn btn-primary rounded-pill px-4 shadow-sm" type="button" id="create_new">
+                <i class="fa fa-plus me-2"></i> Issue New File</button></div>
+
+        <div class="glass-card border-0 shadow-sm overflow-hidden">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="borrow-tbl">
+                        <thead><tr class="bg-primary bg-opacity-10">
+                                <th class="text-center py-3"> #</th>
+                                <th class="py-3"> Transaction Date</th>
+                                <th class="py-3"> Records Intelligence Officer</th>
+                                <th class="py-3"> File Reference</th>
+                                <th class="py-3"> Folio Ref</th>
+                                <th class="text-center py-3"> Status</th>
+                                <th class="text-center py-3"> Action</th></tr></thead>
+                        <tbody>{% for borrow in borrows %}
+                            <tr><td class="text-center"> {{ forloop.counter }}</td>
+                                <td class="text-muted small"> {{ borrow.date_added|date:"Y-m-d h:i A"}}</td>
+                                <td><div class="lh-1">
+                                        <div class="fw-bold text-primary small mb-1"> {{ borrow.borrower.name }}</div>
+                                        <div class="text-muted extra-small"> ID: {{ borrow.borrower.code }}</div></div></td>
+                                <td><div class="lh-1">
+                                        <div class="fw-bold small mb-1"> {{ borrow.file_doc.title }}</div>
+                                        <div class="text-muted extra-small"> {{ borrow.file_doc.ref_num }}</div></div></td>
+                                <td class="small"> {{ borrow.folio_ref }}</td>
+                                <td class="text-center">
+                                    <div class="d-flex flex-column align-items-center gap-1">
+                                        {% if borrow.status == '0' %}
+                                        <span
+                                            class="badge status-badge"> Issued</span>
+                                        <div class="mt-1 d-flex align-items-center gap-1">
+                                            <i class="fas fa-clock text-muted extra-small"></i>
+                                            <span class="text-muted extra-small countdown-timer"
+                                                data-return-date="{{ borrow.return_date|date:'Y-m-d' }}T23:59:59">
+                                                Loading...</span></div>
+                                        <a href="javascript:void(0)" data-url="{% url 'view-borrow-pk' borrow.pk %}"
+                                            class="btn btn-link btn-sm p-0 text-success extra-small fw-bold view-data"> Verify
+                                            to Return</a>
+                                        {% elif borrow.return_confirmed %}
+                                        <span
+                                            class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 rounded-pill"> Returned</span>
+                                        {% else %}
+                                        <span
+                                            class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2 rounded-pill"> Returned (Pending Confirmation)</span>
+                                        {% endif %}</div></td>
+                                <td class="text-center">
+                                    <div class="dropdown">
+                                        <button
+                                            class="btn btn-link btn-sm text-muted text-decoration-none dropdown-toggle"
+                                            type="button" id="abtn{{borrow.pk}}" data-bs-toggle="dropdown"
+                                            aria-expanded="false">
+                                            <i class="fas fa-ellipsis-v"></i></button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 glass-card"
+                                            aria-labelledby="abtn{{borrow.pk}}">
+                                            <li><a class="dropdown-item view-data" href="javascript:void(0)"
+                                                    data-url="{% url 'view-borrow-pk' borrow.pk %}"> <i
+                                                        class="fa fa-eye me-2 opacity-50"></i> View Record</a></li>
+                                            <li><a class="dropdown-item edit-data" href="javascript:void(0)"
+                                                    data-url="{% url 'manage-borrow-pk' borrow.pk %}"> <i
+                                                        class="fa fa-edit me-2 text-primary opacity-50"></i> Update
+                                                    Entry</a></li>
+                                            <li><hr class="dropdown-divider opacity-10"></li>
+                                            <li><a class="dropdown-item delete-data" href="javascript:void(0)"
+                                                    data-url="{% url 'delete-borrow' borrow.pk %}"> <i
+                                                        class="fa fa-trash me-2 text-danger opacity-50"></i> Remove
+                                                    Record</a></li></ul></div></td></tr>
+                            {% endfor %}</tbody></table></div></div></div></div></section>
+
+<style>.extra-small {
+        font-size: 0.7rem;
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: rgba(0, 123, 255, 0.02);
+    }
+
+    .dropdown-item:hover {
+        background-color: rgba(0, 123, 255, 0.05);
+    }
+
+    .badge {
+        font-weight: 500;
+        font-size: 0.75rem;
+    }
+
+    .row-overdue {
+        background-color: rgba(220, 53, 69, 0.05) !important;
+    }
+
+    .badge-overdue {
+        background-color: rgba(220, 53, 69, 0.1) !important;
+        color: #dc3545 !important;
+        border-color: rgba(220, 53, 69, 0.25) !important;
+    }</style>
+{% endblock pageContent %} {% block ScriptBlock %}
+<script>$(function () {
+        $('#create_new').click(function () {
+            uni_modal(" <i class='fa fa-plus'></i> Add New Transaction", "{% url 'manage-borrow' %}", "modal-lg")
+        })
+        $('.edit-data').click(function () {
+            uni_modal(" <i class='fa fa-edit'></i> Edit Transaction Details", $(this).attr('data-url'), "modal-lg")
+        })
+        $('.view-data').click(function () {
+            uni_modal(" <i class='fa fa-th-list'></i> Transaction Details", $(this).attr('data-url'), "modal-lg")
+        })
+        $('.view_image').click(function () {
+            var img = $(this).attr('data-img-url')
+            $('#viewer_modal #img-viewer-field').attr('src', img)
+            $('#viewer_modal').modal('show')
+        })
+        $('.delete-data').click(function () {
+            _conf("Are you sure to delete this Transaction?", 'delete_borrow', ["'" + $(this).attr('data-url') + "'"])
+        })
+        $('#borrow-tbl').find('td, th').addClass('px-2 py-1 align-middle')
+        $('#borrow-tbl').DataTable({
+            columnDefs: [{
+                orderable: false,
+                targets: [4]
+            }],
+            lengthMenu: [
+                [25, 50, 100, -1],
+                [25, 50, 100, "All"]
+            ]
+        })
+
+        // Countdown Timer Logic
+        function updateCountdowns() {
+            $('.countdown-timer').each(function () {
+                const $timer = $(this);
+                const targetStr = $timer.data('return-date');
+                if (!targetStr) return;
+
+                const targetDate = new Date(targetStr).getTime();
+                const now = new Date().getTime();
+                const distance = targetDate - now;
+                const $row = $timer.closest('tr');
+                const $badge = $row.find('.status-badge');
+
+                if (distance < 0) {
+                    $timer.html(' <span class="text-danger fw-bold"> Overdue</span> ');
+
+                    // Apply visual overdue styles
+                    if (!$row.hasClass('row-overdue')) {
+                        $row.addClass('row-overdue');
+                        $badge.text('Overdue').addClass('badge-overdue').removeClass('text-warning bg-warning border-warning');
+
+                        // Trigger Notification
+                        const fileTitle = $row.find('.fw-bold.small').first().text();
+                        const officerName = $row.find('.text-primary.small').text();
+
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'File Overdue!',
+                            text: `File "${fileTitle}" borrowed by ${officerName} is now overdue.`,
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 5000,
+                            timerProgressBar: true
+                        });
+                    }
+                    return;
+                }
+
+                const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+                let timeStr = "";
+                if (days> 0) timeStr += days + "d ";
+                if (hours> 0 || days> 0) timeStr += hours + "h ";
+                timeStr += minutes + "m " + seconds + "s";
+
+                $timer.text(timeStr);
+            });
+        }
+
+        setInterval(updateCountdowns, 1000);
+        updateCountdowns();
+    })
+
+
+
+    function delete_borrow(url) {
+
+        var _this = $('#confirm_modal .modal-body')
+        $('.err-msg').remove();
+        var el = $(' <div>')
+        el.addClass("alert alert-danger err-msg")
+        el.hide()
+        start_loader()
+        $.ajax({
+            headers: {
+                "X-CSRFToken": "{{csrf_token}}"
+            },
+            url: url,
+            dataType: 'JSON',
+            error: err => {
+                console.log(err)
+                alert("an error occurred.")
+                end_loader()
+            },
+            success: function (resp) {
+                if (resp.status == 'success') {
+                    location.reload()
+                } else if (!!resp.msg) {
+                    el.html(resp.msg)
+                    _this.prepend(el)
+                    el.show()
+                } else {
+                    el.html("An error occurred")
+                    _this.prepend(el)
+                    el.show()
+                }
+                end_loader()
+            }
+
+        })
+    }</script>
+{% endblock ScriptBlock %}
+
+
+
+
+

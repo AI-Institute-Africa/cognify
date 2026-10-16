@@ -1,0 +1,454 @@
+<div class="container-fluid">
+    <form action="{% url 'save-asset' %}" id="asset-form">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{ asset.id|default:'' }}">
+
+        <!-- Tabs or Sections -->
+        <div class="card border-0 bg-light p-2 mb-3 rounded-3">
+            <span class="small fw-bold text-primary"><i class="fas fa-boxes me-1"></i> 1. Asset Specifications</span>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-12">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Asset / Equipment Name *</label>
+                {{ form.name }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"><i class="fas fa-tag text-success me-1"></i> Unit Cost ($) *</label>
+                {{ form.unit_cost }}
+                <div class="extra-small text-muted mt-1">Price per single unit. Total acquisition cost scales with delivered units.</div>
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"><i class="fas fa-coins text-warning me-1"></i> Total Acquisition Cost ($) *</label>
+                {{ form.acquisition_cost }}
+                <div class="extra-small text-muted mt-1">Calculated automatically as: <b>Unit Cost &times; Delivered Quantity</b>.</div>
+            </div>
+            <div class="col-md-3">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Category *</label>
+                {{ form.category }}
+            </div>
+            <div class="col-md-3">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Item Classification *</label>
+                {{ form.item_type }}
+            </div>
+            <div class="col-md-3">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Department *</label>
+                {{ form.department }}
+            </div>
+            <div class="col-md-3">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Status *</label>
+                {{ form.status }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Acquisition Date *</label>
+                {{ form.acquisition_date }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Useful Life (Years) *</label>
+                {{ form.useful_life }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1">
+                    <i class="fas fa-user-check text-primary me-1"></i> Inspector / Testing Officer (Type Name / Rank)
+                </label>
+                {{ form.technician_name }}
+                <div class="extra-small text-muted mt-1">Type the name and rank of the officer responsible for testing &amp; clearance (e.g. SGT KADIKI)</div>
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1">
+                    <i class="fas fa-file-contract text-secondary me-1"></i> Procurement Contract Link <span class="badge bg-light text-muted border">Optional</span>
+                </label>
+                {{ form.contract }}
+                <div class="extra-small text-muted mt-1">Select an active institutional contract if applicable, or leave empty.</div>
+            </div>
+            <div class="col-12">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Description &amp; Technical Specifications</label>
+                {{ form.description }}
+            </div>
+        </div>
+
+        <!-- Supplier Intake & Quantity Delivery (Full or Partial) -->
+        <div class="card border-0 bg-light p-2 mb-3 rounded-3">
+            <span class="small fw-bold text-success"><i class="fas fa-truck me-1"></i> 2. Supplier Delivery &amp; Quantity Intake (Partial Delivery Supported)</span>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-12">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1">
+                    <i class="fas fa-dolly text-success me-1"></i> Reference from Goods Received Register / Ledger <span class="badge bg-success bg-opacity-10 text-success ms-1">Auto-Fills Supplier &amp; Quantities</span>
+                </label>
+                {{ form.goods_received_entry }}
+                <div class="extra-small text-muted mt-1">
+                    Select an entry from the Goods Received Register to automatically link supplier consignment, PO reference, delivery note, and balance.
+                </div>
+                <!-- GR Entry Reconciliation & Tally Banner -->
+                <div id="gr-tally-banner" class="mt-2" style="display: none;">
+                    <div class="card border border-info border-opacity-50 bg-info bg-opacity-10 p-2 rounded-3">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div class="small">
+                                <i class="fas fa-boxes text-info me-1"></i>
+                                <strong>GR Ledger Consignment:</strong> Total Received: <span id="gr-tally-total" class="fw-bold text-dark">0</span> units
+                                &bull; Already Registered in Assets: <span id="gr-tally-registered" class="fw-bold text-primary">0</span> units
+                                &bull; Remaining Unregistered: <span id="gr-tally-remaining" class="fw-bold text-success">0</span> units
+                            </div>
+                            <span id="gr-tally-badge" class="badge bg-success rounded-pill px-2">Ready to Register</span>
+                        </div>
+                        <div class="extra-small text-muted mt-1" id="gr-tally-hint">
+                            You can register separate batches (e.g. by brand, model, or specs) against this single consignment until all received items tally to the total quantity.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Quantity Expected (per PMU / PO) *</label>
+                {{ form.quantity_expected }}
+                <div class="extra-small text-muted">Total units ordered as supported by PMU documentation (e.g. 25)</div>
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold text-success mb-1"> Quantity Delivered (Actual Inward) *</label>
+                {{ form.quantity_delivered }}
+                <div class="extra-small text-muted">Units physically brought by supplier (e.g. 20 delivered, 5 outstanding)</div>
+            </div>
+
+            <div class="col-12" id="partial-delivery-alert" style="display: none;">
+                <div class="alert alert-warning border-warning d-flex align-items-center mb-0 py-2 rounded-3">
+                    <i class="fas fa-exclamation-triangle fs-4 me-3 text-warning"></i>
+                    <div class="small">
+                        <strong>Partial Delivery Detected:</strong> Supplier delivered <span id="alert-delivered-qty" class="fw-bold">0</span> units out of <span id="alert-expected-qty" class="fw-bold">0</span> ordered.
+                        Outstanding balance to be supplied: <strong id="alert-pending-qty" class="text-danger">0</strong> units.
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Supplier Name</label>
+                {{ form.supplier_name }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Delivery Note Number</label>
+                {{ form.delivery_note_number }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Upload Delivery Note (Scanned / PDF / Image)</label>
+                {{ form.delivery_note_doc }}
+                {% if asset.delivery_note_doc %}
+                <div class="extra-small text-success mt-1"><i class="fas fa-check-circle me-1"></i> Current: <a href="{{ asset.delivery_note_doc.url }}" target="_blank">View File</a></div>
+                {% endif %}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Supplier Invoice Number</label>
+                {{ form.invoice_number }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Upload Supplier Invoice (Scanned / PDF)</label>
+                {{ form.invoice_doc }}
+                {% if asset.invoice_doc %}
+                <div class="extra-small text-success mt-1"><i class="fas fa-check-circle me-1"></i> Current: <a href="{{ asset.invoice_doc.url }}" target="_blank">View File</a></div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- PMU Procurement Source Verification -->
+        <div class="card border-0 bg-light p-2 mb-3 rounded-3">
+            <span class="small fw-bold text-warning"><i class="fas fa-file-contract me-1"></i> 3. PMU Supporting Source Documentation</span>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> PMU Source Document Ref / PO #</label>
+                {{ form.pmu_source_doc_ref }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Upload PMU Source Document (PO / Award / Requisition)</label>
+                {{ form.pmu_source_doc }}
+                {% if asset.pmu_source_doc %}
+                <div class="extra-small text-success mt-1"><i class="fas fa-check-circle me-1"></i> Current: <a href="{{ asset.pmu_source_doc.url }}" target="_blank">View File</a></div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Serial Numbers Multiplier Section -->
+        <div class="card border border-primary border-opacity-25 bg-light p-3 mb-3 rounded-3 shadow-sm">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="fw-bold text-primary">
+                    <i class="fas fa-barcode me-1"></i> Delivered Units Serial Numbers (Optional / Multiplier)
+                </div>
+                <div class="badge bg-primary fs-6 px-3 py-2 rounded-pill">
+                    Delivered Units: <span id="sn-total-units">1</span> | Total Cost: $<span id="sn-display-total">0.00</span>
+                </div>
+            </div>
+            <p class="extra-small text-muted mb-2">
+                Enter or paste serial numbers for all delivered units. If serial numbers are entered, they will register each physical unit into the registry and calculate the total cost.
+            </p>
+
+            <div class="row g-2">
+                <div class="col-12">
+                    <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1">
+                        <i class="fas fa-paste me-1"></i> Bulk Paste Serial Numbers (One per line or comma-separated)
+                    </label>
+                    <textarea name="bulk_serials" id="bulk_serials" class="form-control rounded-3" rows="3" placeholder="e.g.&#10;ZRP-LAP-001&#10;ZRP-LAP-002&#10;ZRP-LAP-003&#10;...or paste all delivered unit serials here"></textarea>
+                </div>
+                <div class="col-12 mt-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="extra-small fw-bold text-secondary text-uppercase">Individual Serial Number Fields</span>
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" id="add-sn-field-btn">
+                            <i class="fas fa-plus-circle me-1"></i> Add Serial Number Field
+                        </button>
+                    </div>
+                    <div id="additional-serials-container">
+                        <!-- Dynamic serial input rows appended here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quality Check Submission Workflow Notice -->
+        <div class="card border-0 bg-info bg-opacity-10 p-3 mb-3 rounded-3 border-start border-info border-4">
+            <div class="d-flex align-items-center gap-3">
+                <div class="icon-circle bg-info text-white"><i class="fas fa-microscope"></i></div>
+                <div>
+                    <div class="fw-bold text-dark">4. Technical Quality Testing Workflow</div>
+                    <div class="extra-small text-muted">
+                        Upon saving, this asset will automatically be submitted for <strong>Technician Quality Testing</strong>.
+                        Any designated technical officer can perform quality inspections and upload the 3 mandatory clearance certificates before formal asset approval.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    $(function () {
+        function recalculateTotals() {
+            var unitCost = parseFloat($('#id_unit_cost').val()) || 0;
+            var expectedQty = parseInt($('#id_quantity_expected').val()) || 0;
+            var deliveredQty = parseInt($('#id_quantity_delivered').val()) || 0;
+
+            // Check partial delivery
+            if (expectedQty > 0 && deliveredQty > 0 && deliveredQty < expectedQty) {
+                var pending = expectedQty - deliveredQty;
+                $('#alert-delivered-qty').text(deliveredQty);
+                $('#alert-expected-qty').text(expectedQty);
+                $('#alert-pending-qty').text(pending);
+                $('#partial-delivery-alert').slideDown();
+            } else {
+                $('#partial-delivery-alert').slideUp();
+            }
+
+            // Count unique serials
+            var serials = new Set();
+            
+            // Additional individual inputs
+            $('input[name="additional_serials[]"]').each(function() {
+                var val = $(this).val().trim();
+                if (val) {
+                    serials.add(val);
+                }
+            });
+            
+            // Bulk serials textarea
+            var bulkText = $('#bulk_serials').val() || '';
+            if (bulkText.trim()) {
+                var lines = bulkText.replace(/,/g, '\n').split('\n');
+                lines.forEach(function(l) {
+                    var s = l.trim();
+                    if (s) {
+                        serials.add(s);
+                    }
+                });
+            }
+            
+            var totalCount = serials.size > 0 ? serials.size : (deliveredQty > 0 ? deliveredQty : 1);
+            
+            // If user typed serials, sync deliveredQty
+            if (serials.size > 0 && (!deliveredQty || deliveredQty === 0)) {
+                $('#id_quantity_delivered').val(serials.size);
+            }
+
+            var totalCost = (unitCost * totalCount).toFixed(2);
+            
+            $('#sn-total-units').text(totalCount);
+            $('#sn-display-total').text(Number(totalCost).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            
+            if (unitCost > 0) {
+                $('#id_acquisition_cost').val(totalCost);
+            }
+        }
+
+        // Event listeners for recalculation
+        $('#id_unit_cost, #id_quantity_expected, #id_quantity_delivered, #bulk_serials').on('input change keyup', recalculateTotals);
+        $(document).on('input change keyup', 'input[name="additional_serials[]"]', recalculateTotals);
+
+        // Add additional serial row
+        var snIndex = 0;
+        $('#add-sn-field-btn').click(function() {
+            snIndex++;
+            var html = `
+            <div class="input-group mb-2 sn-row">
+                <span class="input-group-text bg-white extra-small text-muted fw-bold">SN #${snIndex}</span>
+                <input type="text" name="additional_serials[]" class="form-control rounded-0 px-3" placeholder="Enter Serial Number...">
+                <button type="button" class="btn btn-outline-danger btn-remove-sn px-3">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>`;
+            $('#additional-serials-container').append(html);
+            recalculateTotals();
+        });
+
+        // Remove additional serial row
+        $(document).on('click', '.btn-remove-sn', function() {
+            $(this).closest('.sn-row').remove();
+            recalculateTotals();
+        });
+
+        // Auto-fill from Goods Received Ledger Entry
+        // Auto-fill from Goods Received Ledger Entry with Tally & Reconciliation Support
+        var grData = {{ gr_json|default:"[]"|safe }};
+        function handleGrChange() {
+            var selectedId = $('#id_goods_received_entry').val();
+            if (!selectedId) {
+                $('#gr-tally-banner').slideUp();
+                return;
+            }
+            var match = grData.find(function(g) { return String(g.id) === String(selectedId); });
+            if (match) {
+                // Show GR Tally Banner
+                var totalQty = match.qty || 0;
+                var regQty = match.registered_qty || 0;
+                var remQty = match.remaining_qty !== undefined ? match.remaining_qty : Math.max(0, totalQty - regQty);
+
+                $('#gr-tally-total').text(totalQty);
+                $('#gr-tally-registered').text(regQty);
+                $('#gr-tally-remaining').text(remQty);
+
+                if (remQty <= 0 && regQty >= totalQty) {
+                    $('#gr-tally-badge').removeClass('bg-success bg-warning').addClass('bg-secondary').text('Fully Accounted (' + totalQty + '/' + totalQty + ')');
+                    $('#gr-tally-hint').html('<span class="text-danger fw-bold"><i class="fas fa-check-circle me-1"></i> Note: All ' + totalQty + ' items in this GR entry have already been registered into the asset register.</span>');
+                } else if (regQty > 0) {
+                    $('#gr-tally-badge').removeClass('bg-secondary bg-success').addClass('bg-warning text-dark').text('Partial (' + regQty + '/' + totalQty + ' Registered)');
+                    $('#gr-tally-hint').html('Consignment partially registered. <span class="fw-bold text-success">' + remQty + ' units</span> remain to be registered in this or further asset batches.');
+                } else {
+                    $('#gr-tally-badge').removeClass('bg-secondary bg-warning').addClass('bg-success').text('0/' + totalQty + ' Registered');
+                    $('#gr-tally-hint').text('You can register all ' + totalQty + ' units in one entry, or enter multiple batches (e.g. 65 HP, 20 Dell, 15 Toshiba) until the total matches ' + totalQty + '.');
+                }
+                $('#gr-tally-banner').slideDown();
+
+                if (match.company) {
+                    $('#id_supplier_name').val(match.company);
+                }
+                if (match.po_no) {
+                    $('#id_delivery_note_number').val(match.po_no);
+                }
+                // Fill expected with GR total if not set
+                if (!$('#id_quantity_expected').val()) {
+                    $('#id_quantity_expected').val(totalQty);
+                }
+                // Default delivered to remaining qty (or total if first batch)
+                if (!$('#id_quantity_delivered').val() || $('#id_quantity_delivered').val() == '1') {
+                    $('#id_quantity_delivered').val(remQty > 0 ? remQty : totalQty);
+                }
+                if (match.date) {
+                    $('#id_acquisition_date').val(match.date);
+                }
+                if (match.goods_received && !$('#id_name').val()) {
+                    $('#id_name').val(match.goods_received);
+                }
+                if (match.department_id && !$('#id_department').val()) {
+                    $('#id_department').val(match.department_id);
+                }
+                recalculateTotals();
+            }
+        }
+        $('#id_goods_received_entry').on('change', handleGrChange);
+        if ($('#id_goods_received_entry').val()) {
+            handleGrChange();
+        }
+
+        // Initial recalculation on form load
+        recalculateTotals();
+
+        $('#asset-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg")
+            el.hide()
+            if (_this[0].checkValidity() == false) {
+                _this[0].reportValidity();
+                return false;
+            }
+
+            // Validation: Entered serial numbers must match actual quantity received
+            var deliveredQty = parseInt($('#id_quantity_delivered').val()) || 0;
+            var serials = new Set();
+            $('input[name="additional_serials[]"]').each(function() {
+                var val = $(this).val().trim();
+                if (val) serials.add(val);
+            });
+            var bulkText = $('#bulk_serials').val() || '';
+            if (bulkText.trim()) {
+                var lines = bulkText.replace(/,/g, '\n').split('\n');
+                lines.forEach(function(l) {
+                    var s = l.trim();
+                    if (s) serials.add(s);
+                });
+            }
+
+            var isNewAsset = !$('input[name="id"]').val();
+            if (deliveredQty > 0) {
+                if (serials.size > 0 && serials.size !== deliveredQty) {
+                    el.text(`The entered serial numbers count (${serials.size}) does not match the actual quantity received (${deliveredQty}). Please enter all ${deliveredQty} serial numbers.`);
+                    _this.prepend(el);
+                    el.show('slow');
+                    $("html, body, .modal").scrollTop(0);
+                    return false;
+                }
+                if (serials.size === 0 && isNewAsset) {
+                    el.text(`Please enter all ${deliveredQty} serial numbers matching the actual quantity received.`);
+                    _this.prepend(el);
+                    el.show('slow');
+                    $("html, body, .modal").scrollTop(0);
+                    return false;
+                }
+            }
+
+            start_loader();
+            $.ajax({
+                url: "{% url 'save-asset' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.log(err)
+                    alert_toast("An error occured", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.text(resp.msg)
+                        _this.prepend(el)
+                        el.show('slow')
+                        $("html, body, .modal").scrollTop(0);
+                        end_loader()
+                    } else {
+                        alert_toast("An error occured", 'error');
+                        end_loader();
+                        console.err(resp)
+                    }
+                }
+            })
+        })
+    })</script>
+
+
+
+

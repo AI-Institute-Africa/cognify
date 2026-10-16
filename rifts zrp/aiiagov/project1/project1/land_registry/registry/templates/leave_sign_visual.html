@@ -1,0 +1,455 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Signatory Approval & Signature | Leave Request{% endblock %}
+
+{% block pageContent %}
+<div class="container-fluid py-4 px-2 px-md-4">
+
+  <!-- Header Banner -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="glass-card p-4 d-flex flex-column flex-md-row align-items-center justify-content-between gap-3
+        border-start border-4 {% if already_actioned %}{% if leave.status == 'Rejected' %}border-danger{% else %}border-success{% endif %}{% else %}border-warning{% endif %}">
+        <div class="d-flex align-items-center gap-3">
+          <div class="p-3 rounded-circle {% if already_actioned %}{% if leave.status == 'Rejected' %}bg-danger bg-opacity-20 text-danger{% else %}bg-success bg-opacity-20 text-success{% endif %}{% else %}bg-warning bg-opacity-20 text-warning{% endif %} fs-3">
+            <i class="fas {% if already_actioned %}{% if leave.status == 'Rejected' %}fa-ban{% else %}fa-check-circle{% endif %}{% else %}fa-file-signature{% endif %}"></i>
+          </div>
+          <div>
+            <h4 class="fw-bold text-white mb-1">
+              {% if already_actioned %}
+                Leave Request — {{ leave.status }}
+              {% else %}
+                Official Leave Signatory Approval
+              {% endif %}
+            </h4>
+            <p class="text-white-50 small mb-0">
+              Leave request for <span class="text-warning fw-bold">{{ leave.user.get_full_name|default:leave.user.username }}</span>
+              {% if already_actioned %}&mdash; This request has already been <strong class="{% if leave.status == 'Rejected' %}text-danger{% else %}text-success{% endif %}">{{ leave.status }}</strong>. No further action is required.{% endif %}
+            </p>
+          </div>
+        </div>
+        <a href="{% url 'leave-applications' %}" class="btn btn-outline-light btn-sm rounded-pill px-4">
+          <i class="fas fa-arrow-left me-1"></i> Return to Applications
+        </a>
+      </div>
+    </div>
+  </div>
+
+  {% if already_actioned %}
+  <!-- READ-ONLY STATUS Banner -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="alert {% if leave.status == 'Rejected' %}alert-danger{% else %}alert-success{% endif %} border-0 rounded-3 d-flex align-items-center gap-3 shadow-sm">
+        <i class="fas {% if leave.status == 'Rejected' %}fa-times-circle fa-2x{% else %}fa-check-circle fa-2x{% endif %}"></i>
+        <div>
+          <strong>{% if leave.status == 'Rejected' %}Leave Request Rejected{% else %}Leave Request Approved{% endif %}</strong><br>
+          <span class="small">
+            {% if leave.supervisor_comment %}Reason / Notes: <em>{{ leave.supervisor_comment }}</em>{% endif %}
+            {% if leave.approved_by %} &mdash; Actioned by: <strong>{{ leave.approved_by.get_full_name|default:leave.approved_by.username }}</strong>{% endif %}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="row g-4">
+    <!-- LEFT PANEL: SIGNATORY APPROVAL FORM -->
+    <div class="col-lg-5 col-xl-4">
+      <div class="glass-card p-4 position-sticky shadow-lg" style="top: 20px;">
+        
+        <!-- Leave Summary Card -->
+        <div class="p-3 rounded-3 bg-dark bg-opacity-60 border border-secondary border-opacity-25 mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="badge bg-primary text-white extra-small">{{ leave.leave_type }} Leave</span>
+            <span class="badge bg-success text-white extra-small"><i class="fas fa-clock me-1"></i>{{ leave.days }} Days</span>
+          </div>
+          <h6 class="fw-bold text-white mb-1">{{ leave.user.get_full_name|default:leave.user.username }}</h6>
+          <div class="extra-small text-white-50 mb-2">
+            <i class="fas fa-calendar me-1 text-warning"></i> {{ leave.start_date }} &bull; {{ leave.end_date }}
+          </div>
+          <div class="extra-small text-muted border-top border-secondary border-opacity-25 pt-2">
+            "{{ leave.reason|truncatechars:100 }}"
+          </div>
+          {% if leave.supervisor_comment %}
+          <div class="extra-small mt-2 pt-2 border-top border-secondary border-opacity-25">
+            <span class="text-white-50">Comment: </span><em class="text-white">{{ leave.supervisor_comment }}</em>
+          </div>
+          {% endif %}
+        </div>
+
+        {% if not already_actioned %}
+        <form method="post" id="leaveSignatoryForm" action="{% url 'leave-sign-visual' leave.id %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" id="formAction" value="approve">
+          <input type="hidden" name="signature_data" id="id_signature_data">
+          <input type="hidden" name="page_num" id="id_page_num" value="0">
+          <input type="hidden" name="x_pct" id="id_x_pct" value="0">
+          <input type="hidden" name="y_pct" id="id_y_pct" value="0">
+          <input type="hidden" name="date_page_num" id="id_date_page_num">
+          <input type="hidden" name="date_x_pct" id="id_date_x_pct">
+          <input type="hidden" name="date_y_pct" id="id_date_y_pct">
+          <input type="hidden" name="comments" id="id_comments_hidden">
+
+          <!-- 1. PREPARE SIGNATURE -->
+          <div class="mb-4">
+            <label class="form-label extra-small fw-bold text-uppercase text-warning tracking-wider mb-2">
+              <i class="fas fa-pen-nib me-1"></i> 1. PREPARE SIGNATURE
+            </label>
+
+            <!-- T&C Agreement Checkbox -->
+            <div class="form-check rounded-3 bg-dark bg-opacity-40 border border-secondary border-opacity-25 mb-3 p-3 ps-5">
+              <input class="form-check-input" type="checkbox" id="termsCheckbox" onchange="updateSignatureState()">
+              <label class="form-check-label extra-small text-white-50" for="termsCheckbox" style="font-size: 0.72rem; line-height: 1.4;">
+                I agree to the Terms &amp; Conditions of digital signing. Using this button validates all my information as approved.
+              </label>
+            </div>
+
+            <!-- Signature Creation Buttons -->
+            <div class="d-grid gap-2 mb-3">
+              <button type="button" class="btn btn-outline-warning btn-sm rounded-pill fw-bold" data-bs-toggle="modal" data-bs-target="#signatureModal">
+                <i class="fas fa-signature me-1"></i> Draw New Signature
+              </button>
+              {% if saved_signature %}
+              <button type="button" class="btn btn-outline-info btn-sm rounded-pill fw-bold" id="useSavedSigBtn">
+                <i class="fas fa-cloud me-1"></i> Use Saved Profile Signature
+              </button>
+              {% endif %}
+              <button type="button" class="btn btn-outline-success btn-sm rounded-pill fw-bold" id="autoGenSigBtn">
+                <i class="fas fa-certificate me-1"></i> Auto-Generate Digital Approval Seal
+              </button>
+            </div>
+
+            <!-- Signature Ready Container -->
+            <div id="signatureReadyContainer" class="p-3 rounded-3 bg-success bg-opacity-15 border border-success border-opacity-50 text-center" style="display: none;">
+              <div class="badge bg-success text-white mb-2 px-3 rounded-pill extra-small fw-bold">
+                <i class="fas fa-check-circle me-1"></i> Signature Ready!
+              </div>
+              <div class="p-2 bg-white rounded-3 mb-2 d-inline-block">
+                <img id="draggableSignature" src="" style="height: 55px; max-width: 100%; object-fit: contain; cursor: grab;" draggable="true" ondragstart="drag(event, 'signature')">
+              </div>
+              <div class="extra-small text-white-50">(Optional) Drag onto document preview on right</div>
+            </div>
+          </div>
+
+          <!-- 2. DATE STAMP (OPTIONAL) -->
+          <div class="mb-4">
+            <label class="form-label extra-small fw-bold text-uppercase text-warning tracking-wider mb-2">
+              <i class="fas fa-calendar-check me-1"></i> 2. DATE STAMP (OPTIONAL)
+            </label>
+            <div class="rounded-3 bg-dark bg-opacity-40 border border-secondary border-opacity-25 text-center p-3">
+              <span id="draggableDate" class="badge bg-primary text-white px-3 py-2 rounded-pill" style="cursor: grab; font-size: 0.85rem;" draggable="true" ondragstart="drag(event, 'date')">
+                <i class="fas fa-calendar-day me-1"></i> {{ today_date }}
+              </span>
+              <div class="extra-small text-white-50 mt-1">Drag to date cell on document preview</div>
+            </div>
+          </div>
+
+          <!-- 3. COMMENTS / NOTES -->
+          <div class="mb-4">
+            <label for="commentsInput" class="form-label extra-small fw-bold text-uppercase text-warning tracking-wider mb-1">
+              <i class="fas fa-comment-dots me-1"></i> 3. COMMENTS / NOTES
+            </label>
+            <textarea id="commentsInput" rows="3" class="form-control bg-dark text-white border-secondary border-opacity-50 extra-small" placeholder="Add optional comments or approval notes for the requester..."></textarea>
+          </div>
+
+          <!-- Save Signature to Profile -->
+          <div class="form-check form-switch mb-4">
+            <input class="form-check-input" type="checkbox" name="save_to_profile" id="id_save_to_profile">
+            <label class="form-check-label extra-small text-white" for="id_save_to_profile">Save signature to profile for future approvals</label>
+          </div>
+
+          <!-- ACTION BUTTONS -->
+          <div class="d-grid gap-2">
+            <button type="button" id="approveSignBtn" class="btn btn-success rounded-pill py-2 fw-bold shadow-lg" disabled onclick="submitApproval('approve')">
+              <i class="fas fa-check-double me-1"></i> Approve &amp; Sign Leave
+            </button>
+            <button type="button" id="rejectBtn" class="btn btn-outline-danger rounded-pill py-2 fw-bold" data-bs-toggle="modal" data-bs-target="#rejectModal">
+              <i class="fas fa-ban me-1"></i> Reject Request
+            </button>
+          </div>
+        </form>
+        {% else %}
+        <!-- Read-only view when already actioned -->
+        <div class="text-center py-4">
+          <div class="mb-3 {% if leave.status == 'Rejected' %}text-danger{% else %}text-success{% endif %}" style="font-size: 3rem;">
+            <i class="fas {% if leave.status == 'Rejected' %}fa-ban{% else %}fa-check-circle{% endif %}"></i>
+          </div>
+          <h6 class="fw-bold text-white">This leave request has been <span class="{% if leave.status == 'Rejected' %}text-danger{% else %}text-success{% endif %}">{{ leave.status }}</span></h6>
+          <p class="extra-small text-white-50">No further action is required on this request.</p>
+          <a href="{% url 'leave-applications' %}" class="btn btn-outline-light rounded-pill px-4">
+            <i class="fas fa-arrow-left me-1"></i> Back to Applications
+          </a>
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: DOCUMENT PREVIEW -->
+    <div class="col-lg-7 col-xl-8">
+      <div class="glass-card p-4 h-100">
+        <div class="d-flex align-items-center justify-content-between mb-3 border-bottom border-white border-opacity-10 pb-2">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-file-pdf text-danger fs-5"></i>
+            <h5 class="fw-bold text-white mb-0" style="font-size:0.95rem;">Supporting Document Preview</h5>
+          </div>
+          {% if pages %}
+          <span class="badge bg-secondary text-white extra-small">{{ pages|length }} Pages</span>
+          {% endif %}
+        </div>
+
+        <div class="bg-dark bg-opacity-70 rounded-3 p-3 overflow-auto text-center" style="max-height: 80vh;" id="documentContainer">
+          {% if leave.supporting_document %}
+            {% if pages %}
+              {% for p in pages %}
+                <div class="document-page mb-4 position-relative mx-auto shadow-lg bg-white rounded-3"
+                     style="width: 100%; max-width: 800px; user-select: none;"
+                     data-page-num="{{ p.page_num }}"
+                     ondrop="drop(event)" ondragover="allowDrop(event)">
+                  <img src="{{ p.image }}" class="img-fluid w-100 rounded-3" style="pointer-events: none; display: block; object-fit: contain;">
+                  <div class="signature-overlay" id="overlay_page_{{ p.page_num }}"
+                       style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <div class="py-5 text-center">
+                <i class="fas fa-file-word display-4 text-warning mb-3 d-block"></i>
+                <h5 class="text-white fw-bold">Document Attached</h5>
+                <p class="text-white-50 small mb-3">
+                  <a href="{{ leave.supporting_document.url }}" target="_blank" class="text-warning fw-bold">{{ leave.supporting_document.name }}</a>
+                </p>
+                <div class="alert alert-info bg-info bg-opacity-15 text-info border-info border-opacity-25 small d-inline-block px-4">
+                  <i class="fas fa-info-circle me-1"></i> You can approve or reject directly using the Signatory Panel on the left.
+                </div>
+              </div>
+            {% endif %}
+          {% else %}
+            <div class="py-5 text-center">
+              <i class="fas fa-folder-open display-4 text-muted mb-3 d-block"></i>
+              <h5 class="text-white fw-bold">No Supporting Document Attached</h5>
+              <p class="text-white-50 small mb-0">Review the leave details and use the Signatory Panel on the left to Approve or Reject.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.container-fluid -->
+
+<!-- SIGNATURE DRAWING MODAL -->
+<div class="modal fade" id="signatureModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content glass-panel border-secondary border-opacity-25">
+      <div class="modal-header border-bottom border-secondary border-opacity-25">
+        <h5 class="modal-title fw-bold text-white"><i class="fas fa-pen-nib text-warning me-2"></i>Draw Your Digital Signature</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4 text-center">
+        <div class="border rounded bg-white mx-auto overflow-hidden mb-3" style="width: 100%; max-width: 420px; touch-action: none;">
+          <canvas id="signaturePad" width="420" height="180" style="cursor: crosshair; background: #fff;"></canvas>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" id="clearCanvas">
+          <i class="fas fa-eraser me-1"></i> Clear
+        </button>
+      </div>
+      <div class="modal-footer border-top border-secondary border-opacity-25">
+        <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success rounded-pill px-4" id="saveSignatureBtn">
+          <i class="fas fa-check me-1"></i> Save Signature
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- REJECT MODAL -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content glass-panel border-danger border-opacity-25">
+      <div class="modal-header border-bottom border-danger border-opacity-25">
+        <h5 class="modal-title fw-bold text-white"><i class="fas fa-ban text-danger me-2"></i>Reject Leave Request</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="alert alert-danger bg-danger bg-opacity-15 border-danger border-opacity-25 small mb-3">
+          <i class="fas fa-exclamation-triangle me-1"></i>
+          You are about to <strong>reject</strong> this leave request for 
+          <strong>{{ leave.user.get_full_name|default:leave.user.username }}</strong> 
+          ({{ leave.leave_type }}, {{ leave.days }} days). This action will notify the employee.
+        </div>
+        <label class="form-label text-white fw-bold small mb-1">
+          <i class="fas fa-comment-dots me-1 text-danger"></i> Reason for Rejection <span class="text-danger">*</span>
+        </label>
+        <textarea id="rejectReason" rows="4" class="form-control bg-dark text-white border-danger border-opacity-50" 
+                  placeholder="Enter a clear reason for rejecting this leave request (required)..."></textarea>
+        <div id="rejectReasonError" class="text-danger extra-small mt-1" style="display:none;">
+          <i class="fas fa-exclamation-circle me-1"></i> Please provide a reason for rejection.
+        </div>
+      </div>
+      <div class="modal-footer border-top border-danger border-opacity-25">
+        <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger rounded-pill px-4 fw-bold" id="confirmRejectBtn">
+          <i class="fas fa-ban me-1"></i> Confirm Rejection
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<script>
+let signaturePad;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Init signature canvas
+    const canvas = document.getElementById('signaturePad');
+    if (canvas) {
+        signaturePad = new SignaturePad(canvas, {
+            backgroundColor: 'rgba(255,255,255,0)',
+            penColor: '#000044'
+        });
+        document.getElementById('clearCanvas').addEventListener('click', () => signaturePad.clear());
+        document.getElementById('saveSignatureBtn').addEventListener('click', function() {
+            if (signaturePad.isEmpty()) {
+                alert('Please draw your signature first.');
+                return;
+            }
+            loadSignature(signaturePad.toDataURL());
+            bootstrap.Modal.getInstance(document.getElementById('signatureModal')).hide();
+        });
+    }
+
+    // Saved signature
+    {% if saved_signature %}
+    const savedSig = "{{ saved_signature|safe }}";
+    const savedBtn = document.getElementById('useSavedSigBtn');
+    if (savedBtn && savedSig) {
+        savedBtn.addEventListener('click', () => loadSignature(savedSig));
+    }
+    {% endif %}
+
+    // Auto-generate seal
+    const autoBtn = document.getElementById('autoGenSigBtn');
+    if (autoBtn) {
+        autoBtn.addEventListener('click', () => loadSignature(generateApprovalSeal()));
+    }
+
+    // Reject confirmation
+    const confirmRejectBtn = document.getElementById('confirmRejectBtn');
+    if (confirmRejectBtn) {
+        confirmRejectBtn.addEventListener('click', function() {
+            const reason = document.getElementById('rejectReason').value.trim();
+            if (!reason) {
+                document.getElementById('rejectReasonError').style.display = 'block';
+                document.getElementById('rejectReason').classList.add('border-danger');
+                return;
+            }
+            document.getElementById('rejectReasonError').style.display = 'none';
+            // Populate form and submit
+            document.getElementById('id_comments_hidden').value = reason;
+            document.getElementById('formAction').value = 'reject';
+            confirmRejectBtn.disabled = true;
+            confirmRejectBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Rejecting...';
+            document.getElementById('leaveSignatoryForm').submit();
+        });
+    }
+});
+
+function updateSignatureState() {
+    const agreed = document.getElementById('termsCheckbox').checked;
+    const hasSig = !!document.getElementById('id_signature_data').value;
+    const btn = document.getElementById('approveSignBtn');
+    if (btn) btn.disabled = !(agreed && hasSig);
+}
+
+function loadSignature(dataUrl) {
+    document.getElementById('id_signature_data').value = dataUrl;
+    const img = document.getElementById('draggableSignature');
+    if (img) img.src = dataUrl;
+    const container = document.getElementById('signatureReadyContainer');
+    if (container) container.style.display = 'block';
+    updateSignatureState();
+}
+
+function generateApprovalSeal() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 420; canvas.height = 140;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#10b981'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(5, 5, 410, 130, 8); ctx.stroke();
+    ctx.fillStyle = '#ecfdf5'; ctx.beginPath(); ctx.arc(48, 48, 24, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#059669'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('✓', 48, 54);
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 17px sans-serif'; ctx.fillStyle = '#065f46';
+    ctx.fillText("{{ request.user.get_full_name|default:request.user.username }}", 84, 42);
+    ctx.font = 'bold 10px monospace'; ctx.fillStyle = '#059669';
+    ctx.fillText('DIGITALLY SIGNED & VERIFIED APPROVAL', 84, 60);
+    ctx.font = '9px monospace'; ctx.fillStyle = '#64748b';
+    const now = new Date();
+    ctx.fillText('Timestamp: ' + now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC', 84, 77);
+    ctx.fillText('Role: {{ user_role|default:"Approver" }}', 84, 92);
+    return canvas.toDataURL();
+}
+
+function submitApproval(actionType) {
+    if (actionType === 'approve') {
+        document.getElementById('id_comments_hidden').value = document.getElementById('commentsInput').value;
+        document.getElementById('formAction').value = 'approve';
+        const btn = document.getElementById('approveSignBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Approving & Signing...';
+        document.getElementById('leaveSignatoryForm').submit();
+    }
+}
+
+// Drag & drop for optional visual stamping
+function allowDrop(ev) { ev.preventDefault(); }
+function drag(ev, type) {
+    ev.dataTransfer.setData("type", type);
+    window.dragOffsetX = ev.offsetX;
+    window.dragOffsetY = ev.offsetY;
+}
+function drop(ev) {
+    ev.preventDefault();
+    const type = ev.dataTransfer.getData("type");
+    const page = ev.target.closest('.document-page');
+    if (!page) return;
+    const pageNum = page.getAttribute('data-page-num');
+    const overlay = document.getElementById('overlay_page_' + pageNum);
+    const rect = page.getBoundingClientRect();
+    const xPct = Math.min(Math.max(((ev.clientX - rect.left - (window.dragOffsetX||0)) / rect.width) * 100, 0), 84);
+    const yPct = Math.min(Math.max(((ev.clientY - rect.top  - (window.dragOffsetY||0)) / rect.height) * 100, 0), 94);
+    if (type === 'signature') {
+        document.querySelectorAll('.dropped-sig').forEach(e => e.remove());
+        const img = document.createElement('img');
+        img.src = document.getElementById('id_signature_data').value;
+        img.className = 'dropped-sig';
+        applyStamp(img, xPct, yPct, '18%');
+        overlay.appendChild(img);
+        document.getElementById('id_page_num').value = pageNum;
+        document.getElementById('id_x_pct').value = xPct;
+        document.getElementById('id_y_pct').value = yPct;
+    } else if (type === 'date') {
+        document.querySelectorAll('.dropped-date').forEach(e => e.remove());
+        const div = document.createElement('div');
+        div.className = 'dropped-date badge bg-primary opacity-90';
+        div.innerText = "{{ today_date }}";
+        applyStamp(div, xPct, yPct, 'auto');
+        div.style.padding = '5px 12px'; div.style.fontSize = '12px';
+        overlay.appendChild(div);
+        document.getElementById('id_date_page_num').value = pageNum;
+        document.getElementById('id_date_x_pct').value = xPct;
+        document.getElementById('id_date_y_pct').value = yPct;
+    }
+}
+function applyStamp(el, x, y, w) {
+    el.style.cssText = `position:absolute; left:${x}%; top:${y}%; width:${w}; height:auto; border:2px dashed #10b981; pointer-events:none; z-index:1000;`;
+}
+</script>
+{% endblock %}

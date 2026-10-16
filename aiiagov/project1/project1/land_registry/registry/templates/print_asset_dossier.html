@@ -1,0 +1,411 @@
+{% load static humanize %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Asset Clearance &amp; Inspection Dossier - {{ asset.asset_code }}</title>
+    <link rel="stylesheet" href="{% static 'assets/bootstrap/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 15mm 12mm 15mm 12mm;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #1a1a1a;
+            background: #fff;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .header-box {
+            border-bottom: 2px solid #002B49;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+        }
+        .zrp-seal {
+            width: 70px;
+            height: 70px;
+            object-fit: contain;
+        }
+        .section-header {
+            background-color: #002B49;
+            color: #fff;
+            padding: 5px 10px;
+            font-weight: bold;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 14px;
+            margin-bottom: 8px;
+            border-radius: 3px;
+        }
+        .table-data {
+            width: 100%;
+            margin-bottom: 10px;
+            border-collapse: collapse;
+        }
+        .table-data th, .table-data td {
+            border: 1px solid #dee2e6;
+            padding: 6px 8px;
+            vertical-align: top;
+        }
+        .table-data th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            width: 25%;
+            color: #495057;
+        }
+        .badge-status {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+        .badge-cleared {
+            background-color: #d1e7dd;
+            color: #0f5132;
+            border: 1px solid #badbcc;
+        }
+        .badge-pending {
+            background-color: #fff3cd;
+            color: #664d03;
+            border: 1px solid #ffecb5;
+        }
+        .stamp-box {
+            border: 2px dashed #002B49;
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+            background-color: #fbfbfb;
+            min-height: 100px;
+        }
+        .doc-check-icon {
+            font-size: 14px;
+            margin-right: 5px;
+        }
+        .text-success { color: #198754 !important; }
+        .text-danger { color: #dc3545 !important; }
+        .print-btn-bar {
+            background: #e9ecef;
+            border-bottom: 1px solid #ced4da;
+            padding: 10px;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        @media print {
+            .print-btn-bar {
+                display: none !important;
+            }
+            body {
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="print-btn-bar d-flex justify-content-between align-items-center">
+    <div>
+        <button onclick="window.print()" class="btn btn-primary btn-sm px-4 fw-bold">
+            <i class="fas fa-print me-2"></i> Print Dossier / Save as PDF
+        </button>
+        <button onclick="window.close()" class="btn btn-outline-secondary btn-sm ms-2">
+            <i class="fas fa-times me-1"></i> Close
+        </button>
+    </div>
+    <div class="small text-muted">
+        System Generated: <strong>{{ print_date|date:"d F Y, H:i" }}</strong> | Security Classification: <strong>OFFICIAL</strong>
+    </div>
+</div>
+
+<div class="container-fluid py-3 px-4">
+    <div class="header-box d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-3">
+            <img src="{% static 'assets/img/zrp_logo.png' %}" alt="ZRP Seal" class="zrp-seal" onerror="this.style.display='none'">
+            <div>
+                <h4 class="fw-bold mb-0 text-uppercase" style="color: #002B49; letter-spacing: 1px;">Zimbabwe Republic Police</h4>
+                <div class="small fw-semibold text-uppercase text-muted">Procurement &amp; Asset Management Directorate</div>
+                <div class="fw-bold text-dark fs-6 mt-1">Official Asset Intake, Technical Testing &amp; Clearance Dossier</div>
+            </div>
+        </div>
+        <div class="text-end">
+            <div class="badge bg-light text-dark border px-3 py-2 fs-6 font-monospace mb-1">
+                {{ asset.asset_code }}
+            </div>
+            <div class="extra-small text-muted">Registry ID: #{{ asset.id }}</div>
+            <div>
+                {% if asset.is_cleared %}
+                <span class="badge-status badge-cleared"><i class="fas fa-check-double me-1"></i> Quality Cleared</span>
+                {% else %}
+                <span class="badge-status badge-pending"><i class="fas fa-clock me-1"></i> {{ asset.inspection_status }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 1. Asset Profile & Financials -->
+    <div class="section-header"><i class="fas fa-boxes me-2"></i> 1. Asset Specifications &amp; Accounting</div>
+    <table class="table-data">
+        <tr>
+            <th>Asset Description</th>
+            <td colspan="3"><strong class="fs-6">{{ asset.name }}</strong></td>
+        </tr>
+        <tr>
+            <th>Asset Code</th>
+            <td><code class="fw-bold">{{ asset.asset_code }}</code></td>
+            <th>Category</th>
+            <td>{{ asset.get_category_display }}</td>
+        </tr>
+        <tr>
+            <th>Assigned Department</th>
+            <td>{{ asset.department.name }}</td>
+            <th>Operational Status</th>
+            <td><strong>{{ asset.status }}</strong></td>
+        </tr>
+        <tr>
+            <th>Acquisition Date</th>
+            <td>{{ asset.acquisition_date|date:"d M Y" }}</td>
+            <th>Useful Life</th>
+            <td>{{ asset.useful_life }} Years</td>
+        </tr>
+        <tr>
+            <th>Acquisition Cost</th>
+            <td><strong class="text-primary">${{ asset.acquisition_cost|intcomma }}</strong></td>
+            <th>Current Book Value</th>
+            <td><strong class="text-success">${{ asset.current_value|floatformat:2|intcomma }}</strong></td>
+        </tr>
+        {% if asset.description %}
+        <tr>
+            <th>Technical Specs</th>
+            <td colspan="3">{{ asset.description }}</td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <!-- 2. Supplier Delivery & Intake Verification -->
+    <div class="section-header"><i class="fas fa-truck me-2"></i> 2. Supplier Intake &amp; Delivery Verification</div>
+    <table class="table-data">
+        <tr>
+            <th>Supplier / Vendor</th>
+            <td colspan="3"><strong>{{ asset.supplier_name|default:"Not specified" }}</strong></td>
+        </tr>
+        <tr>
+            <th>Intake Delivery Status</th>
+            <td>
+                {% if asset.is_partial_delivery %}
+                <span class="badge-status badge-pending" style="color: #b02a37; background-color: #f8d7da; border-color: #f5c2c7;">
+                    <i class="fas fa-truck-loading me-1"></i> PARTIAL DELIVERY ({{ asset.balance_pending_delivery }} Units Pending)
+                </span>
+                {% else %}
+                <span class="badge-status badge-cleared">
+                    <i class="fas fa-check-circle me-1"></i> COMPLETE / FULL DELIVERY
+                </span>
+                {% endif %}
+            </td>
+            <th>Delivered vs Expected Qty</th>
+            <td>
+                <strong>{{ asset.quantity_delivered|default:"1" }}</strong> Units Delivered / 
+                <span class="text-muted">{{ asset.quantity_expected|default:"1" }} Units Expected</span>
+            </td>
+        </tr>
+        <tr>
+            <th>Delivery Note Number</th>
+            <td>{{ asset.delivery_note_number|default:"—" }}</td>
+            <th>Delivery Note Attachment</th>
+            <td>
+                {% if asset.delivery_note_doc %}
+                <span class="text-success"><i class="fas fa-check-circle doc-check-icon"></i> Attached &amp; Scanned into Archive</span>
+                {% else %}
+                <span class="text-muted"><i class="fas fa-minus-circle doc-check-icon"></i> No document attached</span>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <th>Supplier Invoice Number</th>
+            <td>{{ asset.invoice_number|default:"—" }}</td>
+            <th>Invoice Attachment</th>
+            <td>
+                {% if asset.invoice_doc %}
+                <span class="text-success"><i class="fas fa-check-circle doc-check-icon"></i> Attached &amp; Scanned into Archive</span>
+                {% else %}
+                <span class="text-muted"><i class="fas fa-minus-circle doc-check-icon"></i> No document attached</span>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <th>PMU Source Ref / PO #</th>
+            <td><strong>{{ asset.pmu_source_doc_ref|default:"—" }}</strong></td>
+            <th>PMU Source Authorization</th>
+            <td>
+                {% if asset.pmu_source_doc %}
+                <span class="text-success"><i class="fas fa-check-circle doc-check-icon"></i> Attached &amp; Archived</span>
+                {% else %}
+                <span class="text-muted"><i class="fas fa-minus-circle doc-check-icon"></i> Not provided</span>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+
+    <!-- 3. Technician Testing & Quality Clearance Certification -->
+    <div class="section-header"><i class="fas fa-microscope me-2"></i> 3. Technician Inspection &amp; Quality Test Clearance</div>
+    <table class="table-data">
+        <tr>
+            <th>Inspecting Technician</th>
+            <td><strong>{% if asset.technician %}{{ asset.technician.get_full_name|default:asset.technician.username }}{% else %}Assigned Technician{% endif %}</strong></td>
+            <th>Inspection Date</th>
+            <td>{{ asset.inspection_date|date:"d M Y"|default:"Pending" }}</td>
+        </tr>
+        <tr>
+            <th>Quality Testing Result</th>
+            <td>
+                {% if asset.quality_test_passed %}
+                <strong class="text-success"><i class="fas fa-check-double me-1"></i> PASSED — All operational &amp; safety checks certified</strong>
+                {% else %}
+                <strong class="text-danger"><i class="fas fa-times-circle me-1"></i> PENDING / FAILED</strong>
+                {% endif %}
+            </td>
+            <th>Clearance Status</th>
+            <td>
+                {% if asset.is_cleared %}
+                <span class="badge-status badge-cleared"><i class="fas fa-stamp me-1"></i> FULLY CLEARED AS ASSET</span>
+                {% else %}
+                <span class="badge-status badge-pending"><i class="fas fa-hourglass-half me-1"></i> AWAITING CLEARANCE</span>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <th>Technician Test Remarks</th>
+            <td colspan="3">
+                {{ asset.inspection_notes|default:"Physical inspection, functional testing, and serial number verification conducted upon receipt from supplier."|linebreaksbr }}
+            </td>
+        </tr>
+    </table>
+
+    <!-- 4. Mandatory Three Approval Clearance Documents -->
+    <div class="section-header"><i class="fas fa-file-contract me-2"></i> 4. Mandatory Approval Clearance Documents Checklist</div>
+    <table class="table-data">
+        <thead>
+            <tr style="background:#f1f3f5;">
+                <th style="width: 5%;">#</th>
+                <th style="width: 45%;">Required Clearance Certificate</th>
+                <th style="width: 30%;">Status &amp; Verification</th>
+                <th style="width: 20%;">Signoff Authority</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="text-center fw-bold">1</td>
+                <td>
+                    <strong>Technical Testing &amp; Inspection Certificate</strong>
+                    <div class="extra-small text-muted">Confirms hardware tests, operational benchmarks, and absence of defects.</div>
+                </td>
+                <td>
+                    {% if asset.approval_doc_1 %}
+                    <span class="text-success fw-bold"><i class="fas fa-check-circle me-1"></i> Attached &amp; Validated</span>
+                    {% else %}
+                    <span class="text-danger fw-bold"><i class="fas fa-exclamation-triangle me-1"></i> Missing</span>
+                    {% endif %}
+                </td>
+                <td class="small">{% if asset.technician %}{{ asset.technician.get_full_name|default:asset.technician.username }}{% else %}Testing Technician{% endif %}</td>
+            </tr>
+            <tr>
+                <td class="text-center fw-bold">2</td>
+                <td>
+                    <strong>Quality Assurance &amp; Compliance Report</strong>
+                    <div class="extra-small text-muted">Audits compliance with institutional specifications and contract tender requirements.</div>
+                </td>
+                <td>
+                    {% if asset.approval_doc_2 %}
+                    <span class="text-success fw-bold"><i class="fas fa-check-circle me-1"></i> Attached &amp; Validated</span>
+                    {% else %}
+                    <span class="text-danger fw-bold"><i class="fas fa-exclamation-triangle me-1"></i> Missing</span>
+                    {% endif %}
+                </td>
+                <td class="small">Quality Assurance Officer</td>
+            </tr>
+            <tr>
+                <td class="text-center fw-bold">3</td>
+                <td>
+                    <strong>Asset Acceptance &amp; Clearance Certificate</strong>
+                    <div class="extra-small text-muted">Final handover and institutional acceptance certificate to place asset in active custody.</div>
+                </td>
+                <td>
+                    {% if asset.approval_doc_3 %}
+                    <span class="text-success fw-bold"><i class="fas fa-check-circle me-1"></i> Attached &amp; Validated</span>
+                    {% else %}
+                    <span class="text-danger fw-bold"><i class="fas fa-exclamation-triangle me-1"></i> Missing</span>
+                    {% endif %}
+                </td>
+                <td class="small">Head of PMU / Directorate</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 5. Digital Archive & Scanned Documents Index -->
+    <div class="section-header"><i class="fas fa-archive me-2"></i> 5. Digital Document Archive &amp; Scanned Evidence Ledger</div>
+    <table class="table-data">
+        <thead>
+            <tr style="background:#f1f3f5;">
+                <th style="width: 25%;">Document Type</th>
+                <th style="width: 40%;">Title &amp; Reference</th>
+                <th style="width: 20%;">Date Archived</th>
+                <th style="width: 15%;">Archivist</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for doc in documents %}
+            <tr>
+                <td><strong>{{ doc.get_doc_type_display }}</strong></td>
+                <td>{{ doc.title }}</td>
+                <td>{{ doc.date_uploaded|date:"d M Y, H:i" }}</td>
+                <td>{{ doc.uploaded_by.username|default:"System" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" class="text-center text-muted py-2">No additional scanned files recorded in digital archive.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Signatures & Institutional Endorsement -->
+    <div class="row g-3 mt-4 pt-2">
+        <div class="col-4">
+            <div class="stamp-box">
+                <div class="extra-small text-uppercase fw-bold text-muted mb-1">Technician Signoff</div>
+                <div class="fw-bold fs-6">{% if asset.technician %}{{ asset.technician.get_full_name|default:asset.technician.username }}{% else %}Inspector{% endif %}</div>
+                <div class="extra-small text-muted">Technical Inspector</div>
+                <div class="mt-3 border-top pt-1 small">Date: {{ asset.inspection_date|default:print_date|date:"d M Y" }}</div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="stamp-box">
+                <div class="extra-small text-uppercase fw-bold text-muted mb-1">PMU Procurement Officer</div>
+                <div class="fw-bold fs-6">{{ asset.pmu_source_doc_ref|default:"PMU Director" }}</div>
+                <div class="extra-small text-muted">Procurement Management Unit</div>
+                <div class="mt-3 border-top pt-1 small">Date: {{ print_date|date:"d M Y" }}</div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="stamp-box">
+                <div class="extra-small text-uppercase fw-bold text-muted mb-1">Official Institutional Seal</div>
+                <div class="fw-bold text-success" style="letter-spacing:1px; margin-top: 8px;">
+                    <i class="fas fa-stamp me-1"></i> REGISTERED &amp; CLEARED
+                </div>
+                <div class="extra-small text-muted mt-1">ZRP Central Asset Registry</div>
+                <div class="mt-3 border-top pt-1 small">Code: {{ asset.asset_code }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
+
+
+
+

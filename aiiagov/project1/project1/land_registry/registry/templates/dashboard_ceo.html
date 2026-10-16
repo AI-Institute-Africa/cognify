@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% load static %}
+{% block headerContent %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+.ceo-stat{border-radius:18px;padding:1.5rem 1.75rem;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;}
+.ceo-stat:hover{transform:translateY(-4px);box-shadow:0 16px 40px rgba(0,0,0,.14)!important;}
+.ceo-stat .ico{position:absolute;right:1.25rem;top:50%;transform:translateY(-50%);font-size:3.2rem;opacity:.1;}
+.ceo-stat .val{font-size:2.4rem;font-weight:900;line-height:1;}
+.ceo-stat .lbl{font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.25rem;}
+.section-hdr{font-size:.68rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#6c757d;padding-bottom:.75rem;border-bottom:2px solid rgba(102,126,234,.18);margin-bottom:1.25rem;}
+.req-row:hover{background:rgba(13,110,253,.04);}
+.stbadge{font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:.28rem .7rem;border-radius:50px;}
+</style>
+{% endblock headerContent %}
+{% block pageContent %}
+<div class="container-fluid py-4">
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
+    <div>
+      <h2 class="fw-bold mb-1">Chief Director Strategic Dashboard</h2>
+      <p class="text-muted small mb-0"><i class="bi bi-star me-1"></i>{{ request.user.get_full_name|default:request.user.username }} &mdash; Executive Leadership</p>
+    </div>
+    <a href="{% url 'supply-requisition-list' %}" class="btn btn-primary rounded-pill px-4 shadow-sm">
+      <i class="bi bi-list-check me-2"></i>All Requisitions
+    </a>
+  </div>
+
+  <!-- KPI Row -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3 col-sm-6">
+      <div class="ceo-stat glass-card shadow-sm border-start border-5 border-danger">
+        <div class="lbl text-danger">Awaiting Chief Director Approval</div>
+        <div class="val text-danger mt-1">{{ pending_requisitions|length }}</div>
+        <i class="bi bi-pen-fill ico text-danger"></i>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <div class="ceo-stat glass-card shadow-sm border-start border-5 border-primary">
+        <div class="lbl text-primary">Total Requisitions</div>
+        <div class="val text-primary mt-1">{{ total_requisitions }}</div>
+        <i class="bi bi-file-earmark-text ico text-primary"></i>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <div class="ceo-stat glass-card shadow-sm border-start border-5 border-warning">
+        <div class="lbl text-warning">Pending (all stages)</div>
+        <div class="val text-warning mt-1">{{ pending_count }}</div>
+        <i class="bi bi-hourglass ico text-warning"></i>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <div class="ceo-stat glass-card shadow-sm border-start border-5 border-success">
+        <div class="lbl text-success">Fully Approved</div>
+        <div class="val text-success mt-1">{{ approved_count }}</div>
+        <i class="bi bi-check-circle ico text-success"></i>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Pending Sign -->
+    <div class="col-lg-6">
+      <div class="glass-card p-4 h-100">
+        <div class="section-hdr"><i class="bi bi-pen me-2"></i>Pending Chief Director Signature</div>
+        {% if pending_requisitions %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light text-muted small text-uppercase">
+              <tr>
+                <th class="ps-3">Ref #</th>
+                <th>Department</th>
+                <th>Amount</th>
+                <th class="text-end pe-3">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in pending_requisitions %}
+              <tr class="req-row">
+                <td class="ps-3 fw-bold text-primary">{{ r.ref_number }}</td>
+                <td>{{ r.department.name|default:"—" }}</td>
+                <td class="text-end fw-semibold">{{ r.grand_total|floatformat:2 }}</td>
+                <td class="text-end pe-3">
+                  <a href="{% url 'supply-requisition-sign' r.pk 'ceo' %}" class="btn btn-danger btn-sm rounded-pill px-3 fw-bold">
+                    <i class="bi bi-pen me-1"></i>Sign
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+          <i class="bi bi-check2-circle text-success" style="font-size:3rem;"></i>
+          <p class="text-muted mt-3 mb-0">No items pending Chief Director approval.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Spend by Department Chart -->
+    <div class="col-lg-6">
+      <div class="glass-card p-4 h-100">
+        <div class="section-hdr"><i class="bi bi-bar-chart me-2"></i>Approved Spend by Department</div>
+        {% if dept_labels %}
+        <canvas id="deptSpendChart" style="max-height:260px;"></canvas>
+        {% else %}
+        <div class="text-center py-5">
+          <i class="bi bi-bar-chart text-muted" style="font-size:3rem;"></i>
+          <p class="text-muted mt-3 mb-0">No approved spend data yet.</p>
+        </div>
+        {% endif %}
+
+        <div class="mt-4 pt-3 border-top">
+          <div class="d-flex justify-content-between small text-muted">
+            <span>Total Approved Spend</span>
+            <span class="fw-bold text-dark">{{ total_approved_spend|floatformat:2 }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Department Categorization -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="glass-card p-4">
+        <div class="section-hdr"><i class="bi bi-folder-symlink me-2"></i>Requisitions Grouped by Department</div>
+        {% if dept_requisitions_grouped %}
+        <div class="accordion" id="deptRequisitionAccordion">
+          {% for dept_name, reqs in dept_requisitions_grouped.items %}
+          <div class="accordion-item bg-transparent border-0 mb-3 shadow-sm rounded-3 overflow-hidden">
+            <h2 class="accordion-header" id="heading_{{ forloop.counter }}">
+              <button class="accordion-button {% if not forloop.first %}collapsed{% endif %} fw-bold bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_{{ forloop.counter }}" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}" aria-controls="collapse_{{ forloop.counter }}">
+                <i class="bi bi-building me-2 text-primary"></i>{{ dept_name }}
+                <span class="badge bg-secondary ms-2">{{ reqs|length }}</span>
+              </button>
+            </h2>
+            <div id="collapse_{{ forloop.counter }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" aria-labelledby="heading_{{ forloop.counter }}" data-bs-parent="#deptRequisitionAccordion">
+              <div class="accordion-body bg-white p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-muted small text-uppercase">
+                      <tr>
+                        <th class="ps-3">Ref #</th>
+                        <th>Requester</th>
+                        <th>Purpose</th>
+                        <th>Status</th>
+                        <th class="text-end pe-3">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for r in reqs %}
+                      <tr class="req-row">
+                        <td class="ps-3 fw-bold">
+                          <a href="{% url 'supply-requisition-view' r.pk %}" class="text-primary text-decoration-none">{{ r.ref_number }}</a>
+                          {% if r.is_urgent %}<span class="badge bg-danger ms-1" style="font-size:.65rem;">URGENT</span>{% endif %}
+                        </td>
+                        <td>{{ r.requester.get_full_name|default:r.requester.username }}</td>
+                        <td><span class="text-truncate d-inline-block" style="max-width:250px;" title="{{ r.purpose }}">{{ r.purpose }}</span></td>
+                        <td>
+                          {% if r.status == 'Approved' %}
+                            <span class="badge bg-success bg-opacity-15 text-success">Approved</span>
+                          {% elif r.status == 'Pending Dept' %}
+                            <span class="badge bg-warning bg-opacity-15 text-warning">Pending Dept</span>
+                          {% elif r.status == 'Pending Purchasing' %}
+                            <span class="badge bg-primary bg-opacity-15 text-primary">Pending PO (Bid)</span>
+                          {% elif r.status == 'Pending Requester Review' %}
+                            <span class="badge bg-info bg-opacity-15 text-info">Requester Review</span>
+                          {% elif r.status == 'Pending Purchasing Final' %}
+                            <span class="badge bg-primary bg-opacity-15 text-primary">PO Final Review</span>
+                          {% elif r.status == 'Pending CEO' %}
+                            <span class="badge bg-warning bg-opacity-20 text-warning">Pending CEO</span>
+                          {% elif r.status == 'Pending Finance' %}
+                            <span class="badge bg-secondary bg-opacity-15 text-secondary">Pending Finance</span>
+                          {% else %}
+                            <span class="badge bg-light text-muted">{{ r.status }}</span>
+                          {% endif %}
+                        </td>
+                        <td class="text-end fw-semibold pe-3">{{ r.grand_total|floatformat:2 }}</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+          <i class="bi bi-folder-x text-muted" style="font-size:3rem;"></i>
+          <p class="text-muted mt-3 mb-0">No department-categorized requisitions found.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  {% if dept_labels %}
+  const ctx = document.getElementById('deptSpendChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: {{ dept_labels|safe }},
+      datasets: [{
+        label: 'Approved Spend',
+        data: {{ dept_data|safe }},
+        backgroundColor: ['rgba(13,110,253,.7)','rgba(102,16,242,.7)','rgba(111,66,193,.7)','rgba(214,51,132,.7)','rgba(220,53,69,.7)'],
+        borderRadius: 8,
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,.04)' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+  {% endif %}
+});
+</script>
+{% endblock pageContent %}

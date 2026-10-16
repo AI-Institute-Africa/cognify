@@ -1,0 +1,92 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-chart-column text-warning me-2"></i> ZRP Monthly Attendance Report & Expenditure Matrix</h3>
+            <p class="text-muted small mb-0">Period: <strong class="text-warning">{{ month }}/{{ year }}</strong> | Complete breakdown of present days, leave, official business, training, and AWOL</p>
+        </div>
+        <a href="{% url 'attendance-dashboard' %}" class="btn btn-outline-light rounded-pill px-4">
+            <i class="fas fa-arrow-left me-1"></i> Daily Attendance Portal
+        </a>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="glass-card p-3 mb-4 border border-warning border-opacity-25">
+        <form action="" method="GET" class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <select name="month" class="form-select bg-dark text-white border-secondary">
+                    <option value="1" {% if month == 1 %}selected{% endif %}>January</option>
+                    <option value="2" {% if month == 2 %}selected{% endif %}>February</option>
+                    <option value="3" {% if month == 3 %}selected{% endif %}>March</option>
+                    <option value="4" {% if month == 4 %}selected{% endif %}>April</option>
+                    <option value="5" {% if month == 5 %}selected{% endif %}>May</option>
+                    <option value="6" {% if month == 6 %}selected{% endif %}>June</option>
+                    <option value="7" {% if month == 7 %}selected{% endif %}>July</option>
+                    <option value="8" {% if month == 8 %}selected{% endif %}>August</option>
+                    <option value="9" {% if month == 9 %}selected{% endif %}>September</option>
+                    <option value="10" {% if month == 10 %}selected{% endif %}>October</option>
+                    <option value="11" {% if month == 11 %}selected{% endif %}>November</option>
+                    <option value="12" {% if month == 12 %}selected{% endif %}>December</option>
+                </select>
+            </div>
+            <div class="col-md-5">
+                <input type="number" name="year" class="form-control bg-dark text-white border-secondary" value="{{ year }}" placeholder="Year">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-warning w-100 rounded-pill fw-bold">Generate Matrix</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Matrix Table -->
+    <div class="glass-card p-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 text-white">
+                <thead>
+                    <tr class="bg-warning bg-opacity-10 text-white extra-small text-uppercase">
+                        <th class="ps-4 py-3">Employee Name</th>
+                        <th class="py-3 text-center">Present Days</th>
+                        <th class="py-3 text-center">Approved Leave Days</th>
+                        <th class="py-3 text-center">Official Business Days</th>
+                        <th class="py-3 text-center">Training Days</th>
+                        <th class="py-3 text-center">AWOL Days</th>
+                        <th class="pe-4 text-end py-3">Total Cumulative Work Hours</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in report_data %}
+                    <tr>
+                        <td class="ps-4">
+                            <div class="fw-bold text-white">{{ row.user.get_full_name|default:row.user.username }}</div>
+                            <span class="badge bg-light text-dark font-monospace extra-small">@{{ row.user.username }}</span>
+                        </td>
+                        <td class="text-center fw-bold text-success">{{ row.present_days }}</td>
+                        <td class="text-center fw-bold text-warning">{{ row.leave_days }}</td>
+                        <td class="text-center fw-bold text-info">{{ row.business_days }}</td>
+                        <td class="text-center fw-bold text-primary">{{ row.training_days }}</td>
+                        <td class="text-center fw-bold text-danger">
+                            {% if row.awol_days > 0 %}
+                            <span class="badge bg-danger text-white rounded-pill px-3">{{ row.awol_days }}</span>
+                            {% else %}
+                            0
+                            {% endif %}
+                        </td>
+                        <td class="pe-4 text-end">
+                            <h5 class="fw-bold text-warning mb-0">{{ row.total_hours|floatformat:1 }} hrs</h5>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">No attendance data found for the selected period.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock pageContent %}

@@ -1,0 +1,460 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block pageContent %}
+<div class="container-fluid pb-5 px-lg-5 animate-slide-in">
+    <!-- Premium Header: Tactical Intelligence Hub -->
+    <div class="row mb-5 align-items-center">
+        <div class="col-md-7">
+            <div class="d-flex align-items-center gap-3 mb-2">
+                <div class="stats-glow-orb pulse-info"></div>
+                <h1 class="h2 fw-800 mb-0 tracking-tight">Project Operations <span class="text-gradient-cyan">Intelligence</span></h1>
+            </div>
+            <p class="text-muted fw-500 opacity-75 mb-0 d-flex align-items-center gap-2">
+                <i class="fas fa-radar-alt"></i> Tactical Oversight & Portfolio Execution System
+            </p>
+        </div>
+        <div class="col-md-5 text-md-end mt-3 mt-md-0">
+            <div class="d-inline-flex flex-column align-items-end">
+                <div class="badge-premium mb-2">
+                    <span class="pulse-emerald-dot me-2"></span>
+                    <span class="text-emerald fw-bold extra-small tracking-wider">SYSTEM STATUS: OPTIMAL</span>
+                </div>
+                <div class="d-flex gap-2">
+                    <span class="badge glass-badge text-info"><i class="fas fa-user-shield me-2"></i> Project Leader Authority</span>
+                    <span class="badge glass-badge text-warning"><i class="fas fa-clock me-2"></i> {% now "H:i" %} LMT</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tier 1: Actionable Intelligence -->
+    <div class="row g-4 mb-5">
+        <div class="col-lg-8">
+            <!-- Phase Gate Approvals (Consolidated View) -->
+            {% if pending_approvals %}
+            <div class="cyber-card border-left-info mb-4 overflow-hidden">
+                <div class="cyber-card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-microchip text-info"></i>
+                        <h5 class="fw-bold mb-0 h6 text-uppercase tracking-widest">Phase Consolidation Queue</h5>
+                    </div>
+                    <span class="badge-count-info">{{ pending_approvals|length }}</span>
+                </div>
+                <div class="p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover border-0 mb-0">
+                            <thead>
+                                <tr class="text-muted extra-small text-uppercase border-bottom border-white border-opacity-5">
+                                    <th class="ps-4">Project Architecture</th>
+                                    <th>Strategic Phase</th>
+                                    <th>Timeline</th>
+                                    <th class="text-end pe-4">Command</th>
+                                </tr>
+                            </thead>
+                            <tbody class="border-0">
+                                {% for phase in pending_approvals %}
+                                <tr class="align-middle border-bottom border-white border-opacity-5 transition-all hover-glass">
+                                    <td class="ps-4 py-3">
+                                        <div class="fw-bold small mb-0">{{ phase.project.name }}</div>
+                                        <div class="extra-small text-muted">{{ phase.project.department.name }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge glass-badge-info">{{ phase.name }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="extra-small text-muted">{{ phase.submitted_at|naturaltime }}</div>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <a href="{% url 'project-detail' phase.project.id %}" class="btn-action-info">
+                                            <span>Review Data</span> <i class="fas fa-chevron-right ms-1"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Tasks Awaiting Verification -->
+            {% if pending_task_reviews %}
+            <div class="cyber-card border-left-cyan mb-4">
+                <div class="cyber-card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-clipboard-check text-cyan"></i>
+                        <h5 class="fw-bold mb-0 h6 text-uppercase tracking-widest">Task Quality Assurance</h5>
+                    </div>
+                    <span class="badge-count-cyan">{{ pending_task_reviews|length }}</span>
+                </div>
+                <div class="p-3">
+                    <div class="row g-3">
+                        {% for task in pending_task_reviews %}
+                        <div class="col-md-6">
+                            <div class="glass-inner-card p-3 h-100">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="badge-pill-cyan">PENDING QA</span>
+                                    <span class="extra-small text-muted"><i class="fas fa-paperclip me-1"></i> {{ task.attachments.count }}</span>
+                                </div>
+                                <h6 class="fw-bold mb-1 small">{{ task.title|truncatechars:40 }}</h6>
+                                <p class="extra-small text-muted mb-3">{{ task.phase.project.name }} • {{ task.owner.username }}</p>
+                                <a href="{% url 'project-detail' task.phase.project.id %}" class="btn-link-cyan extra-small text-decoration-none fw-bold">
+                                    EXECUTE REVIEW <i class="fas fa-arrow-right ms-1"></i>
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Strategic Institutional Benefits (Exposed to PM) -->
+            <div class="cyber-card mb-4 border-left-emerald">
+                <div class="cyber-card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-hand-holding-usd text-emerald"></i>
+                        <h5 class="fw-bold mb-0 h6 text-uppercase tracking-widest">Strategic Benefits Matrix</h5>
+                    </div>
+                    <div class="text-end">
+                        <div class="extra-small text-muted fw-bold">ANNUAL SAVINGS</div>
+                        <div class="small fw-bold text-emerald">USD {{ total_annual_benefits|floatformat:2|intcomma }}</div>
+                    </div>
+                </div>
+                <div class="p-4">
+                    <div class="row g-4">
+                        <div class="col-lg-7">
+                            <div class="table-responsive">
+                                <table class="table table-hover border-0 mb-0">
+                                    <thead>
+                                        <tr class="text-muted extra-small text-uppercase border-bottom border-white border-opacity-5">
+                                            <th>Description</th>
+                                            <th class="text-end">Annual Projection</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="border-0">
+                                        {% for benefit in benefits_data %}
+                                        <tr class="align-middle border-bottom border-white border-opacity-5">
+                                            <td class="py-2">
+                                                <div class="fw-bold small">{{ benefit.revenue_line }}</div>
+                                                <div class="extra-small text-muted">{{ benefit.department.name }}</div>
+                                            </td>
+                                            <td class="text-end fw-bold text-info small">{{ benefit.annual_projection|floatformat:2|intcomma }}</td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr><td colspan="2" class="text-center py-4 text-muted extra-small">No strategic benefits recorded.</td></tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-lg-5">
+                            <div style="height: 180px;">
+                                <canvas id="pmBenefitChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Strategic Portfolio -->
+            <div class="cyber-card">
+                <div class="cyber-card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-project-diagram text-primary"></i>
+                        <h5 class="fw-bold mb-0 h6 text-uppercase tracking-widest">Managed Portfolio</h5>
+                    </div>
+                    <a href="{% url 'create-project' %}" class="btn-new-project">
+                        <i class="fas fa-plus"></i>
+                    </a>
+                </div>
+                <div class="p-4">
+                    <div class="row g-4">
+                        {% for p in projects %}
+                        <div class="col-md-6">
+                            <div class="project-tile h-100">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <div class="extra-small text-primary fw-bold text-uppercase tracking-wide mb-1">{{ p.department.name }}</div>
+                                        <h6 class="fw-800 mb-0">{{ p.name }}</h6>
+                                    </div>
+                                    <div class="risk-glow risk-{{ p.risk_indicator.color|default:'success' }}"></div>
+                                </div>
+                                
+                                <div class="mt-4">
+                                    <div class="d-flex justify-content-between extra-small mb-1">
+                                        <span class="text-muted">Portfolio Alignment</span>
+                                        <span class="fw-bold">{{ p.progress_percentage }}%</span>
+                                    </div>
+                                    <div class="cyber-progress">
+                                        <div class="cyber-progress-inner" style="width: {{ p.progress_percentage|default:'0' }}%"></div>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top border-white border-opacity-5">
+                                    <div class="d-flex -space-x-2">
+                                        <!-- Placeholder for team avatars if available -->
+                                        <div class="avatar-sm">TM</div>
+                                        <div class="avatar-sm">PM</div>
+                                    </div>
+                                    <a href="{% url 'project-detail' p.pk %}" class="btn-hex-link">
+                                        DETAILS <i class="fas fa-external-link-alt ms-1"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="col-12 py-5 text-center opacity-50">
+                            <i class="fas fa-folder-open display-4 mb-3"></i>
+                            <p>Strategic portfolio currently empty.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tier 2: Status & Escalation -->
+        <div class="col-lg-4">
+            <!-- Global Health Pulse -->
+            <div class="cyber-card p-4 text-center mb-4 overflow-hidden position-relative">
+                <div class="card-glow-bg"></div>
+                <h6 class="extra-small text-muted fw-bold text-uppercase tracking-widest mb-4">Portfolio Vitality Pulse</h6>
+                
+                <div class="health-ring-container mb-4">
+                    <div class="health-ring">
+                        <span class="health-value">{{ total_tasks|default:'0' }}</span>
+                        <span class="health-label">TASKS</span>
+                    </div>
+                </div>
+
+                <div class="row g-0 mt-4 border-top border-white border-opacity-5">
+                    <div class="col-6 py-3 border-end border-white border-opacity-5">
+                        <div class="h3 fw-bold text-crimson mb-0">{{ overdue_tasks.count }}</div>
+                        <div class="extra-small text-muted text-uppercase tracking-tighter">Escalated</div>
+                    </div>
+                    <div class="col-6 py-3">
+                        <div class="h3 fw-bold text-emerald mb-0">{% widthratio projects.count 1 100 %}%</div>
+                        <div class="extra-small text-muted text-uppercase tracking-tighter">Velocity</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Escalation Queue -->
+            <div class="cyber-card">
+                <div class="cyber-card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-bolt text-crimson"></i>
+                        <h5 class="fw-bold mb-0 text-white h6 text-uppercase tracking-widest">Escalation Queue</h5>
+                    </div>
+                </div>
+                <div class="p-3">
+                    {% for task in overdue_tasks|slice:":5" %}
+                    <div class="escalation-item">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="extra-small text-white fw-bold">{{ task.title|truncatechars:25 }}</span>
+                            <span class="badge-pill-crimson">OVERDUE</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <div class="extra-small text-muted d-flex align-items-center gap-2">
+                                <i class="fas fa-user-circle"></i> {{ task.owner.username }}
+                            </div>
+                            <div class="extra-small text-muted"><i class="fas fa-calendar-times me-1"></i> {{ task.due_date|date:"D d M" }}</div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-5 opacity-25">
+                        <i class="fas fa-shield-check display-4 mb-2"></i>
+                        <p class="extra-small mb-0">All systems within parameters.</p>
+                    </div>
+                    {% endfor %}
+                    
+                    {% if overdue_tasks.count > 5 %}
+                    <button class="btn btn-sm w-100 text-muted extra-small mt-3 border-top border-white border-opacity-5 pt-3">
+                        EXPAND ANALYTICS ({{ overdue_tasks.count }} ISSUES)
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    body { transition: var(--transition-soft); }
+
+    .animate-slide-in { animation: slideIn 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    .text-gradient-cyan {
+        background: linear-gradient(90deg, #06b6d4, #3b82f6);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .fw-800 { font-weight: 800; }
+    .extra-small { font-size: 0.7rem; }
+    .tracking-widest { letter-spacing: 0.15em; }
+
+    /* Stats Pulsing Orbs */
+    .stats-glow-orb { width: 12px; height: 12px; border-radius: 50%; }
+    .pulse-info { background: #3b82f6; box-shadow: 0 0 15px #3b82f6; animation: orbPulse 2s infinite; }
+    @keyframes orbPulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+    .pulse-emerald-dot { 
+        width: 8px; height: 8px; background: var(--text-emerald); 
+        border-radius: 50%; display: inline-block; 
+        box-shadow: 0 0 10px var(--text-emerald);
+        animation: dotPulse 1.5s infinite;
+    }
+    @keyframes dotPulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
+
+    /* Badges & Buttons */
+    .badge-premium { background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); padding: 5px 15px; border-radius: 20px; }
+    .glass-badge { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 6px 12px; }
+    .glass-badge-info { background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); color: #60a5fa; font-size: 0.65rem; }
+    
+    .badge-count-info { background: #3b82f6; color: white; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: bold; }
+    .badge-count-cyan { background: #06b6d4; color: white; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: bold; }
+    
+    .badge-pill-cyan { background: rgba(6, 182, 212, 0.1); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.2); border-radius: 4px; padding: 2px 8px; font-size: 0.6rem; font-weight: bold; }
+    .badge-pill-crimson { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 4px; padding: 2px 8px; font-size: 0.6rem; font-weight: bold; }
+
+    /* Cyber Card System */
+    .cyber-card { 
+        background: var(--cyber-panel); 
+        backdrop-filter: blur(20px); 
+        border: 1px solid var(--glass-border); 
+        border-radius: 24px; 
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    }
+    .cyber-card-header { padding: 20px 24px; border-bottom: 1px solid var(--glass-border); background: rgba(255, 255, 255, 0.02); }
+    .border-left-info { border-left: 4px solid #3b82f6 !important; }
+    .border-left-cyan { border-left: 4px solid #06b6d4 !important; }
+
+    .hover-glass:hover { background: rgba(255, 255, 255, 0.03); cursor: pointer; }
+
+    .btn-action-info { 
+        background: rgba(59, 130, 246, 0.1); color: #60a5fa; 
+        border: 1px solid rgba(59, 130, 246, 0.3); padding: 6px 16px; 
+        border-radius: 12px; font-size: 0.75rem; font-weight: bold;
+        transition: all 0.3s; text-decoration: none;
+    }
+    .btn-action-info:hover { background: #3b82f6; color: white; box-shadow: 0 0 20px rgba(59, 130, 246, 0.4); }
+
+    .glass-inner-card { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--glass-border); border-radius: 16px; transition: 0.3s; }
+    .glass-inner-card:hover { transform: translateY(-5px); border-color: rgba(6, 182, 212, 0.4); background: rgba(6, 182, 212, 0.03); }
+
+    .btn-link-cyan { color: #06b6d4; transition: 0.3s; }
+    .btn-link-cyan:hover { letter-spacing: 0.05em; text-shadow: 0 0 10px rgba(6, 182, 212, 0.5); }
+
+    /* Project Tiles */
+    .project-tile { 
+        background: rgba(255, 255, 255, 0.02); 
+        border: 1px solid var(--glass-border); 
+        border-radius: 20px; padding: 20px; 
+        transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); 
+    }
+    .project-tile:hover { background: rgba(255, 255, 255, 0.05); border-color: #3b82f6; transform: scale(1.02); box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4); }
+
+    .risk-glow { width: 10px; height: 10px; border-radius: 50%; }
+    .risk-success { background: #10b981; box-shadow: 0 0 15px #10b981; }
+    .risk-warning { background: #f59e0b; box-shadow: 0 0 15px #f59e0b; }
+    .risk-danger { background: #ef4444; box-shadow: 0 0 15px #ef4444; }
+
+    .cyber-progress { height: 6px; background: rgba(255, 255, 255, 0.05); border-radius: 10px; overflow: hidden; }
+    .cyber-progress-inner { height: 100%; background: linear-gradient(90deg, #3b82f6, #06b6d4); border-radius: 10px; }
+
+    .btn-hex-link { 
+        background: transparent; color: #3b82f6; font-size: 0.65rem; 
+        font-weight: 900; letter-spacing: 0.1em; border: none; 
+        padding: 5px 0; text-decoration: none; transition: 0.3s;
+    }
+    .btn-hex-link:hover { color: white; padding-left: 5px; }
+
+    .btn-new-project { 
+        width: 32px; height: 32px; background: #3b82f6; color: white; 
+        border: none; border-radius: 10px; display: flex; 
+        align-items: center; justify-content: center; transition: 0.3s;
+    }
+    .btn-new-project:hover { transform: rotate(90deg); box-shadow: 0 0 20px #3b82f6; }
+
+    /* Health Section */
+    .health-ring-container { position: relative; width: 150px; height: 150px; margin: 0 auto; }
+    .health-ring { 
+        width: 100%; height: 100%; border-radius: 50%; 
+        border: 4px solid rgba(255, 255, 255, 0.05);
+        border-top: 4px solid #3b82f6; border-right: 4px solid #06b6d4;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        animation: spin 3s linear infinite;
+    }
+    .health-value { font-size: 2.5rem; font-weight: 900; animation: none-spin 3s linear infinite reverse; }
+    .health-label { font-size: 0.6rem; font-weight: bold; color: rgba(255, 255, 255, 0.4); animation: none-spin 3s linear infinite reverse; }
+    
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes none-spin { to { transform: rotate(360deg); } }
+
+    .card-glow-bg {
+        position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+        background: radial-gradient(circle at center, rgba(59, 130, 246, 0.05) 0%, transparent 70%);
+        pointer-events: none;
+    }
+
+    /* Escalation Items */
+    .escalation-item { 
+        padding: 12px; background: rgba(239, 68, 68, 0.05); 
+        border: 1px solid rgba(239, 68, 68, 0.1); border-radius: 12px; 
+        margin-bottom: 12px; border-left: 3px solid #ef4444;
+        transition: 0.3s;
+    }
+    .escalation-item:hover { background: rgba(239, 68, 68, 0.1); transform: translateX(5px); }
+
+    .avatar-sm { 
+        width: 24px; height: 24px; border-radius: 50%; 
+        background: rgba(255, 255, 255, 0.1); border: 2px solid var(--cyber-bg);
+        display: flex; align-items: center; justify-content: center; font-size: 0.5rem; font-weight: bold;
+    }
+    .border-left-emerald { border-left: 4px solid #10b981 !important; }
+    .text-emerald { color: #10b981 !important; }
+    .pulse-emerald { background: #10b981; box-shadow: 0 0 15px #10b981; }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const canvas = document.getElementById('pmBenefitChart');
+    if (!canvas) return;
+    new Chart(canvas.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: {{ benefit_dept_labels|safe }},
+            datasets: [{
+                data: {{ benefit_dept_data|safe }},
+                backgroundColor: ['#4f46e5','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'],
+                borderWidth: 0,
+                hoverOffset: 15
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': USD ' + new Intl.NumberFormat().format(context.parsed);
+                        }
+                    }
+                }
+            },
+            cutout: '70%'
+        }
+    });
+});
+</script>
+{% endblock pageContent %}

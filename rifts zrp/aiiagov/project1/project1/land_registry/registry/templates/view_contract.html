@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex align-items-center mb-3">
+        <a href="{% url 'contract-list' %}" class="btn btn-sm btn-secondary rounded-circle shadow-sm me-3">
+            <i class="fas fa-arrow-left"></i></a>
+        <h3 class="fw-bold mb-0"> Contract: {{ contract.contract_ref }}</h3>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Main Contract Details -->
+    <div class="col-lg-8 animate__animated animate__fadeInLeft">
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-header bg-white border-0 pt-4 px-4 pb-0 d-flex justify-content-between">
+                <h5 class="fw-bold mb-0"> Execution Details</h5>
+                <span
+                    class="badge bg-{% if contract.status == 'Active' %}success{% else %}secondary{% endif %} rounded-pill px-3">
+                    {{ contract.status }}</span>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-4 mb-4">
+                    <div class="col-md-12">
+                        <div class="p-3 border rounded-3" style="background: var(--glass-bg);">
+                            <h4 class="fw-bold mb-1"> {{ contract.title }}</h4>
+                            <p class="text-muted small mb-0"> Awarded Bidder: <span class="fw-bold text-primary"> {{ contract.awarded_bid.bidder_name }}</span></p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="extra-small text-muted text-uppercase fw-bold mb-1"> Contract Amount</div>
+                        <h5 class="fw-bold text-success mb-0"> ${{ contract.amount|intcomma }}</h5>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="extra-small text-muted text-uppercase fw-bold mb-1"> Start Date</div>
+                        <h6 class="fw-bold mb-0"> {{ contract.start_date|date:"d M Y" }}</h6>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="extra-small text-muted text-uppercase fw-bold mb-1"> End Date</div>
+                        <h6 class="fw-bold mb-0"> {{ contract.end_date|date:"d M Y" }}</h6>
+                    </div>
+                </div>
+
+                <hr class="opacity-10 my-4">
+
+                <!-- Milestone Tracking -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold mb-0"> <i class="fas fa-tasks me-2 text-primary"></i> Contract Milestones</h6>
+                    <button class="btn btn-xs btn-outline-primary rounded-pill px-3"
+                        onclick="uni_modal('Add Milestone', '{% url 'save-milestone' %}?contract={{ contract.id }}', 'modal-md')">
+                        <i class="fas fa-plus me-1"></i> New Milestone</button>
+                </div>
+
+                <div class="list-group list-group-flush border rounded-3 overflow-hidden">
+                    {% for ms in milestones %}
+                    <div class="list-group-item p-3 d-flex justify-content-between align-items-start">
+                        <div class="d-flex">
+                            <div class="me-3">
+                                {% if ms.status == 'Met' %}
+                                <i class="fas fa-check-circle text-success fs-5"></i>
+                                {% elif ms.status == 'Overdue' %}
+                                <i class="fas fa-exclamation-circle text-danger fs-5"></i>
+                                {% else %}
+                                <i class="far fa-circle text-muted fs-5"></i>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <div class="fw-bold small"> {{ ms.title }}</div>
+                                <div class="extra-small text-muted"> Due: {{ ms.due_date|date:"d M Y" }}</div>
+                            </div>
+                        </div>
+                        <span
+                            class="badge bg-{% if ms.status == 'Met' %}success{% else %}secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25{% endif %} rounded-pill extra-small">
+                            {{ ms.status }}</span>
+                    </div>
+                    {% empty %}
+                    <div class="p-4 text-center text-muted small"> No milestones defined yet.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance History -->
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+            <div class="card-header bg-white border-0 pt-4 px-4 pb-1">
+                <h6 class="fw-bold mb-0"> <i class="fas fa-chart-line me-2 text-info"></i> Performance Evaluations</h6>
+            </div>
+            <div class="card-body p-4">
+                <div class="mb-4">
+                    <form id="evaluation-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="contract" value="{{ contract.id }}">
+                        <div class="row g-2 align-items-end">
+                            <div class="col">
+                                <label class="extra-small fw-bold text-muted mb-1"> Score (1-10)</label>
+                                <input type="number" name="score" class="form-control form-control-sm rounded-pill px-3"
+                                    min="1" max="10" required>
+                            </div>
+                            <div class="col-8">
+                                <label class="extra-small fw-bold text-muted mb-1"> Comments</label>
+                                <input type="text" name="comments"
+                                    class="form-control form-control-sm rounded-pill px-3"
+                                    placeholder="Enter evaluation details..." required>
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-sm btn-info text-white rounded-circle shadow-sm">
+                                    <i class="fas fa-plus"></i></button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="timeline-v">
+                    {% for eval in evaluations %}
+                    <div class="timeline-item-v">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span
+                                class="badge bg-{% if eval.score >= 8 %}success{% elif eval.score >= 5 %}warning{% else %}danger{% endif %} rounded-pill extra-small">
+                                Score: {{ eval.score }}/10</span>
+                            <span class="extra-small text-muted"> {{ eval.evaluation_date|date:"d M Y" }}</span>
+                        </div>
+                        <p class="small mb-0 italic"> "{{ eval.comments }}"</p>
+                        <div class="extra-small text-muted text-end mt-1"> &mdash; {{ eval.evaluated_by.username }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Side Sidebar -->
+    <div class="col-lg-4 animate__animated animate__fadeInRight">
+        <!-- Physical File Trail Overlay -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4 bg-dark text-white overflow-hidden">
+            <div class="card-body p-4 position-relative">
+                <div style="opacity: 0.1; position: absolute; top: -10px; right: -10px; font-size: 5rem;">
+                    <i class="fas fa-box-archive"></i>
+                </div>
+                <h6 class="fw-bold text-info mb-3"> <i class="fas fa-magnifying-glass me-2"></i> Physical Records Intelligence Link
+                </h6>
+
+                {% if contract.physical_file %}
+                <div class="p-3 rounded-3 bg-white bg-opacity-10 border border-white border-opacity-10 mb-3">
+                    <div class="extra-small text-white-50 fw-bold text-uppercase mb-1 text-info"> Referenced File</div>
+                    <div class="fw-bold mb-1"> {{ contract.physical_file.ref_num }}</div>
+                    <div class="extra-small text-white-50"> {{ contract.physical_file.title }}</div>
+                </div>
+                <div class="d-flex flex-column gap-2 mb-4">
+                    <div class="small"> <i class="fas fa-building me-2 opacity-50"></i> {{ contract.physical_file.current_department.name|default:"General Storage" }}</div>
+                    <div class="small"> <i class="fas fa-map-marker-alt me-2 opacity-50"></i> {{ contract.physical_file.current_location|default:"Unknown Location" }}</div>
+                </div>
+                <a href="{% url 'view-file_doc-pk' contract.physical_file.pk %}"
+                    class="btn btn-sm btn-light w-100 rounded-pill fw-bold">
+                    Audit Physical Trail</a>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="small text-white-50 mb-3"> No physical file linked to this contract yet.</p>
+                    <button class="btn btn-sm btn-outline-info w-100 rounded-pill"
+                        onclick="$('#linkFileModal').modal('show')">
+                        Link to File Trail</button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Document Repository -->
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-header border-0 pt-4 px-4 pb-1" style="background: transparent;">
+                <h6 class="fw-bold mb-0"> Contract Documents</h6>
+            </div>
+            <div class="card-body p-4 pt-1">
+                <div class="d-flex flex-column gap-2 mt-3">
+                    {% if contract.contract_document %}
+                    <a href="{{ contract.contract_document.url }}" class="file-item-v" target="_blank">
+                        <i class="fas fa-file-pdf text-danger fs-5 me-3"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold small mb-0"> Signed Contract</div>
+                            <div class="extra-small text-muted"> Original Scanned Copy</div>
+                        </div>
+                        <i class="fas fa-download text-muted small"></i>
+                    </a>
+                    {% endif %}
+                    {% if contract.awarded_bid.proposal_doc %}
+                    <a href="{{ contract.awarded_bid.proposal_doc.url }}" class="file-item-v" target="_blank">
+                        <i class="fas fa-file-word text-primary fs-5 me-3"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold small mb-0"> Winning Proposal</div>
+                            <div class="extra-small text-muted"> Submitted on {{ contract.awarded_bid.submission_date|date:"d M Y" }}</div>
+                        </div>
+                        <i class="fas fa-download text-muted small"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Linking File (Simplified) -->
+<div class="modal fade" id="linkFileModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header">
+                <h5 class="fw-bold mb-0"> Link Physical File Trail</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="small text-muted mb-4"> Select the physical file folder that contains the documentation for
+                    this contract.</p>
+                <form action="{% url 'view-contract-pk' contract.pk %}" method="POST" id="linkFileForm">
+                    {% csrf_token %}
+                    <select name="physical_file" class="form-select rounded-pill mb-4 select2" style="width:100%">
+                        <option value=""> -- Choose File --</option>
+                        {% for file in files %}
+                        <option value="{{ file.id }}"> {{ file.ref_num }} - {{ file.title }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-primary w-100 rounded-pill py-2 fw-bold"> Complete
+                        Integration</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .timeline-v {
+        position: relative;
+        padding-left: 1.5rem;
+    }
+
+    .timeline-v::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #f1f3f5;
+    }
+
+    .timeline-item-v {
+        position: relative;
+        padding-bottom: 1.5rem;
+    }
+
+    .timeline-item-v::before {
+        content: '';
+        position: absolute;
+        left: -1.78rem;
+        top: 5px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #ced4da;
+        border: 2px solid #fff;
+    }
+
+    .file-item-v {
+        display: flex;
+        align-items: center;
+        padding: 0.8rem 1rem;
+        background: var(--glass-bg);
+        border-radius: 12px;
+        text-decoration: none;
+        transition: transform 0.2s, background 0.2s;
+    }
+
+    .file-item-v:hover {
+        background: #f1f3f5;
+        transform: translateY(-2px);
+    }
+
+    .btn-xs {
+        padding: 0.2rem 0.6rem;
+        font-size: 0.7rem;
+    }
+</style>
+
+<script>$(function () {
+        $('.select2').select2({ placeholder: 'Select a file' });
+
+        $('#evaluation-form').submit(function (e) {
+            e.preventDefault();
+            start_loader();
+            $.ajax({
+                headers: { "X-CSRFToken": '{{ csrf_token }}' },
+                url: "{% url 'save-performance' %}",
+                method: "POST",
+                data: $(this).serialize(),
+                success: function (resp) {
+                    if (resp.status == 'success') {
+                        location.reload();
+                    } else {
+                        alert_toast(resp.msg, 'error');
+                        end_loader();
+                    }
+                }
+            });
+        });
+    });</script>
+{% endblock pageContent %}

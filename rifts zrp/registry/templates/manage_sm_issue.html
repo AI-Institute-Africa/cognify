@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="fw-bold mb-0">
+        <i class="bi bi-{% if issue %}pencil-square{% else %}plus-circle{% endif %} text-warning me-2"></i>
+        {% if issue %}Edit Issue Record{% else %}Record New Equipment Issue{% endif %}
+      </h3>
+      <small class="text-muted">Systems Manager Issues Register</small>
+    </div>
+    <a href="{% url 'sm-issues-register' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i> Back to Issues Register
+    </a>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags }} alert-dismissible fade show">
+        {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
+      <form id="smIssueForm" method="post">
+        {% csrf_token %}
+        {% if issue %}<input type="hidden" name="id" value="{{ issue.pk }}">{% endif %}
+
+        <div class="row g-3">
+
+          <!-- Equipment -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Equipment <span class="text-danger">*</span></label>
+            <select name="equipment" class="form-select" required>
+              <option value="">— Select equipment from register —</option>
+              {% for eq in equipment_qs %}
+                <option value="{{ eq.pk }}"
+                  {% if issue.equipment_id == eq.pk %}selected{% endif %}
+                  {% if request.GET.equipment == eq.pk|stringformat:"s" %}selected{% endif %}>
+                  {{ eq.entry_number }} — {{ eq.equipment_name }} ({{ eq.serial_number|default:"No S/N" }})
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Status -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Status <span class="text-danger">*</span></label>
+            <select name="status" class="form-select">
+              {% for val, label in status_choices %}
+                <option value="{{ val }}" {% if issue.status == val %}selected{% elif not issue and val == 'Issued' %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Issued To (System User) -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Issued To (System User)</label>
+            <select name="issued_to_user" class="form-select">
+              <option value="">— Select system user —</option>
+              {% for u in users %}
+                <option value="{{ u.pk }}" {% if issue.issued_to_user_id == u.pk %}selected{% endif %}>
+                  {{ u.get_full_name|default:u.username }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Issued To Name (freetext) -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Issued To — Name, Rank & Force No.</label>
+            <input type="text" name="issued_to_name" class="form-control"
+                   value="{{ issue.issued_to_name|default:'' }}"
+                   placeholder="e.g. 12345E Cst Moyo T.">
+          </div>
+
+          <!-- Station -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Station / Location Issued To</label>
+            <input type="text" name="issued_to_station" class="form-control"
+                   value="{{ issue.issued_to_station|default:'' }}"
+                   placeholder="e.g. Harare Central, Signals HQ">
+          </div>
+
+          <!-- Qty -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Quantity</label>
+            <input type="number" name="qty" class="form-control" min="1"
+                   value="{{ issue.qty|default:1 }}">
+          </div>
+
+          <!-- Date Issued -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Date Issued <span class="text-danger">*</span></label>
+            <input type="date" name="date_issued" class="form-control"
+                   value="{{ issue.date_issued|date:'Y-m-d'|default:'' }}" required>
+          </div>
+
+          <!-- Date Returned -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Date Returned <small class="text-muted">(leave blank if still out)</small></label>
+            <input type="date" name="date_returned" class="form-control"
+                   value="{{ issue.date_returned|date:'Y-m-d'|default:'' }}">
+          </div>
+
+          <!-- Remarks -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Remarks (Condition at Issue)</label>
+            <textarea name="remarks" class="form-control" rows="3"
+                      placeholder="Condition, notes, or any remarks at time of issue...">{{ issue.remarks|default:'' }}</textarea>
+          </div>
+
+          <!-- Return Remarks -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Return Remarks (Condition upon Return)</label>
+            <textarea name="return_remarks" class="form-control" rows="3"
+                      placeholder="Condition or notes at the time of return...">{{ issue.return_remarks|default:'' }}</textarea>
+          </div>
+
+        </div>
+
+        <hr class="my-4">
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-warning text-dark">
+            <i class="bi bi-save me-1"></i> {% if issue %}Update Issue Record{% else %}Record Issue{% endif %}
+          </button>
+          <a href="{% url 'sm-issues-register' %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<script>
+document.getElementById('smIssueForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  const form = this;
+  const data = new FormData(form);
+  fetch("{% url 'save-sm-issue' %}", {
+    method: 'POST',
+    body: data,
+    headers: {'X-CSRFToken': '{{ csrf_token }}'}
+  })
+  .then(r => r.json())
+  .then(resp => {
+    if(resp.status === 'success'){
+      alert(resp.msg);
+      window.location.href = "{% url 'sm-issues-register' %}";
+    } else {
+      alert('Error: ' + resp.msg);
+    }
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block pageContent %}
+<div class="container py-5 d-flex justify-content-center align-items-center" style="min-height: 80vh;">
+    <div class="col-md-6">
+        <div class="glass-card p-5 text-center">
+            <div class="mb-4">
+                <div class="bg-primary bg-opacity-10 p-4 rounded-circle d-inline-block mb-3">
+                    <i class="fas fa-shield-alt display-4 text-primary"></i></div>
+                <h2 class="fw-bold"> Security Verification</h2>
+                <p class="text-muted"> RIFTS-X Sovereign Distribution Protocol</p></div>
+
+            {% if error %}
+            <div class="alert alert-danger rounded-pill px-4 mb-4">
+                <i class="fas fa-exclamation-circle me-2"></i> {{error}}</div>
+            <a href="{% url 'home-page' %}" class="btn btn-outline-light rounded-pill px-4"> Return Home</a>
+            {% elif success %}
+            <div class="alert alert-success rounded-pill px-4 mb-4">
+                <i class="fas fa-check-circle me-2"></i> Verification Successful</div>
+            <div class="text-start mb-4">
+                <div class="p-3 bg-light bg-opacity-10 rounded-3 mb-3">
+                    <div class="small text-muted text-uppercase fw-bold mb-1"> File Title</div>
+                    <div class="h5 mb-0 fw-bold"> {{file_doc.title}}</div></div>
+                <div class="p-3 bg-light bg-opacity-10 rounded-3">
+                    <div class="small text-muted text-uppercase fw-bold mb-1"> Description</div>
+                    <div class="small mb-0"> {{file_doc.description}}</div></div></div>
+            <a href="{% url 'home-page' %}" class="btn btn-primary rounded-pill px-5"> Close Hub</a>
+            {% else %}
+            <p class="small text-muted mb-4"> This link requires a **Proof of Knowledge** to authorize decryption. Please
+                provide the File Reference Number.</p>
+
+            <form action="" method="POST">
+                {% csrf_token %}
+                <div class="mb-4 text-start">
+                    <label for="proof" class="form-label small fw-bold text-muted text-uppercase mb-2"> Proof of
+                        Knowledge (Ref Num)</label>
+                    <input type="text" id="proof" name="proof"
+                        class="form-control border-0 shadow-sm rounded-pill px-4 font-monospace text-center"
+                        placeholder="e.g. REF-XXXXX" required autocomplete="off"></div>
+                <button type="submit" class="btn btn-primary w-100 py-3 rounded-pill shadow-lg hover-scale">
+                    <i class="fas fa-unlock-alt me-2"></i> Verify & Decrypt</button></form>
+            <div class="mt-4 pt-3 border-top border-white border-opacity-10">
+                <small class="text-muted"> This link will expire at: <span class="fw-bold"> {{link.expires_at|date:'H:i                         e'}}</span></small></div>
+            {% endif %}</div></div></div>
+{% endblock pageContent %}
+
+
+
+

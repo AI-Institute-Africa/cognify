@@ -1,0 +1,540 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block headerContent %}
+<style>
+.recorder-hero {
+    background: linear-gradient(135deg, #0d1b2a 0%, #1a2a4a 100%);
+    border-radius: 20px; padding: 2.5rem; color: #fff; position: relative; overflow: hidden;
+}
+.recorder-hero::before {
+    content: ''; position: absolute; top: -60px; right: -60px;
+    width: 250px; height: 250px;
+    background: radial-gradient(circle, rgba(13,202,240,.18) 0%, transparent 70%);
+    border-radius: 50%;
+}
+#mic-btn {
+    width: 90px; height: 90px; border-radius: 50%; font-size: 2rem; border: none;
+    background: linear-gradient(135deg, #0dcaf0, #0d6efd); color: #fff;
+    box-shadow: 0 0 0 0 rgba(13,202,240,.6); transition: transform .2s, box-shadow .2s; cursor: pointer;
+}
+#mic-btn.recording { background: linear-gradient(135deg, #dc3545, #c44); animation: pulse 1s infinite; }
+@keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(220,53,69,.6); }
+    70%  { box-shadow: 0 0 0 18px rgba(220,53,69,0); }
+    100% { box-shadow: 0 0 0 0 rgba(220,53,69,0); }
+}
+#live-status { font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; font-weight:600; transition:color .3s; }
+#interim-text { color:rgba(255,255,255,.5); font-style:italic; min-height:1.6em; font-size:.92rem; }
+#transcript-box { min-height:300px; background:var(--glass-bg); border:2px solid var(--glass-border);
+    border-radius:12px; font-size:.95rem; line-height:1.85; resize:vertical; font-family:'Courier New',monospace; }
+#transcript-box:focus { border-color:#0d6efd; box-shadow:none; outline:none; }
+.wave-bar { display:inline-block; width:4px; height:6px; background:#0dcaf0; border-radius:2px; margin:0 1px; transition:height .15s ease; }
+.timer-badge { font-variant-numeric:tabular-nums; font-weight:700; letter-spacing:.04em; }
+
+/* Speaker pill buttons */
+.speaker-btn { border-radius:20px; font-size:.8rem; font-weight:700; padding:6px 16px; border:2px solid transparent; cursor:pointer; transition:all .2s; }
+.speaker-btn.active-speaker { box-shadow:0 0 0 3px #fff; transform:scale(1.08); }
+
+/* Conversation log */
+.convo-line { display:flex; gap:10px; margin-bottom:6px; align-items:flex-start; }
+.convo-badge { font-size:.72rem; font-weight:700; border-radius:10px; padding:3px 10px; white-space:nowrap; min-width:90px; text-align:center; }
+.convo-text  { font-size:.9rem; line-height:1.5; flex:1; }
+</style>
+{% endblock headerContent %}
+
+{% block pageContent %}
+<div class="container py-4" style="max-width:960px;">
+
+    <!-- Back + Title -->
+    <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'view-meeting' meeting.id %}" class="btn btn-sm btn-secondary rounded-circle shadow-sm me-3">
+            <i class="fas fa-arrow-left"></i></a>
+        <div>
+            <h5 class="fw-bold mb-0"><i class="fas fa-microphone-alt text-primary me-2"></i> Record Meeting Minutes</h5>
+            <p class="text-muted small mb-0">{{ meeting.title }} &mdash; {{ meeting.meeting_date|date:"d M Y" }}</p>
+        </div>
+    </div>
+
+    <!-- Recorder Hero -->
+    <div class="recorder-hero mb-4">
+        <div class="row align-items-start g-4">
+
+            <!-- Mic + controls -->
+            <div class="col-auto text-center">
+                <button id="mic-btn" title="Click to start/stop recording">
+                    <i class="fas fa-microphone" id="mic-icon"></i></button>
+                <div class="mt-3"><span id="live-status" class="text-info">Ready</span></div>
+                <div class="mt-3">
+                    <select id="lang-select" class="form-select form-select-sm bg-dark text-white border-secondary rounded-pill extra-small px-3">
+                        <option value="sn-ZW" selected>Shona (Default)</option>
+                        <option value="en-ZA">Sho-nglish (Mixed)</option>
+                        <option value="en-US">English (US)</option>
+                        <option value="en-GB">English (UK)</option>
+                        <option value="nd-ZW">Ndebele</option>
+                        <option value="zu-ZA">IsiZulu</option>
+                        <option value="sw-KE">KiSwahili</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Live feed + speaker controls -->
+            <div class="col">
+                <!-- Wave + timer -->
+                <div class="d-flex align-items-center gap-3 mb-2">
+                    <div id="wave" style="display:none;">
+                        {% for i in "12345678" %}<span class="wave-bar"></span>{% endfor %}
+                    </div>
+                    <span class="badge bg-danger rounded-pill timer-badge" id="timer-display" style="display:none;font-size:.9rem;padding:.4em .8em;">00:00</span>
+                </div>
+
+                <!-- Live interim text -->
+                <div id="interim-text" class="mb-2">… live transcript will appear here as you speak …</div>
+                <hr class="border-secondary opacity-25 my-2">
+
+                <!-- Speaker selector -->
+                <div class="mb-2">
+                    <p class="extra-small text-white-50 mb-2"><i class="fas fa-users me-1"></i> Select active speaker before they speak:</p>
+                    <div id="speaker-controls" class="d-flex gap-2 flex-wrap align-items-center">
+                        <button class="speaker-btn active-speaker" style="background:#0d6efd;color:#fff;" data-speaker="Speaker 1">Speaker 1</button>
+                        <button class="speaker-btn" style="background:#198754;color:#fff;" data-speaker="Speaker 2">Speaker 2</button>
+                        <button class="speaker-btn" style="background:#fd7e14;color:#fff;" data-speaker="Speaker 3">Speaker 3</button>
+                        <button class="speaker-btn" style="background:#9c27b0;color:#fff;" data-speaker="Speaker 4">Speaker 4</button>
+                        <button class="btn btn-sm btn-outline-light rounded-pill ms-2" id="addSpeakerBtn"><i class="fas fa-plus me-1"></i>Add</button>
+                        <div class="form-check form-switch ms-3 d-inline-block">
+                            <input class="form-check-input" type="checkbox" id="autoDialogueToggle">
+                            <label class="form-check-label extra-small text-white-50" for="autoDialogueToggle">
+                                <i class="fas fa-arrows-rotate me-1 text-warning"></i>Auto-Alternate Turn on Pause
+                            </label>
+                        </div>
+                    </div>
+                    <p class="extra-small text-white-50 mt-2 mb-0">
+                        <i class="fas fa-keyboard me-1 text-info"></i>
+                        Tip: Press <strong>1, 2, 3, 4</strong> on keyboard to instantly switch speakers while talking. Consecutive speech is merged into one dialogue turn.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transcript Tabs: Conversation View vs Raw Text -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header border-0 d-flex justify-content-between align-items-center pt-3 px-4 pb-0 flex-wrap gap-2" style="background:transparent;">
+            <div>
+                <h6 class="fw-bold mb-0">Meeting Transcript / Minutes</h6>
+                <p class="text-muted extra-small mb-0">Auto-filled from speech &mdash; switch between Conversation and Raw Text views</p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <button class="btn btn-sm btn-outline-warning rounded-pill" id="formatConvoBtn" title="Clean and merge repeating tags into clean conversational dialogue">
+                    <i class="fas fa-wand-magic-sparkles me-1"></i>Format Dialogue
+                </button>
+                <button class="btn btn-sm btn-outline-secondary rounded-pill" id="clearBtn"><i class="fas fa-trash-alt me-1"></i>Clear</button>
+                <button class="btn btn-sm btn-outline-primary rounded-pill" id="copyBtn"><i class="fas fa-copy me-1"></i>Copy</button>
+            </div>
+        </div>
+        <div class="card-body px-4 pb-4 pt-3">
+
+            <!-- View tabs -->
+            <ul class="nav nav-pills nav-sm mb-3" id="transcriptTabs">
+                <li class="nav-item">
+                    <button class="nav-link active extra-small rounded-pill px-3" id="convoTabBtn">
+                        <i class="fas fa-comments me-1"></i> Conversation
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link extra-small rounded-pill px-3" id="rawTabBtn">
+                        <i class="fas fa-align-left me-1"></i> Raw Text
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Conversation log -->
+            <div id="convo-log" style="min-height:220px;max-height:420px;overflow-y:auto;padding:8px 4px;"></div>
+
+            <!-- Raw text textarea (hidden by default) -->
+            <textarea id="transcript-box" class="form-control border-2 p-3" style="display:none;"
+                placeholder="Conversation log will appear here in text format…">{% if meeting.minutes_text %}{{ meeting.minutes_text }}{% endif %}</textarea>
+
+            <div class="d-flex justify-content-between align-items-center mt-2">
+                <span class="extra-small text-muted"><span id="word-count">0</span> words</span>
+                <span class="extra-small text-success" id="save-indicator" style="display:none;"><i class="fas fa-check-circle me-1"></i>Saved</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Bar -->
+    <div class="d-flex flex-wrap gap-3 justify-content-end">
+        <button class="btn btn-success rounded-pill px-4 shadow-sm" id="saveTextBtn">
+            <i class="fas fa-save me-2"></i>Save Minutes Text</button>
+        <form id="pdfForm" method="POST" action="{% url 'download-minutes-pdf' meeting.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="transcript" id="pdfTranscript">
+            <button type="submit" class="btn btn-primary rounded-pill px-4 shadow-sm" id="pdfBtn">
+                <i class="fas fa-file-pdf me-2"></i>Download as PDF</button>
+        </form>
+    </div>
+
+    <!-- Browser support notice -->
+    <div class="alert alert-warning rounded-3 mt-4 d-none" id="no-support-alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>Speech recognition is not supported in this browser.</strong>
+        Please use <strong>Google Chrome</strong>. You can still type minutes manually.
+    </div>
+
+</div>
+
+<style>.extra-small { font-size:.72rem; }</style>
+
+<script>
+$(function () {
+    // ─── Speaker colours ────────────────────────────────────────────────────
+    const SPEAKER_COLORS = {
+        'Speaker 1': { bg:'#0d6efd', text:'#fff' },
+        'Speaker 2': { bg:'#198754', text:'#fff' },
+        'Speaker 3': { bg:'#fd7e14', text:'#fff' },
+        'Speaker 4': { bg:'#9c27b0', text:'#fff' },
+    };
+    let speakerCount = 4;
+    let activeSpeaker = 'Speaker 1';
+
+    // ─── Speaker button click ────────────────────────────────────────────────
+    $(document).on('click', '.speaker-btn', function () {
+        $('.speaker-btn').removeClass('active-speaker');
+        $(this).addClass('active-speaker');
+        activeSpeaker = $(this).data('speaker');
+    });
+
+    // ─── Add new speaker ─────────────────────────────────────────────────────
+    $('#addSpeakerBtn').click(function () {
+        speakerCount++;
+        const name = `Speaker ${speakerCount}`;
+        const hue = (speakerCount * 67) % 360;
+        const color = `hsl(${hue},65%,45%)`;
+        SPEAKER_COLORS[name] = { bg: color, text: '#fff' };
+        const btn = $(`<button class="speaker-btn" data-speaker="${name}" style="background:${color};color:#fff;">${name}</button>`);
+        $('#addSpeakerBtn').before(btn);
+        btn.trigger('click');
+    });
+
+    // ─── Conversation data store ──────────────────────────────────────────────
+    // Each entry: { speaker, text, ts }
+    let convoLines = [];
+
+    // Pre-populate from saved minutes
+    const savedText = $('#transcript-box').val().trim();
+    if (savedText) {
+        savedText.split('\n').forEach(line => {
+            const m = line.match(/^\[(.+?)\]:\s*(.+)/);
+            if (m) {
+                convoLines.push({ speaker: m[1], text: m[2], ts: '' });
+            } else if (line.trim()) {
+                convoLines.push({ speaker: 'Speaker 1', text: line.trim(), ts: '' });
+            }
+        });
+        renderConvo();
+    }
+
+    function speakerColor(name) {
+        return SPEAKER_COLORS[name] || { bg: '#555', text: '#fff' };
+    }
+
+    function renderConvo() {
+        const $log = $('#convo-log');
+        $log.empty();
+        convoLines.forEach((line, idx) => {
+            const c = speakerColor(line.speaker);
+            $log.append(`
+                <div class="convo-line" data-idx="${idx}">
+                    <span class="convo-badge" style="background:${c.bg};color:${c.text};">${line.speaker}</span>
+                    <span class="convo-text text-white" contenteditable="true" data-idx="${idx}">${line.text}</span>
+                    <button class="btn btn-sm btn-link text-danger p-0 ms-1 del-line" data-idx="${idx}" title="Delete line"><i class="fas fa-times"></i></button>
+                </div>`);
+        });
+        $log.scrollTop($log[0].scrollHeight);
+        syncRawText();
+        updateWordCount();
+    }
+
+    function syncRawText() {
+        const raw = convoLines.map(l => `[${l.speaker}]: ${l.text}`).join('\n');
+        $('#transcript-box').val(raw);
+    }
+
+    // Edit a line directly
+    $(document).on('blur', '.convo-text', function () {
+        const idx = parseInt($(this).data('idx'));
+        convoLines[idx].text = $(this).text().trim();
+        syncRawText();
+    });
+
+    // Delete a line
+    $(document).on('click', '.del-line', function () {
+        const idx = parseInt($(this).data('idx'));
+        convoLines.splice(idx, 1);
+        renderConvo();
+    });
+
+    // ─── Tab toggle ───────────────────────────────────────────────────────────
+    $('#convoTabBtn').click(function () {
+        $(this).addClass('active'); $('#rawTabBtn').removeClass('active');
+        $('#convo-log').show(); $('#transcript-box').hide();
+    });
+    $('#rawTabBtn').click(function () {
+        $(this).addClass('active'); $('#convoTabBtn').removeClass('active');
+        $('#transcript-box').show(); $('#convo-log').hide();
+        syncRawText();
+    });
+
+    // ─── Word count ───────────────────────────────────────────────────────────
+    function updateWordCount() {
+        const text = convoLines.map(l => l.text).join(' ').trim();
+        const count = text ? text.split(/\s+/).length : 0;
+        $('#word-count').text(count);
+    }
+
+    // ─── Clear / Copy ─────────────────────────────────────────────────────────
+    $('#clearBtn').click(function () {
+        if (confirm('Clear all transcript lines?')) {
+            convoLines = [];
+            renderConvo();
+        }
+    });
+    $('#copyBtn').click(function () {
+        syncRawText();
+        navigator.clipboard.writeText($('#transcript-box').val())
+            .then(() => alert_toast('Copied to clipboard!', 'success'))
+            .catch(() => alert_toast('Could not copy.', 'error'));
+    });
+
+    // ─── PDF ──────────────────────────────────────────────────────────────────
+    $('#pdfBtn').closest('form').on('submit', function () {
+        syncRawText();
+        $('#pdfTranscript').val($('#transcript-box').val());
+    });
+
+    // ─── Save text via AJAX ───────────────────────────────────────────────────
+    $('#saveTextBtn').click(function () {
+        syncRawText();
+        $.ajax({
+            headers: { "X-CSRFToken": '{{ csrf_token }}' },
+            url: "{% url 'save-minutes-text' meeting.id %}",
+            method: "POST",
+            data: { transcript: $('#transcript-box').val() },
+            success: function (resp) {
+                if (resp.status === 'success') {
+                    $('#save-indicator').fadeIn().delay(2000).fadeOut();
+                    alert_toast('Minutes saved!', 'success');
+                }
+            }
+        });
+    });
+
+    // ─── Conversational Dialogue Formatter ────────────────────────────────────
+    function formatConversationalText(rawText) {
+        if (!rawText) return '';
+        var flattened = [];
+        // Match both single-line and multi-line speaker tags
+        var regex = /\[(Speaker\s*\d+|[^\]]+)\]:\s*([^\[]+)/gi;
+        var match;
+        while ((match = regex.exec(rawText)) !== null) {
+            var spk = match[1].trim();
+            var txt = match[2].trim();
+            if (txt) flattened.push({ speaker: spk, text: txt });
+        }
+        if (flattened.length === 0) return rawText;
+
+        var merged = [];
+        var curSpk = null;
+        var curWords = [];
+        flattened.forEach(function(item) {
+            if (curSpk === item.speaker) {
+                curWords.push(item.text);
+            } else {
+                if (curSpk && curWords.length > 0) {
+                    merged.push({ speaker: curSpk, text: curWords.join(' ') });
+                }
+                curSpk = item.speaker;
+                curWords = [item.text];
+            }
+        });
+        if (curSpk && curWords.length > 0) {
+            merged.push({ speaker: curSpk, text: curWords.join(' ') });
+        }
+        return merged;
+    }
+
+    // Auto-Format Dialogue Button
+    $('#formatConvoBtn').click(function () {
+        var raw = $('#transcript-box').val();
+        var merged = formatConversationalText(raw);
+        if (Array.isArray(merged) && merged.length > 0) {
+            convoLines = merged;
+            renderConvo();
+            alert_toast('Formatted into clean conversational dialogue!', 'success');
+        } else {
+            alert_toast('No conversational speaker tags found to format.', 'info');
+        }
+    });
+
+    // Keyboard Shortcuts for quick conversational switching (1, 2, 3, 4)
+    $(document).on('keydown', function(e) {
+        if ($(e.target).is('input, textarea, [contenteditable="true"]')) return;
+        if (['1', '2', '3', '4'].includes(e.key)) {
+            var targetSpeaker = 'Speaker ' + e.key;
+            var $btn = $(`.speaker-btn[data-speaker="${targetSpeaker}"]`);
+            if ($btn.length) {
+                $btn.trigger('click');
+                if (typeof alert_toast !== 'undefined') alert_toast(`Switched to ${targetSpeaker}`, 'info');
+            }
+        }
+    });
+
+    // ─── Speech Recognition ───────────────────────────────────────────────────
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        $('#no-support-alert').removeClass('d-none');
+        $('#mic-btn').prop('disabled', true).css('opacity', '.5');
+        return;
+    }
+
+    let recognition = new SpeechRecognition();
+    let isRecording   = false;
+    let timerInterval = null;
+    let seconds       = 0;
+    let lastUtteranceTime = Date.now();
+
+    function buildRecognition() {
+        recognition = new SpeechRecognition();
+        recognition.continuous     = true;
+        recognition.interimResults = true;
+        recognition.lang           = $('#lang-select').val();
+        recognition.maxAlternatives = 1;
+
+        recognition.onresult = function (event) {
+            let interim = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const t = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    const trimmed = t.trim();
+                    if (trimmed) {
+                        var now = Date.now();
+                        var pauseDuration = (now - lastUtteranceTime) / 1000;
+                        lastUtteranceTime = now;
+
+                        // Check if Auto-Dialogue mode is enabled and a significant pause (> 2.2s) occurred
+                        if ($('#autoDialogueToggle').is(':checked') && pauseDuration > 2.2 && convoLines.length > 0) {
+                            // Switch to next speaker on natural conversational pause
+                            activeSpeaker = (activeSpeaker === 'Speaker 1') ? 'Speaker 2' : 'Speaker 1';
+                            $('.speaker-btn').removeClass('active-speaker');
+                            $(`.speaker-btn[data-speaker="${activeSpeaker}"]`).addClass('active-speaker');
+                        }
+
+                        // CONVERSATIONAL MERGING:
+                        // If current speaker is the same as the last line's speaker, append words instead of creating repeated tags!
+                        if (convoLines.length > 0 && convoLines[convoLines.length - 1].speaker === activeSpeaker) {
+                            convoLines[convoLines.length - 1].text += ' ' + trimmed;
+                        } else {
+                            convoLines.push({ speaker: activeSpeaker, text: trimmed, ts: new Date().toLocaleTimeString() });
+                        }
+                        renderConvo();
+                    }
+                    interim = '';
+                } else {
+                    interim += t;
+                }
+            }
+            $('#interim-text').text(interim ? `${activeSpeaker}: ${interim}` : '');
+        };
+
+        recognition.onerror = function (event) {
+            if (event.error === 'no-speech') {
+                // Silently restart — no-speech just means a pause
+                if (isRecording) { try { recognition.stop(); } catch(e){} }
+                return;
+            }
+            if (event.error === 'not-allowed') {
+                alert_toast('Microphone access denied. Please allow microphone in your browser settings.', 'error');
+                stopRecording();
+                return;
+            }
+            // For other errors restart automatically
+            if (isRecording) {
+                setTimeout(() => { try { recognition.start(); } catch(e){} }, 300);
+            }
+        };
+
+        recognition.onend = function () {
+            if (isRecording) {
+                // Auto-restart to keep continuous recording alive
+                setTimeout(() => { try { recognition.start(); } catch(e){} }, 150);
+            }
+        };
+    }
+
+    buildRecognition();
+
+    // Language change
+    $('#lang-select').on('change', function () {
+        if (isRecording) {
+            try { recognition.stop(); } catch(e){}
+            buildRecognition();
+            setTimeout(() => { try { recognition.start(); } catch(e){} }, 400);
+        } else {
+            buildRecognition();
+        }
+    });
+
+    // ─── Mic Button ──────────────────────────────────────────────────────────
+    $('#mic-btn').click(function () {
+        if (!isRecording) {
+            startRecording();
+        } else {
+            stopRecording();
+        }
+    });
+
+    function startRecording() {
+        buildRecognition();
+        try {
+            recognition.start();
+        } catch(e) {
+            alert_toast('Could not start microphone: ' + e.message, 'error');
+            return;
+        }
+        isRecording = true;
+        $('#mic-btn').addClass('recording');
+        $('#mic-icon').removeClass('fa-microphone').addClass('fa-stop');
+        $('#live-status').text('Recording…').removeClass('text-info').addClass('text-danger');
+        startTimer(); startWave();
+    }
+
+    function stopRecording() {
+        try { recognition.stop(); } catch(e){}
+        isRecording = false;
+        $('#mic-btn').removeClass('recording');
+        $('#mic-icon').removeClass('fa-stop').addClass('fa-microphone');
+        $('#live-status').text('Ready').removeClass('text-danger').addClass('text-info');
+        $('#interim-text').text('Recording stopped. Review transcript above.');
+        stopTimer(); stopWave();
+    }
+
+    // ─── Timer ───────────────────────────────────────────────────────────────
+    function formatTime(s) { return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
+    function startTimer() {
+        seconds = 0;
+        $('#timer-display').text(formatTime(0)).show();
+        timerInterval = setInterval(() => { seconds++; $('#timer-display').text(formatTime(seconds)); }, 1000);
+    }
+    function stopTimer() { clearInterval(timerInterval); $('#timer-display').hide(); seconds = 0; }
+
+    // ─── Wave bars ───────────────────────────────────────────────────────────
+    let waveInterval = null;
+    function startWave() {
+        $('#wave').show();
+        waveInterval = setInterval(() => {
+            $('#wave .wave-bar').each(function () { $(this).css('height', (6 + Math.random()*22)+'px'); });
+        }, 120);
+    }
+    function stopWave() { clearInterval(waveInterval); $('#wave .wave-bar').css('height','6px'); $('#wave').hide(); }
+});
+</script>
+{% endblock pageContent %}

@@ -1,0 +1,345 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Z.R.P. FORM 27 - Requisition/Issue Voucher No. {{ voucher.voucher_no }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace, 'Times New Roman';
+            color: #000;
+            background: #f4f6f9;
+            font-size: 13.5px;
+            line-height: 1.4;
+        }
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 16mm 20mm;
+            margin: 15px auto;
+            background: #fff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            position: relative;
+            box-sizing: border-box;
+        }
+        @media print {
+            body {
+                background: #fff;
+                margin: 0;
+                padding: 0;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .page {
+                box-shadow: none;
+                margin: 0;
+                width: 100%;
+                min-height: 100vh;
+                padding: 10mm 15mm;
+            }
+            @page {
+                size: A4 portrait;
+                margin: 8mm;
+            }
+        }
+        .dotted-line {
+            border-bottom: 1px dotted #000;
+            display: inline-block;
+            padding: 0 4px;
+            font-weight: bold;
+        }
+        table.form27-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 14px;
+            margin-bottom: 20px;
+        }
+        table.form27-table th, table.form27-table td {
+            border: 1.5px solid #000;
+            padding: 6px 12px;
+            vertical-align: middle;
+        }
+        table.form27-table th {
+            text-align: left;
+            font-size: 13px;
+            text-transform: uppercase;
+            font-weight: bold;
+            background-color: #fcfcfc;
+        }
+        .empty-dot-row {
+            height: 28px;
+            border-bottom: 1px dotted #555;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Action Bar (hidden on print) -->
+    <div class="no-print py-2 bg-dark text-white text-center shadow-sm sticky-top">
+        <div class="container-fluid d-flex justify-content-between align-items-center">
+            <div>
+                <span class="fw-bold"><i class="fas fa-file-invoice text-warning me-1"></i> Statutory Z.R.P. FORM 27</span>
+                <span class="badge bg-secondary ms-2">Voucher No: {{ voucher.voucher_no }}</span>
+                <span class="badge bg-{% if voucher.status == 'Received' %}success{% elif voucher.status == 'Dispatched' %}primary{% else %}warning text-dark{% endif %} ms-1">
+                    {{ voucher.status }}
+                </span>
+            </div>
+            <div>
+                <a href="{% url 'view-form27' voucher.pk %}" class="btn btn-sm btn-outline-light me-2 rounded-pill px-3">
+                    <i class="fas fa-arrow-left me-1"></i> Back to Voucher
+                </a>
+                <button onclick="window.print()" class="btn btn-sm btn-warning text-dark fw-bold rounded-pill px-4 shadow-sm">
+                    <i class="fas fa-print me-1"></i> Print Form 27 (Ctrl + P)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Official Statutory Printable Voucher Sheet -->
+    <div class="page">
+        <!-- Top Reference: Z.R.P. ... FORM 27 -->
+        <div class="d-flex justify-content-between align-items-center mb-2 fw-bold" style="font-size: 15px; letter-spacing: 1px;">
+            <div>Z.R.P.</div>
+            <div>FORM 27</div>
+        </div>
+
+        <!-- Header Titles -->
+        <div class="text-center my-3">
+            <div class="fw-bold fs-5 text-uppercase" style="letter-spacing: 2px;">Z.R.POLICE  I.C.T</div>
+            <div class="fw-bold fs-6 text-uppercase mt-1" style="letter-spacing: 1px; text-decoration: underline;">Requisition/Issue Voucher</div>
+        </div>
+
+        <!-- Voucher Number and Date -->
+        <div class="d-flex justify-content-between align-items-baseline mb-2" style="font-size: 14px;">
+            <div>
+                <span class="fw-bold">NO</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                <span class="dotted-line fs-6" style="min-width: 140px;">{{ voucher.voucher_no }}</span>
+            </div>
+            <div>
+                <span>Date…</span><span class="dotted-line" style="min-width: 140px;">{{ voucher.date|date:"d/m/Y" }}</span><span>………</span>
+            </div>
+        </div>
+
+        <!-- Issued By -->
+        <div class="my-2" style="font-size: 13.5px; line-height: 1.8;">
+            Issued by………………………..… <span class="dotted-line" style="min-width: 320px;">{{ voucher.issued_by }}</span>………………………………………………………
+        </div>
+
+        <!-- Station, Date, Requisition No -->
+        <div class="d-flex justify-content-between align-items-baseline my-2 flex-wrap" style="font-size: 13.5px; line-height: 1.8;">
+            <div style="flex-grow: 1;">
+                Station <span class="dotted-line" style="min-width: 220px;">{{ voucher.station }}</span>…………………………..…………..
+            </div>
+            <div>
+                Date…<span class="dotted-line" style="min-width: 100px;">{% if voucher.station_date %}{{ voucher.station_date|date:"d/m/Y" }}{% else %}{{ voucher.date|date:"d/m/Y" }}{% endif %}</span>…
+            </div>
+            <div class="ms-3">
+                Requisition No…<span class="dotted-line" style="min-width: 120px;">{{ voucher.requisition_no|default:"………………" }}</span>…
+            </div>
+        </div>
+
+        <!-- How Dispatched, Checker, Date -->
+        <div class="d-flex justify-content-between align-items-baseline my-2 flex-wrap" style="font-size: 13.5px; line-height: 1.8;">
+            <div style="flex-grow: 1;">
+                How Dispatched……<span class="dotted-line" style="min-width: 200px;">{{ voucher.how_dispatched|default:"Hand / Dispatch Vehicle" }}</span>……………………………………..……….
+            </div>
+            <div>
+                Checker…<span class="dotted-line" style="min-width: 140px;">{% if voucher.checker_user %}{{ voucher.checker_user.get_full_name|default:voucher.checker_user.username }}{% else %}{{ voucher.checker|default:"CST KADIKI" }}{% endif %}</span>….
+            </div>
+            <div class="ms-3">
+                Date <span class="dotted-line" style="min-width: 100px;">{{ voucher.checker_date|date:"d/m/Y" }}</span>
+            </div>
+        </div>
+
+        <!-- Items Table -->
+        <table class="form27-table">
+            <thead>
+                <tr>
+                    <th style="width: 65%;">Description</th>
+                    <th style="width: 35%; text-align: center;">For Stores Use Only</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>
+                        {% if item.item_type %}
+                        <span class="badge bg-light text-dark me-1" style="border: 1px solid #000; font-size: 11px;">[{{ item.item_type|upper }}]</span>
+                        {% endif %}
+                        <span class="fw-bold">{{ item.description }}</span>
+                        {% if item.serial_number %}
+                        <span class="font-monospace ms-2">[S/N: {{ item.serial_number.serial_number }}]</span>
+                        {% endif %}
+                        {% if item.remarks %}
+                        <div class="small text-muted font-monospace fst-italic">{{ item.remarks }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="text-center fw-bold font-monospace">
+                        {{ item.stores_use_only|default:item.quantity }}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td>HM785 VHFMOBILE RADIO S/N</td>
+                    <td class="text-center font-monospace">26</td>
+                </tr>
+                {% endfor %}
+
+                <!-- Blank lined slots representing physical Form 27 layout -->
+                {% for i in "1234567890123456" %}
+                <tr>
+                    <td style="height: 24px;"></td>
+                    <td></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Sign-off Section at bottom of Front Page -->
+        <div class="row g-4 mt-3 pt-2" style="font-size: 13px;">
+            <div class="col-4 text-center">
+                <div class="dotted-line w-100 mb-1" style="height: 28px;"></div>
+                <div class="fw-bold">Issued By (Stores Signature)</div>
+                <div class="small text-muted">{{ voucher.issued_by }}</div>
+            </div>
+            <div class="col-4 text-center">
+                <div class="dotted-line w-100 mb-1" style="height: 28px;">
+                    {% if voucher.checker_user %}
+                    <span class="small fw-bold">{{ voucher.checker_user.get_full_name|default:voucher.checker_user.username }}</span>
+                    {% elif voucher.checker %}
+                    <span class="small">{{ voucher.checker }}</span>
+                    {% endif %}
+                </div>
+                <div class="fw-bold">Checked By (Checker)</div>
+                <div class="small text-muted">Date: {{ voucher.checker_date|date:"d/m/Y" }}</div>
+            </div>
+            <div class="col-4 text-center">
+                <div class="dotted-line w-100 mb-1" style="height: 28px;">
+                    {% if voucher.received_by_user %}
+                    <span class="small fw-bold">{{ voucher.received_by_user.get_full_name|default:voucher.received_by_user.username }}{% if voucher.received_by_force_no %} ({{ voucher.received_by_force_no }}){% endif %}</span>
+                    {% elif voucher.received_by_name %}
+                    <span class="small fw-bold">{{ voucher.received_by_name }}{% if voucher.received_by_force_no %} ({{ voucher.received_by_force_no }}){% endif %}</span>
+                    {% endif %}
+                </div>
+                <div class="fw-bold">Received By (Station Signature)</div>
+                <div class="small text-muted">
+                    {% if voucher.received_date %}Date: {{ voucher.received_date|date:"d/m/Y" }}{% else %}Date: ………………{% endif %}
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Official Statutory Reverse Side (Page 2) -->
+    <div class="page" style="page-break-before: always;">
+        <!-- Top Reference: FORM 27 (Reverse) -->
+        <div class="d-flex justify-content-between align-items-center mb-4 fw-bold" style="font-size: 14px; letter-spacing: 1px;">
+            <div>Z.R.P.</div>
+            <div>FORM 27 (REVERSE)</div>
+        </div>
+
+        <div class="text-center mb-4">
+            <div class="fw-bold fs-6 text-uppercase" style="letter-spacing: 1px; text-decoration: underline;">
+                STATUTORY ENDORSEMENTS &amp; CERTIFICATIONS
+            </div>
+            <div class="extra-small text-muted">Standing Police Communication &amp; Equipment Regulations</div>
+        </div>
+
+        <!-- Section (1) -->
+        <div class="mb-4 pb-3" style="border-bottom: 1.5px solid #000;">
+            <div class="fw-bold mb-2">(1)</div>
+            <div class="mb-3" style="font-size: 14px; line-height: 1.6;">
+                Certified that all items listed overleaf are essential for the maintenance of Police communication.
+                {% if voucher.cert_essential_communication %}
+                <span class="badge bg-success ms-2">[&#10003; CERTIFIED]</span>
+                {% endif %}
+            </div>
+            <div class="d-flex justify-content-between align-items-baseline mt-4 flex-wrap">
+                <div>
+                    Date…<span class="dotted-line" style="min-width: 180px;">{% if voucher.cert_member_date %}{{ voucher.cert_member_date|date:"d/m/Y" }}{% else %}………………………{% endif %}</span>…
+                </div>
+                <div>
+                    Officer / Member-in-Charge…<span class="dotted-line" style="min-width: 260px;">{{ voucher.cert_member_name|default:"………………………" }}</span>…
+                </div>
+            </div>
+        </div>
+
+        <!-- Section (2) -->
+        <div class="mb-4 pb-3" style="border-bottom: 1.5px solid #000;">
+            <div class="fw-bold mb-2">(2)</div>
+            <div class="mb-2" style="font-size: 14px;">
+                Tools and/or Equipment are demanded for the following reasons:-
+            </div>
+            <div class="my-2 p-2" style="border-bottom: 1px dotted #000; min-height: 48px; line-height: 1.8;">
+                {{ voucher.demand_reasons|default:"……………………………………………………………………………………………………………………………………………………………………………………………………………………" }}
+            </div>
+            <div class="d-flex justify-content-between align-items-baseline mt-4 flex-wrap">
+                <div>
+                    Date Stamp…<span class="dotted-line" style="min-width: 180px;">{% if voucher.picto_date_stamp %}{{ voucher.picto_date_stamp|date:"d/m/Y" }}{% else %}………………………{% endif %}</span>…
+                </div>
+                <div>
+                    Provincial ICT Officer…<span class="dotted-line" style="min-width: 260px;">{{ voucher.picto_name|default:"………………………" }}</span>…
+                </div>
+            </div>
+        </div>
+
+        <!-- Section (3) -->
+        <div class="mb-4 pb-3" style="border-bottom: 1.5px solid #000;">
+            <div class="fw-bold mb-2">(3)</div>
+            <div class="mb-2" style="font-size: 14px;">
+                Issues Approved.
+                {% if voucher.director_approved %}
+                <span class="badge bg-success ms-2">[&#10003; APPROVED]</span>
+                {% endif %}
+            </div>
+            <div class="mb-2" style="font-size: 13.5px;">
+                Remarks:- &nbsp;
+                <span class="dotted-line" style="width: 80%;">{{ voucher.director_remarks|default:"………………………………………………………………………………………………………………………………………………" }}</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-baseline mt-4 flex-wrap">
+                <div>
+                    Date Stamp…<span class="dotted-line" style="min-width: 180px;">{% if voucher.director_date_stamp %}{{ voucher.director_date_stamp|date:"d/m/Y" }}{% else %}………………………{% endif %}</span>…
+                </div>
+                <div>
+                    Director ICT…<span class="dotted-line" style="min-width: 260px;">{{ voucher.director_name|default:"DIRECTOR ICT" }}</span>…
+                </div>
+            </div>
+        </div>
+
+        <!-- Section (4) -->
+        <div class="mb-4 pb-3" style="border-bottom: 1.5px solid #000;">
+            <div class="fw-bold mb-2">(4)</div>
+            <div class="mb-3" style="font-size: 14px; line-height: 1.6;">
+                Certified the items overleaf have been received and correctly recorded on the relevant copy of the Stores/Equipment Ledger or Inventory.
+                {% if voucher.receipt_ledger_certified %}
+                <span class="badge bg-success ms-2">[&#10003; RECORDED]</span>
+                {% endif %}
+            </div>
+            <div class="d-flex justify-content-between align-items-baseline mt-4 flex-wrap">
+                <div>
+                    Date Stamp…<span class="dotted-line" style="min-width: 180px;">{% if voucher.receiving_date_stamp %}{{ voucher.receiving_date_stamp|date:"d/m/Y" }}{% else %}………………………{% endif %}</span>…
+                </div>
+                <div>
+                    Provincial/District ICT Officer…<span class="dotted-line" style="min-width: 260px;">{{ voucher.receiving_ict_officer|default:"………………………" }}</span>…
+                </div>
+            </div>
+        </div>
+
+        <!-- INSTRUCTIONS (Exact copy from Form 27) -->
+        <div class="mt-4 pt-2">
+            <div class="fw-bold mb-2" style="font-size: 13.5px; text-decoration: underline;">INSTRUCTIONS</div>
+            <ol class="ps-3" style="font-size: 13px; line-height: 1.8;">
+                <li><strong>Original (White)</strong> - to be returned to Director ICT duly completed.</li>
+                <li><strong>Duplicate (Blue)</strong> - to be retained by Demanding Officer.</li>
+                <li><strong>Triplicate (Pink)</strong> - to be retained by Demanding Officer for information.</li>
+                <li><strong>Quadruplicate (Yellow)</strong> - to be retained by Provincial/District ICT Officer for information.</li>
+            </ol>
+        </div>
+    </div>
+
+</body>
+</html>\n

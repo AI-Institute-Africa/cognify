@@ -1,0 +1,123 @@
+{% load humanize %}
+<div class="container-fluid">
+    <form action="{% url 'save-tender-procedure' %}" id="tender-procedure-form" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{ entry.id|default:'' }}">
+
+        <div class="alert alert-primary d-flex align-items-center mb-3 rounded-3" role="alert">
+            <i class="fas fa-handshake fs-3 me-3 text-primary"></i>
+            <div>
+                <strong>TENDER PROCEDURES REGISTER</strong>
+                <div class="extra-small text-muted">ZRP PMU &bull; Procurement Management Unit &bull; Tender &amp; Purchase Order Ledger</div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> ENTRY No.</label>
+                {{ form.entry_no }}
+                <div class="extra-small text-muted">e.g. TND-001 or Ledger Reference</div>
+            </div>
+            <div class="col-md-4">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> DATE *</label>
+                {{ form.date }}
+            </div>
+            <div class="col-md-4">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> REQUESTING STATION *</label>
+                {{ form.requesting_station }}
+                <div class="extra-small text-muted">e.g. Beitbridge Border Post / Police GHQ</div>
+            </div>
+
+            <div class="col-12">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> ITEM DESCRIPTION *</label>
+                {{ form.item_description }}
+                <div class="extra-small text-muted">Specification of items / equipment being tendered</div>
+            </div>
+
+            <div class="col-md-3">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> QTY *</label>
+                {{ form.qty }}
+            </div>
+            <div class="col-md-3">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold text-success mb-1"> TOTAL PRICE ($) *</label>
+                {{ form.total_price }}
+                <div class="extra-small text-muted">Contract award value</div>
+            </div>
+            <div class="col-md-3">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> ICT REF *</label>
+                {{ form.ict_ref }}
+                <div class="extra-small text-muted">e.g. ICT/TND/2026/08</div>
+            </div>
+            <div class="col-md-3">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> PURCHASE ORDER No. *</label>
+                {{ form.purchase_order_no }}
+                <div class="extra-small text-muted">e.g. PO-ZRP-9921</div>
+            </div>
+
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Department</label>
+                {{ form.department }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Link to Asset in Registry (Optional)</label>
+                {{ form.linked_asset }}
+            </div>
+
+            <div class="col-md-12">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Tender Document / Comparative Schedule / Award Scan</label>
+                {{ form.tender_doc_scan }}
+            </div>
+
+            <div class="col-12">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> REMARKS</label>
+                {{ form.remarks }}
+                <div class="extra-small text-muted">Winning bidder, PRAZ reference, delivery timeframes...</div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+$(function () {
+    $('#tender-procedure-form').submit(function (e) {
+        e.preventDefault();
+        var _this = $(this);
+        $('.err-msg').remove();
+        var el = $('<div>').addClass("alert alert-danger err-msg").hide();
+        if (_this[0].checkValidity() == false) {
+            _this[0].reportValidity();
+            return false;
+        }
+        start_loader();
+        $.ajax({
+            url: _this.attr('action'),
+            data: new FormData(_this[0]),
+            cache: false,
+            contentType: false,
+            processData: false,
+            method: 'POST',
+            type: 'POST',
+            dataType: 'json',
+            error: function (err) {
+                console.log(err);
+                alert_toast("An error occurred", 'error');
+                end_loader();
+            },
+            success: function (resp) {
+                if (typeof resp == 'object' && resp.status == 'success') {
+                    location.reload();
+                } else if (resp.status == 'failed' && !!resp.msg) {
+                    el.text(resp.msg);
+                    _this.prepend(el);
+                    el.show('slow');
+                    $("html, body, .modal").animate({ scrollTop: 0 }, "fast");
+                    end_loader();
+                } else {
+                    alert_toast("An error occurred", 'error');
+                    end_loader();
+                }
+            }
+        });
+    });
+});
+</script>

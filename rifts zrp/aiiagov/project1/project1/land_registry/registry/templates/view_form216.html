@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div class="d-flex align-items-center">
+            <a href="{% url 'form216-list' %}" class="btn btn-sm btn-secondary rounded-circle shadow-sm me-3">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <div>
+                <div class="d-flex align-items-center gap-2">
+                    <h3 class="fw-bold mb-0">Z.R.P. FORM 216: {{ card.article }}</h3>
+                    <span class="badge bg-warning text-dark rounded-pill px-3 py-2 fw-bold">
+                        Code: {{ card.code_no }}
+                    </span>
+                </div>
+                <div class="small text-muted">
+                    Folio No. <strong>{{ card.folio_no }}</strong> &bull; Unit: <strong>{{ card.unit }}</strong> &bull; Bin/Location: <strong>{{ card.location_bin|default:"Central Stores" }}</strong>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="{% url 'print-form216' card.pk %}" target="_blank" class="btn btn-dark rounded-pill px-4 shadow-sm">
+                <i class="fas fa-print me-2 text-warning"></i> Print Statutory Form 216
+            </a>
+            <button class="btn btn-primary rounded-pill px-4 shadow-sm fw-bold" id="btn-post-entry">
+                <i class="fas fa-plus me-2"></i> Post Receipt / Issue
+            </button>
+            <button class="btn btn-outline-secondary rounded-pill px-3 shadow-sm"
+                onclick="uni_modal('Edit Form 216 Card Header', '{% url 'manage-form216-pk' card.pk %}', 'modal-lg')">
+                <i class="fas fa-edit me-1"></i> Edit Header
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Stock Balance Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light border-start border-4 border-secondary">
+            <div class="extra-small text-muted text-uppercase fw-bold">Balance Brought Forward</div>
+            <div class="h3 fw-bold mb-0 text-dark">{{ card.initial_bforward_balance|intcomma }}</div>
+            <div class="extra-small text-muted">As of {{ card.bforward_date|date:"Y-m-d"|default:"Opening" }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light border-start border-4 border-success">
+            <div class="extra-small text-muted text-uppercase fw-bold">Total Receipts (+)</div>
+            <div class="h3 fw-bold mb-0 text-success">+{{ card.total_receipts|intcomma }}</div>
+            <div class="extra-small text-muted">Stock received into store</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light border-start border-4 border-danger">
+            <div class="extra-small text-muted text-uppercase fw-bold">Total Issues (-)</div>
+            <div class="h3 fw-bold mb-0 text-danger">-{{ card.total_issues|intcomma }}</div>
+            <div class="extra-small text-muted">Stock dispatched / consumed</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-primary bg-opacity-10 border-start border-4 border-primary">
+            <div class="extra-small text-primary text-uppercase fw-bold">Current Balance on Hand</div>
+            <div class="h3 fw-bold mb-0 text-primary">{{ card.current_balance|intcomma }}</div>
+            <div class="extra-small text-muted">{{ card.unit }} available in stores</div>
+        </div>
+    </div>
+</div>
+
+<!-- Stock Ledger Entries -->
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white border-0 pt-4 px-4 pb-2 d-flex justify-content-between align-items-center">
+        <div>
+            <h5 class="fw-bold mb-0"><i class="fas fa-list text-primary me-2"></i>Stock Card Ledger (Chronological Transactions)</h5>
+            <div class="small text-muted">Perpetual inventory tracking with running balance</div>
+        </div>
+        <button class="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold" onclick="$('#btn-post-entry').click()">
+            <i class="fas fa-plus-circle me-1"></i> Add Transaction
+        </button>
+    </div>
+    <div class="card-body p-4">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle">
+                <thead class="table-light extra-small text-uppercase">
+                    <tr>
+                        <th style="width: 110px;">Date</th>
+                        <th style="width: 130px;">Voucher No.</th>
+                        <th>From / To</th>
+                        <th class="text-center text-success" style="width: 100px;">Receipts</th>
+                        <th class="text-center text-danger" style="width: 100px;">Issues</th>
+                        <th class="text-center text-primary" style="width: 100px;">Balance</th>
+                        <th>Remarks / Reference</th>
+                        <th class="text-end" style="width: 90px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="small">
+                    <!-- B/Forward Row -->
+                    <tr class="table-secondary fw-bold">
+                        <td>{{ card.bforward_date|date:"Y-m-d"|default:"-" }}</td>
+                        <td>-</td>
+                        <td>B/Forward</td>
+                        <td class="text-center">-</td>
+                        <td class="text-center">-</td>
+                        <td class="text-center text-primary fs-6">{{ card.initial_bforward_balance|intcomma }}</td>
+                        <td class="text-muted font-italic">Balance Brought Forward</td>
+                        <td></td>
+                    </tr>
+
+                    <!-- Transaction Entries -->
+                    {% for entry in entries %}
+                    <tr>
+                        <td class="fw-bold">{{ entry.date|date:"Y-m-d" }}</td>
+                        <td>
+                            {% if entry.linked_form27_voucher %}
+                            <a href="{% url 'view-form27' entry.linked_form27_voucher.pk %}" class="badge bg-primary text-decoration-none">
+                                <i class="fas fa-file-invoice me-1"></i>{{ entry.voucher_no }}
+                            </a>
+                            {% else %}
+                            <span class="badge bg-light text-dark border">{{ entry.voucher_no|default:"-" }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="fw-semibold">{{ entry.from_to }}</td>
+                        <td class="text-center fw-bold text-success">
+                            {% if entry.receipts %}+{{ entry.receipts|intcomma }}{% else %}-{% endif %}
+                        </td>
+                        <td class="text-center fw-bold text-danger">
+                            {% if entry.issues %}-{{ entry.issues|intcomma }}{% else %}-{% endif %}
+                        </td>
+                        <td class="text-center fw-bold text-primary fs-6">
+                            {{ entry.balance|intcomma }}
+                        </td>
+                        <td class="text-muted">
+                            {{ entry.remarks|default:"" }}
+                            {% if entry.created_by %}
+                            <span class="extra-small text-muted d-block">Posted by: {{ entry.created_by.get_full_name|default:entry.created_by.username }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{% url 'delete-form216-entry' card.pk entry.pk %}"
+                               class="btn btn-sm btn-outline-danger"
+                               onclick="return confirm('Delete this stock card entry? The balance will be automatically recalculated.')"
+                               title="Delete Entry">
+                                <i class="fas fa-trash-alt"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-muted">
+                            No receipts or issues recorded yet. Click <strong>"Post Receipt / Issue"</strong> to add transactions.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Post Receipt / Issue Entry -->
+<div class="modal fade" id="entryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <form action="{% url 'save-form216-entry' card.pk %}" method="POST" id="entry-form">
+                {% csrf_token %}
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-plus-circle text-primary me-2"></i>Post Stock Transaction</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-light border small mb-3">
+                        Article: <strong>{{ card.article }}</strong> (Code: {{ card.code_no }})<br>
+                        Current Balance: <strong class="text-primary">{{ card.current_balance }} {{ card.unit }}</strong>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label extra-small text-uppercase fw-bold text-muted">Transaction Date *</label>
+                        {{ entry_form.date }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label extra-small text-uppercase fw-bold text-muted">Link Form 27 Voucher (Optional)</label>
+                        <select name="linked_form27_voucher" id="id_linked_form27_voucher" class="form-select form-select-sm">
+                            <option value="">-- No Link / Independent Voucher --</option>
+                            {% for f27 in form27_vouchers %}
+                            <option value="{{ f27.pk }}" data-vchr="{{ f27.voucher_no }}" data-station="{{ f27.station }}">
+                                Voucher No. {{ f27.voucher_no }} - {{ f27.station }} ({{ f27.date|date:"Y-m-d" }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label extra-small text-uppercase fw-bold text-muted">Voucher No. *</label>
+                        {{ entry_form.voucher_no }}
+                        <div class="extra-small text-muted">Form 27 Voucher No., Delivery Note, or Invoice No.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label extra-small text-uppercase fw-bold text-muted">From / To *</label>
+                        {{ entry_form.from_to }}
+                        <div class="extra-small text-muted">Supplier name (if Receipt) or Station/Officer (if Issue)</div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label extra-small text-uppercase fw-bold text-success">Receipts (Qty In)</label>
+                            {{ entry_form.receipts }}
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label extra-small text-uppercase fw-bold text-danger">Issues (Qty Out)</label>
+                            {{ entry_form.issues }}
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label extra-small text-uppercase fw-bold text-muted">Remarks</label>
+                        {{ entry_form.remarks }}
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Post Entry</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+$(function() {
+    $('#btn-post-entry').click(function() {
+        $('#entryModal').modal('show');
+    });
+
+    $('#id_linked_form27_voucher').change(function() {
+        var opt = $(this).find(':selected');
+        var vchr = opt.data('vchr');
+        var stn = opt.data('station');
+        if (vchr) {
+            $('#id_voucher_no').val(vchr);
+        }
+        if (stn) {
+            $('#id_from_to').val(stn);
+        }
+    });
+
+    $('#entry-form').submit(function(e) {
+        e.preventDefault();
+        var _this = $(this);
+        start_loader();
+        $.ajax({
+            url: _this.attr('action'),
+            data: new FormData(_this[0]),
+            cache: false,
+            contentType: false,
+            processData: false,
+            method: 'POST',
+            type: 'POST',
+            dataType: 'json',
+            error: function(err) {
+                console.log(err);
+                alert_toast("An error occurred", 'error');
+                end_loader();
+            },
+            success: function(resp) {
+                if (typeof resp == 'object' && resp.status == 'success') {
+                    location.reload();
+                } else if (resp.status == 'failed' && !!resp.msg) {
+                    alert_toast(resp.msg, 'error');
+                    end_loader();
+                } else {
+                    alert_toast("An error occurred", 'error');
+                    end_loader();
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

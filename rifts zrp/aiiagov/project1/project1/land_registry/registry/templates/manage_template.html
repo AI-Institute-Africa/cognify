@@ -1,0 +1,847 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block headerContent %}
+<style>
+/* ── Visual Document Studio Styles ─────────────────── */
+.canvas-wrap {
+    background: #060d1f;
+    border: 1px solid #1a2a4a;
+    border-radius: 12px;
+    padding: 1.5rem;
+    min-height: 700px;
+}
+#documentCanvas {
+    background: #ffffff;
+    color: #1a1a1a;
+    min-height: 650px;
+    padding: 40px 48px;
+    border-radius: 6px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.7;
+    outline: none;
+    overflow-x: auto;
+}
+#documentCanvas:focus {
+    box-shadow: 0 8px 30px rgba(0, 62, 166, 0.25), 0 0 0 2px #003EA6;
+}
+
+/* Document canvas typography & element styles */
+#documentCanvas h1 { color: #003EA6; font-size: 22px; font-weight: 700; margin: 12px 0 6px; }
+#documentCanvas h2 { color: #002070; font-size: 18px; font-weight: 700; margin: 12px 0 6px; }
+#documentCanvas h3 { color: #002070; font-size: 15px; font-weight: 700; margin: 10px 0 4px; }
+#documentCanvas p  { margin: 0 0 10px; }
+
+/* Tables inside canvas */
+#documentCanvas table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 13px;
+}
+#documentCanvas th {
+    background: #003EA6;
+    color: #ffffff;
+    font-weight: 700;
+    padding: 8px 12px;
+    border: 1px solid #002070;
+    text-align: left;
+}
+#documentCanvas td {
+    padding: 8px 12px;
+    border: 1px solid #cccccc;
+    vertical-align: top;
+    color: #222222;
+}
+#documentCanvas td:focus, #documentCanvas th:focus {
+    outline: 2px solid #D4AF37;
+}
+
+/* Checkboxes */
+#documentCanvas .form-check-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 16px;
+    margin-bottom: 8px;
+}
+#documentCanvas input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+/* Form Callout Box */
+#documentCanvas .zrp-callout {
+    background: #f0f4fb;
+    border-left: 4px solid #003EA6;
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-radius: 0 6px 6px 0;
+}
+
+/* Studio Toolbar */
+.studio-toolbar {
+    background: #0d1b3e;
+    border: 1px solid #233866;
+    border-radius: 8px;
+    padding: 8px 12px;
+}
+.studio-toolbar .btn-group {
+    margin-right: 6px;
+}
+.studio-toolbar .btn-tool {
+    background: transparent;
+    color: #e0e8ff;
+    border: 1px solid #233866;
+    padding: 5px 10px;
+    font-size: 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.studio-toolbar .btn-tool:hover {
+    background: #1a2a4a;
+    color: #D4AF37;
+    border-color: #D4AF37;
+}
+.studio-toolbar select.btn-tool {
+    color: #ffffff;
+    background: #060d1f;
+}
+
+/* Insert Blocks Panel */
+.insert-badge-btn {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+/* Approvers table */
+.approver-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 8px;
+}
+</style>
+{% endblock %}
+
+{% block pageContent %}
+<div class="container-fluid py-3">
+
+    <!-- Page Header & Actions -->
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-3">
+        <div class="d-flex align-items-center gap-3">
+            <img src="{% static 'assets/img/zrp_crest.png' %}" height="48" alt="ZRP Crest"
+                 onerror="this.src='{% static 'images/zrp_crest.png' %}'">
+            <div>
+                <h4 class="fw-bold text-white mb-0">{{ page_title }}</h4>
+                <p class="text-muted extra-small mb-0">Zimbabwe Republic Police — Institutional Form &amp; Document Template Studio</p>
+            </div>
+        </div>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <span id="quickSaveStatus" class="text-success extra-small fw-bold me-2" style="display:none;">
+                <i class="fas fa-check-circle me-1"></i>Saved
+            </span>
+            <button type="button" class="btn btn-outline-warning btn-sm rounded-pill px-3" id="quickSaveBtn">
+                <i class="fas fa-bolt me-1"></i> Quick Save
+            </button>
+            {% if tmpl %}
+            <a href="{% url 'template-preview' tmpl.pk %}" target="_blank" class="btn btn-outline-info btn-sm rounded-pill px-3">
+                <i class="fas fa-eye me-1"></i> Preview
+            </a>
+            {% endif %}
+            <a href="{% url 'ZRP-institutional-library' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                <i class="fas fa-arrow-left me-1"></i> Library
+            </a>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for msg in messages %}
+        <div class="alert alert-{{ msg.tags }} alert-dismissible fade show rounded-3" role="alert">
+            {{ msg }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" id="templateForm">
+        {% csrf_token %}
+        <input type="hidden" name="template_body" id="template_body_input">
+        <input type="hidden" name="approvers_json" id="approvers_json_input">
+
+        <div class="row g-4">
+
+            <!-- ── LEFT PANEL: Metadata & Approvers ───────────────────── -->
+            <div class="col-lg-4">
+                <div class="glass-card p-3 mb-3">
+                    <h6 class="fw-bold text-warning mb-3 extra-small text-uppercase">
+                        <i class="fas fa-file-invoice me-2"></i>Template Specification
+                    </h6>
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold mb-1">Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" id="id_title" class="form-control bg-dark text-white border-secondary"
+                               placeholder="e.g. Standard Supply Requisition Form"
+                               value="{{ tmpl.title|default:'' }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold mb-1">
+                            Category / Form Type
+                            <span class="text-muted fw-normal">(any category)</span>
+                        </label>
+                        <input type="text" name="category" class="form-control bg-dark text-white border-secondary"
+                               list="cat-suggestions"
+                               placeholder="e.g. Procurement, Leave, Duty Roster, Vehicle..."
+                               value="{{ tmpl.category|default:'' }}">
+                        <datalist id="cat-suggestions">
+                            {% for c in existing_categories %}<option value="{{ c }}">{% endfor %}
+                            <option value="Procurement Requisition Form">
+                            <option value="Goods Received Voucher">
+                            <option value="Leave Application Form">
+                            <option value="Minute Template">
+                            <option value="TSA Form">
+                            <option value="Acquittal Form">
+                            <option value="Interview Assessment Form">
+                            <option value="Station Duty Roster">
+                            <option value="Vehicle Inspection Log">
+                            <option value="Incident & Occurrence Report">
+                        </datalist>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label text-muted small fw-bold mb-1">Version</label>
+                            <input type="text" name="version" class="form-control bg-dark text-white border-secondary"
+                                   placeholder="1.0" value="{{ tmpl.version|default:'1.0' }}">
+                        </div>
+                        <div class="col-6 d-flex align-items-end">
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="is_active" name="is_active"
+                                       {% if tmpl.is_active or not tmpl %}checked{% endif %}>
+                                <label class="form-check-label text-white extra-small" for="is_active">Active</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold mb-1">Description / Purpose</label>
+                        <textarea name="description" rows="2" class="form-control bg-dark text-white border-secondary extra-small"
+                                  placeholder="Describe the operational workflow or purpose of this template...">{{ tmpl.description|default:'' }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold mb-1">Attached PDF/DOCX (Optional)</label>
+                        <input type="file" name="template_file" accept=".pdf,.doc,.docx"
+                               class="form-control bg-dark text-white border-secondary extra-small">
+                        {% if tmpl.template_file %}
+                        <div class="extra-small text-success mt-1">
+                            <i class="fas fa-paperclip me-1"></i>
+                            <a href="{{ tmpl.template_file.url }}" target="_blank" class="text-warning text-decoration-none">
+                                {{ tmpl.template_file.name }}
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- ── APPROVERS / SIGNATORIES PANEL ─────────────────────── -->
+                <div class="glass-card p-3 mb-3 border-top border-3 border-info">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold text-info mb-0 extra-small text-uppercase">
+                            <i class="fas fa-file-signature me-2"></i>Approval &amp; Signatories Workflow
+                        </h6>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="requires_approvals" name="requires_approvals"
+                               {% if tmpl.requires_approvals %}checked{% endif %}>
+                        <label class="form-check-label text-white small fw-bold" for="requires_approvals">
+                            Requires Multi-Stage Approvals &amp; Signatures
+                        </label>
+                    </div>
+
+                    <div id="approversConfigSection" style="{% if not tmpl.requires_approvals %}display:none;{% endif %}">
+                        <p class="extra-small text-muted mb-2">
+                            Define the authorized signatories who must review and sign off upon completed transactions:
+                        </p>
+
+                        <div id="approversListContainer" class="mb-3">
+                            <!-- Rendered dynamically -->
+                        </div>
+
+                        <div class="d-flex gap-2 mb-3">
+                            <button type="button" class="btn btn-outline-info btn-sm rounded-pill w-100 extra-small fw-bold" id="addApproverStageBtn">
+                                <i class="fas fa-plus me-1"></i> Add Approval Stage
+                            </button>
+                            <button type="button" class="btn btn-outline-warning btn-sm rounded-pill w-100 extra-small fw-bold" id="injectSignaturesBtn" title="Insert signatory table into template body">
+                                <i class="fas fa-stamp me-1"></i> Put at End of Form
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Primary Submit Action -->
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-warning rounded-pill py-2 fw-bold shadow">
+                        <i class="fas fa-save me-2"></i>
+                        {% if tmpl %}Update Current Template{% else %}Create Template{% endif %}
+                    </button>
+                </div>
+            </div>
+
+            <!-- ── RIGHT PANEL: Visual Form & Template Studio Canvas ──── -->
+            <div class="col-lg-8">
+                <div class="canvas-wrap">
+
+                    <!-- Quick Component Inserters -->
+                    <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                        <span class="extra-small fw-bold text-uppercase text-warning ls-1">
+                            <i class="fas fa-palette me-1"></i> Visual Template Studio
+                        </span>
+                        <div class="d-flex gap-1 flex-wrap">
+                            <button type="button" class="btn btn-outline-light btn-sm insert-badge-btn" id="btnInsHeader">
+                                <i class="fas fa-shield text-warning me-1"></i> ZRP Crest Header
+                            </button>
+                            <button type="button" class="btn btn-outline-light btn-sm insert-badge-btn" id="btnInsTable22">
+                                <i class="fas fa-table text-info me-1"></i> 2×2 Table
+                            </button>
+                            <button type="button" class="btn btn-outline-light btn-sm insert-badge-btn" id="btnInsTable34">
+                                <i class="fas fa-table-cells text-info me-1"></i> 3×4 Table
+                            </button>
+                            <button type="button" class="btn btn-outline-light btn-sm insert-badge-btn" id="btnInsReqTable">
+                                <i class="fas fa-receipt text-success me-1"></i> Items Table
+                            </button>
+                            <button type="button" class="btn btn-outline-light btn-sm insert-badge-btn" id="btnInsCheckboxes">
+                                <i class="fas fa-check-square text-warning me-1"></i> Decision Checkboxes
+                            </button>
+                            <button type="button" class="btn btn-outline-light btn-sm insert-badge-btn" id="btnInsSignBlock">
+                                <i class="fas fa-signature text-danger me-1"></i> Signatures Block
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Studio Formatting Toolbar -->
+                    <div class="studio-toolbar mb-3 d-flex flex-wrap gap-1 align-items-center">
+                        <!-- Headers -->
+                        <div class="btn-group">
+                            <select class="btn-tool" id="toolFormatBlock" title="Heading Level">
+                                <option value="p">Paragraph</option>
+                                <option value="h1">Heading 1</option>
+                                <option value="h2">Heading 2</option>
+                                <option value="h3">Heading 3</option>
+                            </select>
+                        </div>
+
+                        <!-- Basic Formatting -->
+                        <div class="btn-group">
+                            <button type="button" class="btn-tool" data-cmd="bold" title="Bold"><i class="fas fa-bold"></i></button>
+                            <button type="button" class="btn-tool" data-cmd="italic" title="Italic"><i class="fas fa-italic"></i></button>
+                            <button type="button" class="btn-tool" data-cmd="underline" title="Underline"><i class="fas fa-underline"></i></button>
+                            <button type="button" class="btn-tool" data-cmd="strikeThrough" title="Strikethrough"><i class="fas fa-strikethrough"></i></button>
+                        </div>
+
+                        <!-- Color -->
+                        <div class="btn-group">
+                            <button type="button" class="btn-tool" id="toolColorBlue" title="ZRP Blue"><i class="fas fa-tint text-primary"></i></button>
+                            <button type="button" class="btn-tool" id="toolColorGold" title="ZRP Gold"><i class="fas fa-tint text-warning"></i></button>
+                            <button type="button" class="btn-tool" id="toolColorDark" title="Dark Text"><i class="fas fa-tint text-secondary"></i></button>
+                        </div>
+
+                        <!-- Alignment -->
+                        <div class="btn-group">
+                            <button type="button" class="btn-tool" data-cmd="justifyLeft" title="Align Left"><i class="fas fa-align-left"></i></button>
+                            <button type="button" class="btn-tool" data-cmd="justifyCenter" title="Align Center"><i class="fas fa-align-center"></i></button>
+                            <button type="button" class="btn-tool" data-cmd="justifyRight" title="Align Right"><i class="fas fa-align-right"></i></button>
+                        </div>
+
+                        <!-- Lists -->
+                        <div class="btn-group">
+                            <button type="button" class="btn-tool" data-cmd="insertUnorderedList" title="Bullet List"><i class="fas fa-list-ul"></i></button>
+                            <button type="button" class="btn-tool" data-cmd="insertOrderedList" title="Numbered List"><i class="fas fa-list-ol"></i></button>
+                        </div>
+
+                        <!-- Table Row/Col Modifiers -->
+                        <div class="btn-group ms-auto">
+                            <button type="button" class="btn-tool" id="toolAddRow" title="Add Row Below"><i class="fas fa-plus-square me-1"></i> Row</button>
+                            <button type="button" class="btn-tool" id="toolAddCol" title="Add Column Right"><i class="fas fa-plus me-1"></i> Col</button>
+                            <button type="button" class="btn-tool text-danger" id="toolDelRow" title="Delete Row"><i class="fas fa-trash-can"></i></button>
+                            <button type="button" class="btn-tool text-danger" id="toolDelTable" title="Delete Table"><i class="fas fa-table-cells-large"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- ── THE EDITABLE DOCUMENT CANVAS ─────────────────── -->
+                    <div id="documentCanvas" contenteditable="true" spellcheck="true">
+                        {{ tmpl.template_body|safe }}
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-2 extra-small text-muted">
+                        <span><i class="fas fa-info-circle me-1"></i> Click inside the canvas or table cells to type and design directly.</span>
+                        <span id="canvasStats">Ready</span>
+                    </div>
+
+                </div>
+            </div>
+
+        </div><!-- /row -->
+    </form>
+</div>
+
+<script>
+$(function() {
+    var $canvas = $('#documentCanvas');
+
+    // If canvas is blank, populate a starter template
+    if (!$canvas.html().trim()) {
+        insertStarterTemplate();
+    }
+
+    // ── Command execution helper ───────────────────────────────────────────
+    $('.btn-tool[data-cmd]').on('click', function(e) {
+        e.preventDefault();
+        var cmd = $(this).data('cmd');
+        document.execCommand(cmd, false, null);
+        $canvas.focus();
+    });
+
+    $('#toolFormatBlock').on('change', function() {
+        var val = $(this).val();
+        document.execCommand('formatBlock', false, '<' + val + '>');
+        $canvas.focus();
+    });
+
+    $('#toolColorBlue').on('click', function() {
+        document.execCommand('foreColor', false, '#003EA6');
+        $canvas.focus();
+    });
+    $('#toolColorGold').on('click', function() {
+        document.execCommand('foreColor', false, '#D4AF37');
+        $canvas.focus();
+    });
+    $('#toolColorDark').on('click', function() {
+        document.execCommand('foreColor', false, '#111111');
+        $canvas.focus();
+    });
+
+    // ── HTML Insert Helper ─────────────────────────────────────────────────
+    function insertHTMLAtCursor(html) {
+        $canvas.focus();
+        var sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) {
+            $canvas.append(html);
+            return;
+        }
+        var range = sel.getRangeAt(0);
+        // Ensure range is inside canvas
+        if (!$canvas[0].contains(range.commonAncestorContainer)) {
+            $canvas.append(html);
+            return;
+        }
+        range.deleteContents();
+        var el = document.createElement("div");
+        el.innerHTML = html;
+        var frag = document.createDocumentFragment(), node, lastNode;
+        while ((node = el.firstChild)) {
+            lastNode = frag.appendChild(node);
+        }
+        range.insertNode(frag);
+        if (lastNode) {
+            range = range.cloneRange();
+            range.setStartAfter(lastNode);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
+    }
+
+    // ── Pre-made Components Inserters ──────────────────────────────────────
+    function insertStarterTemplate() {
+        var html = `
+        <div style="text-align: center; border-bottom: 3px solid #D4AF37; padding-bottom: 12px; margin-bottom: 18px;">
+            <h2 style="color: #003EA6; margin: 0; font-size: 20px; text-transform: uppercase; font-weight: 800;">ZIMBABWE REPUBLIC POLICE</h2>
+            <div style="font-size: 13px; color: #555; margin-top: 2px;">HEADQUARTERS &bull; INSTITUTIONAL DOCUMENT &bull; OFFICIAL TEMPLATE</div>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+            <tr>
+                <td style="width: 50%; padding: 8px; border: 1px solid #ddd; background: #f9f9f9;"><strong>Department / Branch:</strong> Operations / Logistics</td>
+                <td style="width: 50%; padding: 8px; border: 1px solid #ddd; background: #f9f9f9;"><strong>Date of Issue:</strong> [ DD / MM / YYYY ]</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px; border: 1px solid #ddd; background: #f9f9f9;"><strong>Station / Post:</strong> Harare Central</td>
+                <td style="padding: 8px; border: 1px solid #ddd; background: #f9f9f9;"><strong>Document Ref:</strong> ZRP-DOC-2026-0001</td>
+            </tr>
+        </table>
+        <h3 style="color: #003EA6; border-bottom: 1px solid #ddd; padding-bottom: 4px;">1. Purpose &amp; Operational Details</h3>
+        <p>State the specific requirement, requisition summary, or operational activity details here.</p>
+        <p><br></p>
+        `;
+        $canvas.html(html);
+    }
+
+    $('#btnInsHeader').on('click', function() {
+        var html = `
+        <div style="text-align: center; border-bottom: 3px solid #D4AF37; padding-bottom: 12px; margin: 16px 0;">
+            <h2 style="color: #003EA6; margin: 0; font-size: 20px; text-transform: uppercase; font-weight: 800;">ZIMBABWE REPUBLIC POLICE</h2>
+            <div style="font-size: 13px; color: #555; margin-top: 2px;">HEADQUARTERS &bull; OFFICIAL POLICE DOCUMENT</div>
+        </div><p><br></p>`;
+        insertHTMLAtCursor(html);
+    });
+
+    $('#btnInsTable22').on('click', function() {
+        var html = `
+        <table style="width:100%; border-collapse: collapse; margin: 14px 0;">
+            <thead>
+                <tr>
+                    <th style="background:#003EA6; color:#fff; padding:8px 12px; border:1px solid #002070;">Header 1</th>
+                    <th style="background:#003EA6; color:#fff; padding:8px 12px; border:1px solid #002070;">Header 2</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="padding:8px 12px; border:1px solid #ccc;">Details 1</td>
+                    <td style="padding:8px 12px; border:1px solid #ccc;">Details 2</td>
+                </tr>
+                <tr>
+                    <td style="padding:8px 12px; border:1px solid #ccc;">Data row</td>
+                    <td style="padding:8px 12px; border:1px solid #ccc;">Data row</td>
+                </tr>
+            </tbody>
+        </table><p><br></p>`;
+        insertHTMLAtCursor(html);
+    });
+
+    $('#btnInsTable34').on('click', function() {
+        var html = `
+        <table style="width:100%; border-collapse: collapse; margin: 14px 0;">
+            <thead>
+                <tr>
+                    <th style="background:#003EA6; color:#fff; padding:8px 12px; border:1px solid #002070;">No.</th>
+                    <th style="background:#003EA6; color:#fff; padding:8px 12px; border:1px solid #002070;">Description</th>
+                    <th style="background:#003EA6; color:#fff; padding:8px 12px; border:1px solid #002070;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="padding:8px 12px; border:1px solid #ccc;">1</td>
+                    <td style="padding:8px 12px; border:1px solid #ccc;">Operational item</td>
+                    <td style="padding:8px 12px; border:1px solid #ccc;">Pending</td>
+                </tr>
+                <tr>
+                    <td style="padding:8px 12px; border:1px solid #ccc;">2</td>
+                    <td style="padding:8px 12px; border:1px solid #ccc;">Equipment check</td>
+                    <td style="padding:8px 12px; border:1px solid #ccc;">Verified</td>
+                </tr>
+                <tr>
+                    <td style="padding:8px 12px; border:1px solid #ccc;">3</td>
+                    <td style="padding:8px 12px; border:1px solid #ccc;">Field log</td>
+                    <td style="padding:8px 12px; border:1px solid #ccc;">Active</td>
+                </tr>
+            </tbody>
+        </table><p><br></p>`;
+        insertHTMLAtCursor(html);
+    });
+
+    $('#btnInsReqTable').on('click', function() {
+        var html = `
+        <table style="width:100%; border-collapse: collapse; margin: 14px 0;">
+            <thead>
+                <tr>
+                    <th style="background:#003EA6; color:#fff; padding:8px; border:1px solid #002070; width:6%;">Item</th>
+                    <th style="background:#003EA6; color:#fff; padding:8px; border:1px solid #002070;">Description &amp; Specifications</th>
+                    <th style="background:#003EA6; color:#fff; padding:8px; border:1px solid #002070; width:10%;">Qty</th>
+                    <th style="background:#003EA6; color:#fff; padding:8px; border:1px solid #002070; width:15%;">Unit Price ($)</th>
+                    <th style="background:#003EA6; color:#fff; padding:8px; border:1px solid #002070; width:16%;">Total ($)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="padding:8px; border:1px solid #ccc; text-align:center;">1</td>
+                    <td style="padding:8px; border:1px solid #ccc;">Police stationery &amp; charge office registers</td>
+                    <td style="padding:8px; border:1px solid #ccc; text-align:center;">10</td>
+                    <td style="padding:8px; border:1px solid #ccc; text-align:right;">25.00</td>
+                    <td style="padding:8px; border:1px solid #ccc; text-align:right;">250.00</td>
+                </tr>
+                <tr>
+                    <td style="padding:8px; border:1px solid #ccc; text-align:center;">2</td>
+                    <td style="padding:8px; border:1px solid #ccc;">Patrol vehicle consumables &amp; maintenance kit</td>
+                    <td style="padding:8px; border:1px solid #ccc; text-align:center;">2</td>
+                    <td style="padding:8px; border:1px solid #ccc; text-align:right;">140.00</td>
+                    <td style="padding:8px; border:1px solid #ccc; text-align:right;">280.00</td>
+                </tr>
+                <tr style="font-weight:bold; background:#f9f9f9;">
+                    <td colspan="4" style="padding:8px; border:1px solid #ccc; text-align:right;">Subtotal / Estimated Total:</td>
+                    <td style="padding:8px; border:1px solid #ccc; text-align:right;">$530.00</td>
+                </tr>
+            </tbody>
+        </table><p><br></p>`;
+        insertHTMLAtCursor(html);
+    });
+
+    $('#btnInsCheckboxes').on('click', function() {
+        var html = `
+        <div style="margin: 14px 0; padding: 12px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px;">
+            <strong style="color:#003EA6; display:block; margin-bottom:8px;">Evaluation &amp; Recommendation:</strong>
+            <label style="margin-right: 20px; font-weight: 600; cursor:pointer;"><input type="checkbox" style="vertical-align:middle; margin-right:6px;"> Approved</label>
+            <label style="margin-right: 20px; font-weight: 600; cursor:pointer;"><input type="checkbox" style="vertical-align:middle; margin-right:6px;"> Recommended with Conditions</label>
+            <label style="margin-right: 20px; font-weight: 600; cursor:pointer;"><input type="checkbox" style="vertical-align:middle; margin-right:6px;"> Query / Information Required</label>
+            <label style="font-weight: 600; cursor:pointer;"><input type="checkbox" style="vertical-align:middle; margin-right:6px;"> Disapproved</label>
+        </div><p><br></p>`;
+        insertHTMLAtCursor(html);
+    });
+
+    $('#btnInsSignBlock').on('click', function() {
+        injectSignatoriesHTML();
+    });
+
+    // ── Table Cell Manipulation ────────────────────────────────────────────
+    function getSelectedCell() {
+        var sel = window.getSelection();
+        if (!sel || !sel.anchorNode) return null;
+        var node = sel.anchorNode;
+        while (node && node !== $canvas[0]) {
+            if (node.tagName === 'TD' || node.tagName === 'TH') return $(node);
+            node = node.parentNode;
+        }
+        return null;
+    }
+
+    $('#toolAddRow').on('click', function() {
+        var $cell = getSelectedCell();
+        if (!$cell) {
+            // If no cell selected, append a row to the last table
+            var $table = $canvas.find('table').last();
+            if ($table.length) {
+                var cols = $table.find('tr').first().children().length || 2;
+                var rowHtml = '<tr>' + '<td>&nbsp;</td>'.repeat(cols) + '</tr>';
+                $table.find('tbody').length ? $table.find('tbody').append(rowHtml) : $table.append(rowHtml);
+            }
+            return;
+        }
+        var $tr = $cell.closest('tr');
+        var colCount = $tr.children().length;
+        var newRow = '<tr>' + '<td>&nbsp;</td>'.repeat(colCount) + '</tr>';
+        $tr.after(newRow);
+    });
+
+    $('#toolAddCol').on('click', function() {
+        var $cell = getSelectedCell();
+        var $table = $cell ? $cell.closest('table') : $canvas.find('table').last();
+        if ($table && $table.length) {
+            $table.find('tr').each(function() {
+                var isHeader = $(this).find('th').length > 0;
+                if (isHeader) {
+                    $(this).append('<th style="background:#003EA6;color:#fff;padding:8px;border:1px solid #002070;">New Column</th>');
+                } else {
+                    $(this).append('<td style="padding:8px;border:1px solid #ccc;">&nbsp;</td>');
+                }
+            });
+        }
+    });
+
+    $('#toolDelRow').on('click', function() {
+        var $cell = getSelectedCell();
+        if ($cell) {
+            $cell.closest('tr').remove();
+        }
+    });
+
+    $('#toolDelTable').on('click', function() {
+        var $cell = getSelectedCell();
+        if ($cell) {
+            $cell.closest('table').remove();
+        }
+    });
+
+    // ── Approvers & Signatories Logic ──────────────────────────────────────
+    var defaultApprovers = [
+        { name: "Officer-in-Charge", role: "Originating Officer / Station OIC", threshold: "Up to $500" },
+        { name: "Head of Department", role: "Supervising HOD", threshold: "Up to $5,000" },
+        { name: "Director Finance & Admin", role: "Director of Finance", threshold: "Up to $20,000" },
+        { name: "Commissioner General", role: "Accounting Authority", threshold: "Above $20,000" }
+    ];
+
+    var approversList = [];
+    try {
+        var rawApprovers = '{{ approvers_json|default:"[]"|escapejs }}';
+        approversList = JSON.parse(rawApprovers || '[]');
+    } catch(e) {
+        approversList = [];
+    }
+
+    if (!Array.isArray(approversList) || approversList.length === 0) {
+        approversList = defaultApprovers.slice(0, 3);
+    }
+
+    $('#requires_approvals').on('change', function() {
+        if ($(this).is(':checked')) {
+            $('#approversConfigSection').slideDown(200);
+        } else {
+            $('#approversConfigSection').slideUp(200);
+        }
+    });
+
+    function renderApproversList() {
+        var $c = $('#approversListContainer');
+        $c.empty();
+        approversList.forEach(function(item, idx) {
+            $c.append(`
+            <div class="approver-card" data-idx="${idx}">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="badge bg-info text-dark font-monospace extra-small">Stage ${idx+1}</span>
+                    <button type="button" class="btn btn-sm btn-link text-danger p-0 del-approver-btn" data-idx="${idx}">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="row g-1">
+                    <div class="col-7">
+                        <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary extra-small apr-role"
+                               placeholder="Role / Title" value="${item.role || ''}" data-idx="${idx}">
+                    </div>
+                    <div class="col-5">
+                        <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary extra-small apr-name"
+                               placeholder="Officer Name" value="${item.name || ''}" data-idx="${idx}">
+                    </div>
+                </div>
+            </div>`);
+        });
+
+        // Event bindings
+        $('.apr-role').on('change', function() {
+            var i = $(this).data('idx');
+            approversList[i].role = $(this).val();
+        });
+        $('.apr-name').on('change', function() {
+            var i = $(this).data('idx');
+            approversList[i].name = $(this).val();
+        });
+        $('.del-approver-btn').on('click', function() {
+            var i = $(this).data('idx');
+            approversList.splice(i, 1);
+            renderApproversList();
+        });
+    }
+
+    $('#addApproverStageBtn').on('click', function() {
+        var nextStage = approversList.length + 1;
+        approversList.push({ name: "Designated Signatory", role: "Approval Stage " + nextStage, threshold: "" });
+        renderApproversList();
+    });
+
+    function injectSignatoriesHTML() {
+        var rowsHtml = '';
+        approversList.forEach(function(item, idx) {
+            rowsHtml += `
+            <tr>
+                <td style="padding:10px; border:1px solid #ccc; font-weight:bold; color:#002070; width:25%;">
+                    Stage ${idx+1}: ${item.role || 'Authorized Officer'}
+                </td>
+                <td style="padding:10px; border:1px solid #ccc; width:35%;">
+                    <div style="font-weight:600;">${item.name || 'Officer In Charge'}</div>
+                    <div style="font-size:11px; color:#666;">Designation / Station</div>
+                </td>
+                <td style="padding:10px; border:1px solid #ccc; width:40%;">
+                    <div style="border-bottom:1px dashed #777; height:24px; margin-bottom:4px;"></div>
+                    <div style="font-size:11px; color:#666; display:flex; justify-content:space-between;">
+                        <span>Signature: ________________</span>
+                        <span>Date: ____/____/20__</span>
+                    </div>
+                </td>
+            </tr>`;
+        });
+
+        var html = `
+        <div class="zrp-signatories-section" style="margin-top:28px; page-break-inside:avoid;">
+            <h3 style="color:#003EA6; border-bottom:2px solid #D4AF37; padding-bottom:6px; font-size:15px; text-transform:uppercase;">
+                Institutional Approvals &amp; Signatories Matrix
+            </h3>
+            <table style="width:100%; border-collapse:collapse; margin-top:10px;">
+                <thead>
+                    <tr>
+                        <th style="background:#003EA6; color:#fff; padding:8px 10px; border:1px solid #002070;">Approval Stage</th>
+                        <th style="background:#003EA6; color:#fff; padding:8px 10px; border:1px solid #002070;">Designated Officer</th>
+                        <th style="background:#003EA6; color:#fff; padding:8px 10px; border:1px solid #002070;">Signature &amp; Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
+        </div><p><br></p>`;
+
+        // Remove existing signatories block if present, then append at the bottom
+        $canvas.find('.zrp-signatories-section').remove();
+        $canvas.append(html);
+        if (typeof alert_toast !== 'undefined') alert_toast('Signatories block placed at end of document!', 'success');
+    }
+
+    $('#injectSignaturesBtn').on('click', function() {
+        injectSignatoriesHTML();
+    });
+
+    renderApproversList();
+
+    // ── Form Sync and Submission ───────────────────────────────────────────
+    function syncCanvasToForm() {
+        $('#template_body_input').val($canvas.html());
+        $('#approvers_json_input').val(JSON.stringify(approversList));
+    }
+
+    $('#templateForm').on('submit', function() {
+        syncCanvasToForm();
+        return true;
+    });
+
+    // ── Quick Save (AJAX) ──────────────────────────────────────────────────
+    $('#quickSaveBtn').on('click', function() {
+        var title = $('#id_title').val().trim();
+        if (!title) {
+            alert('Please provide a Template Title before saving.');
+            $('#id_title').focus();
+            return;
+        }
+        syncCanvasToForm();
+        var formData = new FormData(document.getElementById('templateForm'));
+        formData.append('ajax', '1');
+
+        $('#quickSaveBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Saving…');
+
+        $.ajax({
+            headers: { "X-CSRFToken": '{{ csrf_token }}' },
+            url: window.location.href,
+            type: "POST",
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(resp) {
+                $('#quickSaveBtn').prop('disabled', false).html('<i class="fas fa-bolt me-1"></i> Quick Save');
+                if (resp.status === 'success') {
+                    $('#quickSaveStatus').html('<i class="fas fa-check-circle me-1"></i> Saved at ' + (resp.updated_at || 'just now')).fadeIn().delay(3000).fadeOut();
+                    if (typeof alert_toast !== 'undefined') alert_toast(resp.message, 'success');
+                } else {
+                    alert('Error saving template: ' + (resp.message || 'Unknown error'));
+                }
+            },
+            error: function() {
+                $('#quickSaveBtn').prop('disabled', false).html('<i class="fas fa-bolt me-1"></i> Quick Save');
+                alert('Could not save template. Please check connection and try again.');
+            }
+        });
+    });
+
+    // Ctrl+S shortcut
+    $(document).on('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            $('#quickSaveBtn').trigger('click');
+        }
+    });
+});
+</script>
+{% endblock pageContent %}

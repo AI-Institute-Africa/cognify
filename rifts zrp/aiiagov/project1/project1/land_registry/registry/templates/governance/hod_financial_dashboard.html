@@ -1,0 +1,489 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}{{ user_role }} Financial Recovery Dashboard — RIFTS-X{% endblock %}
+
+{% block pageContent %}
+<style>
+    .recovery-card {
+        background: var(--card-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 20px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        color: var(--text-color);
+    }
+    .recovery-card:hover { transform: translateY(-3px); box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
+    .stat-icon { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
+    .table-hover tbody tr:hover { background: rgba(13,110,253,0.04); }
+    .badge-category { font-size: 0.72rem; padding: 5px 12px; border-radius: 50px; font-weight: 600; }
+    .upload-zone { border: 2px dashed var(--glass-border); border-radius: 16px; background: var(--glass-bg); transition: border-color 0.2s, background 0.2s; cursor: pointer; }
+    .upload-zone:hover, .upload-zone.drag-over { border-color: #0d6efd; background: rgba(13,110,253,0.04); }
+    .form-control, .form-select { 
+        border-radius: 12px; 
+        border: 1.5px solid var(--glass-border); 
+        background: var(--glass-bg); 
+        color: var(--text-color); 
+    }
+    .form-control:focus, .form-select:focus { 
+        border-color: #0d6efd; 
+        background: var(--glass-bg); 
+        color: var(--text-color); 
+        box-shadow: 0 0 0 3px rgba(13,110,253,0.1); 
+    }
+    .btn-submit-recovery { background: linear-gradient(135deg, #0d6efd, #6610f2); border: none; border-radius: 14px; font-weight: 700; letter-spacing: 0.5px; padding: 12px 28px; }
+    .btn-submit-recovery:hover { opacity: 0.9; transform: translateY(-1px); }
+    .evidence-link { font-size: 0.78rem; }
+    .chart-container { position: relative; min-height: 280px; }
+    #total-ticker { transition: all 0.5s ease; }
+    .success-flash { animation: flash 0.8s ease; }
+    @keyframes flash { 0%,100%{background:transparent;} 50%{background:rgba(25,135,84,0.15);} }
+    .cat-pill { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 5px; }
+    .form-control::placeholder { color: var(--text-muted); opacity: 0.6; }
+</style>
+
+<!-- Page Header -->
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="fw-bold mb-1" style="color: var(--text-color);">
+            <i class="fas fa-chart-line me-2 text-primary"></i> Financial Cost Recovery Dashboard
+        </h4>
+        <p class="text-muted small mb-0">
+            {{ user_role }} financial evidence, savings tracking and cost recovery reporting
+        </p>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill fw-semibold">
+            <i class="fas fa-shield-alt me-1"></i> {{ user_role }} Governance Layer
+        </span>
+    </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card recovery-card p-4">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon bg-success-subtle text-success">
+                    <i class="fas fa-coins"></i>
+                </div>
+                <div>
+                    <div class="small text-muted fw-semibold text-uppercase mb-1">Total Recovered</div>
+                    <div class="fw-bold fs-4" id="total-ticker" style="color: var(--text-color);">
+                        USD {{ total_recovered|floatformat:2|intcomma }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card recovery-card p-4">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon bg-primary-subtle text-primary">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </div>
+                <div>
+                    <div class="small text-muted fw-semibold text-uppercase mb-1">Entry Count</div>
+                    <div class="fw-bold fs-4" id="entry-count" style="color: var(--text-color);">{{ recoveries|length }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card recovery-card p-4">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon bg-warning-subtle text-warning">
+                    <i class="fas fa-layer-group"></i>
+                </div>
+                <div>
+                    <div class="small text-muted fw-semibold text-uppercase mb-1">Top Category</div>
+                    <div class="fw-bold fs-5" id="top-category" style="color: var(--text-color);">
+                        {% with max_val=0 %}
+                        {% for label, val in by_category.items %}
+                            {% if val > max_val %}{{ label }}{% endif %}
+                        {% endfor %}
+                        {% endwith %}
+                        —
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+    <!-- Monthly Trend -->
+    <div class="col-lg-7">
+        <div class="card recovery-card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold mb-0"><i class="fas fa-chart-area me-2 text-primary"></i> Monthly Recovery Trend</h6>
+                <span class="badge bg-light text-muted rounded-pill extra-small">Live Updates</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="monthlyChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <!-- Category Doughnut -->
+    <div class="col-lg-5">
+        <div class="card recovery-card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold mb-0"><i class="fas fa-chart-pie me-2 text-indigo"></i> By Category</h6>
+            </div>
+            <div class="chart-container" style="min-height:240px;">
+                <canvas id="categoryChart"></canvas>
+            </div>
+            <!-- Legend -->
+            <div class="mt-3" id="cat-legend">
+            {% for label, val in by_category.items %}
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="small text-muted">{{ label }}</span>
+                <span class="small fw-bold text-dark">USD {{ val|floatformat:0|intcomma }}</span>
+            </div>
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Submit Form + Table Row -->
+<div class="row g-4">
+    {% if user_role == 'Project Management Team' or request.user.is_superuser %}
+    <!-- Upload Form (Restricted to PMT) -->
+    <div class="col-lg-5">
+        <div class="card recovery-card p-4 shadow-sm border-0">
+            <h6 class="fw-bold mb-3" style="color: var(--text-color);"><i class="fas fa-plus-circle me-2 text-success"></i> Log Cost Recovery Entry</h6>
+            
+            <div id="form-success" class="alert alert-success rounded-3 d-none mb-3 py-2 small">
+                <i class="fas fa-check-circle me-2"></i> Entry recorded and charts updated!
+            </div>
+            <div id="form-error" class="alert alert-danger rounded-3 d-none mb-3 py-2 small"></div>
+
+            <form id="recovery-form" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label class="small fw-bold text-muted text-uppercase mb-1">Department</label>
+                    <select name="department" class="form-select form-select-sm" required>
+                        <option value="">Select Department...</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.pk }}" {% if user_dept and user_dept.pk == dept.pk %}selected{% endif %}>{{ dept.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="small fw-bold text-muted text-uppercase mb-1">Savings Category</label>
+                    <select name="cost_savings_category" class="form-select form-select-sm" required>
+                        {% for code, label in category_choices %}
+                        <option value="{{ code }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="small fw-bold text-muted text-uppercase mb-1">Amount Recovered (USD)</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text rounded-start-3 fw-bold border-0" style="background: var(--secondary-accent, #10b981); color: white;">USD</span>
+                        <input type="number" name="amount_recovered" class="form-control" step="0.01" min="1" placeholder="e.g. 150000.00" required>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="small fw-bold text-muted text-uppercase mb-1">Description / Justification</label>
+                    <textarea name="description" class="form-control form-control-sm" rows="3" placeholder="Describe the cost-saving measure and how it was achieved..." required></textarea>
+                </div>
+
+                <div class="mb-4">
+                    <label class="small fw-bold text-muted text-uppercase mb-1">Evidence Document (optional)</label>
+                    <div class="upload-zone p-3 text-center" id="dropzone">
+                        <i class="fas fa-cloud-upload-alt fa-2x text-primary mb-2 d-block"></i>
+                        <p class="small text-muted mb-0">Drag & drop or <span class="text-primary fw-bold">browse</span></p>
+                        <input type="file" name="evidence_document" class="d-none" id="evidence-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.png">
+                        <div id="file-selected" class="mt-2 small text-success fw-semibold d-none"></div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-submit-recovery w-100 text-white shadow-sm" id="submit-btn" style="background: var(--accent-color); border: none;">
+                    <i class="fas fa-paper-plane me-2"></i> Submit Recovery Record
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Evidence Table -->
+    <div class="{% if user_role == 'Project Management Team' or request.user.is_superuser %}col-lg-7{% else %}col-lg-12{% endif %}">
+        <div class="card recovery-card p-4">
+            <h6 class="fw-bold mb-3"><i class="fas fa-list-alt me-2 text-primary"></i> Recovery Ledger</h6>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle small mb-0" id="recovery-table" style="color: var(--text-color);">
+                    <thead>
+                        <tr>
+                            <th class="fw-semibold text-muted">Date</th>
+                            <th class="fw-semibold text-muted">Category</th>
+                            <th class="fw-semibold text-muted">Amount</th>
+                            <th class="fw-semibold text-muted">Dept</th>
+                            <th class="fw-semibold text-muted">Evidence</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recovery-tbody">
+                        {% for r in recoveries %}
+                        <tr>
+                            <td class="text-muted">{{ r.date_recorded|date:"d M Y" }}</td>
+                            <td>
+                                <span class="badge badge-category
+                                    {% if r.cost_savings_category == 'Labour' %}bg-success-subtle text-success
+                                    {% elif r.cost_savings_category == 'Materials' %}bg-primary-subtle text-primary
+                                    {% elif r.cost_savings_category == 'Overheads' %}bg-warning-subtle text-warning
+                                    {% elif r.cost_savings_category == 'Contracts' %}bg-info-subtle text-info
+                                    {% elif r.cost_savings_category == 'Technology' %}bg-indigo-subtle text-indigo
+                                    {% else %}bg-secondary-subtle text-secondary{% endif %}"
+                                    style="{% if r.cost_savings_category == 'Technology' %}background:rgba(102,16,242,0.12)!important;color:#6610f2!important;{% endif %}">
+                                    {{ r.get_cost_savings_category_display }}
+                                </span>
+                            </td>
+                            <td class="fw-bold text-success">USD {{ r.amount_recovered|floatformat:0|intcomma }}</td>
+                            <td class="text-muted">{{ r.department.name }}</td>
+                            <td>
+                                {% if r.evidence_document %}
+                                <a href="{{ r.evidence_document.url }}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill evidence-link px-2 py-1">
+                                    <i class="fas fa-file-download me-1"></i>View
+                                </a>
+                                {% else %}
+                                <span class="text-muted extra-small">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr id="empty-row">
+                            <td colspan="5" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-2x d-block mb-2 opacity-25"></i>
+                                No recovery entries yet.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// ─── Chart colour palette ───────────────────────────────────────────────────
+const PALETTE = ['#0d6efd','#198754','#ffc107','#0dcaf0','#6610f2','#fd7e14'];
+
+// ─── Monthly Trend Chart ─────────────────────────────────────────────────────
+const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
+let monthlyChart = new Chart(monthlyCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ monthly_labels|safe }},
+        datasets: [{
+            label: 'Recovered (USD)',
+            data: {{ monthly_data|safe }},
+            backgroundColor: 'rgba(13,110,253,0.15)',
+            borderColor: '#0d6efd',
+            borderWidth: 2,
+            borderRadius: 8,
+            fill: true,
+            tension: 0.4,
+        }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+            y: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 }, callback: v => 'USD ' + Number(v).toLocaleString() } }
+        }
+    }
+});
+
+// ─── Category Doughnut Chart ─────────────────────────────────────────────────
+const catCtx = document.getElementById('categoryChart').getContext('2d');
+let catChart = new Chart(catCtx, {
+    type: 'doughnut',
+    data: {
+        labels: {{ category_labels|safe }},
+        datasets: [{
+            data: {{ category_data|safe }},
+            backgroundColor: PALETTE,
+            borderWidth: 2,
+            borderColor: '#fff',
+            hoverOffset: 8,
+        }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        cutout: '68%',
+        plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => ' USD ' + Number(ctx.parsed).toLocaleString() } }
+        }
+    }
+});
+
+// ─── Update charts with fresh data ──────────────────────────────────────────
+// ─── Update charts and UI with fresh data ──────────────────────────────────
+function updateCharts(data) {
+    // 1. Monthly Trend Chart
+    if (data.monthly_labels && data.monthly_data) {
+        monthlyChart.data.labels = data.monthly_labels;
+        monthlyChart.data.datasets[0].data = data.monthly_data;
+        monthlyChart.update('none'); // Update without animation for snappiness
+    }
+
+    // 2. Category Doughnut Chart
+    if (data.category_labels && data.category_data) {
+        catChart.data.labels = data.category_labels;
+        catChart.data.datasets[0].data = data.category_data;
+        catChart.update('none');
+    }
+
+    // 3. Total Ticker KPI
+    const ticker = document.getElementById('total-ticker');
+    if (ticker) {
+        ticker.textContent = 'USD ' + Number(data.total_recovered).toLocaleString('en', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        ticker.classList.add('success-flash');
+        setTimeout(() => ticker.classList.remove('success-flash'), 1000);
+    }
+
+    // 4. Entry Count KPI
+    const countEl = document.getElementById('entry-count');
+    if (countEl && data.entry_count !== undefined) {
+        countEl.textContent = data.entry_count;
+    }
+
+    // 5. Update Legend & Top Category
+    if (data.category_labels && data.category_data) {
+        let legendHtml = '';
+        let maxVal = -1;
+        let topCat = '—';
+        
+        data.category_labels.forEach((label, i) => {
+            const val = data.category_data[i];
+            if (val > maxVal && val > 0) {
+                maxVal = val;
+                topCat = label;
+            }
+            legendHtml += `
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="small text-muted">${label}</span>
+                    <span class="small fw-bold text-dark">USD ${Number(val).toLocaleString(undefined, {maximumFractionDigits:0})}</span>
+                </div>`;
+        });
+        
+        document.getElementById('cat-legend').innerHTML = legendHtml;
+        document.getElementById('top-category').textContent = topCat;
+    }
+}
+
+// ─── File drag-and-drop ──────────────────────────────────────────────────────
+const dropzone = document.getElementById('dropzone');
+const evidenceInput = document.getElementById('evidence-input');
+
+dropzone.addEventListener('click', () => evidenceInput.click());
+evidenceInput.addEventListener('change', () => {
+    if (evidenceInput.files.length) {
+        const el = document.getElementById('file-selected');
+        el.textContent = '✓ ' + evidenceInput.files[0].name;
+        el.classList.remove('d-none');
+    }
+});
+['dragover','dragenter'].forEach(e => dropzone.addEventListener(e, ev => { ev.preventDefault(); dropzone.classList.add('drag-over'); }));
+['dragleave','drop'].forEach(e => dropzone.addEventListener(e, ev => { ev.preventDefault(); dropzone.classList.remove('drag-over'); }));
+dropzone.addEventListener('drop', ev => {
+    const file = ev.dataTransfer.files[0];
+    if (file) {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        evidenceInput.files = dt.files;
+        const el = document.getElementById('file-selected');
+        el.textContent = '✓ ' + file.name;
+        el.classList.remove('d-none');
+    }
+});
+
+// ─── AJAX form submission ────────────────────────────────────────────────────
+document.getElementById('recovery-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('submit-btn');
+    const successAlert = document.getElementById('form-success');
+    const errorAlert = document.getElementById('form-error');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Saving...';
+
+    successAlert.classList.add('d-none');
+    errorAlert.classList.add('d-none');
+
+    const formData = new FormData(this);
+
+    try {
+        const resp = await fetch('{% url "save-cost-recovery" %}', { 
+            method: 'POST', 
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        
+        const data = await resp.json();
+
+        if (data.success) {
+            // Prepend new row to table
+            const tbody = document.getElementById('recovery-tbody');
+            const emptyRow = document.getElementById('empty-row');
+            if (emptyRow) emptyRow.remove();
+
+            // Match model display labels exactly
+            const catClass = {
+                'Labour Savings': 'bg-success-subtle text-success',
+                'Materials & Procurement': 'bg-primary-subtle text-primary',
+                'General Overheads': 'bg-warning-subtle text-warning',
+                'Contract Renegotiation': 'bg-info-subtle text-info',
+                'Technology Optimisation': 'bg-indigo-subtle text-indigo',
+                'Other': 'bg-secondary-subtle text-secondary',
+            }[data.category] || 'bg-secondary-subtle text-secondary';
+
+            const techStyle = data.category === 'Technology Optimisation' ? 'style="background:rgba(102,16,242,0.12)!important;color:#6610f2!important;"' : '';
+            const evidenceHtml = data.evidence_url
+                ? `<a href="${data.evidence_url}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill evidence-link px-2 py-1"><i class="fas fa-file-download me-1"></i>View</a>`
+                : '<span class="text-muted extra-small">—</span>';
+
+            const row = `<tr class="success-flash">
+                <td class="text-muted">${data.date}</td>
+                <td><span class="badge badge-category ${catClass}" ${techStyle}>${data.category}</span></td>
+                <td class="fw-bold text-success">USD ${Number(data.amount).toLocaleString('en', {minimumFractionDigits:0})}</td>
+                <td class="text-muted">${data.department}</td>
+                <td>${evidenceHtml}</td>
+            </tr>`;
+            
+            tbody.insertAdjacentHTML('afterbegin', row);
+
+            updateCharts(data);
+            successAlert.classList.remove('d-none');
+            this.reset();
+            document.getElementById('file-selected').classList.add('d-none');
+            
+            // Focus recovery
+            setTimeout(() => successAlert.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+        } else {
+            errorAlert.textContent = data.error || 'Validation failed. Please check your inputs.';
+            errorAlert.classList.remove('d-none');
+        }
+    } catch (err) {
+        console.error('Form submission error:', err);
+        errorAlert.textContent = 'Server communication error. Please try again.';
+        errorAlert.classList.remove('d-none');
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-paper-plane me-2"></i> Submit Recovery Record';
+});
+</script>
+{% endblock %}

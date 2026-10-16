@@ -1,0 +1,84 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-bell text-warning me-2"></i> ZRP Notifications & Alerts Center</h3>
+            <p class="text-muted small mb-0">Multi-channel notifications for leave, procurement, travel/TSA, acquittals, meetings, interviews, and document workflows</p>
+        </div>
+        <form action="{% url 'mark-all-notifications-read' %}" method="POST">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-warning rounded-pill px-4 fw-bold shadow-sm">
+                <i class="fas fa-check-double me-2"></i> Mark All as Read
+            </button>
+        </form>
+    </div>
+
+    <!-- Category Filter Pills -->
+    <div class="glass-card p-3 mb-4 border border-warning border-opacity-25">
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'notifications-center' %}" class="btn btn-sm btn-outline-light rounded-pill px-3 {% if not current_category %}active{% endif %}">All Alerts</a>
+            <a href="?category=Leave" class="btn btn-sm btn-outline-light rounded-pill px-3 {% if current_category == 'Leave' %}active{% endif %}">Leave</a>
+            <a href="?category=Procurement" class="btn btn-sm btn-outline-light rounded-pill px-3 {% if current_category == 'Procurement' %}active{% endif %}">Procurement</a>
+            <a href="?category=Travel/TSA" class="btn btn-sm btn-outline-light rounded-pill px-3 {% if current_category == 'Travel/TSA' %}active{% endif %}">Travel & TSA</a>
+            <a href="?category=Acquittal" class="btn btn-sm btn-outline-light rounded-pill px-3 {% if current_category == 'Acquittal' %}active{% endif %}">Acquittals</a>
+            <a href="?category=Meeting" class="btn btn-sm btn-outline-light rounded-pill px-3 {% if current_category == 'Meeting' %}active{% endif %}">Meetings</a>
+            <a href="?category=Minutes" class="btn btn-sm btn-outline-light rounded-pill px-3 {% if current_category == 'Minutes' %}active{% endif %}">Minutes</a>
+            <a href="?category=Action+Item" class="btn btn-sm btn-outline-light rounded-pill px-3 {% if current_category == 'Action Item' %}active{% endif %}">Action Items</a>
+            <a href="?category=Interview" class="btn btn-sm btn-outline-light rounded-pill px-3 {% if current_category == 'Interview' %}active{% endif %}">Interviews</a>
+            <a href="?category=Attendance" class="btn btn-sm btn-outline-light rounded-pill px-3 {% if current_category == 'Attendance' %}active{% endif %}">Attendance</a>
+            <a href="?category=Document" class="btn btn-sm btn-outline-light rounded-pill px-3 {% if current_category == 'Document' %}active{% endif %}">Documents</a>
+        </div>
+    </div>
+
+    <!-- Notifications List -->
+    <div class="row g-3">
+        {% for n in notifications %}
+        <div class="col-md-12">
+            <div class="glass-card p-4 border {% if not n.is_read %}border-warning border-opacity-50 bg-warning bg-opacity-10{% else %}border-secondary border-opacity-25{% endif %}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-warning text-dark fw-bold rounded-pill px-3 py-1 extra-small">{{ n.category }}</span>
+                            <span class="badge bg-secondary rounded-pill extra-small"><i class="fas fa-paper-plane me-1"></i> {{ n.channel }}</span>
+                            {% if not n.is_read %}
+                            <span class="badge bg-danger rounded-pill extra-small fw-bold">UNREAD</span>
+                            {% else %}
+                            <span class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 rounded-pill extra-small">READ</span>
+                            {% endif %}
+                        </div>
+                        <h5 class="fw-bold text-white mb-1">{{ n.title }}</h5>
+                        <p class="text-muted small mb-2">{{ n.message }}</p>
+                        <div class="extra-small text-muted font-monospace">
+                            <i class="fas fa-clock me-1"></i> {{ n.created_at|date:"d M Y, H:i:s" }}
+                            {% if n.sender %}
+                            | From: <strong>{{ n.sender.get_full_name|default:n.sender.username }}</strong>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        {% if n.link_url %}
+                        <a href="{% url 'mark-notification-read' n.pk %}" class="btn btn-sm btn-warning rounded-pill px-3 fw-bold me-2">
+                            <i class="fas fa-external-link me-1"></i> View Action
+                        </a>
+                        {% elif not n.is_read %}
+                        <a href="{% url 'mark-notification-read' n.pk %}" class="btn btn-sm btn-outline-light rounded-pill px-3">
+                            <i class="fas fa-check me-1"></i> Mark Read
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-md-12 text-center py-5 glass-card text-muted">
+            <i class="fas fa-bell-slash fs-2 d-block mb-2"></i>
+            No notifications found for this category.
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock pageContent %}

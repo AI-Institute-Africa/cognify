@@ -1,0 +1,230 @@
+{% load humanize %}
+<div class="container-fluid">
+    <form action="{% url 'save-form27' %}" id="form27-form">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{ voucher.id|default:'' }}">
+
+        <div class="alert alert-primary d-flex align-items-center mb-3 rounded-3" role="alert">
+            <i class="fas fa-file-invoice fs-4 me-3"></i>
+            <div>
+                <strong>Z.R.P. FORM 27</strong>: Requisition/Issue Voucher
+                <div class="extra-small text-muted">Central Radio Stores (I.C.T) &bull; Equipment issuance &amp; dispatch tracking</div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Voucher Number *</label>
+                {{ form.voucher_no }}
+                <div class="extra-small text-muted">e.g. 85/26 (Number / Year)</div>
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Issue Date *</label>
+                {{ form.date }}
+            </div>
+            <div class="col-12">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Issued By (Office / Designation) *</label>
+                {{ form.issued_by }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Destination Station / Section *</label>
+                {{ form.station }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Station Date</label>
+                {{ form.station_date }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Requisition Reference No.</label>
+                {{ form.requisition_no }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> How Dispatched</label>
+                {{ form.how_dispatched }}
+            </div>
+
+            <!-- Checker Selection: System User or Manual Text -->
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1">
+                    <i class="fas fa-user-check text-primary me-1"></i> Checker (Select from System Users)
+                </label>
+                {{ form.checker_user }}
+                <div class="extra-small text-muted">Select from registered users</div>
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Checker Name &amp; Rank (Text Fallback)</label>
+                {{ form.checker }}
+                <div class="extra-small text-muted">e.g. CST KADIKI (Used if no user selected)</div>
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Checker Date *</label>
+                {{ form.checker_date }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Voucher Status *</label>
+                {{ form.status }}
+            </div>
+
+            <!-- Receiver Selection: System User or Manual Text -->
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1">
+                    <i class="fas fa-user text-primary me-1"></i> Receiver (Select from System Users)
+                </label>
+                {{ form.received_by_user }}
+                <div class="extra-small text-muted">Select receiving officer from registered users</div>
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Receiver Name &amp; Rank (Text Fallback)</label>
+                {{ form.received_by_name }}
+                <div class="extra-small text-muted">e.g. SGT MOYO (Used if no user selected)</div>
+            </div>
+        </div>
+
+        <!-- Statutory Reverse Side Certifications & Endorsements (From Official Physical Form) -->
+        <div class="card border-0 bg-warning bg-opacity-10 rounded-4 p-3 mb-3 border-start border-warning border-4 shadow-sm">
+            <div class="fw-bold text-dark mb-1">
+                <i class="fas fa-stamp text-warning me-1"></i> Form 27 Reverse Side &bull; Statutory Certifications &amp; Endorsements
+            </div>
+            <div class="extra-small text-muted">Endorsements required under Police ICT Standing Regulations prior to and after equipment dispatch</div>
+        </div>
+
+        <!-- Block (1): Member Requisitioning Goods -->
+        <div class="card border rounded-3 p-3 mb-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold mb-2">
+                <span class="badge bg-dark me-1">(1)</span> Member Requisitioning Goods
+            </div>
+            <div class="form-check mb-2">
+                {{ form.cert_essential_communication }}
+                <label class="form-check-label small fw-bold" for="{{ form.cert_essential_communication.id_for_label }}">
+                    Certified that all items listed overleaf are essential for the maintenance of Police communication.
+                </label>
+            </div>
+            <div class="row g-2">
+                <div class="col-md-8">
+                    <label class="extra-small text-muted">Officer / Member-in-Charge Name &amp; Force No.</label>
+                    {{ form.cert_member_name }}
+                </div>
+                <div class="col-md-4">
+                    <label class="extra-small text-muted">Date</label>
+                    {{ form.cert_member_date }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Block (2): Provincial ICT Officer -->
+        <div class="card border rounded-3 p-3 mb-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold mb-2">
+                <span class="badge bg-dark me-1">(2)</span> Provincial ICT Officer (PICTO)
+            </div>
+            <div class="mb-2">
+                <label class="extra-small text-muted fw-bold">Tools and/or Equipment are demanded for the following reasons:-</label>
+                {{ form.demand_reasons }}
+            </div>
+            <div class="row g-2">
+                <div class="col-md-8">
+                    <label class="extra-small text-muted">Provincial ICT Officer Name &amp; Designation</label>
+                    {{ form.picto_name }}
+                </div>
+                <div class="col-md-4">
+                    <label class="extra-small text-muted">Date Stamp</label>
+                    {{ form.picto_date_stamp }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Block (3): Director ICT Approval -->
+        <div class="card border rounded-3 p-3 mb-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold mb-2">
+                <span class="badge bg-dark me-1">(3)</span> Director ICT Approval
+            </div>
+            <div class="form-check mb-2">
+                {{ form.director_approved }}
+                <label class="form-check-label small fw-bold" for="{{ form.director_approved.id_for_label }}">
+                    Issues Approved.
+                </label>
+            </div>
+            <div class="mb-2">
+                <label class="extra-small text-muted">Remarks:-</label>
+                {{ form.director_remarks }}
+            </div>
+            <div class="row g-2">
+                <div class="col-md-8">
+                    <label class="extra-small text-muted">Director ICT</label>
+                    {{ form.director_name }}
+                </div>
+                <div class="col-md-4">
+                    <label class="extra-small text-muted">Date Stamp</label>
+                    {{ form.director_date_stamp }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Block (4): Receiving Provincial/District ICT Officer -->
+        <div class="card border rounded-3 p-3 mb-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold mb-2">
+                <span class="badge bg-dark me-1">(4)</span> Receiving Provincial/District ICT Officer Certification
+            </div>
+            <div class="form-check mb-2">
+                {{ form.receipt_ledger_certified }}
+                <label class="form-check-label small fw-bold" for="{{ form.receipt_ledger_certified.id_for_label }}">
+                    Certified the items overleaf have been received and correctly recorded on the relevant copy of the Stores/Equipment Ledger or Inventory.
+                </label>
+            </div>
+            <div class="row g-2">
+                <div class="col-md-8">
+                    <label class="extra-small text-muted">Provincial/District ICT Officer</label>
+                    {{ form.receiving_ict_officer }}
+                </div>
+                <div class="col-md-4">
+                    <label class="extra-small text-muted">Date Stamp</label>
+                    {{ form.receiving_date_stamp }}
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+$(function () {
+    $('#form27-form').submit(function (e) {
+        e.preventDefault();
+        var _this = $(this);
+        $('.err-msg').remove();
+        var el = $('<div>').addClass("alert alert-danger err-msg").hide();
+        if (_this[0].checkValidity() == false) {
+            _this[0].reportValidity();
+            return false;
+        }
+        start_loader();
+        $.ajax({
+            url: "{% url 'save-form27' %}",
+            data: $(this).serialize(),
+            method: 'POST',
+            type: 'POST',
+            dataType: 'json',
+            error: function (err) {
+                console.log(err);
+                alert_toast("An error occurred", 'error');
+                end_loader();
+            },
+            success: function (resp) {
+                if (typeof resp == 'object' && resp.status == 'success') {
+                    if (resp.redirect_url) {
+                        location.href = resp.redirect_url;
+                    } else {
+                        location.reload();
+                    }
+                } else if (resp.status == 'failed' && !!resp.msg) {
+                    el.text(resp.msg);
+                    _this.prepend(el);
+                    el.show('slow');
+                    end_loader();
+                } else {
+                    alert_toast("An error occurred", 'error');
+                    end_loader();
+                }
+            }
+        });
+    });
+});
+</script>\n

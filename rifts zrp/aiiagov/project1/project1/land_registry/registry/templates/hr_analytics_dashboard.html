@@ -1,0 +1,210 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="fw-bold mb-0 text-white"><i class="fas fa-users-gear text-warning me-2"></i> ZRP HR Analytics Dashboard</h3>
+      <p class="text-muted small mb-0">Staff establishment, leave, attendance, training, recruitment &amp; employee movements</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'export-reports' 'attendance' %}" class="btn btn-outline-success rounded-pill px-3 fw-bold">
+        <i class="fas fa-file-csv me-1"></i> Export Attendance CSV
+      </a>
+      <a href="{% url 'executive-analytics-dashboard' %}" class="btn btn-outline-light rounded-pill px-3">
+        <i class="fas fa-arrow-left me-1"></i> Executive Dashboard
+      </a>
+    </div>
+  </div>
+
+  <!-- Period Filter -->
+  <div class="glass-card p-3 mb-4 border border-warning border-opacity-25">
+    <form method="GET" class="row g-2 align-items-center">
+      <div class="col-auto small text-muted fw-bold">Filter Period:</div>
+      <div class="col-md-2">
+        <select name="month" class="form-select form-select-sm bg-dark text-white border-secondary">
+          {% for m in months_list %}
+          <option value="{{ m }}" {% if month == m %}selected{% endif %}>
+            {{ m }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <input type="number" name="year" value="{{ year }}" class="form-control form-control-sm bg-dark text-white border-secondary">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-warning rounded-pill px-3 fw-bold">Apply</button>
+      </div>
+      <div class="col-auto ms-auto small text-muted">Reporting Period: <strong class="text-warning">{{ month }}/{{ year }}</strong></div>
+    </form>
+  </div>
+
+  <!-- Section 1: Staff Establishment -->
+  <h6 class="text-uppercase fw-bold text-muted mb-2 small"><i class="fas fa-users me-1 text-success"></i> Staff Establishment</h6>
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="glass-card p-3 text-center border-top border-4 border-success">
+        <div class="extra-small text-muted fw-bold text-uppercase">Total Staff on Establishment</div>
+        <h2 class="fw-bold text-success mb-0 mt-1">{{ total_staff }}</h2>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="glass-card p-3 text-center border-top border-4 border-info">
+        <div class="extra-small text-muted fw-bold text-uppercase">Active Staff Members</div>
+        <h2 class="fw-bold text-info mb-0 mt-1">{{ active_staff }}</h2>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="glass-card p-3 text-center border-top border-4 border-warning">
+        <div class="extra-small text-muted fw-bold text-uppercase">Currently on Approved Leave</div>
+        <h2 class="fw-bold text-warning mb-0 mt-1">{{ currently_on_leave }}</h2>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="glass-card p-3 text-center border-top border-4 border-danger">
+        <div class="extra-small text-muted fw-bold text-uppercase">AWOL Records This Month</div>
+        <h2 class="fw-bold text-danger mb-0 mt-1">{{ awol_count }}</h2>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 2: Leave Stats + Recruitment side by side -->
+  <div class="row g-4 mb-4">
+
+    <!-- Leave Statistics -->
+    <div class="col-md-6">
+      <div class="glass-card p-4 h-100">
+        <h5 class="fw-bold text-white mb-3"><i class="fas fa-umbrella-beach text-warning me-2"></i> Leave Statistics ({{ month }}/{{ year }})</h5>
+        <div class="row g-2 text-center mb-3">
+          <div class="col-3">
+            <div class="bg-dark rounded-3 p-2">
+              <div class="extra-small text-muted">Total Requests</div>
+              <h4 class="fw-bold text-white mb-0">{{ total_leave_requests }}</h4>
+            </div>
+          </div>
+          <div class="col-3">
+            <div class="bg-success bg-opacity-20 rounded-3 p-2 border border-success border-opacity-25">
+              <div class="extra-small text-muted">Approved</div>
+              <h4 class="fw-bold text-success mb-0">{{ approved_leave }}</h4>
+            </div>
+          </div>
+          <div class="col-3">
+            <div class="bg-warning bg-opacity-20 rounded-3 p-2 border border-warning border-opacity-25">
+              <div class="extra-small text-muted">Pending</div>
+              <h4 class="fw-bold text-warning mb-0">{{ pending_leave }}</h4>
+            </div>
+          </div>
+          <div class="col-3">
+            <div class="bg-danger bg-opacity-20 rounded-3 p-2 border border-danger border-opacity-25">
+              <div class="extra-small text-muted">Rejected</div>
+              <h4 class="fw-bold text-danger mb-0">{{ rejected_leave }}</h4>
+            </div>
+          </div>
+        </div>
+        <h6 class="text-muted extra-small text-uppercase fw-bold mb-2">Leave by Type</h6>
+        {% for lt in leave_by_type %}
+        <div class="d-flex justify-content-between align-items-center py-1 border-bottom border-secondary border-opacity-25">
+          <span class="small text-white">{{ lt.leave_type }}</span>
+          <span class="badge bg-warning text-dark rounded-pill px-3 fw-bold">{{ lt.count }} requests</span>
+        </div>
+        {% empty %}
+        <div class="text-muted small text-center py-2">No leave requests this period.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Recruitment & Training -->
+    <div class="col-md-6">
+      <div class="glass-card p-4 h-100">
+        <h5 class="fw-bold text-white mb-3"><i class="fas fa-user-tie text-info me-2"></i> Recruitment &amp; Training</h5>
+        <div class="row g-2 text-center mb-3">
+          <div class="col-6">
+            <div class="bg-dark rounded-3 p-3">
+              <div class="extra-small text-muted">Interview Exercises (Total)</div>
+              <h3 class="fw-bold text-white mb-0">{{ total_interviews }}</h3>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="bg-info bg-opacity-20 rounded-3 p-3 border border-info border-opacity-25">
+              <div class="extra-small text-muted">Active / Scheduled Exercises</div>
+              <h3 class="fw-bold text-info mb-0">{{ active_interviews }}</h3>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="bg-dark rounded-3 p-3">
+              <div class="extra-small text-muted">Training Requests This Month</div>
+              <h3 class="fw-bold text-white mb-0">{{ training_requests_count }}</h3>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="bg-success bg-opacity-20 rounded-3 p-3 border border-success border-opacity-25">
+              <div class="extra-small text-muted">Approved Training This Month</div>
+              <h3 class="fw-bold text-success mb-0">{{ approved_training }}</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Section 3: Departmental Breakdown -->
+  <div class="row g-4">
+    <div class="col-md-6">
+      <div class="glass-card p-4">
+        <h5 class="fw-bold text-white mb-3"><i class="fas fa-sitemap text-warning me-2"></i> Staff Establishment by Department</h5>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0 text-white small">
+            <thead><tr class="text-uppercase extra-small bg-dark">
+              <th class="ps-3 py-2">Department</th>
+              <th class="text-end pe-3 py-2">Staff Count</th>
+            </tr></thead>
+            <tbody>
+              {% for d in departments %}
+              <tr>
+                <td class="ps-3 fw-bold">{{ d.name }}</td>
+                <td class="text-end pe-3"><span class="badge bg-warning text-dark rounded-pill px-3 fw-bold">{{ d.staff_count }}</span></td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="2" class="text-center text-muted py-3">No departments configured.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Employee Movements -->
+    <div class="col-md-6">
+      <div class="glass-card p-4">
+        <h5 class="fw-bold text-white mb-3"><i class="fas fa-person-walking-arrow-right text-info me-2"></i> Recent Employee Movements (Returns from Leave)</h5>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0 text-white small">
+            <thead><tr class="text-uppercase extra-small bg-dark">
+              <th class="ps-3 py-2">Employee</th>
+              <th class="py-2">Leave Type</th>
+              <th class="text-end pe-3 py-2">Return Date</th>
+            </tr></thead>
+            <tbody>
+              {% for r in recent_returns %}
+              <tr>
+                <td class="ps-3 fw-bold">{{ r.user.get_full_name|default:r.user.username }}</td>
+                <td><span class="badge bg-secondary rounded-pill extra-small">{{ r.leave_type }}</span></td>
+                <td class="text-end pe-3 text-success fw-bold">{{ r.actual_return_date|default:r.end_date|date:"d M Y" }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="3" class="text-center text-muted py-3">No employee movements this period.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock pageContent %}

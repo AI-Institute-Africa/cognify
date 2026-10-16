@@ -1,0 +1,484 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-3">
+  <!-- Page Header & Breadcrumb -->
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
+    <div>
+      <nav aria-label="breadcrumb" class="mb-1">
+        <ol class="breadcrumb extra-small mb-0">
+          <li class="breadcrumb-item"><a href="{% url 'home-page' %}" class="text-success text-decoration-none"><i class="fas fa-home me-1"></i>Home</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'employee-self-service' %}" class="text-success text-decoration-none">Self-Service</a></li>
+          <li class="breadcrumb-item active text-white" aria-current="page">Leave Application</li>
+        </ol>
+      </nav>
+      <h3 class="fw-bold text-white mb-0">
+        <i class="fas fa-calendar-plus text-success me-2"></i>{% if id %}Edit Leave Request{% else %}Official Leave Application{% endif %}
+      </h3>
+      <p class="text-muted small mb-0">Submit leave requests to your department head and supervisor for official approval</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'employee-self-service' %}" class="btn btn-outline-light rounded-pill px-4 btn-sm">
+        <i class="fas fa-arrow-left me-1"></i> Back to Profile
+      </a>
+      <a href="{% url 'leave-list' %}" class="btn btn-outline-success rounded-pill px-4 btn-sm">
+        <i class="fas fa-list me-1"></i> Leave History
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- LEFT SIDEBAR: Leave Balances & Rules -->
+    <div class="col-lg-4">
+      <div class="glass-card p-4 mb-4 border-top border-4 border-success">
+        <h5 class="fw-bold text-white mb-3">
+          <i class="fas fa-wallet text-success me-2"></i> Your Leave Balances
+        </h5>
+
+        <div class="d-flex flex-column gap-3">
+          <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25 d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-3">
+              <div class="bg-success bg-opacity-20 text-success p-2.5 rounded-3">
+                <i class="fas fa-umbrella-beach fs-5"></i>
+              </div>
+              <div>
+                <div class="fw-bold text-white small">Annual Leave</div>
+                <div class="extra-small text-muted">Accrued paid leave</div>
+              </div>
+            </div>
+            <div class="text-end">
+              <span class="fs-4 fw-bold text-success">{{ employee.annual_leave_balance|default:30 }}</span>
+              <span class="extra-small text-muted d-block">Days</span>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25 d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-3">
+              <div class="bg-info bg-opacity-20 text-info p-2.5 rounded-3">
+                <i class="fas fa-bed-pulse fs-5"></i>
+              </div>
+              <div>
+                <div class="fw-bold text-white small">Sick Leave</div>
+                <div class="extra-small text-muted">Medical certificate required &gt; 2 days</div>
+              </div>
+            </div>
+            <div class="text-end">
+              <span class="fs-4 fw-bold text-info">{{ employee.sick_leave_balance|default:90 }}</span>
+              <span class="extra-small text-muted d-block">Days</span>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25 d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-3">
+              <div class="bg-warning bg-opacity-20 text-warning p-2.5 rounded-3">
+                <i class="fas fa-baby fs-5"></i>
+              </div>
+              <div>
+                <div class="fw-bold text-white small">Maternity / Paternity</div>
+                <div class="extra-small text-muted">Statutory parental leave</div>
+              </div>
+            </div>
+            <div class="text-end">
+              <span class="fs-4 fw-bold text-warning">{{ employee.maternity_paternity_leave_balance|default:90 }}</span>
+              <span class="extra-small text-muted d-block">Days</span>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25 d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-3">
+              <div class="bg-purple bg-opacity-20 text-primary p-2.5 rounded-3">
+                <i class="fas fa-graduation-cap fs-5"></i>
+              </div>
+              <div>
+                <div class="fw-bold text-white small">Study &amp; Examination</div>
+                <div class="extra-small text-muted">Approved development</div>
+              </div>
+            </div>
+            <div class="text-end">
+              <span class="fs-4 fw-bold text-primary">{{ employee.study_leave_balance|default:12 }}</span>
+              <span class="extra-small text-muted d-block">Days</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Guidelines Card -->
+      <div class="glass-card p-4">
+        <h6 class="fw-bold text-white mb-3">
+          <i class="fas fa-shield-halved text-warning me-2"></i> ZRP Leave Policy Guidelines
+        </h6>
+        <ul class="extra-small text-muted ps-3 mb-0 d-flex flex-column gap-2">
+          <li>Leave applications must be submitted at least <strong>5 working days</strong> in advance.</li>
+          <li>For Sick Leave exceeding 2 consecutive days, a valid medical certificate must be attached.</li>
+          <li>Ensure at least 1 nominated departmental approver is selected.</li>
+          <li>Approved leave automatically updates your out-of-office dashboard and attendance log.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- RIGHT FORM AREA -->
+    <div class="col-lg-8">
+      <div class="glass-card p-4 p-md-5">
+        <form action="" id="leave-form" enctype="multipart/form-data">
+          <input type="hidden" name="id" value="{{ id|default:'' }}">
+
+          <!-- Hidden Django native inputs -->
+          <div style="display:none">
+            {{ form.leave_type }}
+            {{ form.supporting_document }}
+            {{ form.approvers }}
+          </div>
+
+          <!-- Section 1: Leave Category Selection -->
+          <div class="mb-4">
+            <label class="form-label extra-small fw-bold text-uppercase text-muted tracking-wider mb-2">
+              <i class="fas fa-layer-group text-success me-1"></i> 1. Select Leave Category
+            </label>
+            <div class="row g-2" id="leaveTypeGrid">
+              {% for val, label in form.leave_type.field.choices %}
+                {% if val %}
+                <div class="col-6 col-md-4">
+                  <div class="ltc p-3 rounded-3 border border-secondary border-opacity-25 text-center cursor-pointer transition-all h-100" data-val="{{ val }}">
+                    <i class="fas {% if 'Sick' in label %}fa-bed-pulse text-info{% elif 'Maternity' in label or 'Paternity' in label %}fa-baby text-warning{% elif 'Study' in label %}fa-graduation-cap text-primary{% elif 'Special' in label %}fa-star text-danger{% else %}fa-umbrella-beach text-success{% endif %} fs-4 mb-2 d-block"></i>
+                    <span class="fw-bold text-white small d-block mb-1">{{ label }}</span>
+                    <span class="extra-small text-muted d-block">Official Category</span>
+                  </div>
+                </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+            <div id="ltcSelected" class="mt-2 small text-success fw-bold" style="display:none;">
+              <i class="fas fa-check-circle me-1"></i><span id="selectedCategoryName"></span>
+            </div>
+          </div>
+
+          <hr class="border-secondary border-opacity-25 my-4">
+
+          <!-- Section 2: Dates & Duration -->
+          <div class="mb-4">
+            <label class="form-label extra-small fw-bold text-uppercase text-muted tracking-wider mb-2">
+              <i class="fas fa-calendar-range text-success me-1"></i> 2. Period &amp; Dates
+            </label>
+            <div class="row g-3 align-items-end">
+              <div class="col-md-4">
+                <label for="id_start_date" class="form-label extra-small text-uppercase text-warning fw-bold mb-1">
+                  <i class="fas fa-calendar-day text-success me-1"></i> Start Date
+                </label>
+                <div class="input-group">
+                  <span class="input-group-text bg-dark text-warning border-secondary border-opacity-50"><i class="fas fa-calendar"></i></span>
+                  <input type="date" name="start_date" id="id_start_date" class="form-control bg-dark text-white fw-bold border-secondary border-opacity-50" {% if form.start_date.value %}value="{{ form.start_date.value }}"{% endif %} required>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <label for="id_end_date" class="form-label extra-small text-uppercase text-warning fw-bold mb-1">
+                  <i class="fas fa-calendar-check text-success me-1"></i> End Date
+                </label>
+                <div class="input-group">
+                  <span class="input-group-text bg-dark text-warning border-secondary border-opacity-50"><i class="fas fa-calendar"></i></span>
+                  <input type="date" name="end_date" id="id_end_date" class="form-control bg-dark text-white fw-bold border-secondary border-opacity-50" {% if form.end_date.value %}value="{{ form.end_date.value }}"{% endif %} required>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label extra-small text-uppercase text-warning fw-bold mb-1">
+                  <i class="fas fa-clock text-warning me-1"></i> Total Duration (Days)
+                </label>
+                <div class="p-2 px-3 rounded-3 bg-success text-white border border-success text-center fw-bold shadow-sm d-flex align-items-center justify-content-center gap-2" style="min-height: 38px;">
+                  <i class="fas fa-hourglass-half text-warning"></i>
+                  <span id="calcDays" class="text-white fw-bold fs-6">0 Days</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <hr class="border-secondary border-opacity-25 my-4">
+
+          <!-- Section 3: Reason & Justification -->
+          <div class="mb-4">
+            <label for="id_reason" class="form-label extra-small fw-bold text-uppercase text-muted tracking-wider mb-2">
+              <i class="fas fa-pen-to-square text-success me-1"></i> 3. Detailed Reason &amp; Handover Notes
+            </label>
+            <textarea name="reason" id="id_reason" rows="4" class="form-control bg-dark text-white border-secondary border-opacity-25" placeholder="State your detailed reasons for leave and indicate any acting duties/handover arrangements…" required>{% if form.reason.value %}{{ form.reason.value }}{% endif %}</textarea>
+          </div>
+
+          <hr class="border-secondary border-opacity-25 my-4">
+
+          <!-- Section 4: Supporting Document Upload -->
+          <div class="mb-4">
+            <label class="form-label extra-small fw-bold text-uppercase text-muted tracking-wider mb-2">
+              <i class="fas fa-paperclip text-success me-1"></i> 4. Supporting Document <span class="text-muted fw-normal">(Optional)</span>
+            </label>
+            <label id="uploadZone" class="w-100 p-4 text-center rounded-3 border border-2 border-dashed border-secondary border-opacity-50 bg-dark bg-opacity-50 cursor-pointer d-block transition-all">
+              <input type="file" name="supporting_document" id="id_supporting_document" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="d-none">
+              <i class="fas fa-cloud-arrow-up fs-2 text-muted mb-2"></i>
+              <div class="fw-bold text-white small">Click to browse or drag and drop files here</div>
+              <div class="extra-small text-muted">Supports PDF, Word, JPG, PNG (Max 10MB)</div>
+              <div id="uzFile" class="small text-success fw-bold mt-2" style="display:none;"></div>
+            </label>
+            {% if form.instance.supporting_document %}
+            <div class="extra-small text-muted mt-2">
+              <i class="fas fa-file-check me-1 text-success"></i> Current document: 
+              <a href="{{ form.instance.supporting_document.url }}" target="_blank" class="text-success text-decoration-none fw-bold">
+                {{ form.instance.supporting_document.name|cut:'leave_documents/' }}
+              </a>
+            </div>
+            {% endif %}
+          </div>
+
+          <hr class="border-secondary border-opacity-25 my-4">
+
+          <!-- Section 5: Workflow Approvers -->
+          <div class="mb-4">
+            <label class="form-label extra-small fw-bold text-uppercase text-muted tracking-wider mb-2">
+              <i class="fas fa-users-gear text-success me-1"></i> 5. Nominated Approvers
+            </label>
+            <div id="approverChips" class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25 min-h-50 d-flex flex-wrap gap-2 align-items-center mb-3">
+              <span id="noApprMsg" class="extra-small text-muted fst-italic">No approvers selected. Click below to add department supervisors.</span>
+            </div>
+            <button type="button" id="openApproverPicker" class="btn btn-outline-success btn-sm rounded-pill px-4 fw-bold">
+              <i class="fas fa-user-plus me-2"></i> Browse Approver Directory
+            </button>
+          </div>
+
+          <!-- Submit Buttons -->
+          <div class="d-flex justify-content-end gap-3 pt-3 border-top border-secondary border-opacity-25">
+            <a href="{% url 'employee-self-service' %}" class="btn btn-outline-secondary rounded-pill px-4 fw-bold">
+              Cancel
+            </a>
+            <button type="submit" class="btn btn-success rounded-pill px-5 fw-bold shadow-lg">
+              <i class="fas fa-paper-plane me-2"></i> Submit Leave Application
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Approver Directory Modal -->
+<div class="modal fade" id="approverPickerModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content glass-panel border-secondary border-opacity-25">
+      <div class="modal-header border-bottom border-secondary border-opacity-25 py-3">
+        <h5 class="modal-title fw-bold text-white"><i class="fas fa-users-gear text-success me-2"></i>Select Departmental Approvers</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <input type="text" id="apprSearch" class="form-control bg-dark text-white border-secondary border-opacity-25 mb-3" placeholder="Search approver by name or department...">
+        <div id="apprList" class="max-h-350 overflow-y-auto">
+          <div class="text-center py-4 text-muted small"><i class="fas fa-spinner fa-spin me-2"></i>Loading directory...</div>
+        </div>
+      </div>
+      <div class="modal-footer border-top border-secondary border-opacity-25 py-3">
+        <span id="apprCount" class="extra-small text-muted me-auto">0 selected</span>
+        <button type="button" class="btn btn-success rounded-pill px-4 fw-bold btn-sm" data-bs-dismiss="modal">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const leaveSelect = document.querySelector('#leave-form select[name="leave_type"]');
+  const approversSelect = document.querySelector('#leave-form select[name="approvers"]');
+  const startDateInp = document.getElementById('id_start_date');
+  const endDateInp = document.getElementById('id_end_date');
+  const calcDaysEl = document.getElementById('calcDays');
+
+  // Leave Type Cards Toggle
+  document.querySelectorAll('.ltc').forEach(card => {
+    card.addEventListener('click', function() {
+      const val = this.dataset.val;
+      if (leaveSelect) leaveSelect.value = val;
+      document.querySelectorAll('.ltc').forEach(c => {
+        const isSel = c.dataset.val === val;
+        c.classList.toggle('border-success', isSel);
+        c.classList.toggle('bg-success', isSel);
+        c.classList.toggle('bg-opacity-20', isSel);
+      });
+      const selectedMsg = document.getElementById('ltcSelected');
+      if (selectedMsg) {
+        selectedMsg.style.display = 'block';
+        document.getElementById('selectedCategoryName').textContent = this.querySelector('span').textContent;
+      }
+    });
+  });
+
+  if (leaveSelect && leaveSelect.value) {
+    const card = document.querySelector(`.ltc[data-val="${leaveSelect.value}"]`);
+    if (card) card.click();
+  }
+
+  // Duration Calculator
+  function calculateDays() {
+    if (startDateInp && endDateInp && startDateInp.value && endDateInp.value) {
+      const d1 = new Date(startDateInp.value);
+      const d2 = new Date(endDateInp.value);
+      if (d2 >= d1) {
+        const diffTime = Math.abs(d2 - d1);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        calcDaysEl.textContent = diffDays + (diffDays === 1 ? ' Day' : ' Days');
+        return;
+      }
+    }
+    calcDaysEl.textContent = '0 Days';
+  }
+
+  if (startDateInp) startDateInp.addEventListener('change', calculateDays);
+  if (endDateInp) endDateInp.addEventListener('change', calculateDays);
+  calculateDays();
+
+  // File Upload Zone
+  const fileIn = document.getElementById('id_supporting_document');
+  const uzFile = document.getElementById('uzFile');
+  if (fileIn) {
+    fileIn.addEventListener('change', function() {
+      if (this.files.length) {
+        uzFile.textContent = 'Selected: ' + this.files[0].name;
+        uzFile.style.display = 'block';
+      }
+    });
+  }
+
+  // Approver Chips
+  function updateChips() {
+    const chipsContainer = document.getElementById('approverChips');
+    const noMsg = document.getElementById('noApprMsg');
+    const countEl = document.getElementById('apprCount');
+
+    chipsContainer.querySelectorAll('.badge-chip').forEach(c => c.remove());
+    const selected = [...(approversSelect ? approversSelect.options : [])].filter(o => o.selected);
+    if (noMsg) noMsg.style.display = selected.length ? 'none' : 'block';
+    if (countEl) countEl.textContent = selected.length + ' approvers selected';
+
+    selected.forEach(o => {
+      const chip = document.createElement('span');
+      chip.className = 'badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 rounded-pill px-3 py-2 extra-small badge-chip d-inline-flex align-items-center gap-2';
+      chip.innerHTML = `<i class="fas fa-user-check"></i> ${o.text} <i class="fas fa-times cursor-pointer remove-appr" data-val="${o.value}"></i>`;
+      chip.querySelector('.remove-appr').addEventListener('click', function() {
+        o.selected = false;
+        updateChips();
+      });
+      chipsContainer.appendChild(chip);
+    });
+  }
+  updateChips();
+
+  // Approver Directory Modal
+  let allApprovers = [];
+  function renderApproverList(q) {
+    const listEl = document.getElementById('apprList');
+    const filtered = q ? allApprovers.filter(u => (u.name + u.role + u.department).toLowerCase().includes(q.toLowerCase())) : allApprovers;
+
+    if (!filtered.length) {
+      listEl.innerHTML = '<div class="text-center py-3 text-muted extra-small">No matching personnel found.</div>';
+      return;
+    }
+
+    listEl.innerHTML = '';
+    filtered.forEach(u => {
+      const isSel = approversSelect && [...approversSelect.options].some(o => o.value == u.id && o.selected);
+      const row = document.createElement('div');
+      row.className = 'd-flex align-items-center justify-content-between py-2.5 px-2 border-bottom border-secondary border-opacity-25';
+      row.innerHTML = `
+        <div class="d-flex align-items-center gap-3">
+          <div class="bg-success bg-opacity-20 text-success p-2 rounded-circle text-center" style="width:36px;height:36px;line-height:20px;font-size:12px;font-weight:700;">
+            ${u.name.split(' ').map(n=>n[0]).slice(0,2).join('')}
+          </div>
+          <div>
+            <div class="fw-bold text-white small">${u.name}</div>
+            <div class="extra-small text-muted">${u.role || 'Officer'} &bull; ${u.department || 'Commission Staff'}</div>
+          </div>
+        </div>
+        <button type="button" class="btn btn-sm ${isSel ? 'btn-success' : 'btn-outline-success'} rounded-pill px-3 extra-small toggle-appr" data-id="${u.id}" data-name="${u.name}">
+          ${isSel ? '<i class="fas fa-check me-1"></i>Added' : '<i class="fas fa-plus me-1"></i>Add'}
+        </button>
+      `;
+      row.querySelector('.toggle-appr').addEventListener('click', function() {
+        const id = this.dataset.id;
+        const name = this.dataset.name;
+        let opt = [...approversSelect.options].find(o => o.value == id);
+        if (!opt) {
+          opt = document.createElement('option');
+          opt.value = id;
+          opt.text = name;
+          approversSelect.appendChild(opt);
+        }
+        opt.selected = !opt.selected;
+        updateChips();
+        renderApproverList(document.getElementById('apprSearch').value);
+      });
+      listEl.appendChild(row);
+    });
+  }
+
+  document.getElementById('openApproverPicker').addEventListener('click', function() {
+    const modal = new bootstrap.Modal(document.getElementById('approverPickerModal'));
+    if (!allApprovers.length) {
+      fetch('{% url "approver-directory" %}?json=1')
+        .then(r => r.json())
+        .then(data => {
+          allApprovers = data;
+          renderApproverList('');
+          modal.show();
+        })
+        .catch(e => {
+          document.getElementById('apprList').innerHTML = '<div class="text-center text-danger extra-small py-3">Failed to load directory.</div>';
+          modal.show();
+        });
+    } else {
+      renderApproverList('');
+      modal.show();
+    }
+  });
+
+  document.getElementById('apprSearch').addEventListener('input', function() {
+    renderApproverList(this.value);
+  });
+
+  // AJAX Form Submission
+  $('#leave-form').submit(function(e) {
+    e.preventDefault();
+    const _this = $(this);
+    $('.err-msg').remove();
+    const el = $('<div>').addClass("alert alert-danger err-msg rounded-3 small p-2 mb-3").hide();
+
+    if (_this[0].checkValidity() === false) {
+      _this[0].reportValidity();
+      return false;
+    }
+
+    start_loader();
+    $.ajax({
+      headers: { "X-CSRFToken": '{{ csrf_token }}' },
+      url: "{% url 'save-leave' %}",
+      data: new FormData($(this)[0]),
+      cache: false,
+      contentType: false,
+      processData: false,
+      method: 'POST',
+      type: 'POST',
+      dataType: 'json',
+      error: err => {
+        console.error(err);
+        alert("An error occurred during submission.");
+        end_loader();
+      },
+      success: function(resp) {
+        if (typeof resp === 'object' && resp.status === 'success') {
+          window.location.href = "{% url 'leave-list' %}";
+        } else if (resp.status === 'failed' && !!resp.msg) {
+          el.text(resp.msg);
+        } else {
+          el.text("An error occurred");
+        }
+        _this.prepend(el);
+        el.show('slow');
+        $("html, body").scrollTop(0);
+        end_loader();
+      }
+    });
+  });
+});
+</script>
+{% endblock pageContent %}

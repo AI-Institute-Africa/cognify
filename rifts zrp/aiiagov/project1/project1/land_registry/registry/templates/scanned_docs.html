@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load customfilter %}
+{% block pageContent %}
+<section class="py-4">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div><h3 class="fw-bold mb-0"> Scanner Ingestion Pipeline</h3>
+                <p class="text-muted small mb-0"> Real-time document processing and AI classification</p></div>
+            <div class="col-md-6">
+                <div class="input-group glass-card border-0 shadow-sm rounded-pill overflow-hidden p-1">
+                    <span class="input-group-text bg-transparent border-0 ps-3">
+                        <i class="fas fa-search text-muted"></i></span>
+                    <input type="text" id="smart_search" class="form-control border-0 bg-transparent shadow-none py-2"
+                        placeholder="Search like Google: 'Contracts above $100k'..."
+                        value="{{ ai_search_query|default:'' }}">
+                    <button class="btn btn-primary rounded-pill px-4" id="search_btn"> AI Search</button></div></div>
+            <div class="col-md-6 text-end">
+                <a href="{% url 'scanner-devices' %}" class="btn btn-outline-primary rounded-pill px-4 shadow-sm">
+                    <i class="fas fa-microchip me-2"></i> Scanner Management</a></div></div>
+
+        {% if ai_results %}
+        <div class="alert alert-info glass-card border-0 shadow-sm mb-4">
+            <div class="d-flex align-items-center">
+                <div class="me-3">
+                    <i class="fas fa-robot fa-2x"></i></div>
+                <div><h6 class="fw-bold mb-1"> AI Smart Index Results</h6>
+                    <p class="small mb-0"> Showing top matches for: <strong>"{{ ai_search_query }}"</strong></p></div></div></div>
+        {% endif %}
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="glass-card shadow-sm p-3 text-center border-0 border-start border-primary border-4">
+                    <div class="text-muted extra-small fw-bold text-uppercase mb-1"> Total Scans</div>
+                    <h4 class="fw-bold mb-0"> {{ scanned_docs.count }}</h4></div></div>
+            <div class="col-md-3">
+                <div class="glass-card shadow-sm p-3 text-center border-0 border-start border-warning border-4">
+                    <div class="text-muted extra-small fw-bold text-uppercase mb-1"> Awaiting Link</div>
+                    <h4 class="fw-bold mb-0 text-warning"> {{ scanned_docs.all|filter_status_count:'Awaiting Link' }}</h4></div></div></div>
+
+        <div class="glass-card border-0 shadow-sm overflow-hidden">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead><tr class="bg-primary bg-opacity-10">
+                                <th class="py-3 ps-4"> Scan Details</th>
+                                <th class="py-3"> Source Scanner</th>
+                                <th class="py-3"> AI Classification</th>
+                                <th class="py-3"> Auto-Linkage</th>
+                                <th class="py-3"> Status</th>
+                                <th class="py-3 pe-4 text-end"> Action</th></tr></thead>
+                        <tbody>{% for d in scanned_docs %}
+                            <tr><td class="ps-4">
+                                    <div class="d-flex align-items-center">
+                                        <div class="me-3 bg-light rounded text-primary p-2">
+                                            <i class="fas fa-file-pdf fa-lg"></i></div>
+                                        <div><a href="{{ d.raw_file.url }}" target="_blank"
+                                                class="fw-bold text-decoration-none text-dark"> Scan #{{ d.id }}</a>
+                                            <div class="text-muted extra-small"> {{ d.created_at|date:"M d, Y H:i" }}</div></div></div></td>
+                                <td>{{ d.scanner.name }} <br><small class="text-muted"> {{ d.scanner.location }}</small></td>
+                                <td>{% if d.classification %}
+                                    <span
+                                        class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 rounded-pill"> {{ d.classification }}</span>
+                                    <div class="extra-small text-muted mt-1"> Confidence: {{ d.confidence_score|floatformat:2 }}</div>
+                                    {% else %}
+                                    <span class="text-muted small"> Not Classified</span>
+                                    {% endif %}</td>
+                                <td>{% if d.linked_file %}
+                                    <a href="{% url 'view-file_doc-pk' d.linked_file.id %}"
+                                        class="small text-decoration-none">
+                                        <i class="fa fa-link me-1"></i> File: {{ d.linked_file.ref_num }}</a>
+                                    {% elif d.linked_contract %}
+                                    <span class="small text-success"> <i class="fa fa-handshake me-1"></i> Contract: {{ d.linked_contract.contract_ref }}</span>
+                                    {% else %}
+                                    <span class="text-muted extra-small"> None Found</span>
+                                    {% endif %}
+
+                                    <!-- Extracted Metadata -->
+                                    <div class="mt-2">
+                                        {% if d.metadata.extracted_name %}
+                                        <span class="badge bg-light text-dark border extra-small rounded-pill mb-1"
+                                            title="Extracted Name">
+                                            <i class="fa fa-user me-1 text-primary"></i> {{ d.metadata.extracted_name }}</span>
+                                        {% endif %}
+                                        {% if d.metadata.extracted_amount %}
+                                        <span class="badge bg-light text-dark border extra-small rounded-pill mb-1"
+                                            title="Extracted Amount">
+                                            <i class="fa fa-tag me-1 text-success"></i> ${{ d.metadata.extracted_amount|floatformat:2 }}</span>
+                                        {% endif %}
+                                        {% if d.metadata.extracted_dates %}
+                                        <span class="badge bg-light text-dark border extra-small rounded-pill mb-1"
+                                            title="Extracted Dates">
+                                            <i class="fa fa-calendar me-1 text-info"></i> {{ d.metadata.extracted_dates.0
+                                            }}</span>
+                                        {% endif %}</div></td>
+                                <td>{% if d.status == 'Completed' %}
+                                    <span
+                                        class="badge bg-success bg-opacity-10 text-success px-2 rounded-pill small"> Processed</span>
+                                    {% elif d.status == 'Failed' %}
+                                    <span
+                                        class="badge bg-danger bg-opacity-10 text-danger px-2 rounded-pill small"> Error</span>
+                                    {% elif d.status == 'Processing' %}
+                                    <span
+                                        class="badge bg-info bg-opacity-10 text-info px-2 rounded-pill small spinner-border spinner-border-sm border-0"></span>
+                                    <span class="text-info small ms-1"> Processing</span>
+                                    {% else %}
+                                    <span
+                                        class="badge bg-warning bg-opacity-10 text-warning px-2 rounded-pill small"> Pending</span>
+                                    {% endif %}</td>
+                                <td class="pe-4 text-end">
+                                    <a href="{% url 'process-scan' d.id %}"
+                                        class="btn btn-sm btn-light rounded-pill border shadow-sm"
+                                        title="Reprocess with AI">
+                                        <i class="fa fa-sync-alt"></i></a>
+                                    <button class="btn btn-sm btn-primary rounded-pill px-3 ms-1 shadow-sm view-text"
+                                        data-text="{{ d.extracted_text }}">
+                                        View Text</button></td></tr>
+                            {% empty %}
+                            <tr><td colspan="6" class="text-center py-5 text-muted">
+                                    <i class="fas fa-satellite-dish fa-3x mb-3 opacity-25"></i>
+                                    <p>The ingestion pipeline is idle.</p></td></tr>
+                            {% endfor %}</tbody></table></div></div></div></div></section>
+
+<!-- Content Modal -->
+<div class="modal fade" id="textModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content glass-card border-0">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold"> Extracted OCR Text</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="bg-light p-4 rounded border font-monospace small" id="ocr_text_content"
+                    style="white-space: pre-wrap; max-height: 400px; overflow-y: auto;"></div></div></div></div></div>
+
+<style>.extra-small {
+        font-size: 0.7rem;
+    }
+
+    .glass-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }</style>
+{% endblock pageContent %}
+
+{% block ScriptBlock %}
+<script>$(function () {
+        $('.view-text').click(function () {
+            var text = $(this).attr('data-text');
+            $('#ocr_text_content').text(text || "No text extracted yet.");
+            $('#textModal').modal('show');
+        });
+
+        $('#search_btn').click(function () {
+            var q = $('#smart_search').val();
+            window.location.href = "{% url 'scanned-docs-list' %}?q=" + encodeURIComponent(q);
+        });
+
+        $('#smart_search').keypress(function (e) {
+            if (e.which == 13) $('#search_btn').click();
+        });
+    });</script>
+{% endblock ScriptBlock %}
+
+
+
+

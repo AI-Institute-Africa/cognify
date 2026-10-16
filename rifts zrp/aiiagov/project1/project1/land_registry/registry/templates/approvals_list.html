@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div><h3 class="fw-bold text-dark mb-0"> Action Approvals</h3>
+            <p class="text-muted mb-0 small"> Authorization management for RIFTS-X secure operations.</p></div>
+        <div class="badge bg-primary bg-opacity-10 text-primary p-2 px-3 rounded-pill h6 mb-0">
+            <i class="fas fa-shield-alt me-2"></i> {{ approvals.count }} Requests</div></div>
+
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-muted text-uppercase small fw-bold border-0">
+                        <tr><th class="px-4 py-3"> File Ref</th>
+                            <th class="py-3"> Action Type</th>
+                            <th class="py-3"> Requester</th>
+                            <th class="py-3"> Status</th>
+                            <th class="py-3"> Timestamp</th>
+                            <th class="px-4 py-3 text-end"> Management</th></tr></thead>
+                    <tbody class="border-0">
+                        {% for app in approvals %}
+                        <tr class="border-bottom border-light">
+                            <td class="px-4 py-3">
+                                <a href="{% url 'file-digital-twin' app.file_doc.pk %}"
+                                    class="fw-bold text-primary text-decoration-none">
+                                    {{ app.file_doc.ref_num }}</a></td>
+                            <td class="py-3">
+                                <span class="bg-light text-dark px-2 py-1 rounded small fw-semibold"> {{ app.action_type
+                                    }}</span></td>
+                            <td class="py-3 small text-muted">
+                                <i class="far fa-user me-1"></i> {{ app.requester.username }}</td>
+                            <td class="py-3">
+                                <span
+                                    class="badge bg-{% if app.status == 'Approved' %}success{% elif app.status == 'Rejected' %}danger{% else %}warning{% endif %} bg-opacity-10 text-{% if app.status == 'Approved' %}success{% elif app.status == 'Rejected' %}danger{% else %}warning{% endif %} rounded-pill">
+                                    {{ app.status }}</span></td>
+                            <td class="py-3 small text-muted">
+                                {{ app.timestamp|naturaltime }}</td>
+                            <td class="px-4 py-3 text-end">
+                                {% if app.status == 'Pending' and user.is_superuser %}
+                                <div class="btn-group shadow-sm rounded-pill overflow-hidden">
+                                    <a href="{% url 'handle-approval' app.pk 'Approved' %}"
+                                        class="btn btn-sm btn-success px-3 border-0"> Approve</a>
+                                    <a href="{% url 'handle-approval' app.pk 'Rejected' %}"
+                                        class="btn btn-sm btn-danger px-3 border-0"> Reject</a></div>
+                                {% else %}
+                                <span class="text-muted extra-small italic"> Processed</span>
+                                {% endif %}</td></tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="text-center py-5 text-muted">
+                                <i class="fas fa-inbox h2 mb-3 d-block opacity-25"></i>
+                                No pending approval requests found.</td></tr>
+                        {% endfor %}</tbody></table></div></div></div></div>
+{% endblock %}
+
+
+
+

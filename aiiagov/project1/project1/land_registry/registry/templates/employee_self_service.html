@@ -1,0 +1,254 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-id-card-clip text-success me-2"></i> ZRP Employee Self-Service Portal</h3>
+            <p class="text-muted small mb-0">Personal HR Profile, Leave Balances, Training History, Performance & Employment Records</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'manage-leave' %}" class="btn btn-warning rounded-pill px-4 shadow-sm fw-bold">
+                <i class="fas fa-calendar-plus me-2"></i> Apply for Leave
+            </a>
+            <a href="{% url 'out-of-office-dashboard' %}" class="btn btn-outline-light rounded-pill px-4">
+                <i class="fas fa-plane-departure me-2"></i> Out-of-Office Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Employee Profile Summary Banner -->
+    <div class="glass-card p-4 mb-4 border-top border-4 border-success">
+        <div class="row align-items-center">
+            <div class="col-md-2 text-center border-end border-secondary border-opacity-25 py-2">
+                <div class="bg-success bg-opacity-20 text-success p-3 rounded-circle d-inline-block mb-2">
+                    <i class="fas fa-user-gear fs-1"></i>
+                </div>
+                <h6 class="fw-bold text-white mb-0">{{ employee.name }}</h6>
+                <span class="badge bg-success bg-opacity-25 text-success rounded-pill extra-small px-3 mt-1">{{ employee.employment_status }}</span>
+            </div>
+            <div class="col-md-10">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <span class="extra-small text-muted text-uppercase fw-bold">Employee Number</span>
+                        <div class="fw-bold text-warning font-monospace">{{ employee.employee_number|default:"ZRP-EMP-001" }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="extra-small text-muted text-uppercase fw-bold">Department</span>
+                        <div class="fw-bold text-white">{{ employee.department.name|default:"Commission Staff" }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="extra-small text-muted text-uppercase fw-bold">Position & Grade</span>
+                        <div class="fw-bold text-white">{{ employee.position|default:"Officer" }} ({{ employee.grade_level|default:"Grade ZRP-5" }})</div>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="extra-small text-muted text-uppercase fw-bold">Direct Supervisor</span>
+                        <div class="fw-bold text-info"><i class="fas fa-user-shield me-1"></i> {{ employee.supervisor.username|default:"Department Head" }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="extra-small text-muted text-uppercase fw-bold">Date of Appointment</span>
+                        <div class="small text-white">{{ employee.date_of_appointment|date:"d M Y"|default:"01 Jan 2024" }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="extra-small text-muted text-uppercase fw-bold">Contact Email</span>
+                        <div class="small text-white">{{ employee.email|default:user.email }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="extra-small text-muted text-uppercase fw-bold">Contact Phone</span>
+                        <div class="small text-white">{{ employee.contact_phone|default:"+263 242 783 000" }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="extra-small text-muted text-uppercase fw-bold">Current Active Leave</span>
+                        <div>
+                            {% if active_leave %}
+                            <span class="badge bg-warning text-dark fw-bold"><i class="fas fa-umbrella-beach me-1"></i> {{ active_leave.leave_type }} Leave</span>
+                            {% else %}
+                            <span class="badge bg-success bg-opacity-25 text-success">On Duty (No Active Leave)</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leave Balances Cards Grid -->
+    <h5 class="fw-bold text-white mb-3"><i class="fas fa-chart-pie text-warning me-2"></i> Leave Entitlements & Balance Register</h5>
+    <div class="row g-3 mb-4">
+        <div class="col-md-2">
+            <div class="glass-card p-3 text-center border-top border-4 border-success">
+                <span class="text-muted extra-small text-uppercase fw-bold">Annual Leave</span>
+                <h2 class="fw-bold text-success mb-0 mt-1">{{ employee.annual_leave_balance }} <span class="fs-6 text-muted">days</span></h2>
+                <div class="extra-small text-muted mt-1">Used: {{ annual_days_used }} days</div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="glass-card p-3 text-center border-top border-4 border-warning">
+                <span class="text-muted extra-small text-uppercase fw-bold">Sick Leave</span>
+                <h2 class="fw-bold text-warning mb-0 mt-1">{{ employee.sick_leave_balance }} <span class="fs-6 text-muted">days</span></h2>
+                <div class="extra-small text-muted mt-1">Used: {{ sick_days_used }} days</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-info">
+                <span class="text-muted extra-small text-uppercase fw-bold">Maternity / Paternity</span>
+                <h2 class="fw-bold text-info mb-0 mt-1">{{ employee.maternity_paternity_leave_balance }} <span class="fs-6 text-muted">days</span></h2>
+                <div class="extra-small text-muted mt-1">Statutory Entitlement</div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="glass-card p-3 text-center border-top border-4 border-primary">
+                <span class="text-muted extra-small text-uppercase fw-bold">Special Leave</span>
+                <h2 class="fw-bold text-primary mb-0 mt-1">{{ employee.special_leave_balance }} <span class="fs-6 text-muted">days</span></h2>
+                <div class="extra-small text-muted mt-1">Approved Category</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-danger">
+                <span class="text-muted extra-small text-uppercase fw-bold">Study & Exam Leave</span>
+                <h2 class="fw-bold text-danger mb-0 mt-1">{{ employee.study_leave_balance }} <span class="fs-6 text-muted">days</span></h2>
+                <div class="extra-small text-muted mt-1">Professional Development</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs: Leave History, Training, Performance, Employment Records -->
+    <div class="glass-card p-4">
+        <ul class="nav nav-pills nav-justified mb-4" id="selfServiceTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-bold rounded-pill" id="leave-tab" data-bs-toggle="tab" data-bs-target="#leaveTabPane" type="button" role="tab">
+                    <i class="fas fa-calendar-days me-2"></i> Leave History & Applications
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold rounded-pill" id="training-tab" data-bs-toggle="tab" data-bs-target="#trainingTabPane" type="button" role="tab">
+                    <i class="fas fa-graduation-cap me-2"></i> Training History
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold rounded-pill" id="performance-tab" data-bs-toggle="tab" data-bs-target="#performanceTabPane" type="button" role="tab">
+                    <i class="fas fa-award me-2"></i> Performance Reviews
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="selfServiceTabsContent">
+            <!-- 1. Leave History -->
+            <div class="tab-pane fade show active" id="leaveTabPane" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-white">
+                        <thead>
+                            <tr class="bg-dark text-uppercase extra-small">
+                                <th>Category</th>
+                                <th>Start Date</th>
+                                <th>End Date</th>
+                                <th>Acting Officer</th>
+                                <th>Workflow Stage</th>
+                                <th>Approval Status</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for l in leave_requests %}
+                            <tr>
+                                <td><strong class="text-warning">{{ l.leave_type }} Leave</strong></td>
+                                <td>{{ l.start_date|date:"d M Y" }}</td>
+                                <td>{{ l.end_date|date:"d M Y" }}</td>
+                                <td>
+                                    {% if l.acting_officer %}
+                                    <span class="badge bg-info bg-opacity-20 text-info"><i class="fas fa-user-check me-1"></i> {{ l.acting_officer.username }}</span>
+                                    {% else %}
+                                    <span class="text-muted extra-small">None assigned</span>
+                                    {% endif %}
+                                </td>
+                                <td><span class="badge bg-secondary rounded-pill extra-small">{{ l.workflow_stage }}</span></td>
+                                <td>
+                                    <span class="badge bg-{% if l.status == 'Approved' %}success{% elif l.status == 'Rejected' %}danger{% else %}warning{% endif %} rounded-pill">
+                                        {{ l.status }}
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <a href="{% url 'leave-view' l.pk %}" class="btn btn-sm btn-outline-light rounded-pill px-3">
+                                        <i class="fas fa-eye me-1"></i> View Form
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">No leave requests found. Click <strong>Apply for Leave</strong> to submit one.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 2. Training History -->
+            <div class="tab-pane fade" id="trainingTabPane" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-white">
+                        <thead>
+                            <tr class="bg-dark text-uppercase extra-small">
+                                <th>Course Title</th>
+                                <th>Institution / Provider</th>
+                                <th>Completion Date</th>
+                                <th>Certificate Reference</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for t in trainings %}
+                            <tr>
+                                <td class="fw-bold text-white">{{ t.course_title }}</td>
+                                <td>{{ t.institution }}</td>
+                                <td>{{ t.completion_date|date:"d M Y" }}</td>
+                                <td><span class="font-monospace text-info">{{ t.certificate_reference|default:"CERT-ZRP-VERIFIED" }}</span></td>
+                                <td><span class="badge bg-success rounded-pill">{{ t.status }}</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">No official training records currently logged in profile.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 3. Performance Reviews -->
+            <div class="tab-pane fade" id="performanceTabPane" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-white">
+                        <thead>
+                            <tr class="bg-dark text-uppercase extra-small">
+                                <th>Appraisal Period</th>
+                                <th>Evaluator</th>
+                                <th>Score</th>
+                                <th>Rating</th>
+                                <th>Comments / Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in performances %}
+                            <tr>
+                                <td class="fw-bold text-warning">{{ p.appraisal_period }}</td>
+                                <td>{{ p.evaluator.username|default:"Department Supervisor" }}</td>
+                                <td><h5 class="fw-bold text-success mb-0">{{ p.score_percent }}%</h5></td>
+                                <td><span class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 px-3 py-1 rounded-pill">{{ p.rating }}</span></td>
+                                <td><span class="small text-muted">{{ p.comments }}</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">No performance evaluation appraisals logged yet for this cycle.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock pageContent %}

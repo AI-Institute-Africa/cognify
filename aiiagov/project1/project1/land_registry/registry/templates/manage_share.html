@@ -1,0 +1,114 @@
+<div class="container-fluid">
+    <form action="" id="share-form">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{ file_doc.id }}">
+        <div class="row">
+            <div class="col-12">
+                <div class="mb-4">
+                    <label for="shared_to" class="form-label small fw-bold text-muted text-uppercase mb-2"> Recipient
+                        Records Intelligence Officer / Member</label>
+                    <select name="shared_to" id="shared_to" class="form-select border-0 shadow-sm rounded-pill py-2"
+                        required>
+                        <option value="" disabled selected> -- Select Recipient --</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}" data-email="{{ user.email }}"> {{ user.username }} ({{                             user.first_name }} {{ user.last_name }})</option>
+                        {% endfor %}</select></div></div>
+            <div class="col-md-6">
+                <div class="mb-4">
+                    <label for="duration" class="form-label small fw-bold text-muted text-uppercase mb-2"> Session
+                        Duration (Hours)</label>
+                    <select name="duration" id="duration" class="form-select border-0 shadow-sm rounded-pill py-2"
+                        required>
+                        <option value="1"> 1 Hour (Quick Access)</option>
+                        <option value="4"> 4 Hours (Morning/Afternoon)</option>
+                        <option value="8"> 8 Hours (Full Shift)</option>
+                        <option value="24" selected> 24 Hours (Standard)</option>
+                        <option value="48"> 48 Hours (Extended)</option>
+                        <option value="168"> 7 Days (Full Review)</option></select></div></div>
+            <div class="col-md-6">
+                <div class="mb-4 pt-md-4 mt-md-2">
+                    <div class="form-check form-switch custom-switch">
+                        <input class="form-check-input" type="checkbox" id="send_email" checked>
+                        <label class="form-check-label small fw-bold text-muted" for="send_email"> Notify via
+                            Email</label></div></div></div></div>
+        <div class="glass-card bg-primary bg-opacity-10 p-3 border-0 small mb-2">
+            <div class="d-flex align-items-center text-primary">
+                <i class="fa fa-shield-alt me-2"></i>
+                <span class="fw-bold"> Forensic Tracking Enabled</span></div>
+            <p class="mb-0 mt-1 extra-small opacity-75"> This session will follow the countdown timer. Recipient access
+                expires automatically after the selected duration.</p></div></form></div>
+
+<script>$(function () {
+        $('#share-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg")
+            el.hide()
+            if (_this[0].checkValidity() == false) {
+                _this[0].reportValidity();
+                return false;
+            }
+            start_loader();
+            $.ajax({
+                url: "{% url 'share-file-digital' file_doc.pk %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.log(err)
+                    alert("An error occurred", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        const recipientName = $('#shared_to option:selected').text();
+                        const recipientEmail = $('#shared_to option:selected').data('email');
+                        const sendEmail = $('#send_email').is(':checked');
+
+                        Swal.fire({
+                            title: 'Transfer Initialized!',
+                            html: ` <div class="p-3 bg-light rounded-pill border mb-3 font-monospace" style="font-size:0.8rem; overflow:hidden; text-overflow:ellipsis;" id="share_url_text"> ${resp.url}</div>
+                                   <p class="small text-muted"> A secure session has been created for <b>${recipientName}</b> . This session follows the countdown timer.</p> `,
+                            icon: 'success',
+                            showCancelButton: true,
+                            confirmButtonText: ' <i class="fas fa-copy me-2"></i> Copy Link',
+                            cancelButtonText: ' <i class="fas fa-envelope me-2"></i> Share via Email',
+                            reverseButtons: true
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                navigator.clipboard.writeText(resp.url);
+                                Swal.fire('Copied!', 'Link copied to clipboard.', 'success').then(() => location.reload());
+                            } else if (result.dismiss === Swal.DismissReason.cancel || sendEmail) {
+                                const mailUrl = `mailto:${recipientEmail || ''}?subject=Secure File Access: {{ file_doc.title }}&body=Hello ${recipientName}, %0D%0A%0D%0AYou have been granted collaborative access to a secure digital session for the file: {{ file_doc.title }}. %0D%0A%0D%0AAccess Link: ${resp.url} %0D%0A%0D%0APlease note that this session is time-limited and all actions are tracked for forensic auditing.`;
+                                if (!sendEmail || result.dismiss === Swal.DismissReason.cancel) {
+                                    window.location.href = mailUrl;
+                                }
+                                setTimeout(() => location.reload(), 1000);
+                            } else {
+                                location.reload();
+                            }
+                        });
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.html(resp.msg)
+                        _this.prepend(el)
+                        el.show('slow')
+                    } else {
+                        el.html("An error occurred", 'error')
+                        _this.prepend(el)
+                        el.show('slow')
+                    }
+                    end_loader();
+                }
+            })
+        })
+    })</script>
+
+
+
+

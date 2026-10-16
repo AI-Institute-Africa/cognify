@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div class="d-flex align-items-center">
+            <a href="{% url 'board-of-survey-list' %}" class="btn btn-sm btn-secondary rounded-circle shadow-sm me-3">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <div>
+                <div class="d-flex align-items-center gap-2">
+                    <h3 class="fw-bold mb-0">Board of Survey: {{ survey.report_ref }}</h3>
+                    <span class="badge bg-{% if survey.status == 'Disposed' %}success{% elif survey.status == 'Approved' %}primary{% else %}warning text-dark{% endif %} rounded-pill px-3 py-2">
+                        {{ survey.status }}
+                    </span>
+                </div>
+                <div class="small text-muted">
+                    Held at <strong>{{ survey.held_at }}</strong> on {{ survey.proceedings_date|date:"F d, Y" }} &bull; Form 60260-6 (G.P&amp;S.34586-S.)
+                </div>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="{% url 'print-board-of-survey' survey.pk %}" target="_blank" class="btn btn-dark rounded-pill px-4 shadow-sm">
+                <i class="fas fa-print me-2 text-warning"></i> Print Form 60260-6
+            </a>
+            {% if not survey.is_approved %}
+            <button class="btn btn-success rounded-pill px-4 shadow-sm fw-bold" id="btn-approve-bos">
+                <i class="fas fa-check-circle me-2"></i> HOD Approval
+            </button>
+            {% elif not survey.is_disposed %}
+            <button class="btn btn-primary rounded-pill px-4 shadow-sm fw-bold" id="btn-certify-disposal">
+                <i class="fas fa-dolly me-2"></i> Certify Disposal
+            </button>
+            {% endif %}
+            <button class="btn btn-outline-secondary rounded-pill px-3 shadow-sm"
+                onclick="uni_modal('Edit Board of Survey Header', '{% url 'manage-board-of-survey-pk' survey.pk %}', 'modal-lg')">
+                <i class="fas fa-edit me-1"></i> Edit Header
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Statutory Status Banner -->
+<div class="row mb-4">
+    <div class="col-12">
+        {% if survey.is_disposed %}
+        <div class="card border-0 bg-success bg-opacity-10 rounded-4 p-3 border-start border-success border-4 shadow-sm">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="icon-circle bg-success text-white"><i class="fas fa-check-double"></i></div>
+                    <div>
+                        <div class="fw-bold text-success fs-6">Disposal Officially Certified by Officer-in-Charge of Stores</div>
+                        <div class="small text-muted">
+                            Certified by <strong>{{ survey.officer_in_charge.get_full_name|default:survey.officer_in_charge.username }}</strong> on {{ survey.disposal_certification_date|date:"F d, Y" }}.
+                            {% if survey.sale_cash_receipt_no %}Cash Receipt: <strong>{{ survey.sale_cash_receipt_no }}</strong>.{% endif %}
+                            {% if survey.destruction_certificate_file %}
+                            <a href="{{ survey.destruction_certificate_file.url }}" target="_blank" class="ms-1 badge bg-primary text-white"><i class="fas fa-file-pdf me-1"></i>View Certificate of Destruction</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <span class="badge bg-success rounded-pill px-3 py-2">Execution Complete</span>
+            </div>
+        </div>
+        {% elif survey.is_approved %}
+        <div class="card border-0 bg-primary bg-opacity-10 rounded-4 p-3 border-start border-primary border-4 shadow-sm">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="icon-circle bg-primary text-white"><i class="fas fa-award"></i></div>
+                    <div>
+                        <div class="fw-bold text-primary fs-6">Approved by Head of Department</div>
+                        <div class="small text-muted">
+                            Approved by <strong>{{ survey.approved_by.get_full_name|default:survey.approved_by.username }}</strong> on {{ survey.approval_date|date:"F d, Y" }}.
+                            Disposal recommendations are authorized to be carried out by Officer-in-Charge.
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-primary rounded-pill px-3 fw-bold" id="btn-certify-disposal-2">
+                    <i class="fas fa-clipboard-check me-1"></i> Certify Disposal Now
+                </button>
+            </div>
+        </div>
+        {% else %}
+        <div class="card border-0 bg-warning bg-opacity-10 rounded-4 p-3 border-start border-warning border-4 shadow-sm">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="icon-circle bg-warning text-dark"><i class="fas fa-clock"></i></div>
+                    <div>
+                        <div class="fw-bold text-dark fs-6">Proceedings Convened &bull; Pending Head of Department Approval</div>
+                        <div class="small text-muted">
+                            Statutory Notice: The recommendations of the board are NOT to be carried out until approval thereof has been conveyed by the Head of Department.
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-success rounded-pill px-3 fw-bold" id="btn-approve-bos-2">
+                    <i class="fas fa-check-circle me-1"></i> Convey Approval
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Column: Summary & Board Members -->
+    <div class="col-lg-4">
+        <!-- Summary Card -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="badge bg-secondary bg-opacity-10 text-dark rounded-pill extra-small px-3 py-2 fw-bold">
+                        Form 60260-6
+                    </span>
+                    <span class="small text-muted">{{ survey.department }}</span>
+                </div>
+                
+                <div class="card bg-dark text-white border-0 rounded-4 overflow-hidden mb-4 shadow-sm">
+                    <div class="card-body p-4">
+                        <div class="extra-small text-white-50 text-uppercase fw-bold mb-1">Total Condemned Value Examined</div>
+                        <div class="h3 fw-bold mb-0 text-white">${{ survey.total_value|floatformat:2|intcomma }}</div>
+                        <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-secondary border-opacity-25">
+                            <div>
+                                <div class="extra-small text-white-50">Total Articles</div>
+                                <div class="fw-bold text-white">{{ survey.items.count }} Lines</div>
+                            </div>
+                            <div>
+                                <div class="extra-small text-white-50">Total Quantity</div>
+                                <div class="fw-bold text-white">{{ survey.total_quantity }} Units</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="extra-small text-muted text-uppercase fw-bold mb-2">Board Members (Signatories)</div>
+                <ul class="list-group list-group-flush mb-3 small">
+                    <li class="list-group-item px-0 py-2 d-flex justify-content-between">
+                        <div>
+                            <strong>1. {{ survey.member_1_name|default:"Unspecified" }}</strong>
+                            {% if survey.member_1_rank %}<div class="extra-small text-muted">{{ survey.member_1_rank }}</div>{% endif %}
+                        </div>
+                        <span class="badge bg-light text-dark border">Signed</span>
+                    </li>
+                    <li class="list-group-item px-0 py-2 d-flex justify-content-between">
+                        <div>
+                            <strong>2. {{ survey.member_2_name|default:"Unspecified" }}</strong>
+                            {% if survey.member_2_rank %}<div class="extra-small text-muted">{{ survey.member_2_rank }}</div>{% endif %}
+                        </div>
+                        <span class="badge bg-light text-dark border">Signed</span>
+                    </li>
+                    {% if survey.member_3_name %}
+                    <li class="list-group-item px-0 py-2 d-flex justify-content-between">
+                        <div>
+                            <strong>3. {{ survey.member_3_name }}</strong>
+                            {% if survey.member_3_rank %}<div class="extra-small text-muted">{{ survey.member_3_rank }}</div>{% endif %}
+                        </div>
+                        <span class="badge bg-light text-dark border">Signed</span>
+                    </li>
+                    {% endif %}
+                    {% if survey.member_4_name %}
+                    <li class="list-group-item px-0 py-2 d-flex justify-content-between">
+                        <div>
+                            <strong>4. {{ survey.member_4_name }}</strong>
+                            {% if survey.member_4_rank %}<div class="extra-small text-muted">{{ survey.member_4_rank }}</div>{% endif %}
+                        </div>
+                        <span class="badge bg-light text-dark border">Signed</span>
+                    </li>
+                    {% endif %}
+                </ul>
+
+                {% if survey.general_remarks %}
+                <div class="extra-small text-muted text-uppercase fw-bold mb-1">Board Notes & Remarks</div>
+                <p class="small text-muted mb-0">{{ survey.general_remarks }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Examined Articles & Disposal Action List -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-header border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center flex-wrap gap-2" style="background: transparent;">
+                <div>
+                    <h5 class="fw-bold mb-0"><i class="fas fa-boxes text-danger me-2"></i>Unserviceable Articles Examined</h5>
+                    <div class="small text-muted">Statutory examination table for unserviceable equipment and disposal recommendations</div>
+                </div>
+                <button class="btn btn-sm btn-danger rounded-pill px-3 shadow-sm fw-bold" id="btn-add-item-modal">
+                    <i class="fas fa-plus-circle me-1"></i> Add Article to BOS
+                </button>
+            </div>
+            <div class="card-body p-4">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <thead class="extra-small text-uppercase text-muted">
+                            <tr>
+                                <th>Description</th>
+                                <th class="text-center">Qty</th>
+                                <th class="text-end">Value ($)</th>
+                                <th>Reason for Condemning</th>
+                                <th>Disposal Recommendation</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for item in items %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold text-dark">{{ item.description }}</div>
+                                    {% if item.serial_numbers_list %}
+                                    <div class="extra-small font-monospace text-primary">
+                                        <i class="fas fa-barcode me-1"></i>Serials: {{ item.serial_numbers_list }}
+                                    </div>
+                                    {% endif %}
+                                    {% if item.asset %}
+                                    <div class="extra-small text-muted">Asset: {{ item.asset.asset_code }}</div>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center fw-bold">{{ item.quantity }}</td>
+                                <td class="text-end fw-bold">${{ item.value|floatformat:2|intcomma }}</td>
+                                <td>{{ item.reason_for_condemning }}</td>
+                                <td>
+                                    <span class="badge bg-{% if 'Sold' in item.disposal_recommendation %}warning text-dark{% elif 'Destroyed' in item.disposal_recommendation %}danger{% elif 'Parts' in item.disposal_recommendation %}info text-dark{% else %}primary{% endif %} rounded-pill px-2">
+                                        {{ item.get_disposal_recommendation_display|default:item.disposal_recommendation }}
+                                    </span>
+                                    {% if item.disposal_remarks %}<div class="extra-small text-muted mt-1">{{ item.disposal_remarks }}</div>{% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <a href="{% url 'delete-board-of-survey-item' survey.pk item.pk %}" onclick="return confirm('Remove this article from the Board of Survey?')" class="btn btn-sm btn-outline-danger rounded-circle shadow-sm">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">
+                                    <i class="fas fa-clipboard-list fa-3x mb-2 opacity-25"></i>
+                                    <div>No articles recorded on this Board of Survey yet.</div>
+                                    <button class="btn btn-sm btn-outline-danger rounded-pill px-3 mt-2" onclick="$('#btn-add-item-modal').click()">
+                                        <i class="fas fa-plus me-1"></i> Add First Examined Article
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Container: Add Article to BOS -->
+<div id="add-item-form-container" style="display:none;">
+    <form action="{% url 'save-board-of-survey-item' survey.pk %}" method="POST" id="add-item-form">
+        {% csrf_token %}
+        <div class="row g-3">
+            <div class="col-12">
+                <label class="small fw-bold">Select Existing Asset (Optional)</label>
+                {{ item_form.asset }}
+                <div class="extra-small text-muted">Select an existing asset to automatically populate description and value.</div>
+            </div>
+            <div class="col-12">
+                <label class="small fw-bold">Description of Article *</label>
+                {{ item_form.description }}
+            </div>
+            <div class="col-12">
+                <label class="small fw-bold">Hardware Serial Numbers (Optional)</label>
+                {{ item_form.serial_numbers_list }}
+                <div class="extra-small text-muted">List serial numbers of condemned equipment, separated by commas.</div>
+            </div>
+            <div class="col-md-6">
+                <label class="small fw-bold">Number or Quantity *</label>
+                {{ item_form.quantity }}
+            </div>
+            <div class="col-md-6">
+                <label class="small fw-bold">Estimated Value ($) *</label>
+                {{ item_form.value }}
+            </div>
+            <div class="col-12">
+                <label class="small fw-bold">Reason for Condemning *</label>
+                {{ item_form.reason_for_condemning }}
+            </div>
+            <div class="col-md-12">
+                <label class="small fw-bold">How Recommended to be Disposed of *</label>
+                {{ item_form.disposal_recommendation }}
+            </div>
+            <div class="col-12">
+                <label class="small fw-bold">Disposal Remarks / Destination / Cash Plan</label>
+                {{ item_form.disposal_remarks }}
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Modal Container: HOD Approval -->
+<div id="approve-form-container" style="display:none;">
+    <form action="{% url 'approve-board-of-survey' survey.pk %}" method="POST" id="approve-bos-form">
+        {% csrf_token %}
+        <div class="alert alert-success extra-small rounded-3 mb-3">
+            <i class="fas fa-check-double me-1"></i> As Head of Department, approving these proceedings conveys official statutory authorization for the Officer-in-Charge of Stores to carry out the disposal recommendations.
+        </div>
+        <div class="mb-3">
+            <label class="small fw-bold">Approval Endorsement Notes</label>
+            <textarea name="approval_notes" class="form-control rounded-3" rows="3" placeholder="e.g. Approved. Proceedings and recommendations endorsed in terms of Treasury instructions and ZRP ICT standing orders."></textarea>
+        </div>
+    </form>
+</div>
+
+<!-- Modal Container: Certify Disposal -->
+<div id="certify-disposal-container" style="display:none;">
+    <form action="{% url 'certify-disposal-board-of-survey' survey.pk %}" method="POST" enctype="multipart/form-data" id="certify-disposal-form">
+        {% csrf_token %}
+        <div class="alert alert-info extra-small rounded-3 mb-3">
+            <i class="fas fa-certificate me-1"></i> I HEREBY CERTIFY that the articles enumerated above have been disposed of as authorized.
+        </div>
+        <div class="mb-3">
+            <label class="small fw-bold">Disposal Certification Remarks *</label>
+            <textarea name="disposal_notes" class="form-control rounded-3" rows="2" placeholder="e.g. Articles broken down for spare parts / sold by public auction / destroyed by burning under supervision." required></textarea>
+        </div>
+        <div class="mb-3">
+            <label class="small fw-bold">Cash Brought to Account / Receipt No. (If Sold)</label>
+            <input type="text" name="sale_cash_receipt_no" class="form-control rounded-pill px-3" placeholder="e.g. ZRP-RCP-2026-9912">
+        </div>
+        <div class="mb-3">
+            <label class="small fw-bold">Certificate of Destruction / Dispatch Report (PDF / Image)</label>
+            <input type="file" name="destruction_certificate_file" class="form-control rounded-pill px-3">
+        </div>
+    </form>
+</div>
+
+<script>
+$(function() {
+    // Add Article Modal
+    $('#btn-add-item-modal').click(function () {
+        var form = $('#add-item-form-container').html();
+        $('#uni_modal .modal-title').html('<i class="fas fa-boxes text-danger me-2"></i>Add Examined Article (Form 60260-6)');
+        $('#uni_modal .modal-body').html(form);
+        $('#uni_modal .modal-dialog').addClass('modal-lg');
+        $('#uni_modal .modal-footer').show();
+        $('#uni_modal').modal('show');
+
+        $('#uni_modal form').submit(function (e) {
+            e.preventDefault();
+            start_loader();
+            $.ajax({
+                url: "{% url 'save-board-of-survey-item' survey.pk %}",
+                method: 'POST',
+                data: $(this).serialize(),
+                dataType: 'json',
+                success: function (resp) {
+                    if (resp.status == 'success') {
+                        location.reload();
+                    } else {
+                        alert_toast(resp.msg || "An error occurred", 'error');
+                        end_loader();
+                    }
+                },
+                error: function () {
+                    alert_toast("An error occurred while saving article", 'error');
+                    end_loader();
+                }
+            });
+        });
+    });
+
+    // Approve BOS Modal
+    $('#btn-approve-bos, #btn-approve-bos-2').click(function () {
+        var form = $('#approve-form-container').html();
+        $('#uni_modal .modal-title').html('<i class="fas fa-check-circle text-success me-2"></i>Head of Department Approval (Form 60260-6)');
+        $('#uni_modal .modal-body').html(form);
+        $('#uni_modal .modal-dialog').removeClass('modal-lg');
+        $('#uni_modal .modal-footer').show();
+        $('#uni_modal').modal('show');
+
+        $('#uni_modal form').submit(function() {
+            start_loader();
+        });
+    });
+
+    // Certify Disposal Modal
+    $('#btn-certify-disposal, #btn-certify-disposal-2').click(function () {
+        var form = $('#certify-disposal-container').html();
+        $('#uni_modal .modal-title').html('<i class="fas fa-dolly text-primary me-2"></i>Officer-in-Charge Stores Certification');
+        $('#uni_modal .modal-body').html(form);
+        $('#uni_modal .modal-dialog').removeClass('modal-lg');
+        $('#uni_modal .modal-footer').show();
+        $('#uni_modal').modal('show');
+
+        $('#uni_modal form').submit(function() {
+            start_loader();
+        });
+    });
+});
+</script>
+{% endblock pageContent %}\n

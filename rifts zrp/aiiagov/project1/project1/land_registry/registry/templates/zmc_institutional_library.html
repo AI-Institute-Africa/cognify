@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-book-bookmark text-warning me-2"></i> ZRP Institutional Documentation & Templates Hub</h3>
+            <p class="text-muted small mb-0">Official ZRP branding guidelines, document templates, approval matrices, and institutional Standard Operating Procedures (SOPs)</p>
+        </div>
+        <a href="{% url 'ZRP-unified-platform' %}" class="btn btn-warning rounded-pill px-4 fw-bold shadow-sm">
+            <i class="fas fa-cubes-stacked me-2"></i> Unified Platform Architecture
+        </a>
+    </div>
+
+    <!-- Official ZRP Branding & High-Res Emblem Banner -->
+    <div class="glass-card p-4 mb-4 border-top border-4 border-warning">
+        <div class="row align-items-center">
+            <div class="col-md-2 text-center border-end border-secondary border-opacity-25 py-2">
+                <img src="{% static 'assets/img/zrp_crest.png' %}?v=3.0" alt="ZRP Official Emblem" style="max-height: 110px; max-width: 100%; object-fit: contain;">
+                <div class="extra-small text-muted font-monospace mt-2">Official ZRP Crest</div>
+            </div>
+            <div class="col-md-10 ps-4">
+                <h5 class="fw-bold text-white mb-1"><i class="fas fa-palette text-warning me-2"></i> Official Zimbabwe Republic Police (ZRP) Corporate Identity</h5>
+                <p class="text-muted small mb-3">Officialheraldic color palette and document formatting rules enforcing Commission standards across all generated outputs:</p>
+                <div class="d-flex flex-wrap gap-3 extra-small">
+                    <div class="d-flex align-items-center gap-2 bg-dark p-2 rounded-3 border border-secondary border-opacity-25">
+                        <div style="width: 20px; height: 20px; background: #F39C12; border-radius: 4px;"></div>
+                        <span class="text-white font-monospace">Gold (#F39C12)</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 bg-dark p-2 rounded-3 border border-secondary border-opacity-25">
+                        <div style="width: 20px; height: 20px; background: #0A2540; border-radius: 4px;"></div>
+                        <span class="text-white font-monospace">Navy Blue (#0A2540)</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 bg-dark p-2 rounded-3 border border-secondary border-opacity-25">
+                        <div style="width: 20px; height: 20px; background: #003EA6; border-radius: 4px;"></div>
+                        <span class="text-white font-monospace">Emerald (#003EA6)</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 bg-dark p-2 rounded-3 border border-secondary border-opacity-25">
+                        <div style="width: 20px; height: 20px; background: #E74C3C; border-radius: 4px;"></div>
+                        <span class="text-white font-monospace">Crimson (#E74C3C)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Library Tabs -->
+    <div class="glass-card p-4">
+        <ul class="nav nav-pills nav-justified mb-4" id="libTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-bold rounded-pill" id="templates-tab" data-bs-toggle="tab" data-bs-target="#templatesTabPane" type="button" role="tab">
+                    <i class="fas fa-file-invoice me-2"></i> Document & Form Templates
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold rounded-pill" id="policies-tab" data-bs-toggle="tab" data-bs-target="#policiesTabPane" type="button" role="tab">
+                    <i class="fas fa-scale-balanced me-2"></i> Operating Procedures & Policies
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold rounded-pill" id="matrix-tab" data-bs-toggle="tab" data-bs-target="#matrixTabPane" type="button" role="tab">
+                    <i class="fas fa-layer-group me-2"></i> Delegated Approval Matrix
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="libTabsContent">
+            <!-- 1. Document Templates -->
+            <div class="tab-pane fade show active" id="templatesTabPane" role="tabpanel">
+                <div class="row g-3">
+                    {% for t in templates %}
+                    <div class="col-md-6">
+                        <div class="glass-card p-4 border border-secondary border-opacity-25 h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <span class="badge bg-warning text-dark fw-bold rounded-pill px-3 py-1 extra-small">{{ t.category }}</span>
+                                <span class="badge bg-secondary font-monospace extra-small">v{{ t.version }}</span>
+                            </div>
+                            <h5 class="fw-bold text-white mb-1">{{ t.title }}</h5>
+                            <p class="text-muted small mb-3">{{ t.description }}</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="extra-small text-muted"><i class="fas fa-clock me-1"></i> Updated {{ t.created_at|date:"d M Y" }}</span>
+                                <button type="button" class="btn btn-sm btn-outline-warning rounded-pill px-3" onclick="alert('Standard ZRP Template integrated into digital workflows.');">
+                                    <i class="fas fa-download me-1"></i> Form Template
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-md-12 text-center py-4 text-muted">No document templates loaded.</div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 2. Operating Procedures & Policies -->
+            <div class="tab-pane fade" id="policiesTabPane" role="tabpanel">
+                <div class="row g-3">
+                    {% for p in policies %}
+                    <div class="col-md-6">
+                        <div class="glass-card p-4 border border-secondary border-opacity-25 h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <span class="badge bg-info text-dark fw-bold rounded-pill px-3 py-1 extra-small">{{ p.policy_type }}</span>
+                                <span class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 rounded-pill extra-small fw-bold">{{ p.approval_status }}</span>
+                            </div>
+                            <h5 class="fw-bold text-white mb-1">{{ p.title }}</h5>
+                            <p class="text-muted small mb-3">{{ p.summary }}</p>
+                            <div class="extra-small text-muted"><i class="fas fa-calendar-check me-1"></i> Effective Date: {{ p.effective_date|date:"d M Y" }}</div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-md-12 text-center py-4 text-muted">No policy documents loaded.</div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 3. Delegated Approval Matrix -->
+            <div class="tab-pane fade" id="matrixTabPane" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-white">
+                        <thead>
+                            <tr class="bg-dark text-uppercase extra-small">
+                                <th class="ps-4 py-3">Authority Level</th>
+                                <th class="py-3">Financial Threshold</th>
+                                <th class="pe-4 text-end py-3">Designated Approving Authority</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in authority_matrix %}
+                            <tr>
+                                <td class="ps-4"><strong class="text-warning">{{ m.level }}</strong></td>
+                                <td><span class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 font-monospace px-3 py-1 fs-6">{{ m.threshold }}</span></td>
+                                <td class="pe-4 text-end fw-bold text-white">{{ m.approver }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock pageContent %}

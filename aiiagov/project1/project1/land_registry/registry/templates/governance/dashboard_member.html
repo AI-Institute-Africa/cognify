@@ -1,0 +1,255 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block pageContent %}
+<div class="container-fluid pb-5">
+    <!-- Member Header -->
+    <div class="row mb-5 align-items-end animate-fade-in">
+        <div class="col-md-8">
+            <h1 class="display-6 fw-bold mb-2">My Workspace</h1>
+            <p class="text-muted lead mb-0">Personal Impact & Execution Tracking</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <span class="badge bg-success bg-opacity-10 text-success px-4 py-2 rounded-pill border border-success border-opacity-25">
+                <i class="fas fa-user me-2"></i> Role: Team Member
+            </span>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-5">
+        <!-- Personal Stats -->
+        <div class="col-xl-3 col-md-6">
+            <div class="glass-panel p-4 h-100 border-start border-4 border-primary">
+                <p class="text-muted extra-small fw-bold text-uppercase mb-1">Assigned Tasks</p>
+                <h2 class="display-6 fw-bold mb-0">{{ tasks.count }}</h2>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="glass-panel p-4 h-100 border-start border-4 border-warning">
+                <p class="text-muted extra-small fw-bold text-uppercase mb-1">High Impact</p>
+                <h2 class="display-6 fw-bold mb-0">{{ priority_items }}</h2>
+                <span class="extra-small text-muted">Priority items</span>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="glass-panel p-4 h-100 border-start border-4 border-danger">
+                <p class="text-muted extra-small fw-bold text-uppercase mb-1">Overdue</p>
+                <h2 class="display-6 fw-bold mb-0">{{ overdue_tasks.count }}</h2>
+                <span class="extra-small text-muted">Late submissions</span>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="glass-panel p-4 h-100 border-start border-4 border-success">
+                <p class="text-muted extra-small fw-bold text-uppercase mb-1">Engaged Projects</p>
+                <h2 class="display-6 fw-bold mb-0">{{ active_projects.count }}</h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- Strategic Institutional Benefits (Exposed to Team Members) -->
+    <div class="glass-panel p-4 mb-5 border-start border-4 border-success">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h5 class="fw-bold mb-0 text-success"><i class="fas fa-hand-holding-usd me-2"></i> Strategic Institutional Benefits</h5>
+                <p class="extra-small text-muted mb-0">Projected Value Creation & Cost Optimization Results</p>
+            </div>
+            <div class="text-end">
+                <div class="extra-small text-muted fw-bold">ANNUAL PROJECTED SAVINGS</div>
+                <div class="h4 fw-bold mb-0 text-success">USD {{ total_annual_benefits|floatformat:2|intcomma }}</div>
+            </div>
+        </div>
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="extra-small text-muted text-uppercase">
+                            <tr>
+                                <th>Benefit Description</th>
+                                <th>Department</th>
+                                <th class="text-end">Annual Projection</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for benefit in benefits_data %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold small">{{ benefit.revenue_line }}</div>
+                                    <div class="extra-small text-muted">Recorded by {{ benefit.hod.username }}</div>
+                                </td>
+                                <td><span class="badge bg-primary bg-opacity-10 text-primary rounded-pill">{{ benefit.department.name }}</span></td>
+                                <td class="text-end fw-bold text-primary small">{{ benefit.annual_projection|floatformat:2|intcomma }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="3" class="text-center py-4 text-muted extra-small">No strategic benefits recorded yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div style="height: 200px;">
+                    <canvas id="memberBenefitChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Task List -->
+        <div class="col-lg-8">
+            <div class="glass-panel p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold mb-0">My Execution Queue</h5>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-primary rounded-pill px-3 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            All Priorities
+                        </button>
+                    </div>
+                </div>
+                
+                {% if tasks %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr class="extra-small text-muted text-uppercase">
+                                <th>Task Detail</th>
+                                <th>Project & Phase</th>
+                                <th>Deadline</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in tasks %}
+                            <tr class="{% if task.status == 'Done' %}opacity-50{% endif %}">
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="me-3">
+                                            {% if task.status == 'Done' %}
+                                            <i class="fas fa-check-circle text-success"></i>
+                                            {% elif task.due_date < today %}
+                                            <i class="fas fa-exclamation-circle text-danger"></i>
+                                            {% else %}
+                                            <i class="far fa-circle text-primary"></i>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold">{{ task.title }}</div>
+                                            <span class="badge bg-secondary bg-opacity-25 extra-small text-muted">{{ task.priority }}</span>
+                                            <div class="extra-small text-muted mt-1">
+                                                Assigned: {{ task.owner.username }} • Due: {{ task.due_date|date:"M d, Y" }}, ({{ task.attachments.count }})
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="extra-small">{{ task.phase.project.name }}</div>
+                                    <div class="extra-small text-muted">{{ task.phase.name }}</div>
+                                </td>
+                                <td>
+                                    <div class="extra-small {% if task.due_date < today and task.status != 'Done' %}text-danger fw-bold{% else %}text-muted{% endif %}">
+                                        {{ task.due_date|date:"M d, Y" }}
+                                    </div>
+                                </td>
+                                <td class="text-end">
+                                    <button onclick="uni_modal('Update Task: {{ task.title|addslashes }}', '{% url 'update-task' task.pk %}', 'modal-md')" class="btn btn-sm btn-outline-primary rounded-pill px-3">Update</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-clipboard-list display-1 text-muted opacity-25 mb-3"></i>
+                    <h6 class="text-muted">No tasks assigned to you yet.</h6>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Right Side: Collaboration & Context -->
+        <div class="col-lg-4">
+            <div class="p-4 mb-4">
+                <h6 class="fw-bold mb-4"><i class="fas fa-project-diagram me-2 text-primary"></i> Active Project Context</h6>
+                {% for p in active_projects %}
+                <div class="mb-3 p-3 rounded-4 bg-secondary bg-opacity-5 hover-bg-opacity-10 transition-all border" style="border-color: var(--glass-border) !important;">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="extra-small fw-bold">{{ p.name }}</span>
+                        <span class="extra-small text-primary">{{ p.progress_percentage }}%</span>
+                    </div>
+                    <div class="progress bg-secondary bg-opacity-10 rounded-pill" style="height: 3px;">
+                        <div class="progress-bar bg-primary" style="width: {{ p.progress_percentage }}%"></div>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="extra-small text-muted text-center py-4">No project involvement logged.</p>
+                {% endfor %}
+            </div>
+
+            <!-- Dashboard Tips/Insights -->
+            <div class="glass-panel p-4 bg-primary bg-opacity-10 border-primary border-opacity-25 shadow-sm">
+                <h6 class="fw-bold mb-3">Governance Insight</h6>
+                <p class="extra-small text-muted mb-0">
+                    Completing tasks early increases the <strong>Institutional Agility Score</strong>. 
+                    Ensure all deliverables are uploaded for PM gate verification.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .hover-bg-opacity-10:hover {
+        background: rgba(15, 23, 42, 0.05) !important;
+    }
+    .transition-all {
+        transition: all 0.2s ease;
+    }
+    .extra-small {
+        font-size: 0.75rem;
+    }
+    .animate-fade-in {
+        animation: fadeIn 0.8s ease-out;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const canvas = document.getElementById('memberBenefitChart');
+    if (!canvas) return;
+    new Chart(canvas.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: {{ benefit_dept_labels|safe }},
+            datasets: [{
+                data: {{ benefit_dept_data|safe }},
+                backgroundColor: ['#4f46e5','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'],
+                borderWidth: 0,
+                hoverOffset: 15
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': USD ' + new Intl.NumberFormat().format(context.parsed);
+                        }
+                    }
+                }
+            },
+            cutout: '70%'
+        }
+    });
+});
+</script>
+{% endblock pageContent %}

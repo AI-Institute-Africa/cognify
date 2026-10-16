@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+                <div class="card-header bg-success text-white p-4">
+                    <h5 class="fw-bold mb-0"> Physical Asset Recovery</h5></div>
+                <div class="card-body p-4 text-center">
+                    <div class="bg-success bg-opacity-10 p-4 rounded-circle d-inline-block mb-4 text-success">
+                        <i class="fas fa-search-location h1 mb-0"></i></div>
+                    <h5 class="fw-bold"> Restoring {{ file_doc.ref_num }}</h5>
+                    <p class="text-muted small px-lg-5">
+                        The physical asset has been located. Re-aligning the **Digital Twin** with the physical reality.</p>
+
+                    <form method="POST" class="mt-4 text-start">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted"> Current Recovery Location</label>
+                            <select name="location_id" class="form-select rounded-3 shadow-sm" required>
+                                <option value="" disabled selected> Select location...</option>
+                                {% for loc in locations %}
+                                <option value="{{ loc.id }}"> {{ loc }}</option>
+                                {% endfor %}</select></div>
+                        <div class="mb-4">
+                            <label class="form-label small fw-bold text-muted"> Recovery Notes</label>
+                            <textarea name="reason" class="form-control rounded-3" rows="2"
+                                placeholder="Where was it found? Condition?"></textarea></div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-success btn-lg rounded-pill fw-bold shadow-sm"> Restore
+                                Digital Sync</button>
+                            <a href="{% url 'file-digital-twin' file_doc.pk %}"
+                                class="btn btn-light btn-sm rounded-pill"> Cancel</a></div></form></div></div></div></div></div>
+{% endblock %}
+
+
+
+

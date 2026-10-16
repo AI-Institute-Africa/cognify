@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block pageContent %}
+<div class="container-fluid pb-5 animate-fade-in">
+    <!-- Header -->
+    <div class="row mb-5 align-items-center">
+        <div class="col-md-8">
+            <h1 class="display-6 fw-bold mb-2">Strategic Benefits & Savings</h1>
+            <p class="text-muted mb-0">Institutional Value Realization & Revenue Impact Tracking</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            {% if user_role == 'Project Management Team' or user.is_superuser %}
+            <a href="{% url 'create-benefit' %}" class="btn btn-primary rounded-pill px-4 shadow-sm">
+                <i class="fas fa-plus me-2"></i> Register New Benefit
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Analytics Summary -->
+    <div class="row g-4 mb-5">
+        <div class="col-md-6 col-lg-3">
+            <div class="glass-panel p-4 h-100 border-start border-4 border-success">
+                <p class="text-muted extra-small fw-bold text-uppercase mb-1 text-success">Total Monthly Savings</p>
+                <div class="d-flex align-items-center">
+                    <h2 class="fw-bold mb-0">USD {{ total_monthly|floatformat:2|intcomma }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="glass-panel p-4 h-100 border-start border-4 border-info">
+                <p class="text-muted extra-small fw-bold text-uppercase mb-1 text-info">Projected Annual Savings</p>
+                <div class="d-flex align-items-center">
+                    <h2 class="fw-bold mb-0">USD {{ total_annual|floatformat:2|intcomma }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Benefits Table -->
+    <div class="glass-panel p-4 animate-slide-up">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h5 class="fw-bold mb-0"><i class="fas fa-chart-line me-2 text-primary"></i> Realized Strategic Value</h5>
+            <div class="d-flex gap-2">
+                <input type="text" class="form-control form-control-sm rounded-pill px-3 border-0 bg-light bg-opacity-10" placeholder="Search revenue lines...">
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr class="extra-small text-muted text-uppercase border-bottom border-light border-opacity-10">
+                        <th>Revenue Line / Strategy</th>
+                        <th>Department</th>
+                        <th class="text-end">Monthly Savings</th>
+                        <th class="text-end">Projected Year End</th>
+                        <th class="text-end">Annual Projection</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in benefits %}
+                    <tr>
+                        <td>
+                            <div class="fw-bold text-gradient-primary">{{ b.revenue_line }}</div>
+                            <div class="extra-small text-muted">Recorded {{ b.date_added|date:"M d, Y" }}</div>
+                        </td>
+                        <td>
+                            <span class="badge bg-light bg-opacity-10 text-muted rounded-pill extra-small px-3">
+                                {{ b.department.name }}
+                            </span>
+                        </td>
+                        <td class="text-end fw-bold text-success">+ {{ b.monthly_savings|floatformat:2|intcomma }}</td>
+                        <td class="text-end fw-bold">{{ b.projected_year_end|floatformat:2|intcomma }}</td>
+                        <td class="text-end fw-bold text-info">{{ b.annual_projection|floatformat:2|intcomma }}</td>
+                        <td class="text-end">
+                            <div class="dropdown">
+                                <button class="btn btn-link btn-sm text-muted p-0" data-bs-toggle="dropdown">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end glass-panel border-0 shadow-lg">
+                                    {% if user_role == 'Project Management Team' or user.is_superuser %}
+                                    <li><a class="dropdown-item small" href="{% url 'manage-benefit' b.pk %}"><i class="fas fa-edit me-2 text-info"></i> Edit Record</a></li>
+                                    <li><hr class="dropdown-divider opacity-10"></li>
+                                    <li><a class="dropdown-item small text-danger" href="{% url 'delete-benefit' b.pk %}" onclick="return confirm('Archive this strategic record?')"><i class="fas fa-trash-alt me-2"></i> Delete</a></li>
+                                    {% else %}
+                                    <li><a class="dropdown-item small" href="#"><i class="fas fa-info-circle me-2 text-muted"></i> View Details</a></li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <div class="opacity-25 mb-3"><i class="fas fa-donate display-4"></i></div>
+                            <p class="text-muted mb-0">No strategic benefits recorded yet.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    .text-gradient-primary {
+        background: linear-gradient(45deg, #0d6efd, #0dcaf0);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .extra-small { font-size: 0.75rem; }
+</style>
+{% endblock pageContent %}

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html><head><style>body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; }
+        .header { background-color: #0d6efd; color: white; padding: 15px; border-radius: 6px 6px 0 0; text-align: center; }
+        .content { padding: 20px; }
+        .footer { font-size: 0.8em; color: #777; text-align: center; margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px; }
+        .terms { background-color: #f8f9fa; padding: 15px; border-left: 4px solid #ffc107; margin-top: 20px; }
+        .label { font-weight: bold; color: #555; }
+        .value { color: #000; }</style></head>
+<body><div class="container">
+        <div class="header"> <h2>RIFTS-X File Issuance Notice</h2></div>
+        <div class="content">
+            <p>Hello <strong>{{ ctx_borrower_name }}</strong> ,</p>
+            <p>A Records Intelligence file has been officially issued to you. Please find the transaction details below:</p>
+            <p><span class="label"> File Reference:</span> <span class="value"> {{ ctx_file_ref }}</span> <br><span class="label"> File Title:</span> <span class="value"> {{ ctx_file_title }}</span> <br><span class="label"> Folio/Reference:</span> <span class="value"> {{ ctx_folio_ref }}</span> <br><span class="label"> Due Date:</span> <span class="value" style="color: #dc3545; font-weight: bold;"> {{ ctx_return_date }}</span></p>
+            {% if ctx_issued_folder_name %}
+            <p><span class="label">Attached Cloud Folder:</span> <span class="value">{{ ctx_issued_folder_name }}</span><br>
+            <span class="label">Folder Permission:</span> <span class="value">{{ ctx_folder_permission }}</span></p>
+            {% if ctx_folder_link %}
+            <p><span class="label">Folder Access:</span> <a href="{{ ctx_folder_link }}" class="value" style="color: #0d6efd; text-decoration: none;">Open the issued folder</a></p>
+            {% endif %}
+            {% if ctx_folder_download_url %}
+            <p><span class="label">Folder ZIP:</span> <a href="{{ ctx_folder_download_url }}" class="value" style="color: #0d6efd; text-decoration: none;">Download ZIP bundle</a></p>
+            {% endif %}
+            {% endif %}
+            <div class="terms">
+                <strong>Borrowing Terms & Conditions:</strong>
+                <ul><li>The recipient is personally responsible for the physical integrity of the file.</li>
+                    <li>Files must be returned to the Records Intelligence by the specified due date.</li>
+                    <li>Unauthorized duplication, scanning, or removal of folios is strictly prohibited.</li>
+                    <li>Files must be stored securely and never left unattended in public areas.</li></ul></div>
+            <p>Issued by: <strong>{{ ctx_issuer_name }}</strong></p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{{ ctx_access_url }}" style="background-color: #0d6efd; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;"> Access My File</a>
+                <p style="font-size: 0.85em; color: #dc3545; margin-top: 10px;"> This secure link expires in 3 days.</p></div>
+            <div style="background-color: #e9ecef; padding: 15px; border-radius: 6px; border: 1px dashed #adb5bd;">
+                <h4 style="margin-top: 0; color: #495057;"> Account Credentials:</h4>
+                <p style="margin-bottom: 5px;"> <span class="label"> Username:</span> <span class="value"> {{ ctx_username }}</span></p>
+                {% if ctx_temp_password %}
+                <p style="margin-bottom: 5px;"> <span class="label"> One-Time Password:</span> <span class="value" style="font-family: monospace; background: #fff; padding: 2px 5px; border-radius: 3px;"> {{ ctx_temp_password }}</span></p>
+                <p style="font-size: 0.8em; color: #6c757d; font-style: italic;"> * Please change your password after logging in for the first time.</p>
+                {% else %}
+                <p style="font-size: 0.8em; color: #6c757d; font-style: italic;"> * Use your existing RIFTS-X credentials to log in.</p>
+                {% endif %}</div></div>
+        <div class="footer">
+            <p>This is an automated notification from RIFTS-X.</p>
+            <p>System URL: {{ ctx_system_url }}</p>
+            <p>&copy; 2026 Strategic Intelligence Platform Department</p></div></div></body></html>
+
+
+
+
+

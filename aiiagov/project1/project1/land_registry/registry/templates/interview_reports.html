@@ -1,0 +1,169 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-file-contract text-warning me-2"></i> ZRP Executive Interview Reports & Candidate Ranking</h3>
+            <p class="text-muted small mb-0">{{ exercise.title }} | Position: <strong>{{ exercise.position_title }}</strong> (Grade: {{ exercise.grade_level }})</p>
+        </div>
+        <a href="{% url 'interview-dashboard' %}" class="btn btn-outline-light rounded-pill px-4">
+            <i class="fas fa-arrow-left me-1"></i> Back to Exercises
+        </a>
+    </div>
+
+    <!-- Workflow Progress & Status Banner -->
+    <div class="glass-card p-3 mb-4 border border-success border-opacity-25">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-uppercase extra-small fw-bold text-white ls-1"><i class="fas fa-diagram-project text-success me-2"></i> Recruitment Workflow Stage</span>
+            <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 px-3 py-1 rounded-pill fw-bold">
+                Current: {{ exercise.workflow_status }}
+            </span>
+        </div>
+
+        <form action="{% url 'advance-interview-workflow' exercise.pk %}" method="POST" class="row g-2 align-items-center">
+            {% csrf_token %}
+            <div class="col-md-9">
+                <label class="extra-small text-muted fw-bold">Advance Workflow Stage</label>
+                <select name="target_status" class="form-select form-select-sm bg-dark text-white border-secondary" required>
+                    <option value="Scheduled" {% if exercise.workflow_status == 'Scheduled' %}selected{% endif %}>1. Interview Scheduled</option>
+                    <option value="Panel Notified" {% if exercise.workflow_status == 'Panel Notified' %}selected{% endif %}>2. Panel Notified</option>
+                    <option value="In Progress" {% if exercise.workflow_status == 'In Progress' %}selected{% endif %}>3. Interviews In Progress</option>
+                    <option value="Assessment Submitted" {% if exercise.workflow_status == 'Assessment Submitted' %}selected{% endif %}>4. Assessment & Scoring Submitted</option>
+                    <option value="Panel Recommended" {% if exercise.workflow_status == 'Panel Recommended' %}selected{% endif %}>5. Panel Recommended</option>
+                    <option value="Executive Approved" {% if exercise.workflow_status == 'Executive Approved' %}selected{% endif %}>6. Executive Approved</option>
+                    <option value="Closed/Archived" {% if exercise.workflow_status == 'Closed/Archived' %}selected{% endif %}>7. Closed / Archived</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="d-block extra-small text-muted">&nbsp;</label>
+                <button type="submit" class="btn btn-success btn-sm w-100 rounded-pill fw-bold" style="background: #003EA6;">Update Workflow State</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Candidate Ranking & Consolidated Score Sheet Table -->
+    <div class="glass-card p-4 mb-4">
+        <h5 class="fw-bold text-white mb-3"><i class="fas fa-trophy text-warning me-2"></i> Consolidated Score Sheet & Candidate Ranking</h5>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr class="bg-success bg-opacity-10 text-white">
+                        <th class="ps-4 py-3">Rank</th>
+                        <th class="py-3">Candidate Name</th>
+                        <th class="py-3">Type & Vetting</th>
+                        <th class="py-3">Average Total Score</th>
+                        <th class="py-3">Panel Assessments</th>
+                        <th class="py-3">Final Panel Recommendation</th>
+                        <th class="pe-4 text-end py-3">Conduct Scorecard</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in ranking_data %}
+                    <tr>
+                        <td class="ps-4">
+                            {% if forloop.counter == 1 %}
+                            <span class="badge bg-warning text-dark rounded-circle p-2 fs-6 fw-bold"><i class="fas fa-crown"></i> #1</span>
+                            {% else %}
+                            <span class="badge bg-secondary rounded-circle p-2 small">#{{ forloop.counter }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="fw-bold text-white">{{ item.candidate.full_name }}</td>
+                        <td>
+                            <div class="small text-white">{{ item.candidate.candidate_type }}</div>
+                            <span class="badge bg-{% if item.candidate.vetting_status == 'Clearance Passed' %}success{% elif item.candidate.vetting_status == 'Vetting Failed' %}danger{% else %}warning{% endif %} rounded-pill extra-small">
+                                {{ item.candidate.vetting_status }}
+                            </span>
+                        </td>
+                        <td>
+                            <h4 class="fw-bold text-warning mb-0">{{ item.avg_score }}/100</h4>
+                        </td>
+                        <td>
+                            <span class="badge bg-info bg-opacity-20 text-info rounded-pill px-3">{{ item.assessments_count }} Panelists Scored</span>
+                        </td>
+                        <td>
+                            {% for r in item.recommendations %}
+                            <div class="extra-small text-white"><i class="fas fa-check-circle text-success me-1"></i> {{ r }}</div>
+                            {% endfor %}
+                        </td>
+                        <td class="pe-4 text-end">
+                            <a href="{% url 'conduct-interview-scoring' item.candidate.pk %}" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold">
+                                <i class="fas fa-calculator me-1"></i> Enter / View Scorecard
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">No candidates registered for this exercise.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Police Clearance & Vetting Ledger -->
+    <div class="glass-card p-4 mb-4">
+        <h5 class="fw-bold text-white mb-3"><i class="fas fa-shield-halved text-info me-2"></i> Police Clearance & Vetting Audit Ledger</h5>
+        <div class="table-responsive">
+            <table class="table table-sm extra-small text-white align-middle">
+                <thead>
+                    <tr class="bg-dark text-uppercase">
+                        <th>Candidate</th>
+                        <th>Police Clearance Reference</th>
+                        <th>Vetting Status</th>
+                        <th>Attendance Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cand in candidates %}
+                    <tr>
+                        <td class="fw-bold">{{ cand.full_name }}</td>
+                        <td>{{ cand.police_clearance_ref|default:"ZRP-CLEARANCE-PENDING" }}</td>
+                        <td>
+                            <span class="badge bg-{% if cand.vetting_status == 'Clearance Passed' %}success{% elif cand.vetting_status == 'Vetting Failed' %}danger{% else %}warning{% endif %} rounded-pill">
+                                {{ cand.vetting_status }}
+                            </span>
+                        </td>
+                        <td>{{ cand.attendance_status }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Audit Log History -->
+    <div class="glass-card p-4">
+        <h5 class="fw-bold text-white mb-3"><i class="fas fa-history text-secondary me-2"></i> Exercise Audit Trail Log</h5>
+        <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+            <table class="table table-sm extra-small text-white">
+                <thead>
+                    <tr class="bg-dark text-uppercase">
+                        <th>Timestamp</th>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in audit_logs %}
+                    <tr>
+                        <td class="text-muted">{{ log.timestamp|date:"d M Y, H:i:s" }}</td>
+                        <td class="fw-bold text-info">{{ log.user.username|default:"System" }}</td>
+                        <td><span class="badge bg-secondary rounded-pill">{{ log.action }}</span></td>
+                        <td>{{ log.details }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">No audit events recorded yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock pageContent %}

@@ -1,0 +1,315 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block pageContent %}
+<div class="container-fluid pb-5">
+    <!-- Header -->
+    <div class="row mb-4 align-items-end">
+        <div class="col-md-8">
+            <h1 class="display-5 fw-bold text-white mb-2"><i class="fas fa-users-cog me-3"></i>User Governance Panel</h1>
+            <p class="text-muted lead mb-0">Approve registrations, assign roles & departments, manage account access.</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <a href="{% url 'dashboard-md' %}" class="btn btn-outline-light rounded-pill px-4">
+                <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Django Messages -->
+    {% if messages %}
+    <div class="row mb-3">
+        <div class="col-12">
+            {% for msg in messages %}
+            <div class="alert alert-{{ msg.tags }} alert-dismissible fade show border-0 rounded-3" role="alert">
+                {{ msg }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Stats Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="glass-panel p-3 text-center h-100">
+                <div class="display-6 fw-bold text-warning">{{ pending_count }}</div>
+                <div class="text-muted small text-uppercase fw-bold">Pending Approval</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="glass-panel p-3 text-center h-100">
+                <div class="display-6 fw-bold text-success">{{ approved_count }}</div>
+                <div class="text-muted small text-uppercase fw-bold">Active &amp; Approved</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="glass-panel p-3 text-center h-100">
+                <div class="display-6 fw-bold text-info">{{ total_count }}</div>
+                <div class="text-muted small text-uppercase fw-bold">Total Registered</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Tabs -->
+    <ul class="nav nav-pills mb-4 gap-2">
+        <li class="nav-item">
+            <a class="nav-link rounded-pill px-4 {% if filter_tab == 'pending' %}active{% endif %}"
+               href="?filter=pending">
+                <i class="fas fa-clock me-1"></i>All Pending
+                {% if pending_count > 0 %}
+                    <span class="badge bg-danger ms-1 rounded-pill">{{ pending_count }}</span>
+                {% endif %}
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link rounded-pill px-4 {% if filter_tab == 'strategic' %}active{% endif %}"
+               href="?filter=strategic">
+                <i class="fas fa-shield-alt me-1"></i>Strategic Roles
+                {% if strategic_pending_count > 0 %}
+                    <span class="badge bg-warning text-dark ms-1 rounded-pill">{{ strategic_pending_count }}</span>
+                {% endif %}
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link rounded-pill px-4 {% if filter_tab == 'approved' %}active{% endif %}"
+               href="?filter=approved">
+                <i class="fas fa-check-circle me-1"></i>Approved
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link rounded-pill px-4 {% if filter_tab == 'all' %}active{% endif %}"
+               href="?filter=all">
+                <i class="fas fa-list me-1"></i>All Users
+            </a>
+        </li>
+    </ul>
+
+    <!-- User Cards -->
+    <div class="row g-3">
+        {% for profile in profiles %}
+        <div class="col-lg-6 col-xl-4">
+            <div class="glass-panel p-4 h-100 transition-all hover-border-primary position-relative">
+                <!-- Status Badge Area -->
+                <div class="position-absolute top-0 end-0 m-3 d-flex flex-column align-items-end gap-1">
+                    {% if not profile.is_role_approved %}
+                        {% if profile.role_requested in strategic_roles %}
+                            <span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-3 py-1 border border-warning border-opacity-25">
+                                <i class="fas fa-gavel me-1"></i>Awaiting MD Approval
+                            </span>
+                        {% else %}
+                            <span class="badge bg-info bg-opacity-10 text-info rounded-pill px-3 py-1 border border-info border-opacity-25">
+                                <i class="fas fa-users-cog me-1"></i>Awaiting PM Approval
+                                {% if profile.is_pm_approved %}<i class="fas fa-check-circle ms-1 text-success"></i>{% endif %}
+                            </span>
+                        {% endif %}
+                    {% elif profile.is_locked %}
+                        <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-3 py-1">
+                            <i class="fas fa-lock me-1"></i>Locked
+                        </span>
+                    {% elif not profile.user.is_active %}
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-3 py-1">
+                            <i class="fas fa-ban me-1"></i>Deactivated
+                        </span>
+                    {% else %}
+                        <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3 py-1">
+                            <i class="fas fa-check me-1"></i>Active
+                        </span>
+                    {% endif %}
+                </div>
+
+                <!-- User Info -->
+                <div class="d-flex align-items-center mb-3">
+                    <div class="avatar-circle me-3">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div>
+                        <h6 class="fw-bold mb-0 text-white">{{ profile.user.first_name }} {{ profile.user.last_name }}</h6>
+                        <div class="text-muted extra-small">@{{ profile.user.username }}</div>
+                    </div>
+                </div>
+
+                <!-- Details Grid -->
+                <div class="row g-2 mb-3 extra-small">
+                    <div class="col-6">
+                        <div class="text-muted text-uppercase fw-bold mb-1">Email</div>
+                        <div class="text-white text-truncate" title="{{ profile.user.email }}">{{ profile.user.email }}</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-muted text-uppercase fw-bold mb-1">Platform</div>
+                        <div class="text-info">{{ profile.get_platform_display }}</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-muted text-uppercase fw-bold mb-1">Requested Role</div>
+                        <div class="text-warning">{{ profile.role_requested|default:profile.role }}</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-muted text-uppercase fw-bold mb-1">Current Role</div>
+                        <div class="text-white">{{ profile.get_role_display }}</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-muted text-uppercase fw-bold mb-1">Department</div>
+                        <div class="text-white">{{ profile.department.name|default:"Not Assigned" }}</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-muted text-uppercase fw-bold mb-1">Email Verified</div>
+                        <div>
+                            {% if profile.is_email_verified %}
+                                <span class="text-success"><i class="fas fa-check-circle"></i> Yes</span>
+                            {% else %}
+                                <span class="text-danger"><i class="fas fa-times-circle"></i> No</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-muted text-uppercase fw-bold mb-1">Registered</div>
+                        <div class="text-white">{{ profile.user.date_joined|date:"d M Y H:i" }}</div>
+                    </div>
+                    {% if profile.role_approved_at %}
+                    <div class="col-6">
+                        <div class="text-muted text-uppercase fw-bold mb-1">Approved</div>
+                        <div class="text-success">{{ profile.role_approved_at|date:"d M Y" }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Action Forms -->
+                {% if not profile.is_role_approved %}
+                <!-- PENDING: Approve with role selection -->
+                <form method="post" action="{% url 'user-role-action' %}" class="mb-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="approve">
+                    <input type="hidden" name="user_id" value="{{ profile.user.id }}">
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <select name="role" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                {% for role_key, role_label in roles %}
+                                <option value="{{ role_key }}" {% if role_key == profile.role_requested %}selected{% endif %}>{{ role_label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <select name="department" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                <option value="">— Department —</option>
+                                {% for dept in departments %}
+                                <option value="{{ dept.id }}" {% if profile.department_id == dept.id %}selected{% endif %}>{{ dept.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success btn-sm rounded-pill flex-grow-1">
+                            <i class="fas fa-check me-1"></i>Approve
+                        </button>
+                        <button type="submit" name="action" value="reject" class="btn btn-outline-danger btn-sm rounded-pill">
+                            <i class="fas fa-times me-1"></i>Reject
+                        </button>
+                    </div>
+                </form>
+                {% else %}
+                <!-- APPROVED: Quick actions -->
+                <div class="d-flex gap-2 flex-wrap">
+                    <!-- Change Role -->
+                    <form method="post" action="{% url 'user-role-action' %}" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="change_role">
+                        <input type="hidden" name="user_id" value="{{ profile.user.id }}">
+                        <div class="input-group input-group-sm">
+                            <select name="role" class="form-select form-select-sm bg-dark text-white border-secondary" style="max-width: 140px;">
+                                {% for role_key, role_label in roles %}
+                                <option value="{{ role_key }}" {% if role_key == profile.role %}selected{% endif %}>{{ role_label }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-outline-info btn-sm"><i class="fas fa-sync-alt"></i></button>
+                        </div>
+                    </form>
+
+                    <!-- Toggle Lock -->
+                    <form method="post" action="{% url 'user-role-action' %}" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="toggle_lock">
+                        <input type="hidden" name="user_id" value="{{ profile.user.id }}">
+                        <button type="submit" class="btn btn-sm btn-outline-{{ profile.is_locked|yesno:'success,warning' }} rounded-pill" 
+                                title="{{ profile.is_locked|yesno:'Unlock,Lock' }}">
+                            <i class="fas fa-{{ profile.is_locked|yesno:'unlock,lock' }}"></i>
+                        </button>
+                    </form>
+
+                    {% if not profile.user.is_active %}
+                    <form method="post" action="{% url 'user-role-action' %}" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="reactivate">
+                        <input type="hidden" name="user_id" value="{{ profile.user.id }}">
+                        <button type="submit" class="btn btn-sm btn-outline-success rounded-pill" title="Reactivate">
+                            <i class="fas fa-redo me-1"></i>Reactivate
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12 text-center py-5">
+            <i class="fas fa-user-check display-1 text-muted opacity-25 mb-4"></i>
+            <h5 class="text-muted">
+                {% if filter_tab == 'pending' %}
+                    No pending registrations. All users have been processed.
+                {% elif filter_tab == 'approved' %}
+                    No approved users found.
+                {% else %}
+                    No registered users found.
+                {% endif %}
+            </h5>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+    .glass-panel {
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+    }
+    .hover-border-primary:hover {
+        border-color: rgba(0, 123, 255, 0.5) !important;
+        transform: translateY(-3px);
+    }
+    .transition-all {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .extra-small {
+        font-size: 0.75rem;
+    }
+    .avatar-circle {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+    .nav-pills .nav-link {
+        color: rgba(255,255,255,0.6);
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    .nav-pills .nav-link.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-color: transparent;
+        color: white;
+    }
+    .nav-pills .nav-link:hover:not(.active) {
+        color: white;
+        background: rgba(255,255,255,0.1);
+    }
+</style>
+{% endblock pageContent %}

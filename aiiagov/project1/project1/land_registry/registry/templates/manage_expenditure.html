@@ -1,0 +1,87 @@
+{% load static %}
+<div class="container-fluid">
+    <form action="" id="expenditure-form">
+        <input type="hidden" name="requisition" value="{{ requisition.id }}">
+
+        <div class="alert alert-primary shadow-none border-0 rounded-3 small mb-4">
+            <div class="d-flex w-100 align-items-center">
+                <div class="me-3 p-2 bg-white bg-opacity-25 rounded-circle text-white">
+                    <i class="fa fa-info-circle fa-lg"></i></div>
+                <div><div class="fw-bold fw-bold text-uppercase"> Requisition Detail</div>
+                    <div>Item: {{ requisition.item_name }} | Qty: {{ requisition.quantity }}</div>
+                    <div>Estimate Value: <span class="fw-bold"> ${{ requisition.total_amount|floatformat:2 }}</span></div>
+                    {% if requisition.budget_line %}
+                    <div>Budget: {{ requisition.budget_line.department.name }} ({{ requisition.budget_line.fiscal_year
+                        }})</div>
+                    {% endif %}</div></div></div>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="amount" class="form-label small fw-bold text-muted text-uppercase mb-2"> Actual Amount
+                    Paid</label>
+                {{ form.amount }}</div>
+            <div class="col-md-6 mb-3">
+                <label for="date_paid" class="form-label small fw-bold text-muted text-uppercase mb-2"> Date of
+                    Payment</label>
+                {{ form.date_paid }}</div></div>
+
+        <div class="mb-3">
+            <label for="reference_no" class="form-label small fw-bold text-muted text-uppercase mb-2"> Payment Reference
+                / Voucher #</label>
+            {{ form.reference_no }}</div>
+
+        <div class="mb-3">
+            <label for="payment_voucher" class="form-label small fw-bold text-muted text-uppercase mb-2"> Upload Payment
+                Voucher (Image/PDF)</label>
+            {{ form.payment_voucher }}</div></form></div>
+<script>$(function () {
+        $('#expenditure-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg rounded-3 small p-2 mb-3")
+            el.hide()
+            if (_this[0].checkValidity() == false) {
+                _this[0].reportValidity();
+                return false;
+            }
+            start_loader();
+            $.ajax({
+                headers: {
+                    "X-CSRFToken": '{{csrf_token}}'
+                },
+                url: "{% url 'save-expenditure' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.error(err)
+                    alert("An error occured", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.text(resp.msg)
+                    } else {
+                        el.text("An error occured", 'error');
+                        end_loader();
+                    }
+                    _this.prepend(el)
+                    el.show('slow')
+                    $("html, body, .modal").scrollTop(0);
+                    end_loader()
+                }
+            })
+        })
+    })</script>
+
+
+
+

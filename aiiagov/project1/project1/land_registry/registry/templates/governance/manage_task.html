@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% load customfilter %}
+{% block pageContent %}
+<div class="container-fluid py-4" style="max-width:750px;">
+    <nav class="mb-4">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="{% url 'project-list' %}"
+                    class="text-decoration-none text-primary">Projects</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'project-detail' phase.project.pk %}"
+                    class="text-decoration-none text-primary">{{ phase.project.name }}</a></li>
+            <li class="breadcrumb-item active">{% if task %}Edit{% else %}New{% endif %} Task</li>
+        </ol>
+    </nav>
+
+    <div class="card border-0 shadow rounded-4">
+        <div class="card-body p-4">
+            <h5 class="fw-bold mb-4">
+                <i class="fas fa-tasks me-2 text-primary"></i>
+                {% if task %}Edit Task: {{ task.title }}{% else %}Create Task in {{ phase.name }}{% endif %}
+            </h5>
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Title</label>
+                    <input type="text" name="title" class="form-control rounded-pill"
+                        value="{{ task.title|default:'' }}" placeholder="Task title…" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Description</label>
+                    <textarea name="description" rows="3" class="form-control rounded-3"
+                        placeholder="Task details…" required>{{ task.description|default:'' }}</textarea>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Assigned</label>
+                        {% if can_reassign_task %}
+                        <select name="owner" class="form-select rounded-pill" required>
+                            {% for u in users %}
+                            <option value="{{ u.pk }}" {% if task and task.owner_id == u.pk %}selected{% endif %}>{{ u.username }}</option>
+                            {% endfor %}
+                        </select>
+                        {% else %}
+                        <div class="form-control rounded-pill bg-light border-0">
+                            {{ task.owner.username|default:request.user.username }}
+                            <input type="hidden" name="owner" value="{{ task.owner_id|default:request.user.id }}">
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Priority</label>
+                        <select name="priority" class="form-select rounded-pill">
+                            {% for val in 'Low,Medium,High,Critical'|split:',' %}
+                            <option value="{{ val }}" {% if task and task.priority == val %}selected{% endif %}>{{ val }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Start Date</label>
+                        <input type="date" name="start_date" class="form-control rounded-pill"
+                            value="{{ task.start_date|date:'Y-m-d'|default:'' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-semibold mb-0">Due</label>
+                            {% if not task %}
+                            <button type="button" class="btn btn-link p-0 extra-small fw-bold text-decoration-none" onclick="document.getElementById('ddinput').value='{{ suggested_date }}'; this.innerHTML='<i class=\'fas fa-check\'></i> Suggested';">
+                                <i class="fas fa-magic me-1"></i> AI Suggest
+                            </button>
+                            {% endif %}
+                        </div>
+                        <input type="date" name="due_date" id="ddinput" class="form-control rounded-pill"
+                            value="{{ task.due_date|date:'Y-m-d'|default:'' }}" required>
+                    </div>
+                </div>
+                {% if sprints %}
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Sprint (optional)</label>
+                    <select name="sprint" class="form-select rounded-pill">
+                        <option value="">── No Sprint ──</option>
+                        {% for s in sprints %}
+                        <option value="{{ s.pk }}" {% if task and task.sprint_id == s.pk %}selected{% endif %}>{{ s.name
+                            }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div class="mb-4">
+                    <label class="form-label fw-semibold text-primary"><i class="fas fa-box-open me-2"></i> Deliverable Status</label>
+                    <div class="form-check form-switch p-3 rounded-4 border bg-light">
+                        <input class="form-check-input ms-0 me-3" type="checkbox" name="is_deliverable" id="isDeliv" 
+                               {% if task and task.is_deliverable %}checked{% endif %}>
+                        <label class="form-check-label fw-bold" for="isDeliv">Mark as Project Deliverable</label>
+                        <div class="extra-small text-muted mt-1">Institutional deliverables are consolidated and downloadable by HOD/MD upon phase completion.</div>
+                    </div>
+                </div>
+
+                {% if files %}
+                <div class="mb-4">
+                    <label class="form-label fw-semibold">Linked Documents (optional)</label>
+                    <div class="row g-1" style="max-height:180px;overflow-y:auto;">
+                        {% for f in files %}
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="linked_docs" id="fd{{ f.pk }}"
+                                    value="{{ f.pk }}" {% if task and f in task.linked_docs.all %}checked{% endif %}>
+                                <label class="form-check-label small" for="fd{{ f.pk }}">{{ f.ref_num }} – {{ f.title|truncatechars:40 }}</label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                <div class="d-flex gap-2">
+                    {% if user_role == 'Portfolio Admin' or user_role == 'Project Leader' or task.owner == request.user or not task %}
+                    <button type="submit" class="btn btn-primary rounded-pill px-4">
+                        <i class="fas fa-save me-1"></i> {% if task %}Update Task{% else %}Create Task{% endif %}
+                    </button>
+                    {% else %}
+                    <div class="alert alert-warning py-2 small mb-0 rounded-4 border-0 flex-grow-1">
+                        <i class="fas fa-lock me-1"></i> Read-only view
+                    </div>
+                    {% endif %}
+                    <a href="{% url 'project-detail' phase.project.pk %}"
+                        class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<style>.extra-small { font-size: 0.7rem; }</style>
+{% endblock pageContent %}

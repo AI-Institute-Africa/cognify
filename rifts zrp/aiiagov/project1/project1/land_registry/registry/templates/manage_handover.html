@@ -1,0 +1,72 @@
+<div class="container-fluid">
+    <form action="{% url 'handover-file' %}" method="POST" id="handover-form">
+        {% csrf_token %}
+        <input type="hidden" name="file_id" value="{{ file_obj.id }}">
+
+        <div class="mb-3">
+            <label class="control-label small fw-bold"> Select Recipient Officer</label>
+            <select name="target_user_id" class="form-select rounded-pill shadow-sm" required>
+                <option value="" disabled selected> Select an officer...</option>
+                {% for user in users %}
+                <option value="{{ user.id }}"> {{ user.username }} ({{ user.first_name }} {{ user.last_name }})</option>
+                {% endfor %}</select></div>
+
+        <div class="mb-3">
+            <label class="control-label small fw-bold"> Reason for Handover</label>
+            <textarea name="reason" rows="2" class="form-control rounded-3 shadow-sm"
+                placeholder="e.g. Handing over for legal review..." required></textarea></div>
+
+        <hr class="bg-light my-4">
+        <h6 class="small fw-bold text-muted text-uppercase mb-3"> <i class="fas fa-map-marker-alt me-1"></i> Confirm
+            Physical Location</h6>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label class="control-label extra-small fw-bold text-muted"> Building</label>
+                <input type="text" name="building" class="form-control rounded-pill shadow-sm py-1 px-3"
+                    value="{{ location.building|default:'' }}" placeholder="e.g. HQ Building" required></div>
+            <div class="col-md-6 mb-3">
+                <label class="control-label extra-small fw-bold text-muted"> Floor</label>
+                <input type="text" name="floor" class="form-control rounded-pill shadow-sm py-1 px-3"
+                    value="{{ location.floor|default:'' }}" placeholder="e.g. 2nd Floor" required></div>
+            <div class="col-md-6 mb-3">
+                <label class="control-label extra-small fw-bold text-muted"> Office / Room</label>
+                <input type="text" name="office" class="form-control rounded-pill shadow-sm py-1 px-3"
+                    value="{{ location.office|default:'' }}" placeholder="e.g. Room 302"></div>
+            <div class="col-md-6 mb-3">
+                <label class="control-label extra-small fw-bold text-muted"> Cabinet</label>
+                <input type="text" name="cabinet" class="form-control rounded-pill shadow-sm py-1 px-3"
+                    value="{{ location.cabinet|default:'' }}" placeholder="e.g. Cabinet C" required></div>
+            <div class="col-md-12 mb-3">
+                <label class="control-label extra-small fw-bold text-muted"> Shelf / Bin</label>
+                <input type="text" name="shelf" class="form-control rounded-pill shadow-sm py-1 px-3"
+                    value="{{ location.shelf|default:'' }}" placeholder="e.g. Shelf 12" required></div></div>
+
+
+        <div class="alert alert-info extra-small py-2 border-0 bg-opacity-10 text-info">
+            <i class="fas fa-info-circle me-1"></i> This action will be recorded in the file's immutable
+            chain-of-custody timeline.</div></form></div>
+
+<script>$(function () {
+        $('#handover-form').submit(function (e) {
+            e.preventDefault();
+            start_loader();
+            var _this = $(this);
+            $.ajax({
+                url: _this.attr('action'),
+                method: 'POST',
+                data: _this.serialize(),
+                success: function (resp) {
+                    location.reload();
+                },
+                error: function (err) {
+                    console.log(err);
+                    alert_toast("An error occurred", "error");
+                    end_loader();
+                }
+            })
+        })
+    })</script>
+
+
+
+

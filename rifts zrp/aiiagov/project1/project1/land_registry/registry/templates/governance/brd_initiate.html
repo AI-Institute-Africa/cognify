@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container py-4" style="max-width:860px;">
+
+  <div class="mb-4">
+    <a href="{% url 'brd-list' %}" class="btn btn-sm btn-outline-secondary rounded-pill me-2">
+      <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+    <h2 class="fw-bold d-inline-block mb-0" style="color:#1a1a2e;">Initiate Business Requirements Document</h2>
+    <p class="text-muted mt-1">Upload a BRD and assign approvers at each governance level</p>
+  </div>
+
+  {% for message in messages %}
+  <div class="alert alert-danger alert-dismissible fade show">{{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+
+  <form method="post" enctype="multipart/form-data" id="brdForm">
+    {% csrf_token %}
+
+    <!-- Step 1: Document Info -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header border-0 py-3 px-4" style="background:#f0f4ff;">
+        <h6 class="mb-0 fw-semibold" style="color:#4361ee;"><i class="bi bi-1-circle-fill me-2"></i>Document Information</h6>
+      </div>
+      <div class="card-body p-4">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">BRD Title <span class="text-danger">*</span></label>
+          <input type="text" name="title" class="form-control form-control-lg" placeholder="e.g. ERP System Requirements v1.0" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Description / Summary</label>
+          <textarea name="description" rows="3" class="form-control" placeholder="Brief overview of this BRD..."></textarea>
+        </div>
+        <div class="mb-1">
+          <label class="form-label fw-semibold">Upload BRD Document <span class="text-danger">*</span></label>
+          <input type="file" name="document" accept=".pdf,.doc,.docx,.xlsx,.xls" class="form-control" required>
+          <small class="text-muted">Accepted formats: PDF, Word (.doc/.docx), Excel (.xlsx/.xls)</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: PMT Approvers -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header border-0 py-3 px-4" style="background:#f0f4ff;">
+        <h6 class="mb-0 fw-semibold" style="color:#4361ee;"><i class="bi bi-2-circle-fill me-2"></i>Project Management Team Approvers</h6>
+      </div>
+      <div class="card-body p-4">
+        <div class="row g-3">
+          <div class="col-md-8">
+            <label class="form-label fw-semibold">Select Project Management Team Members <span class="text-danger">*</span></label>
+            <select name="pmt_approvers" multiple class="form-select" size="5" id="pmtSelect" required>
+              {% for u in pmt_users %}
+              <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }} — {{ u.security_profile.role }}</option>
+              {% empty %}
+              <option disabled>No Project Management Team members registered yet</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Required Signatures</label>
+            <input type="number" name="pmt_required" min="1" value="1" class="form-control" id="pmtRequired">
+            <small class="text-muted">Minimum number of Project Management Team signatures needed to advance</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: HOD Approvers -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header border-0 py-3 px-4" style="background:#fff8e7;">
+        <h6 class="mb-0 fw-semibold" style="color:#b08a00;"><i class="bi bi-3-circle-fill me-2"></i>Head of Departments Approvers</h6>
+      </div>
+      <div class="card-body p-4">
+        <div class="row g-3">
+          <div class="col-md-8">
+            <label class="form-label fw-semibold">Select Head of Departments <span class="text-danger">*</span></label>
+            <select name="hod_approvers" multiple class="form-select" size="5" id="hodSelect" required>
+              {% for u in hod_users %}
+              <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }} — {{ u.security_profile.role }}</option>
+              {% empty %}
+              <option disabled>No Head of Departments registered yet</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Required Signatures</label>
+            <input type="number" name="hods_required" min="1" value="1" class="form-control" id="hodRequired">
+            <small class="text-muted">Minimum number of Head of Departments signatures needed to advance</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4: Board Approvers -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header border-0 py-3 px-4" style="background:#fdf0ff;">
+        <h6 class="mb-0 fw-semibold" style="color:#7928ca;"><i class="bi bi-4-circle-fill me-2"></i>Executive Committee Approvers</h6>
+      </div>
+      <div class="card-body p-4">
+        <div class="row g-3">
+          <div class="col-md-8">
+            <label class="form-label fw-semibold">Select Executive Committee Members <span class="text-danger">*</span></label>
+            <select name="board_approvers" multiple class="form-select" size="5" id="boardSelect" required>
+              {% for u in board_users %}
+              <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }} — {{ u.security_profile.role }}</option>
+              {% empty %}
+              <option disabled>No Executive Committee members registered yet</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Required Signatures</label>
+            <input type="number" name="board_required" min="1" value="1" class="form-control" id="boardRequired">
+            <small class="text-muted">Minimum number of Executive Committee signatures needed for final approval</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2 justify-content-end">
+      <a href="{% url 'brd-list' %}" class="btn btn-outline-secondary px-4 rounded-pill">Cancel</a>
+      <button type="submit" class="btn btn-primary px-5 rounded-pill">
+        <i class="bi bi-send-fill me-2"></i>Submit BRD for Approval
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+// Auto-update max for required fields based on selection count
+function updateMax(selectId, inputId) {
+  const sel = document.getElementById(selectId);
+  const inp = document.getElementById(inputId);
+  sel.addEventListener('change', () => {
+    const count = sel.selectedOptions.length;
+    inp.max = count;
+    if (parseInt(inp.value) > count) inp.value = count;
+  });
+}
+updateMax('pmtSelect', 'pmtRequired');
+updateMax('hodSelect', 'hodRequired');
+updateMax('boardSelect', 'boardRequired');
+</script>
+{% endblock pageContent %}

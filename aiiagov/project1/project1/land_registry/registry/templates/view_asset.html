@@ -1,0 +1,950 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div class="d-flex align-items-center">
+            <a href="{% url 'asset-list' %}" class="btn btn-sm btn-secondary rounded-circle shadow-sm me-3">
+                <i class="fas fa-arrow-left"></i></a>
+            <div>
+                <h3 class="fw-bold mb-0"> Asset: {{ asset.asset_code }}</h3>
+                <div class="small text-muted">{{ asset.name }} &bull; {{ asset.department.name }}</div>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="{% url 'print-asset-dossier' asset.pk %}" target="_blank" class="btn btn-outline-dark rounded-pill px-4 shadow-sm">
+                <i class="fas fa-print me-2 text-danger"></i> Print Asset Dossier
+            </a>
+            <button class="btn btn-warning rounded-pill px-4 shadow-sm text-dark fw-bold" id="btn-inspect">
+                <i class="fas fa-microscope me-2"></i> Technician Quality Test
+            </button>
+            <button class="btn btn-primary rounded-pill px-4 shadow-sm" id="btn-upload-doc">
+                <i class="fas fa-file-upload me-2"></i> Add Scan / Document
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Clearance & Quality Alert Banner -->
+<div class="row mb-4">
+    <div class="col-12">
+        {% if asset.is_cleared %}
+        <div class="card border-0 bg-success bg-opacity-10 rounded-4 p-3 border-start border-success border-4 shadow-sm">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="icon-circle bg-success text-white"><i class="fas fa-certificate"></i></div>
+                    <div>
+                        <div class="fw-bold text-success fs-6"><i class="fas fa-check-double me-1"></i> Quality Tested & Officially Cleared as Institutional Asset</div>
+                        <div class="small text-muted">Cleared by Technician: <strong>{% if asset.technician %}{{ asset.technician.get_full_name|default:asset.technician.username }}{% else %}Authorized Inspector{% endif %}</strong> on {{ asset.inspection_date|default:"Record Date" }}. All 3 clearance certificates verified.</div>
+                    </div>
+                </div>
+                <span class="badge bg-success rounded-pill px-3 py-2 fs-6">Quality Approved</span>
+            </div>
+        </div>
+        {% elif asset.inspection_status == 'Rejected' %}
+        <div class="card border-0 bg-danger bg-opacity-10 rounded-4 p-3 border-start border-danger border-4 shadow-sm">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="icon-circle bg-danger text-white"><i class="fas fa-ban"></i></div>
+                    <div>
+                        <div class="fw-bold text-danger fs-6"><i class="fas fa-times-circle me-1"></i> Asset Failed Quality Testing / Non-Compliant</div>
+                        <div class="small text-muted">Technician remarks: {{ asset.inspection_notes|default:"Asset does not conform to technical specifications or quality standards." }}</div>
+                    </div>
+                </div>
+                <span class="badge bg-danger rounded-pill px-3 py-2 fs-6">Rejected</span>
+            </div>
+        </div>
+        {% else %}
+        <div class="card border-0 bg-warning bg-opacity-10 rounded-4 p-3 border-start border-warning border-4 shadow-sm">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="icon-circle bg-warning text-dark"><i class="fas fa-hourglass-half"></i></div>
+                    <div>
+                        <div class="fw-bold text-dark fs-6"><i class="fas fa-tools me-1"></i> Technician Testing & Quality Clearance Required</div>
+                        <div class="small text-muted">Before this asset can be deployed or approved for full institutional operations, the assigned technician must conduct quality tests and upload the 3 clearance certificates.</div>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-warning rounded-pill px-3 fw-bold" onclick="$('#btn-inspect').click()">
+                    <i class="fas fa-pencil-alt me-1"></i> Conduct Test Now
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Column: Specs, Supplier & PMU Details -->
+    <div class="col-lg-4 animate__animated animate__fadeInLeft">
+        <!-- Asset Info Card -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill extra-small px-3 py-2 fw-bold">
+                        {{ asset.get_category_display }}
+                    </span>
+                    <button class="btn btn-sm btn-secondary rounded-circle shadow-sm"
+                        onclick="uni_modal('Edit Asset', '{% url 'manage-asset-pk' asset.pk %}', 'modal-lg')">
+                        <i class="fas fa-edit text-muted"></i>
+                    </button>
+                </div>
+                <h5 class="fw-bold text-dark mb-1">{{ asset.name }}</h5>
+                <p class="text-muted small mb-4">{{ asset.description|default:"No description provided." }}</p>
+
+                <div class="d-flex flex-column gap-3 mb-4">
+                    <div class="d-flex align-items-center">
+                        <div class="icon-circle bg-secondary bg-opacity-10 text-secondary me-3"><i class="fas fa-barcode"></i></div>
+                        <div>
+                            <div class="extra-small text-muted text-uppercase fw-bold">Asset Code / Reference</div>
+                            <div class="fw-bold text-primary">{{ asset.asset_code }}</div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <div class="icon-circle bg-secondary bg-opacity-10 text-secondary me-3"><i class="fas fa-boxes"></i></div>
+                        <div>
+                            <div class="extra-small text-muted text-uppercase fw-bold">Intake Quantity</div>
+                            <div class="small fw-semibold">
+                                {{ asset.quantity_delivered|default:asset.serial_count }} Delivered
+                                {% if asset.quantity_expected %} / {{ asset.quantity_expected }} Expected{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <div class="icon-circle bg-secondary bg-opacity-10 text-secondary me-3"><i class="fas fa-info-circle"></i></div>
+                        <div>
+                            <div class="extra-small text-muted text-uppercase fw-bold">Asset Status</div>
+                            <div class="small fw-semibold">{{ asset.status }}</div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <div class="icon-circle bg-secondary bg-opacity-10 text-secondary me-3"><i class="fas fa-building"></i></div>
+                        <div>
+                            <div class="extra-small text-muted text-uppercase fw-bold">Department</div>
+                            <div class="small fw-semibold">{{ asset.department.name }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if asset.is_partial_delivery %}
+                <div class="alert alert-warning border-warning rounded-4 p-3 mb-4 shadow-sm">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <i class="fas fa-truck-loading text-warning fs-5"></i>
+                        <strong class="text-dark">Partial Delivery Intake</strong>
+                    </div>
+                    <div class="small text-muted mb-2">
+                        Supplier delivered <strong>{{ asset.quantity_delivered }}</strong> out of <strong>{{ asset.quantity_expected }}</strong> units ordered from PMU source document.
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center bg-white p-2 rounded-3 border border-warning">
+                        <span class="extra-small fw-bold text-muted">OUTSTANDING BALANCE:</span>
+                        <span class="badge bg-danger rounded-pill px-2 py-1 fs-6">{{ asset.balance_pending_delivery }} Units Pending</span>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="card bg-dark text-white border-0 rounded-4 overflow-hidden mb-4 shadow-sm">
+                    <div class="card-body p-4">
+                        <div class="extra-small text-white-50 text-uppercase fw-bold mb-1">Total Current Book Value</div>
+                        <div class="h3 fw-bold mb-0 text-white">${{ asset.current_value|floatformat:2|intcomma }}</div>
+                        <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-secondary border-opacity-25">
+                            <div>
+                                <div class="extra-small text-white-50">Unit Price</div>
+                                <div class="fw-bold text-white">${{ asset.unit_cost|floatformat:2|intcomma|default:"-" }}</div>
+                            </div>
+                            <div>
+                                <div class="extra-small text-white-50">Total Registered Units</div>
+                                <div class="fw-bold"><span class="badge bg-primary rounded-pill px-2">{{ asset.serial_count }} Units</span></div>
+                            </div>
+                            <div>
+                                <div class="extra-small text-white-50">Acquisition Total</div>
+                                <div class="fw-bold text-white">${{ asset.acquisition_cost|floatformat:2|intcomma }}</div>
+                            </div>
+                        </div>
+                        <div class="extra-small text-white-50 mt-2">
+                            <i class="fas fa-history me-1"></i> Acquired on {{ asset.acquisition_date }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Supplier Intake Card -->
+                <div class="card border rounded-4 bg-light p-3 mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="extra-small fw-bold text-uppercase text-success"><i class="fas fa-truck me-1"></i> Supplier Intake</span>
+                        {% if asset.is_partial_delivery %}
+                        <span class="badge bg-warning text-dark rounded-pill px-2">Partial Delivery</span>
+                        {% elif asset.supplier_name %}
+                        <span class="badge bg-success rounded-pill px-2">Verified</span>
+                        {% endif %}
+                    </div>
+                    <div class="small mb-1"><strong>Supplier:</strong> {{ asset.supplier_name|default:"Not specified" }}</div>
+                    <div class="small mb-1"><strong>Delivery Intake:</strong>
+                        <span class="fw-bold text-dark">{{ asset.quantity_delivered|default:"1" }}</span> / {{ asset.quantity_expected|default:"1" }} Units
+                        {% if asset.is_partial_delivery %}
+                        <span class="text-danger fw-semibold">({{ asset.balance_pending_delivery }} pending)</span>
+                        {% endif %}
+                    </div>
+                    <div class="small mb-1"><strong>Delivery Note #:</strong> {{ asset.delivery_note_number|default:"N/A" }}
+                        {% if asset.delivery_note_doc %}
+                        <a href="{{ asset.delivery_note_doc.url }}" target="_blank" class="ms-1 badge bg-primary text-white"><i class="fas fa-external-link-alt"></i> View</a>
+                        {% endif %}
+                    </div>
+                    <div class="small"><strong>Invoice #:</strong> {{ asset.invoice_number|default:"N/A" }}
+                        {% if asset.invoice_doc %}
+                        <a href="{{ asset.invoice_doc.url }}" target="_blank" class="ms-1 badge bg-primary text-white"><i class="fas fa-external-link-alt"></i> View</a>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- PMU Linkage Card -->
+                <div class="card border rounded-4 bg-light p-3 mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="extra-small fw-bold text-uppercase text-warning"><i class="fas fa-file-contract me-1"></i> PMU Procurement Link</span>
+                    </div>
+                    <div class="small mb-1"><strong>PMU Reference:</strong> {{ asset.pmu_source_doc_ref|default:"N/A" }}</div>
+                    {% if asset.pmu_source_doc %}
+                    <a href="{{ asset.pmu_source_doc.url }}" target="_blank" class="btn btn-sm btn-outline-warning w-100 rounded-pill mt-1">
+                        <i class="fas fa-file-pdf me-1"></i> View PMU Source Document
+                    </a>
+                    {% else %}
+                    <span class="text-muted extra-small">No source file attached</span>
+                    {% endif %}
+                </div>
+
+                <hr class="opacity-10 mb-3">
+                <div class="extra-small text-muted text-uppercase fw-bold mb-2">Linked System Records</div>
+                {% if asset.contract %}
+                <div class="alert alert-light border rounded-3 mb-2 p-2">
+                    <div class="extra-small fw-bold">Contract</div>
+                    <a href="{% url 'view-contract-pk' asset.contract.pk %}" class="small text-decoration-none">{{ asset.contract.contract_ref }}</a>
+                </div>
+                {% endif %}
+                {% if asset.physical_file %}
+                <div class="alert alert-light border rounded-3 mb-0 p-2">
+                    <div class="extra-small fw-bold">Physical File</div>
+                    <span class="small">{{ asset.physical_file.name }} ({{ asset.physical_file.ref_code }})</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Inspection, Approval Docs, Digital Archive, Custody & Maintenance -->
+    <div class="col-lg-8">
+        <!-- 1. Technician Quality Testing & 3 Mandatory Clearance Documents -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4 animate__animated animate__fadeInRight">
+            <div class="card-header border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center" style="background: transparent;">
+                <div>
+                    <h5 class="fw-bold mb-0"><i class="fas fa-microscope text-warning me-2"></i>Technician Testing &amp; Quality Clearance</h5>
+                    <div class="small text-muted">Quality tests &amp; the 3 required clearance certificates before full approval</div>
+                </div>
+                <button class="btn btn-sm btn-outline-warning rounded-pill px-3" onclick="$('#btn-inspect').click()">
+                    <i class="fas fa-edit me-1"></i> Update Testing
+                </button>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="p-3 border rounded-3 bg-light">
+                            <div class="extra-small text-muted text-uppercase fw-bold">Inspector / Testing Officer</div>
+                            <div class="fw-semibold text-dark">{{ asset.get_inspector_name }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 border rounded-3 bg-light">
+                            <div class="extra-small text-muted text-uppercase fw-bold">Test Status</div>
+                            <div class="fw-semibold">
+                                <span class="badge bg-{% if asset.inspection_status == 'Quality Approved' %}success{% elif asset.inspection_status == 'Rejected' %}danger{% else %}warning{% endif %} rounded-pill px-2">
+                                    {{ asset.inspection_status }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 border rounded-3 bg-light">
+                            <div class="extra-small text-muted text-uppercase fw-bold">Test Date</div>
+                            <div class="fw-semibold text-dark">{{ asset.inspection_date|default:"Pending" }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if asset.inspection_notes %}
+                <div class="p-3 border rounded-3 bg-light mb-4">
+                    <div class="extra-small text-muted text-uppercase fw-bold mb-1">Technician Test Notes &amp; Quality Metrics</div>
+                    <div class="small text-dark">{{ asset.inspection_notes|linebreaksbr }}</div>
+                </div>
+                {% endif %}
+
+                <!-- Mandatory Clearance Document Section -->
+                <div class="extra-small text-muted text-uppercase fw-bold mb-2">Mandatory Clearance Document (1 Required)</div>
+                <div class="row g-3">
+                    <!-- Doc 1 -->
+                    <div class="col-md-4">
+                        <div class="card h-100 border {% if asset.approval_doc_1 %}border-success{% else %}border-dashed{% endif %} rounded-3 p-3">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <span class="badge bg-primary rounded-circle p-2"><i class="fas fa-vial"></i></span>
+                                {% if asset.approval_doc_1 %}
+                                <span class="badge bg-success rounded-pill"><i class="fas fa-check"></i> Uploaded</span>
+                                {% else %}
+                                <span class="badge bg-danger rounded-pill">Mandatory</span>
+                                {% endif %}
+                            </div>
+                            <div class="fw-bold small mb-1">1. Technical Testing Certificate</div>
+                            <div class="extra-small text-muted mb-3">Operational and functionality tests clearance</div>
+                            {% if asset.approval_doc_1 %}
+                            <div class="mt-auto d-flex gap-2">
+                                <a href="{{ asset.approval_doc_1.url }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill w-100"><i class="fas fa-eye me-1"></i>View</a>
+                                <a href="{{ asset.approval_doc_1.url }}" download class="btn btn-sm btn-light rounded-circle shadow-sm" title="Download"><i class="fas fa-download"></i></a>
+                            </div>
+                            {% else %}
+                            <div class="mt-auto"><span class="text-danger extra-small"><i class="fas fa-exclamation-circle me-1"></i>Required for clearance</span></div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Doc 2 -->
+                    <div class="col-md-4">
+                        <div class="card h-100 border {% if asset.approval_doc_2 %}border-success{% else %}border-dashed{% endif %} rounded-3 p-3">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <span class="badge bg-info rounded-circle p-2 text-white"><i class="fas fa-clipboard-check"></i></span>
+                                {% if asset.approval_doc_2 %}
+                                <span class="badge bg-success rounded-pill"><i class="fas fa-check"></i> Uploaded</span>
+                                {% else %}
+                                <span class="badge bg-secondary rounded-pill">Pending</span>
+                                {% endif %}
+                            </div>
+                            <div class="fw-bold small mb-1">2. QA &amp; Compliance Report</div>
+                            <div class="extra-small text-muted mb-3">Quality assurance and standards conformance</div>
+                            {% if asset.approval_doc_2 %}
+                            <div class="mt-auto d-flex gap-2">
+                                <a href="{{ asset.approval_doc_2.url }}" target="_blank" class="btn btn-sm btn-outline-info rounded-pill w-100"><i class="fas fa-eye me-1"></i>View</a>
+                                <a href="{{ asset.approval_doc_2.url }}" download class="btn btn-sm btn-light rounded-circle shadow-sm" title="Download"><i class="fas fa-download"></i></a>
+                            </div>
+                            {% else %}
+                            <div class="mt-auto"><span class="text-danger extra-small"><i class="fas fa-exclamation-circle me-1"></i>Required for clearance</span></div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Doc 3 -->
+                    <div class="col-md-4">
+                        <div class="card h-100 border {% if asset.approval_doc_3 %}border-success{% else %}border-dashed{% endif %} rounded-3 p-3">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <span class="badge bg-success rounded-circle p-2 text-white"><i class="fas fa-award"></i></span>
+                                {% if asset.approval_doc_3 %}
+                                <span class="badge bg-success rounded-pill"><i class="fas fa-check"></i> Uploaded</span>
+                                {% else %}
+                                <span class="badge bg-secondary rounded-pill">Pending</span>
+                                {% endif %}
+                            </div>
+                            <div class="fw-bold small mb-1">3. Asset Acceptance Certificate</div>
+                            <div class="extra-small text-muted mb-3">Formal clearance and takeover certificate</div>
+                            {% if asset.approval_doc_3 %}
+                            <div class="mt-auto d-flex gap-2">
+                                <a href="{{ asset.approval_doc_3.url }}" target="_blank" class="btn btn-sm btn-outline-success rounded-pill w-100"><i class="fas fa-eye me-1"></i>View</a>
+                                <a href="{{ asset.approval_doc_3.url }}" download class="btn btn-sm btn-light rounded-circle shadow-sm" title="Download"><i class="fas fa-download"></i></a>
+                            </div>
+                            {% else %}
+                            <div class="mt-auto"><span class="text-danger extra-small"><i class="fas fa-exclamation-circle me-1"></i>Required for clearance</span></div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Registered Serial Numbers & Hardware Inventory Units -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4 animate__animated animate__fadeInRight">
+            <div class="card-header border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center flex-wrap gap-2" style="background: transparent;">
+                <div>
+                    <h5 class="fw-bold mb-0"><i class="fas fa-barcode text-success me-2"></i>Registered Serial Numbers &amp; Batch Units</h5>
+                    <div class="small text-muted">Each serial number represents 1 verified unit valued at <strong>${{ asset.unit_cost|floatformat:2|intcomma|default:"0.00" }}</strong> (Total: {{ serial_numbers|length|default:asset.serial_count }} Units)</div>
+                </div>
+                <button class="btn btn-sm btn-success rounded-pill px-3 shadow-sm fw-bold" id="btn-add-sn-modal">
+                    <i class="fas fa-plus-circle me-1"></i> Add Serial Number
+                </button>
+            </div>
+            <div class="card-body p-4">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <thead class="extra-small text-uppercase text-muted">
+                            <tr>
+                                <th>#</th>
+                                <th>Serial Number</th>
+                                <th>Unit Status</th>
+                                <th>Assigned Location / Custodian</th>
+                                <th>Date Added</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for sn in serial_numbers %}
+                            <tr>
+                                <td class="text-muted">{{ forloop.counter }}</td>
+                                <td>
+                                    <div class="fw-bold text-dark font-monospace">
+                                        <i class="fas fa-microchip text-primary me-1"></i>{{ sn.serial_number }}
+                                        {% if sn.serial_number == asset.asset_code %}
+                                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill extra-small ms-1">Primary</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if sn.barcode and sn.barcode != sn.serial_number %}
+                                    <div class="extra-small text-muted font-monospace"><i class="fas fa-qrcode me-1"></i>{{ sn.barcode }}</div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-{% if sn.status == 'Active' %}success{% elif sn.status == 'Condemned' %}danger{% elif sn.status == 'Under Repair' %}warning{% else %}secondary{% endif %} rounded-pill px-2">
+                                        {{ sn.status }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div>{{ sn.location|default:"Central Stores" }}</div>
+                                    {% if sn.custodian %}<div class="extra-small text-muted"><i class="fas fa-user me-1"></i>{{ sn.custodian.get_full_name|default:sn.custodian.username }}</div>{% endif %}
+                                </td>
+                                <td>{{ sn.date_added|date:"Y-m-d" }}</td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-danger btn-delete-sn rounded-circle shadow-sm" data-id="{{ sn.id }}" data-sn="{{ sn.serial_number }}" title="Remove Serial Number">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center py-3 text-muted">
+                                    <i class="fas fa-barcode fa-2x mb-2 opacity-25"></i>
+                                    <div>Primary serial number: <strong>{{ asset.asset_code }}</strong> (Click "Add Serial Number" to add additional units to this batch).</div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Digital Document Archive & Scanned Papers -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4 animate__animated animate__fadeInRight animate__delay-1s">
+            <div class="card-header border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center" style="background: transparent;">
+                <div>
+                    <h5 class="fw-bold mb-0"><i class="fas fa-archive text-primary me-2"></i>Digital Archive &amp; Scanned Documents</h5>
+                    <div class="small text-muted">All scanned delivery notes, invoices, PMU vouchers, and test certificates (Print &amp; View enabled)</div>
+                </div>
+                <button class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="$('#btn-upload-doc').click()">
+                    <i class="fas fa-plus me-1"></i> Ingest New Scan
+                </button>
+            </div>
+            <div class="card-body p-4">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <thead class="extra-small text-uppercase text-muted">
+                            <tr>
+                                <th>Doc Type</th>
+                                <th>Title / Description</th>
+                                <th>Archived By</th>
+                                <th>Date</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for doc in documents %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-light text-dark border rounded-pill px-2">
+                                        <i class="fas fa-file-alt text-primary me-1"></i>{{ doc.get_doc_type_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-dark">{{ doc.title }}</div>
+                                    {% if doc.notes %}<div class="extra-small text-muted">{{ doc.notes }}</div>{% endif %}
+                                </td>
+                                <td>{{ doc.uploaded_by.username|default:"System" }}</td>
+                                <td>{{ doc.date_uploaded|date:"Y-m-d H:i" }}</td>
+                                <td class="text-end">
+                                    <div class="btn-group">
+                                        <a href="{{ doc.document_file.url }}" target="_blank" class="btn btn-sm btn-outline-primary" title="View / Print">
+                                            <i class="fas fa-print me-1"></i>Print/View
+                                        </a>
+                                        <a href="{{ doc.document_file.url }}" download class="btn btn-sm btn-outline-secondary" title="Download">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-3 text-muted">
+                                    <i class="fas fa-folder-open fa-2x mb-2 opacity-25"></i>
+                                    <div>No documents in digital archive yet. Upload delivery note, invoice, or scanner files.</div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Custody Tracking -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-header border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center" style="background: transparent;">
+                <h5 class="fw-bold mb-0">Custody Tracking</h5>
+                <button class="btn btn-sm btn-outline-primary rounded-pill px-3" id="btn-custody">
+                    <i class="fas fa-exchange-alt me-1"></i> Transfer Custody
+                </button>
+            </div>
+            <div class="card-body p-4">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead class="extra-small text-uppercase text-muted">
+                            <tr><th>Custodian</th><th>Issue Date</th><th>Return Date</th><th>Status</th></tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for custody in custody_history %}
+                            <tr>
+                                <td>{{ custody.user.username }}</td>
+                                <td>{{ custody.issue_date }}</td>
+                                <td>{{ custody.return_date|default:"-" }}</td>
+                                <td>
+                                    {% if not custody.return_date %}
+                                    <span class="badge bg-success rounded-pill px-2">Current</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary bg-opacity-10 text-muted border border-secondary border-opacity-25 rounded-pill px-2">Returned</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center py-3 text-muted">No custody history recorded.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Maintenance Section -->
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-header border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center" style="background: transparent;">
+                <h5 class="fw-bold mb-0">Maintenance Logs</h5>
+                <button class="btn btn-sm btn-outline-warning rounded-pill px-3" id="btn-maintenance">
+                    <i class="fas fa-tools me-1"></i> Log Maintenance
+                </button>
+            </div>
+            <div class="card-body p-4">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead class="extra-small text-uppercase text-muted">
+                            <tr><th>Date</th><th>Description</th><th>Cost</th><th>Status</th></tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for log in maintenance_logs %}
+                            <tr>
+                                <td>{{ log.scheduled_date }}</td>
+                                <td>{{ log.description|truncatechars:50 }}</td>
+                                <td>${{ log.cost|intcomma }}</td>
+                                <td>
+                                    <span class="badge bg-{% if log.status == 'Completed' %}success{% else %}warning{% endif %} rounded-pill px-2">
+                                        {{ log.status }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center py-3 text-muted">No maintenance recorded.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Form Containers -->
+
+<!-- 1. Technician Quality Inspection Modal Container -->
+<div id="inspection-form-container" style="display:none;">
+    <form id="inspection-form" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="row g-3">
+            <div class="col-12">
+                <label class="small fw-bold"><i class="fas fa-user-check text-primary me-1"></i> Testing Officer / Inspector (Type Officer Name / Rank / Force No) *</label>
+                {{ inspection_form.technician_name }}
+                <div class="extra-small text-muted">Type the technical officer who inspected and tested this asset (e.g. SGT KADIKI / INSP NYATHI)</div>
+            </div>
+            <div class="col-md-6">
+                <label class="small fw-bold">Inspection Status *</label>
+                {{ inspection_form.inspection_status }}
+            </div>
+            <div class="col-md-6">
+                <label class="small fw-bold">Inspection Date *</label>
+                {{ inspection_form.inspection_date }}
+            </div>
+            <div class="col-12">
+                <div class="form-check form-switch p-3 border rounded-3 bg-light">
+                    <label class="form-check-label fw-bold text-dark" for="id_quality_test_passed">
+                        <i class="fas fa-check-circle text-success me-1"></i> Quality &amp; Functionality Tests Passed (100% Fully Tested)
+                    </label>
+                    {{ inspection_form.quality_test_passed }}
+                    <div class="extra-small text-muted mt-1">Check this box after verifying 100% technical requirements, specs, and operational checks.</div>
+                </div>
+            </div>
+            <div class="col-12">
+                <label class="small fw-bold">Technician Testing Notes &amp; Observations</label>
+                {{ inspection_form.inspection_notes }}
+            </div>
+
+            <div class="col-12 mt-3">
+                <div class="card border-0 bg-light p-2 rounded-3">
+                    <span class="small fw-bold text-primary"><i class="fas fa-file-upload me-1"></i> Mandatory Clearance Document (1 Required to Clear)</span>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <label class="small fw-bold">1. Technical Testing &amp; Inspection Certificate <span class="badge bg-danger ms-1">Mandatory Clearance Document</span></label>
+                {{ inspection_form.approval_doc_1 }}
+                {% if asset.approval_doc_1 %}
+                <div class="extra-small text-success mt-1"><i class="fas fa-check-circle me-1"></i> Current: <a href="{{ asset.approval_doc_1.url }}" target="_blank">View File</a></div>
+                {% endif %}
+            </div>
+            <div class="col-12">
+                <label class="small fw-bold">2. Quality Assurance &amp; Compliance Report <span class="badge bg-light text-muted border ms-1">Optional</span></label>
+                {{ inspection_form.approval_doc_2 }}
+                {% if asset.approval_doc_2 %}
+                <div class="extra-small text-success mt-1"><i class="fas fa-check-circle me-1"></i> Current: <a href="{{ asset.approval_doc_2.url }}" target="_blank">View File</a></div>
+                {% endif %}
+            </div>
+            <div class="col-12">
+                <label class="small fw-bold">3. Asset Acceptance &amp; Clearance Certificate <span class="badge bg-light text-muted border ms-1">Optional</span></label>
+                {{ inspection_form.approval_doc_3 }}
+                {% if asset.approval_doc_3 %}
+                <div class="extra-small text-success mt-1"><i class="fas fa-check-circle me-1"></i> Current: <a href="{{ asset.approval_doc_3.url }}" target="_blank">View File</a></div>
+                {% endif %}
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- 2. Digital Document Archive Upload Modal Container -->
+<div id="upload-doc-container" style="display:none;">
+    <form id="upload-doc-form" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="row g-3">
+            <div class="col-12">
+                <label class="small fw-bold">Document Category / Type *</label>
+                {{ upload_doc_form.doc_type }}
+            </div>
+            <div class="col-12">
+                <label class="small fw-bold">Document Title *</label>
+                {{ upload_doc_form.title }}
+            </div>
+            <div class="col-12">
+                <label class="small fw-bold">Select File (Scanned Paper / PDF / Image) *</label>
+                {{ upload_doc_form.document_file }}
+            </div>
+            <div class="col-12">
+                <label class="small fw-bold">Notes / Scanner Metadata</label>
+                {{ upload_doc_form.notes }}
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- 3. Custody Form Container -->
+<div id="custody-form-container" style="display:none;">
+    <form id="custody-form">
+        {% csrf_token %}
+        <input type="hidden" name="asset" value="{{ asset.id }}">
+        <div class="mb-3">
+            <label class="small fw-bold">New Custodian</label>
+            <select name="user" class="form-select rounded-pill" required>
+                {% for user in users %}
+                <option value="{{ user.id }}">{{ user.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="small fw-bold">Issue Date</label>
+            <input type="date" name="issue_date" class="form-control rounded-pill" value="{% now 'Y-m-d' %}" required>
+        </div>
+        <div class="mb-3">
+            <label class="small fw-bold">Notes</label>
+            <textarea name="notes" class="form-control rounded-3" rows="2"></textarea>
+        </div>
+    </form>
+</div>
+
+<!-- 4. Maintenance Form Container -->
+<div id="maintenance-form-container" style="display:none;">
+    <form id="maintenance-form">
+        {% csrf_token %}
+        <input type="hidden" name="asset" value="{{ asset.id }}">
+        <div class="row g-2">
+            <div class="col-12 mb-2">
+                <label class="small fw-bold">Maintenance Details</label>
+                <textarea name="description" class="form-control rounded-3" rows="2" required></textarea>
+            </div>
+            <div class="col-md-6 mb-2">
+                <label class="small fw-bold">Scheduled Date</label>
+                <input type="date" name="scheduled_date" class="form-control rounded-pill" value="{% now 'Y-m-d' %}" required>
+            </div>
+            <div class="col-md-6 mb-2">
+                <label class="small fw-bold">Cost ($)</label>
+                <input type="number" name="cost" class="form-control rounded-pill" value="0">
+            </div>
+            <div class="col-12">
+                <label class="small fw-bold">Status</label>
+                <select name="status" class="form-select rounded-pill">
+                    <option value="Scheduled">Scheduled</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                </select>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- 5. Serial Number Addition Form Container -->
+<div id="add-sn-form-container" style="display:none;">
+    <form id="add-sn-form">
+        {% csrf_token %}
+        <div class="row g-3">
+            <div class="col-12">
+                <div class="alert alert-info extra-small mb-2 rounded-3">
+                    <i class="fas fa-info-circle me-1"></i> Adding a serial number registers an additional physical unit to this asset batch.
+                    Each unit is valued at <strong>${{ asset.unit_cost|floatformat:2|intcomma|default:"0.00" }}</strong> and will automatically increment the total asset value.
+                </div>
+            </div>
+            <div class="col-12">
+                <label class="small fw-bold">Hardware Serial Number *</label>
+                <input type="text" name="serial_number" class="form-control rounded-pill px-3" placeholder="e.g. SN-LPT-2026-088 or Barcode" required>
+            </div>
+            <div class="col-md-6">
+                <label class="small fw-bold">Unit Status</label>
+                <select name="status" class="form-select rounded-pill px-3">
+                    <option value="Active" selected>Active / Serviceable</option>
+                    <option value="In Use">In Use</option>
+                    <option value="Under Repair">Under Repair</option>
+                    <option value="Condemned">Condemned</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="small fw-bold">Location / Room / Office</label>
+                <input type="text" name="location" class="form-control rounded-pill px-3" placeholder="e.g. Server Room / Lab 2">
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+$(function () {
+    // Technician Inspection Modal
+    $('#btn-inspect').click(function () {
+        var form = $('#inspection-form-container').html();
+        $('#uni_modal .modal-title').html('<i class="fas fa-microscope text-warning me-2"></i>Technician Quality Inspection & Clearance');
+        $('#uni_modal .modal-body').html(form);
+        $('#uni_modal .modal-dialog').addClass('modal-lg');
+        $('#uni_modal .modal-footer').show();
+        $('#uni_modal').modal('show');
+
+        $('#uni_modal form').submit(function (e) {
+            e.preventDefault();
+            start_loader();
+            var formData = new FormData(this);
+            $.ajax({
+                url: "{% url 'asset-inspect' asset.pk %}",
+                method: 'POST',
+                data: formData,
+                cache: false,
+                contentType: false,
+                processData: false,
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload();
+                    } else {
+                        alert_toast(resp.msg || "An error occurred", 'error');
+                        end_loader();
+                    }
+                },
+                error: function () {
+                    alert_toast("An error occurred during submission", 'error');
+                    end_loader();
+                }
+            });
+        });
+    });
+
+    // Upload Document / Scan Modal
+    $('#btn-upload-doc').click(function () {
+        var form = $('#upload-doc-container').html();
+        $('#uni_modal .modal-title').html('<i class="fas fa-file-upload text-primary me-2"></i>Ingest Document into Digital Archive');
+        $('#uni_modal .modal-body').html(form);
+        $('#uni_modal .modal-dialog').removeClass('modal-lg');
+        $('#uni_modal .modal-footer').show();
+        $('#uni_modal').modal('show');
+
+        $('#uni_modal form').submit(function (e) {
+            e.preventDefault();
+            start_loader();
+            var formData = new FormData(this);
+            $.ajax({
+                url: "{% url 'asset-upload-document' asset.pk %}",
+                method: 'POST',
+                data: formData,
+                cache: false,
+                contentType: false,
+                processData: false,
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload();
+                    } else {
+                        alert_toast(resp.msg || "An error occurred", 'error');
+                        end_loader();
+                    }
+                },
+                error: function () {
+                    alert_toast("An error occurred during upload", 'error');
+                    end_loader();
+                }
+            });
+        });
+    });
+
+    // Custody Transfer Modal
+    $('#btn-custody').click(function () {
+        var form = $('#custody-form-container').html();
+        $('#uni_modal .modal-title').html('Transfer Asset Custody');
+        $('#uni_modal .modal-body').html(form);
+        $('#uni_modal .modal-dialog').removeClass('modal-lg');
+        $('#uni_modal .modal-footer').show();
+        $('#uni_modal').modal('show');
+
+        $('#uni_modal form').submit(function (e) {
+            e.preventDefault();
+            start_loader();
+            $.ajax({
+                url: "{% url 'save-asset-custody' %}",
+                method: 'POST',
+                data: $(this).serialize(),
+                success: function (resp) {
+                    if (resp.status == 'success') {
+                        location.reload();
+                    } else {
+                        alert_toast(resp.msg || "An error occurred", 'error');
+                        end_loader();
+                    }
+                }
+            });
+        });
+    });
+
+    // Maintenance Modal
+    $('#btn-maintenance').click(function () {
+        var form = $('#maintenance-form-container').html();
+        $('#uni_modal .modal-title').html('Log Maintenance Activity');
+        $('#uni_modal .modal-body').html(form);
+        $('#uni_modal .modal-dialog').removeClass('modal-lg');
+        $('#uni_modal .modal-footer').show();
+        $('#uni_modal').modal('show');
+
+        $('#uni_modal form').submit(function (e) {
+            e.preventDefault();
+            start_loader();
+            $.ajax({
+                url: "{% url 'save-asset-maintenance' %}",
+                method: 'POST',
+                data: $(this).serialize(),
+                success: function (resp) {
+                    if (resp.status == 'success') {
+                        location.reload();
+                    } else {
+                        alert_toast(resp.msg || "An error occurred", 'error');
+                        end_loader();
+                    }
+                }
+            });
+        });
+    });
+
+    // Add Serial Number Modal
+    $('#btn-add-sn-modal').click(function () {
+        var form = $('#add-sn-form-container').html();
+        $('#uni_modal .modal-title').html('<i class="fas fa-barcode text-success me-2"></i>Add Hardware Serial Number');
+        $('#uni_modal .modal-body').html(form);
+        $('#uni_modal .modal-dialog').removeClass('modal-lg');
+        $('#uni_modal .modal-footer').show();
+        $('#uni_modal').modal('show');
+
+        $('#uni_modal form').submit(function (e) {
+            e.preventDefault();
+            start_loader();
+            $.ajax({
+                url: "{% url 'save-asset-serial' asset.pk %}",
+                method: 'POST',
+                data: $(this).serialize(),
+                dataType: 'json',
+                success: function (resp) {
+                    if (resp.status == 'success') {
+                        location.reload();
+                    } else {
+                        alert_toast(resp.msg || "An error occurred", 'error');
+                        end_loader();
+                    }
+                },
+                error: function () {
+                    alert_toast("An error occurred while saving serial number", 'error');
+                    end_loader();
+                }
+            });
+        });
+    });
+
+    // Delete Serial Number
+    $('.btn-delete-sn').click(function () {
+        var sn_id = $(this).data('id');
+        var sn_code = $(this).data('sn');
+        _conf(`Are you sure you want to remove serial number <b>${sn_code}</b>? This will also decrement the asset total acquisition value.`, "delete_serial", [sn_id]);
+    });
+
+    window.delete_serial = function(sn_id) {
+        start_loader();
+        var deleteUrl = "{% url 'save-asset-serial' asset.pk %}".replace('/serials/save/', `/serials/delete/${sn_id}/`);
+        $.ajax({
+            url: deleteUrl,
+            method: 'POST',
+            data: {
+                csrfmiddlewaretoken: '{{ csrf_token }}'
+            },
+            dataType: 'json',
+            success: function (resp) {
+                if (resp.status == 'success') {
+                    location.reload();
+                } else {
+                    alert_toast(resp.msg || "An error occurred", 'error');
+                    end_loader();
+                }
+            },
+            error: function () {
+                alert_toast("An error occurred while deleting serial number", 'error');
+                end_loader();
+            }
+        });
+    };
+});
+</script>
+
+<style>
+.icon-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+}
+.extra-small {
+    font-size: 0.72rem;
+}
+</style>
+{% endblock pageContent %}
+
+
+
+

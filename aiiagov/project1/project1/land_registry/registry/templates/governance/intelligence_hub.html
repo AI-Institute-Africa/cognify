@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block pageContent %}
+<div class="container-fluid py-4">
+    {# Header #}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-0 text-color"><i class="fas fa-robot me-2 text-primary"></i> Intelligence Notification Hub</h2>
+            <p class="text-muted small mb-0">Centralized AI Alerting & Operational Risk Monitoring</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'project-portfolio' %}" class="btn btn-outline-secondary rounded-pill px-3">
+                <i class="fas fa-arrow-left me-1"></i> Back to Portfolio
+            </a>
+        </div>
+    </div>
+
+    {# Alert Filter Pills #}
+    <div class="d-flex gap-2 mb-4 overflow-auto pb-1">
+        <a href="?type=" class="btn {% if not request.GET.type %}btn-primary{% else %}btn-outline-primary{% endif %} rounded-pill px-4 btn-sm">
+            All Alerts <span class="badge bg-primary text-white ms-1">{{ alert_counts.total }}</span>
+        </a>
+        <a href="?type=Predictive" class="btn {% if request.GET.type == 'Predictive' %}btn-primary{% else %}btn-outline-primary{% endif %} rounded-pill px-4 btn-sm">
+            Predictive <span class="badge bg-primary text-white ms-1">{{ alert_counts.predictive }}</span>
+        </a>
+        <a href="?type=Overdue" class="btn {% if request.GET.type == 'Overdue' %}btn-primary{% else %}btn-outline-primary{% endif %} rounded-pill px-4 btn-sm">
+            Overdue <span class="badge bg-primary text-white ms-1">{{ alert_counts.overdue }}</span>
+        </a>
+        <a href="?type=Deadline" class="btn {% if request.GET.type == 'Deadline' %}btn-primary{% else %}btn-outline-primary{% endif %} rounded-pill px-4 btn-sm">
+            SLA Breaches <span class="badge bg-primary text-white ms-1">{{ alert_counts.sla }}</span>
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for alert in alerts %}
+                        <div class="list-group-item p-4 border-0 border-bottom">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center" 
+                                         {% if True %}style="width:40px;height:40px; background:{% if alert.alert_type == 'Predictive' %}#eff6ff{% elif alert.alert_type == 'Overdue' %}#fef2f2{% else %}#fff7ed{% endif %};"{% endif %}>
+                                        <i class="fas {% if alert.alert_type == 'Predictive' %}fa-crystal-ball text-primary{% elif alert.alert_type == 'Overdue' %}fa-clock text-danger{% else %}fa-exclamation-triangle text-warning{% endif %}"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="fw-bold mb-0 text-color">{{ alert.message }}</h6>
+                                        <span class="extra-small text-muted">
+                                            <i class="fas fa-project-diagram me-1"></i> {{ alert.project.name }}
+                                            <span class="mx-1">•</span>
+                                            <i class="fas fa-calendar-alt me-1"></i> {{ alert.created_at|timesince }} ago
+                                        </span>
+                                    </div>
+                                </div>
+                                <span class="badge {% if alert.alert_type == 'Predictive' %}bg-info{% elif alert.alert_type == 'Overdue' %}bg-danger{% else %}bg-warning text-dark{% endif %} rounded-pill extra-small px-3">
+                                    {{ alert.alert_type }}
+                                </span>
+                            </div>
+                            <div class="ps-5 pt-2 d-flex gap-2">
+                                <a href="{% url 'project-detail' alert.project.pk %}" class="btn btn-sm btn-light rounded-pill px-3 extra-small">
+                                    <i class="fas fa-eye me-1"></i> Investigate
+                                </a>
+                                <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 extra-small">
+                                    <i class="fas fa-check me-1"></i> Resolve
+                                </button>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-check-circle fs-1 text-success mb-3 opacity-25"></i>
+                            <h6 class="text-muted">Intelligence Index Optimized. No active alerts.</h6>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 mb-3">
+                <div class="card-body p-4">
+                    <h6 class="fw-bold mb-3"><i class="fas fa-lightbulb me-2 text-warning"></i> AI Insights</h6>
+                    <p class="small text-muted">
+                        The Intelligence Hub aggregates signals from the Predictive Engine, SLA Gatekeepers, and Resource Overload modules to give you a unified risk perspective.
+                    </p>
+                    <hr class="opacity-10">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="fs-3 fw-bold text-primary">{{ alert_counts.predictive }}</div>
+                        <div class="extra-small text-muted fw-bold text-uppercase">Future Risks Predicted</div>
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="fs-3 fw-bold text-danger">{{ alert_counts.overdue }}</div>
+                        <div class="extra-small text-muted fw-bold text-uppercase">Active Bottle-necks</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .extra-small {
+        font-size: 0.7rem;
+    }
+    .text-indigo { color: #4f46e5; }
+</style>
+{% endblock pageContent %}

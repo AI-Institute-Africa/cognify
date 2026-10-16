@@ -1,0 +1,162 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-chart-line text-warning me-2"></i> ZRP Executive Analytics & Management Dashboard</h3>
+            <p class="text-muted small mb-0">Central Commission operational intelligence, cross-departmental statistics, and executive decision-making metrics</p>
+        </div>
+        <div class="d-flex gap-2">
+            <div class="dropdown">
+                <button class="btn btn-warning rounded-pill px-4 dropdown-toggle fw-bold" type="button" data-bs-toggle="dropdown">
+                    <i class="fas fa-file-export me-2"></i> Export Reports (Excel/CSV)
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end glass-card border-secondary">
+                    <li><a class="dropdown-item text-white" href="{% url 'export-reports' 'attendance' %}"><i class="fas fa-clock me-2 text-warning"></i> Attendance Report</a></li>
+                    <li><a class="dropdown-item text-white" href="{% url 'export-reports' 'procurement' %}"><i class="fas fa-cart-shopping me-2 text-info"></i> Procurement Expenditure Report</a></li>
+                    <li><a class="dropdown-item text-white" href="{% url 'export-reports' 'travel_tsa' %}"><i class="fas fa-plane me-2 text-danger"></i> Training & TSA Expenditure Report</a></li>
+                </ul>
+            </div>
+            <a href="{% url 'admin-operations-dashboard' %}" class="btn btn-outline-light rounded-pill px-4">
+                <i class="fas fa-boxes-packing me-1"></i> Admin Operations
+            </a>
+        </div>
+    </div>
+
+    <!-- Section 1: Staffing & Attendance High-Level Metrics -->
+    <h5 class="fw-bold text-white mb-3"><i class="fas fa-users-gear text-success me-2"></i> Staffing, Attendance & Movement Status</h5>
+    <div class="row g-3 mb-4">
+        <div class="col-md-2.4 col-sm-6">
+            <div class="glass-card p-3 text-center border-top border-4 border-success">
+                <span class="text-muted extra-small text-uppercase fw-bold">Total Staff</span>
+                <h2 class="fw-bold text-success mb-0 mt-1">{{ total_employees }}</h2>
+            </div>
+        </div>
+        <div class="col-md-2.4 col-sm-6">
+            <div class="glass-card p-3 text-center border-top border-4 border-warning">
+                <span class="text-muted extra-small text-uppercase fw-bold">Currently on Leave</span>
+                <h2 class="fw-bold text-warning mb-0 mt-1">{{ employees_on_leave }}</h2>
+            </div>
+        </div>
+        <div class="col-md-2.4 col-sm-6">
+            <div class="glass-card p-3 text-center border-top border-4 border-info">
+                <span class="text-muted extra-small text-uppercase fw-bold">Official Business</span>
+                <h2 class="fw-bold text-info mb-0 mt-1">{{ employees_on_business }}</h2>
+            </div>
+        </div>
+        <div class="col-md-2.4 col-sm-6">
+            <div class="glass-card p-3 text-center border-top border-4 border-primary">
+                <span class="text-muted extra-small text-uppercase fw-bold">In Training</span>
+                <h2 class="fw-bold text-primary mb-0 mt-1">{{ employees_in_training }}</h2>
+            </div>
+        </div>
+        <div class="col-md-2.4 col-sm-6">
+            <div class="glass-card p-3 text-center border-top border-4 border-danger">
+                <span class="text-muted extra-small text-uppercase fw-bold">Present Today</span>
+                <h2 class="fw-bold text-danger mb-0 mt-1">{{ present_today }}</h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: Pending Approvals & Operations -->
+    <h5 class="fw-bold text-white mb-3"><i class="fas fa-clock-rotate-left text-warning me-2"></i> Pending Approvals & Operational Workflows</h5>
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="glass-card p-3 border-top border-4 border-warning">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="text-muted extra-small text-uppercase fw-bold">Pending Approvals</span>
+                        <h2 class="fw-bold text-warning mb-0 mt-1">{{ pending_approvals_total }}</h2>
+                    </div>
+                    <div class="bg-warning bg-opacity-20 text-warning p-3 rounded-circle">
+                        <i class="fas fa-file-circle-exclamation fs-3"></i>
+                    </div>
+                </div>
+                <div class="extra-small text-muted mt-2">Leave: {{ pending_leave_requests }} | Proc: {{ pending_procurement_requests }} | Travel: {{ pending_travel_requests }}</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 border-top border-4 border-danger">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="text-muted extra-small text-uppercase fw-bold">Outstanding Acquittals</span>
+                        <h2 class="fw-bold text-danger mb-0 mt-1">{{ outstanding_acquittals }}</h2>
+                    </div>
+                    <div class="bg-danger bg-opacity-20 text-danger p-3 rounded-circle">
+                        <i class="fas fa-hand-holding-dollar fs-3"></i>
+                    </div>
+                </div>
+                <div class="extra-small text-muted mt-2">Pending travel/training acquittal reports</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 border-top border-4 border-info">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="text-muted extra-small text-uppercase fw-bold">Meeting Action Items</span>
+                        <h2 class="fw-bold text-info mb-0 mt-1">{{ outstanding_meeting_actions }}</h2>
+                    </div>
+                    <div class="bg-info bg-opacity-20 text-info p-3 rounded-circle">
+                        <i class="fas fa-list-check fs-3"></i>
+                    </div>
+                </div>
+                <div class="extra-small text-muted mt-2">Active minuting resolutions tracked</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 border-top border-4 border-success">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="text-muted extra-small text-uppercase fw-bold">Upcoming Recruitment</span>
+                        <h2 class="fw-bold text-success mb-0 mt-1">{{ upcoming_interviews }}</h2>
+                    </div>
+                    <div class="bg-success bg-opacity-20 text-success p-3 rounded-circle">
+                        <i class="fas fa-user-tie fs-3"></i>
+                    </div>
+                </div>
+                <div class="extra-small text-muted mt-2">Active interview & selection exercises</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: Departmental Operations Breakdown -->
+    <div class="glass-card p-4">
+        <h5 class="fw-bold text-white mb-3"><i class="fas fa-network-wired text-info me-2"></i> Departmental Operations & Activity Matrix</h5>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 text-white">
+                <thead>
+                    <tr class="bg-dark text-uppercase extra-small">
+                        <th class="ps-4 py-3">Department / Directorate</th>
+                        <th class="py-3 text-center">Staff Establishment</th>
+                        <th class="py-3 text-center">Procurement Requisitions</th>
+                        <th class="py-3 text-center">Travel & TSA Requests</th>
+                        <th class="pe-4 text-end py-3">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in dept_stats %}
+                    <tr>
+                        <td class="ps-4">
+                            <strong class="text-white">{{ d.name }}</strong>
+                        </td>
+                        <td class="text-center fw-bold text-success">{{ d.staff_count }}</td>
+                        <td class="text-center fw-bold text-warning">{{ d.requisitions_count }}</td>
+                        <td class="text-center fw-bold text-info">{{ d.travels_count }}</td>
+                        <td class="pe-4 text-end">
+                            <span class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 rounded-pill px-3 py-1 extra-small fw-bold">Active Operational</span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4 text-muted">No department statistics loaded.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock pageContent %}

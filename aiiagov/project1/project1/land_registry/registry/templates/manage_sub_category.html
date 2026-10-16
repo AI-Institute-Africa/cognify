@@ -1,0 +1,114 @@
+<div class="container-fluid px-0">
+    <div class="card border-0 shadow-sm"
+        style="border-radius: 20px; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px);">
+        <div class="card-body p-4">
+            <form action="" id="sub_category-form">
+                <input type="hidden" name="id" value="{{sub_category.id}}">
+                <div class="mb-4">
+                    <label for="category" class="form-label small fw-bold text-dark text-uppercase mb-2"
+                        style="letter-spacing: 0.5px;"> Parent Classification</label>
+                    <div class="input-group shadow-sm rounded-pill overflow-hidden">
+                        <span class="input-group-text border-0 bg-white ps-3 text-muted"> <i
+                                class="fas fa-sitemap"></i></span>
+                        <select id="category" name="category" class="form-select border-0 bg-white py-2 px-3" required
+                            style="font-size: 0.9rem;">
+                            {% if not sub_category %}
+                            <option value="" selected disabled> Select Category</option>
+                            {% endif %}
+                            {% for cat in categories %}
+                            <option value="{{cat.id}}" {% if sub_category.category.id == cat.id %}selected{% endif %}>
+                                {{cat.name}}</option>
+                            {% endfor %}</select></div></div>
+                <div class="mb-4">
+                    <label for="name" class="form-label small fw-bold text-dark text-uppercase mb-2"
+                        style="letter-spacing: 0.5px;"> Sub-Category Name</label>
+                    <div class="input-group shadow-sm rounded-pill overflow-hidden">
+                        <span class="input-group-text border-0 bg-white ps-3 text-muted"> <i
+                                class="fas fa-folder-open"></i></span>
+                        <input type="text" id="name" name="name" class="form-control border-0 bg-white py-2 px-3"
+                            value="{{sub_category.name}}" required placeholder="Enter Sub-Category Name"
+                            style="font-size: 0.9rem;"></div></div>
+                <div class="mb-4">
+                    <label for="description" class="form-label small fw-bold text-dark text-uppercase mb-2"
+                        style="letter-spacing: 0.5px;"> Detailed Scope</label>
+                    <textarea rows="3" id="description" name="description"
+                        class="form-control border-0 shadow-sm rounded-4 px-3 py-3" required
+                        placeholder="Define granular summary..."
+                        style="font-size: 0.9rem; background: #fcfcfc;"> {{sub_category.description}}</textarea></div>
+                <div class="mb-4">
+                    <label for="status" class="form-label small fw-bold text-dark text-uppercase mb-2"
+                        style="letter-spacing: 0.5px;"> Sub-Category Status</label>
+                    <div class="input-group shadow-sm rounded-pill overflow-hidden">
+                        <span class="input-group-text border-0 bg-white ps-3 text-muted"> <i
+                                class="fas fa-toggle-on"></i></span>
+                        <select id="status" name="status" class="form-select border-0 bg-white py-2 px-3" required
+                            style="font-size: 0.9rem;">
+                            <option value="1" {% if sub_category.status == '1' %}selected{% endif %} > Active</option>
+                            <option value="0" {% if sub_category.status == '0' or sub_category.status == '2' %}selected{% endif %} > Inactive</option></select></div></div></form></div></div></div>
+
+<style>#sub_category-form .form-control:focus,
+    #sub_category-form .form-select:focus {
+        box-shadow: none !important;
+        background-color: #fff !important;
+    }</style>
+<script>$(function () {
+        $('#uni_modal').on('shown.bs.modal', function () {
+            $('#category').select2({
+                placeholder: "Please Select Category Here",
+                width: "100%",
+                dropdownParent: $('#uni_modal'),
+                selectionCssClass: "form-control border-0 shadow-sm rounded-pill"
+            })
+        })
+        $('#sub_category-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg rounded-3 small p-2 mb-3")
+            el.hide()
+            if (_this[0].checkValidity() == false) {
+                _this[0].reportValidity();
+                return false;
+            }
+            start_loader();
+            $.ajax({
+                headers: {
+                    "X-CSRFToken": '{{csrf_token}}'
+                },
+                url: "{% url 'save-sub_category' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.error(err)
+                    alert("An error occured", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.text(resp.msg)
+                    } else {
+                        el.text("An error occured", 'error');
+                        end_loader();
+                        console.error(resp)
+                    }
+                    _this.prepend(el)
+                    el.show('slow')
+                    $("html, body, .modal").scrollTop(0);
+                    end_loader()
+                }
+            })
+        })
+    })</script>
+
+
+
+
+

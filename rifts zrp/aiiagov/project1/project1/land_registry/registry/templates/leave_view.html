@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}View Leave Document{% endblock %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+  <div class="row justify-content-center">
+    <div class="col-md-10">
+      <div class="card shadow-sm border-0">
+        <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="mb-0 fw-bold"><i class="bi bi-file-earmark-text me-2 text-secondary"></i>Leave Document</h6>
+            <div class="small text-muted">{{ leave.leave_type }} | {{ leave.start_date }} to {{ leave.end_date }} | Status: {{ leave.status }}</div>
+          </div>
+          <div>
+            {% if leave.supporting_document %}
+            <a href="{% url 'leave-view' leave.id %}?download=1" class="btn btn-outline-secondary btn-sm">Download</a>
+            {% endif %}
+          </div>
+        </div>
+        <div class="card-body bg-secondary p-4 text-center overflow-auto" style="max-height: 85vh;">
+          {% if pages %}
+            {% for p in pages %}
+              <div class="document-page mb-4 mx-auto shadow-lg bg-white" style="width: 100%; max-width: 850px;">
+                <img src="{{ p.image }}" class="img-fluid w-100 h-100" style="object-fit: contain; display:block;">
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="py-5">
+              <h5 class="text-dark">Document Preview Unavailable</h5>
+              <p class="text-muted">The supporting document could not be rendered for preview. Use the download button to retrieve the file.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock pageContent %}

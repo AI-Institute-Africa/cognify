@@ -1,0 +1,112 @@
+{% load static %}
+<div class="container-fluid">
+    <form action="" id="borrower-form">
+        <input type="hidden" name="id" value="{{borrower.id}}">
+        <input type="hidden" name="code" value="generate_code">
+        <div class="row">
+            <div class="col-lg-6 col-md-6 col-sm-12">
+                <div class="mb-4">
+                    <label for="code" class="form-label small fw-bold text-muted text-uppercase mb-2"> National ID /
+                        Service Number</label>
+                    <input type="text" id="code" name="code" class="form-control border-0 shadow-sm rounded-pill px-3"
+                        value="{{borrower.code}}" required placeholder="e.g. ID-12345"></div>
+                <div class="mb-4">
+                    <label for="first_name" class="form-label small fw-bold text-muted text-uppercase mb-2"> First
+                        Name</label>
+                    <input type="text" id="first_name" name="first_name"
+                        class="form-control border-0 shadow-sm rounded-pill px-3" value="{{borrower.first_name}}"
+                        required></div>
+                <div class="mb-4">
+                    <label for="middle_name" class="form-label small fw-bold text-muted text-uppercase mb-2"> Middle
+                        Name</label>
+                    <input type="text" id="middle_name" name="middle_name"
+                        class="form-control border-0 shadow-sm rounded-pill px-3" value="{{borrower.middle_name}}"></div>
+                <div class="mb-4">
+                    <label for="last_name" class="form-label small fw-bold text-muted text-uppercase mb-2"> Last
+                        Name</label>
+                    <input type="text" id="last_name" name="last_name"
+                        class="form-control border-0 shadow-sm rounded-pill px-3" value="{{borrower.last_name}}"
+                        required></div></div>
+            <div class="col-lg-6 col-md-6 col-sm-12">
+                <div class="mb-4">
+                    <label for="gender" class="form-label small fw-bold text-muted text-uppercase mb-2"> Gender</label>
+                    <select id="gender" name="gender" class="form-select border-0 shadow-sm rounded-pill px-3" required>
+                        <option value="" disabled {% if not borrower.gender %}selected{% endif %} > Select Gender</option>
+                        <option value="Male" {% if borrower.gender == 'Male' %}selected{% endif %} > Male</option>
+                        <option value="Female" {% if borrower.gender == 'Female' %}selected{% endif %} > Female</option></select></div>
+                <div class="mb-4">
+                    <label for="department" class="form-label small fw-bold text-muted text-uppercase mb-2"> Department /
+                        Office</label>
+                    <select id="department" name="department" class="form-select border-0 shadow-sm rounded-pill px-3"
+                        required>
+                        <option value="" disabled {% if not borrower.department %}selected{% endif %} > Select Department</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.id }}" {% if borrower.department.id == dept.id %}selected{% endif %} > {{ dept.name }}</option>
+                        {% endfor %}</select></div>
+                <div class="mb-4">
+                    <label for="status" class="form-label small fw-bold text-muted text-uppercase mb-2"> Account
+                        Status</label>
+                    <select id="status" name="status" class="form-select border-0 shadow-sm rounded-pill px-3" required>
+                        <option value="1" {% if borrower.status == '1' %}selected{% endif %} > Active</option>
+                        <option value="0" {% if borrower.status == '0' or borrower.status == '2' %}selected{% endif %}>
+                            Inactive</option></select></div></div>
+            <div class="col-12">
+                <div class="mb-4">
+                    <label for="email" class="form-label small fw-bold text-muted text-uppercase mb-2"> Email
+                        Address</label>
+                    <input type="email" id="email" name="email"
+                        class="form-control border-0 shadow-sm rounded-pill px-3" value="{{borrower.email}}"
+                        placeholder="e.g. officer@agency.gov">
+                    <small class="text-muted ms-2"> Used for borrow notifications. Optional.</small></div></div></div></form></div>
+<script>$(function () {
+        $('#borrower-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg rounded-3 small p-2 mb-3")
+            el.hide()
+            if (_this[0].checkValidity() == false) {
+                _this[0].reportValidity();
+                return false;
+            }
+            start_loader();
+            $.ajax({
+                headers: {
+                    "X-CSRFToken": '{{csrf_token}}'
+                },
+                url: "{% url 'save-borrower' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.error(err)
+                    alert("An error occured", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.text(resp.msg)
+                    } else {
+                        el.text("An error occured", 'error');
+                        end_loader();
+                        console.error(resp)
+                    }
+                    _this.prepend(el)
+                    el.show('slow')
+                    $("html, body, .modal").scrollTop(0);
+                    end_loader()
+                }
+            })
+        })
+    })</script>
+
+
+
+

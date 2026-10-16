@@ -1,0 +1,132 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-tasks text-warning me-2"></i> ZRP Meeting Action Item Tracker</h3>
+            <p class="text-muted small mb-0">Track execution of resolutions and assigned meeting actions without altering approved minutes</p>
+        </div>
+        <a href="{% url 'meetings-dashboard' %}" class="btn btn-outline-light rounded-pill px-4">
+            <i class="fas fa-landmark me-1"></i> Meetings Dashboard
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="glass-card p-3 mb-4 border border-success border-opacity-25">
+        <form action="" method="GET" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="extra-small fw-bold text-muted text-uppercase mb-1">Status</label>
+                <select name="status" class="form-select form-select-sm bg-dark text-white border-secondary">
+                    <option value="">All Statuses</option>
+                    <option value="Pending" {% if request.GET.status == 'Pending' %}selected{% endif %}>Pending</option>
+                    <option value="In Progress" {% if request.GET.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                    <option value="Completed" {% if request.GET.status == 'Completed' %}selected{% endif %}>Completed</option>
+                    <option value="Overdue" {% if request.GET.status == 'Overdue' %}selected{% endif %}>Overdue</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="extra-small fw-bold text-muted text-uppercase mb-1">Priority</label>
+                <select name="priority" class="form-select form-select-sm bg-dark text-white border-secondary">
+                    <option value="">All Priorities</option>
+                    <option value="Normal" {% if request.GET.priority == 'Normal' %}selected{% endif %}>Normal</option>
+                    <option value="High" {% if request.GET.priority == 'High' %}selected{% endif %}>High</option>
+                    <option value="Urgent" {% if request.GET.priority == 'Urgent' %}selected{% endif %}>Urgent / Critical</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="extra-small fw-bold text-muted text-uppercase mb-1">Responsible Officer</label>
+                <select name="assignee" class="form-select form-select-sm bg-dark text-white border-secondary">
+                    <option value="">All Responsible Officers</option>
+                    {% for u in users %}
+                    <option value="{{ u.id }}" {% if request.GET.assignee|add:0 == u.id %}selected{% endif %}>{{ u.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-success btn-sm rounded-pill px-3 flex-grow-1 fw-bold" style="background: #003EA6;">Filter</button>
+                <a href="{% url 'action-tracking' %}" class="btn btn-outline-light btn-sm rounded-pill"><i class="fas fa-undo"></i></a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Actions List -->
+    <div class="row g-4">
+        {% for action in actions %}
+        <div class="col-md-6">
+            <div class="glass-card p-4 h-100 border-start border-4 {% if action.status == 'Completed' %}border-success{% elif action.status == 'Overdue' %}border-danger{% elif action.status == 'In Progress' %}border-warning{% else %}border-info{% endif %}">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge bg-dark text-muted extra-small"><i class="fas fa-landmark me-1 text-warning"></i> {{ action.meeting.title }}</span>
+                    <div>
+                        {% if action.is_escalated %}
+                        <span class="badge bg-danger text-white rounded-pill extra-small me-1"><i class="fas fa-triangle-exclamation me-1"></i> ESCALATED</span>
+                        {% endif %}
+                        <span class="badge bg-{% if action.status == 'Completed' %}success{% elif action.status == 'Overdue' %}danger{% elif action.status == 'In Progress' %}warning{% else %}info{% endif %} bg-opacity-25 text-{% if action.status == 'Completed' %}success{% elif action.status == 'Overdue' %}danger{% elif action.status == 'In Progress' %}warning{% else %}info{% endif %} rounded-pill">
+                            {{ action.status }}
+                        </span>
+                    </div>
+                </div>
+
+                <h6 class="fw-bold text-white mb-2">{{ action.description }}</h6>
+                
+                <div class="d-flex justify-content-between align-items-center extra-small text-muted mb-3">
+                    <div><i class="fas fa-user-check text-success me-1"></i> Officer: <strong class="text-white">{{ action.assigned_to.username }}</strong></div>
+                    <div><i class="fas fa-calendar-day text-warning me-1"></i> Due Date: <strong class="text-white">{{ action.due_date }}</strong></div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between extra-small text-muted mb-1">
+                        <span>Progress</span>
+                        <span class="fw-bold text-white">{{ action.progress_percent }}%</span>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar bg-{% if action.progress_percent == 100 %}success{% else %}warning{% endif %}" style="width: {{ action.progress_percent }}%;"></div>
+                    </div>
+                </div>
+
+                <!-- Comments & Response History -->
+                <div class="p-3 bg-dark bg-opacity-50 rounded mb-3 border border-secondary" style="max-height: 150px; overflow-y: auto;">
+                    <span class="extra-small fw-bold text-muted text-uppercase d-block mb-2"><i class="fas fa-comments text-info me-1"></i> Participant Responses & Progress Logs</span>
+                    {% for c in action.comments.all %}
+                    <div class="extra-small text-white mb-2 pb-2 border-bottom border-secondary border-opacity-25">
+                        <div class="d-flex justify-content-between text-muted extra-small">
+                            <strong>{{ c.author.username }}</strong>
+                            <span>{{ c.created_at|date:"d M Y, H:i" }}</span>
+                        </div>
+                        <p class="mb-0 text-light mt-1">{{ c.comment }}</p>
+                        {% if c.progress_percent %}
+                        <span class="badge bg-success bg-opacity-25 text-success extra-small mt-1">Updated Progress: {{ c.progress_percent }}%</span>
+                        {% endif %}
+                    </div>
+                    {% empty %}
+                    <span class="extra-small text-muted italic">No comments or progress updates posted yet.</span>
+                    {% endfor %}
+                </div>
+
+                <!-- Post Update Form -->
+                <form action="{% url 'post-action-comment' action.pk %}" method="POST" class="row g-2">
+                    {% csrf_token %}
+                    <div class="col-8">
+                        <input type="text" name="comment" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Post progress comment / response..." required>
+                    </div>
+                    <div class="col-2">
+                        <input type="number" name="progress_percent" class="form-control form-control-sm bg-dark text-white border-secondary" min="0" max="100" placeholder="%" value="{{ action.progress_percent }}">
+                    </div>
+                    <div class="col-2">
+                        <button type="submit" class="btn btn-success btn-sm w-100 rounded-pill fw-bold" style="background: #003EA6;">Log</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12 text-center py-5 text-muted">
+            <i class="fas fa-check-circle fs-2 d-block mb-2 text-success"></i>
+            No action items matching criteria.
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock pageContent %}

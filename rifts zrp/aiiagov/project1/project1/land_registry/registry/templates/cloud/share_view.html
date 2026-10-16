@@ -1,0 +1,107 @@
+{% load folder_perms %}
+<!DOCTYPE html>
+<html lang="en">
+
+
+<head><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Gateway - {{ file.name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/all.min.css">
+    <style>body {
+            background: #0f0f0f;
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .main-container {
+            width: 100%;
+            max-width: 900px;
+            padding: 20px;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 40px;
+        }
+
+        .file-preview {
+            background: #1a1a1a;
+            height: 500px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 6rem;
+            color: rgba(255, 255, 255, 0.02);
+            font-weight: 800;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .brand-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .brand-header h2 {
+            letter-spacing: 2px;
+            font-weight: 300;
+        }</style></head>
+
+<body><div class="main-container">
+        <div class="brand-header">
+            <h2 class="text-white"> RIFTS-X <span class="text-primary font-weight-bold"> SECURE GATEWAY</span></h2>
+            <p class="text-white-50"> Authorized Document Governance Platform</p></div>
+
+        <div class="glass-card">
+            <div class="row align-items-center mb-4">
+                <div class="col">
+                    <h3 class="mb-1"> {{ file.name }}</h3>
+                    <p class="text-white-50 mb-0"> Version {{ latest_version.version_number }} • Shared by {{ share.shared_by|safe_name }}</p></div>
+                <div class="col-auto">
+                    {% if share.can_download %}
+                    <a href="{{ latest_version.file_content.url }}" class="btn btn-primary" download>
+                        <i class="fas fa-download me-2"></i> Download</a>
+                    {% endif %}
+                    {% if share.can_edit %}
+                    <span class="badge bg-success ms-2">Edit Allowed</span>
+                    {% elif not share.can_download %}
+                    <span class="badge bg-warning text-dark"> <i class="fas fa-eye me-1"></i> View Only</span>
+                    {% endif %}</div></div>
+
+            <div class="file-preview">
+                <div class="watermark"> SECURE ACCESS • {{ share.access_token|slice:":8" }} • DO NOT DISTRIBUTE</div>
+                <div class="text-center">
+                    <i class="fas fa-file-pdf fa-6x text-white-50 mb-4"></i>
+                    <h4 class="text-white"> Institutional Secure Viewer</h4>
+                    <p class="text-white-50 px-5"> The document has been filtered for external viewing. All access
+                        attempts are recorded against the institutional audit infrastructure.</p>
+                    <div class="mt-4">
+                        <span class="badge bg-danger"> TEMPORARY ACCESS</span>
+                        <span class="badge bg-info ms-2"> EXPIRES: {{ share.expiry_date|date:"Y-m-d H:i" }}</span></div></div></div>
+
+            <div class="mt-4 text-center">
+                <p class="small text-white-50 mb-0"> © 2026 Records Intelligence & File Tracking System. All rights
+                    reserved.</p></div></div></div></body></html>
+
+
+
+

@@ -1,0 +1,73 @@
+{% load static %}
+<div class="container-fluid">
+    <form action="" id="certificate-form">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{ pk|default:'' }}">
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="certificate_type" class="control-label text-muted small fw-bold text-uppercase"> Document
+                    Type</label>
+                {{ form.certificate_type }}</div>
+            <div class="col-md-6 mb-3">
+                <label for="recipient_name" class="control-label text-muted small fw-bold text-uppercase"> Recipient
+                    Name</label>
+                {{ form.recipient_name }}</div></div>
+
+        <div class="mb-3">
+            <label for="subject" class="control-label text-muted small fw-bold text-uppercase"> Document
+                Subject/Title</label>
+            {{ form.subject }}</div>
+
+        <div class="mb-3">
+            <label for="content" class="control-label text-muted small fw-bold text-uppercase"> Document Content
+                (Body)</label>
+            {{ form.content }}
+            <div class="form-text small"> Use formal language. This will be rendered on the official certificate
+                template.</div></div></form></div>
+
+<script>$(function () {
+        $('#certificate-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg")
+            el.hide()
+            if (_this[0].checkValidity() == false) {
+                _this[0].reportValidity();
+                return false;
+            }
+            start_loader();
+            $.ajax({
+                url: "{% url 'save-certificate' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.log(err)
+                    alert_toast("An error occurred", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else {
+                        el.text("An error occurred")
+                        _this.prepend(el)
+                        el.show('slow')
+                        $("html, body").animate({ scrollTop: 0 }, "fast");
+                    }
+                    end_loader();
+                }
+            })
+        })
+    })</script>
+
+
+
+

@@ -1,0 +1,7 @@
+--- Transfer Simulation ---
+File: TEST-SR-1783541468 | Current Dept: Business Development Department
+Target Dept: Blood Supply Department
+User: Takue
+Location created: Test Building - 1 - Cabinet 1 - Shelf 1
+SUCCESS! CustodyLog ID: 45, from: Business Development Department, to: Blood Supply Department
+Cleanup done.

@@ -1,0 +1,184 @@
+{% load static %}
+<div class="container-fluid">
+    <form action="" id="user-form">
+        <input type="hidden" name="id" value="{{user.id}}">
+        <input type="hidden" name="manage_user" value="1">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group mb-4">
+                    <label for="first_name" class="form-label small fw-bold text-muted text-uppercase mb-2"> First
+                        Name</label>
+                    <input type="text" class="form-control border-0 shadow-sm rounded-pill px-3" name="first_name"
+                        id="first_name"
+                        value="{% if form.data.first_name %}{{ form.data.first_name }}{% else %}{{ user.first_name }}{% endif %}"
+                        required="required"></div></div>
+            <div class="col-md-6">
+                <div class="form-group mb-4">
+                    <label for="last_name" class="form-label small fw-bold text-muted text-uppercase mb-2"> Last
+                        Name</label>
+                    <input type="text" class="form-control border-0 shadow-sm rounded-pill px-3" name="last_name"
+                        id="last_name"
+                        value="{% if form.data.last_name %}{{ form.data.last_name }}{% else %}{{ user.last_name }}{% endif %}"
+                        required="required"></div></div></div>
+        <div class="form-group mb-4">
+            <label for="email" class="form-label small fw-bold text-muted text-uppercase mb-2"> Email Address</label>
+            <input type="email" class="form-control border-0 shadow-sm rounded-pill px-3" name="email" id="email"
+                value="{% if form.data.email %}{{ form.data.email }}{% else %}{{ user.email }}{% endif %}"
+                required="required"></div>
+        <div class="form-group mb-4">
+            <label for="username" class="form-label small fw-bold text-muted text-uppercase mb-2"> System
+                Username</label>
+            <input type="text" class="form-control border-0 shadow-sm rounded-pill px-3 font-monospace" name="username"
+                id="username"
+                value="{% if form.data.username %}{{ form.data.username }}{% else %}{{ user.username }}{% endif %}"
+                required="required"></div>
+
+        <div class="row">
+            <div class="col-md-4">
+                <div class="form-group mb-4">
+                    <label for="platform" class="form-label small fw-bold text-muted text-uppercase mb-2"> Platform Access</label>
+                    <select class="form-select border-0 shadow-sm rounded-pill px-3" name="platform" id="platform" required>
+                        <option value="RIFTS-X" {% if user.security_profile.platform == "RIFTS-X" %}selected{% endif %}>RIFTS-X Master</option>
+                        <option value="Governance" {% if user.security_profile.platform == "Governance" %}selected{% endif %}>Project Governance</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group mb-4">
+                    <label for="requested_role" class="form-label small fw-bold text-muted text-uppercase mb-2"> System Role</label>
+                    <select class="form-select border-0 shadow-sm rounded-pill px-3" name="requested_role" id="requested_role" required>
+                        <optgroup label="── ZRP Directorate / Apex Tier ──">
+                            <option value="Chief Director" {% if user.security_profile.role == "Chief Director" %}selected{% endif %}>Chief Director (Executive Oversight - All)</option>
+                            <option value="Deputy Director ICT" {% if user.security_profile.role == "Deputy Director ICT" %}selected{% endif %}>Deputy Director ICT (Systems)</option>
+                            <option value="Deputy Director Communications" {% if user.security_profile.role == "Deputy Director Communications" %}selected{% endif %}>Deputy Director Communications (Comms &amp; Radio)</option>
+                            <option value="Deputy Director IT" {% if user.security_profile.role == "Deputy Director IT" %}selected{% endif %}>Deputy Director IT (Legacy / Systems)</option>
+                        </optgroup>
+                        <optgroup label="── ZRP Management Tier ──">
+                            <option value="Systems Manager" {% if user.security_profile.role == "Systems Manager" %}selected{% endif %}>Systems Manager (ICT Systems)</option>
+                            <option value="System Manager" {% if user.security_profile.role == "System Manager" %}selected{% endif %}>System Manager (Systems)</option>
+                            <option value="Supt ICT" {% if user.security_profile.role == "Supt ICT" %}selected{% endif %}>Superintendent ICT (Supt ICT)</option>
+                            <option value="Chief Tech" {% if user.security_profile.role == "Chief Tech" %}selected{% endif %}>Chief Technician (Chief Tech - Comms &amp; Radio)</option>
+                            <option value="Department Manager" {% if user.security_profile.role == "Department Manager" %}selected{% endif %}>Department Manager</option>
+                            <option value="Supervisor" {% if user.security_profile.role == "Supervisor" %}selected{% endif %}>Registry Supervisor</option>
+                            <option value="HODs" {% if user.security_profile.role == "HODs" %}selected{% endif %}>Head of Departments (HODs)</option>
+                        </optgroup>
+                        <optgroup label="── ZRP Operational &amp; Field Officers ──">
+                            <option value="General Police" {% if user.security_profile.role == "General Police" %}selected{% endif %}>General Police Officer</option>
+                            <option value="Clerk" {% if user.security_profile.role == "Clerk" %}selected{% endif %}>Registry Clerk</option>
+                            <option value="Provincial ICT Officer" {% if user.security_profile.role == "Provincial ICT Officer" %}selected{% endif %}>Provincial ICT Officer (PICTO)</option>
+                            <option value="Auditor" {% if user.security_profile.role == "Auditor" %}selected{% endif %}>System Auditor</option>
+                        </optgroup>
+                        <optgroup label="── Procurement &amp; Finance ──">
+                            <option value="Purchasing Officer" {% if user.security_profile.role == "Purchasing Officer" %}selected{% endif %}>Purchasing Officer</option>
+                            <option value="Finance Officer" {% if user.security_profile.role == "Finance Officer" %}selected{% endif %}>Finance Officer</option>
+                        </optgroup>
+                        <optgroup label="── Project Governance &amp; Strategy ──">
+                            <option value="Team Member" {% if user.security_profile.role == "Team Member" or not user.security_profile.role %}selected{% endif %}>Team Member</option>
+                            <option value="Project Leader" {% if user.security_profile.role == "Project Leader" %}selected{% endif %}>Project Leader</option>
+                            <option value="Project Management Team" {% if user.security_profile.role == "Project Management Team" %}selected{% endif %}>Project Management Team</option>
+                            <option value="Board of Executives" {% if user.security_profile.role == "Board of Executives" %}selected{% endif %}>Board of Executives / Executive Committee</option>
+                            <option value="Portfolio Admin" {% if user.security_profile.role == "Portfolio Admin" %}selected{% endif %}>Portfolio Admin</option>
+                            <option value="Executive" {% if user.security_profile.role == "Executive" %}selected{% endif %}>Executive Officer</option>
+                            <option value="Executive Viewer" {% if user.security_profile.role == "Executive Viewer" %}selected{% endif %}>Executive Viewer</option>
+                        </optgroup>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group mb-4">
+                    <label for="department" class="form-label small fw-bold text-muted text-uppercase mb-2"> Department</label>
+                    <select class="form-select border-0 shadow-sm rounded-pill px-3" name="department" id="department" required>
+                        <option value="" disabled selected>Select Department</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.id }}" {% if user.security_profile.department_id == dept.id %}selected{% endif %}>{{ dept.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group mb-4">
+                    <label for="job_title" class="form-label small fw-bold text-muted text-uppercase mb-2"> Job Title</label>
+                    <input type="text" class="form-control border-0 shadow-sm rounded-pill px-3" name="job_title" id="job_title"
+                        value="{% if form.data.job_title %}{{ form.data.job_title }}{% else %}{{ user.security_profile.job_title|default:'' }}{% endif %}"
+                        placeholder="e.g. Senior Records Officer">
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group mb-4">
+                    <label for="position" class="form-label small fw-bold text-muted text-uppercase mb-2"> Position / Grade</label>
+                    <input type="text" class="form-control border-0 shadow-sm rounded-pill px-3" name="position" id="position"
+                        value="{% if form.data.position %}{{ form.data.position }}{% else %}{{ user.security_profile.position|default:'' }}{% endif %}"
+                        placeholder="e.g. Grade D">
+                </div>
+            </div>
+        </div>
+        {% if not user.id %}
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group mb-4">
+                    <label for="password1"
+                        class="form-label small fw-bold text-muted text-uppercase mb-2"> Password</label>
+                    <input type="password" class="form-control border-0 shadow-sm rounded-pill px-3" name="password1"
+                        id="password1" required="required"></div></div>
+            <div class="col-md-6">
+                <div class="form-group mb-4">
+                    <label for="password2" class="form-label small fw-bold text-muted text-uppercase mb-2"> Confirm
+                        Password</label>
+                    <input type="password" class="form-control border-0 shadow-sm rounded-pill px-3" name="password2"
+                        id="password2" required="required"></div></div></div>
+        {% endif %}</form></div>
+<script>$(function () {
+        $('#user-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg rounded-3 small p-2 mb-3")
+            el.hide()
+            if (_this[0].checkValidity() == false) {
+                _this[0].reportValidity();
+                return false;
+            }
+            start_loader();
+            $.ajax({
+                headers: {
+                    "X-CSRFToken": '{{csrf_token}}'
+                },
+                url: "{% url 'save-user' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.log(err)
+                    alert("An error occured", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.text(resp.msg)
+                    } else {
+                        el.text("An error occured", 'error');
+                        end_loader();
+                        console.error(resp)
+                    }
+                    _this.prepend(el)
+                    el.show('slow')
+                    $("html, body, .modal").scrollTop(0);
+                    end_loader()
+                }
+            })
+        })
+    })</script>
+
+
+
+

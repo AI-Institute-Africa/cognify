@@ -1,0 +1,73 @@
+<div class="container-fluid">
+    <form action="" id="federated-transfer-form">
+        <input type="hidden" name="file_id" value="{{ file_obj.pk }}">
+        <div class="form-group mb-3">
+            <label for="target_org_id" class="control-label"> Target Organization</label>
+            <select name="target_org_id" id="target_org_id" class="form-select rounded-0" required>
+                <option value="" disabled selected> -- Select Organization --</option>
+                {% for org in organizations %}
+                <option value="{{ org.pk }}"> {{ org.name }} ({{ org.code }})</option>
+                {% endfor %}</select></div>
+        <div class="form-group mb-3">
+            <label for="target_dept_name" class="control-label"> Target Department (Name)</label>
+            <input type="text" name="target_dept_name" id="target_dept_name" class="form-control rounded-0"
+                placeholder="e.g., Records Management" required></div>
+        <div class="form-group mb-3">
+            <label for="reason" class="control-label"> Reason for Federated Transfer</label>
+            <textarea rows="3" name="reason" id="reason" class="form-control rounded-0"
+                placeholder="Required for audit trail..." required></textarea></div>
+        <div class="alert alert-info">
+            <i class="fa fa-info-circle"></i> This will move the file to an external institution link. Custody
+            continuity will be tracked across nodes.</div></form></div>
+<script>$(function () {
+        $('#federated-transfer-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg")
+            el.hide()
+            if (_this[0].checkValidity() == false) {
+                _this[0].reportValidity();
+                return false;
+            }
+            start_loader();
+            $.ajax({
+                headers: {
+                    "X-CSRFToken": '{{csrf_token}}'
+                },
+                url: "{% url 'federated-transfer-file' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.log(err)
+                    alert_toast("An error occured", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.text(resp.msg)
+                    } else {
+                        el.text("An error occured", 'error');
+                        end_loader();
+                        console.err(resp)
+                    }
+                    _this.prepend(el)
+                    el.show('slow')
+                    $("html, body, .modal").scrollTop(0);
+                    end_loader();
+                }
+            })
+        })
+    })</script>
+
+
+
+

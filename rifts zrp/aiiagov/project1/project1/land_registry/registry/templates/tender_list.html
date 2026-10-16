@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <div><h3 class="fw-bold text-gradient mb-1"> Procurement & Tenders</h3>
+            <p class="text-muted small mb-0"> Manage government and university procurement lifecycles</p></div>
+        <button class="btn btn-primary rounded-pill px-4 shadow-sm"
+            onclick="uni_modal('Initiate New Tender', '{% url "manage-tender" %}', 'modal-md')">
+            <i class="fas fa-plus me-2"></i> Initiate Tender</button></div></div>
+
+<div class="card border-0 shadow-lg rounded-4 overflow-hidden animate__animated animate__fadeInUp">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="tender-table">
+                <thead class="bg-light bg-opacity-75">
+                    <tr>
+                        <th class="ps-4 py-3 text-secondary extra-small text-uppercase fw-bold" colspan="2"> Tender Details & Reference</th>
+                        <th class="py-3 text-secondary extra-small text-uppercase fw-bold"> Closing Date</th>
+                        <th class="py-3 text-secondary extra-small text-uppercase fw-bold"> Status</th>
+                        <th class="py-3 text-secondary extra-small text-uppercase fw-bold text-center"> Bids</th>
+                        <th class="pe-4 py-3 text-secondary extra-small text-uppercase fw-bold text-end"> Actions</th>
+                    </tr>
+                </thead>
+                <tbody>{% for tender in tenders %}
+                    <tr>
+                        <td colspan="2"><div class="fw-bold text-dark mb-0"> {{ tender.title }}, {{ tender.tender_type }}</div>
+                            <div class="text-muted extra-small"> Budget: ${{ tender.budget|default:"N/A"|intcomma }}, {{ tender.ref_num }}, {{ tender.department.name }}</div></td>
+                        <td><div
+                                class="small fw-semibold {% if tender.closing_date < now %}text-danger{% else %}text-secondary{% endif %}">
+                                {{ tender.closing_date|date:"d M Y, H:i" }}</div></td>
+                        <td>{% if tender.status == 'Draft' %}
+                            <span class="badge bg-secondary rounded-pill extra-small px-3 py-2"> Draft</span>
+                            {% elif tender.status == 'Published' %}
+                            <span class="badge bg-success rounded-pill extra-small px-3 py-2"> Published</span>
+                            {% elif tender.status == 'Evaluation' %}
+                            <span class="badge bg-warning text-dark rounded-pill extra-small px-3 py-2"> In
+                                Evaluation</span>
+                            {% elif tender.status == 'Awarded' %}
+                            <span class="badge bg-info text-dark rounded-pill extra-small px-3 py-2"> Awarded</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark rounded-pill extra-small px-3 py-2 border"> {{ tender.status }}</span>
+                            {% endif %}</td>
+                        <td class="text-center">
+                            <a href="{% url 'bid_list' tender.id %}" class="text-decoration-none fw-bold text-primary">
+                                {{ tender.bids.count }}</a></td>
+                        <td class="pe-4 text-end">
+                            <div class="btn-group shadow-sm rounded-pill overflow-hidden">
+                                <a href="{% url 'view-tender-pk' tender.pk %}" class="btn btn-sm btn-light"
+                                    title="View Details">
+                                    <i class="fas fa-eye text-primary"></i></a>
+                                <button class="btn btn-sm btn-light"
+                                    onclick="uni_modal('Edit Tender', '{% url "manage-tender-pk" tender.pk %}', 'modal-md')"
+                                    title="Edit">
+                                    <i class="fas fa-edit text-success"></i></button>
+                                {% if tender.contract %}
+                                <a href="{% url 'view-contract-pk' tender.contract.pk %}" class="btn btn-sm btn-light"
+                                    title="View Contract">
+                                    <i class="fas fa-file-contract text-info"></i></a>
+                                {% endif %}</div></td></tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="text-center py-5">
+                            <div class="text-muted opacity-50 mb-3"> <i class="fas fa-folder-open fa-3x"></i></div>
+                            <p class="text-muted mb-0"> No tenders initiated yet.</p></td></tr>
+                    {% endfor %}</tbody></table></div></div></div>
+{% endblock pageContent %}
+
+{% block ScriptBlock %}
+<script>$(function () {
+        $('#tender-table').DataTable({
+            columnDefs: [
+                { orderable: false, targets: [2, 6] }
+            ],
+            order: [[0, 'desc']]
+        });
+    });</script>
+{% endblock ScriptBlock %}
+
+
+
+

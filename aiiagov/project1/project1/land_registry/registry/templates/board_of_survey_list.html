@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+            <h3 class="fw-bold mb-1"><i class="fas fa-balance-scale text-primary me-2"></i>Board of Survey Reports</h3>
+            <div class="small text-muted">
+                Statutory Form 60260-6 (G.P&amp;S.34586-S.) &bull; Condemnation, valuation, and disposal proceedings
+            </div>
+        </div>
+        <div>
+            <button class="btn btn-primary rounded-pill px-4 shadow-sm fw-bold"
+                onclick="uni_modal('Convene New Board of Survey', '{% url 'manage-board-of-survey' %}', 'modal-lg')">
+                <i class="fas fa-plus-circle me-2"></i> Convene Board of Survey
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold">Total BOS Convened</div>
+            <div class="h3 fw-bold mb-0 text-dark">{{ total_count|default:0 }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold">Pending Approval</div>
+            <div class="h3 fw-bold mb-0 text-warning">{{ pending_count|default:0 }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold">Approved by HOD</div>
+            <div class="h3 fw-bold mb-0 text-primary">{{ approved_count|default:0 }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold">Disposal Certified</div>
+            <div class="h3 fw-bold mb-0 text-success">{{ disposed_count|default:0 }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Reports Table -->
+<div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="extra-small text-uppercase text-muted">
+                    <tr>
+                        <th>Report Ref / Form</th>
+                        <th>Proceedings Date</th>
+                        <th>Held At / Location</th>
+                        <th>Articles Examined</th>
+                        <th class="text-end">Total Condemned Value</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="small">
+                    {% for s in surveys %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'view-board-of-survey' s.pk %}" class="fw-bold text-dark text-decoration-none">
+                                <i class="fas fa-file-contract text-primary me-2"></i>{{ s.report_ref }}
+                            </a>
+                            <div class="extra-small text-muted">Form 60260-6 &bull; G.P&amp;S.34586-S.</div>
+                        </td>
+                        <td>{{ s.proceedings_date|date:"Y-m-d" }}</td>
+                        <td>
+                            <div class="fw-semibold">{{ s.held_at }}</div>
+                            <div class="extra-small text-muted">{{ s.department }}</div>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark border rounded-pill px-2">
+                                {{ s.items.count }} Line Items ({{ s.total_quantity }} Units)
+                            </span>
+                        </td>
+                        <td class="text-end fw-bold text-dark">
+                            ${{ s.total_value|floatformat:2|intcomma }}
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-{% if s.status == 'Disposed' %}success{% elif s.status == 'Approved' %}primary{% else %}warning text-dark{% endif %} rounded-pill px-3 py-2">
+                                {{ s.status }}
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group">
+                                <a href="{% url 'view-board-of-survey' s.pk %}" class="btn btn-sm btn-outline-primary" title="View Proceedings">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url 'print-board-of-survey' s.pk %}" target="_blank" class="btn btn-sm btn-outline-dark" title="Print Form 60260-6">
+                                    <i class="fas fa-print"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="fas fa-balance-scale fa-3x mb-3 opacity-25"></i>
+                            <div>No Board of Survey reports found.</div>
+                            <button class="btn btn-sm btn-primary rounded-pill px-3 mt-2" onclick="uni_modal('Convene New Board of Survey', '{% url 'manage-board-of-survey' %}', 'modal-lg')">
+                                <i class="fas fa-plus me-1"></i> Convene First Board of Survey
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock pageContent %}\n

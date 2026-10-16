@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% load customfilter %}
+{% block pageContent %}
+<div class="container-fluid py-5 px-4 animate-reveal">
+
+    {# ── ELITE HEADER ── #}
+    <div class="d-flex justify-content-between align-items-end mb-5">
+        <div>
+            <span class="status-pill status-live text-primary mb-2" style="background: var(--accent-glow);">Operational Intelligence</span>
+            <h1 class="display-5 fw-bold mb-0">Portfolio <b style="color: var(--accent-color);">Command Center</b></h1>
+            <p class="text-muted lead mb-0">Institutional Project Governance & Oversight Hub</p>
+        </div>
+        <div class="d-flex gap-3">
+            <a href="{% url 'intelligence-hub' %}" class="btn glass-panel px-4 py-2 text-decoration-none d-flex align-items-center gap-2">
+                <i class="fas fa-layer-group text-accent"></i> <span>Intelligence Hub</span>
+            </a>
+            {% if can_create_project %}
+            <a href="{% url 'create-project' %}" class="btn btn-primary rounded-pill px-4 shadow-lg d-flex align-items-center gap-2">
+                <i class="fas fa-plus"></i> <span class="fw-bold">Initiate Project</span>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ── KPI DASHBOARD GRID ── #}
+    <div class="dashboard-grid mb-5">
+        
+        <!-- Governance Score -->
+        <div class="glass-panel stats-card p-4">
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <h6 class="text-muted text-uppercase small fw-bold mb-1">Governance Score™</h6>
+                    <div class="display-4 fw-bold text-accent">{{ org_stats.score }}<small class="fs-6 text-muted">/10</small></div>
+                </div>
+                <!-- Progress Ring -->
+                <div class="progress-ring">
+                    <svg width="80" height="80">
+                        <circle class="background" cx="40" cy="40" r="34"></circle>
+                        <circle class="foreground" cx="40" cy="40" r="34" 
+                            {% if True %}style="stroke-dasharray: 213.6; stroke-dashoffset: {{ 213.6|multiply:org_stats.score_diff_perc|default:0 }};"{% endif %}></circle>
+                    </svg>
+                    <div class="position-absolute top-50 start-50 translate-middle small fw-bold">{{ org_stats.score|multiply:10 }}%</div>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2 small">
+                <span class="text-success"><i class="fas fa-arrow-up me-1"></i> Institutional Stability</span>
+            </div>
+        </div>
+
+        <!-- Operational Health -->
+        <div class="glass-panel stats-card p-4">
+            <h6 class="text-muted text-uppercase small fw-bold mb-3">Operational Status</h6>
+            <div class="row g-0">
+                <div class="col-6 border-end border-white border-opacity-10 py-2">
+                    <div class="h3 fw-bold mb-0 text-success">{{ active_projects }}</div>
+                    <div class="extra-small text-muted">Active Ops</div>
+                </div>
+                <div class="col-6 ps-4 py-2">
+                    <div class="h3 fw-bold mb-0 text-danger">{{ org_stats.projects_at_risk }}</div>
+                    <div class="extra-small text-muted">At Risk</div>
+                </div>
+            </div>
+            <hr class="my-3 opacity-10">
+            <div class="small text-muted">
+                <i class="fas fa-clock-rotate-left me-1"></i> {{ org_stats.sla_breaches }} SLA Breaches Detected
+            </div>
+        </div>
+
+        <!-- Predictive Risk -->
+        <div class="glass-panel stats-card p-4" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), transparent);">
+            <h6 class="text-muted text-uppercase small fw-bold mb-1">AI Predictive Risk</h6>
+            <div class="display-4 fw-bold">{{ org_stats.at_risk }}</div>
+            <p class="text-muted small mb-3">Probability of milestone delay</p>
+            <div class="progress" style="height: 4px; background: var(--glass-border);">
+                <div class="progress-bar bg-accent" style="width: 65%;"></div>
+            </div>
+        </div>
+
+    </div>
+
+    {# ── VISUAL ANALYTICS SECTION ── #}
+    <div class="row g-4 mb-5">
+        <div class="col-lg-8">
+            <div class="glass-panel p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold mb-0">Organizational <span class="text-accent">Workload</span></h5>
+                    <span class="status-pill small" style="background: var(--glass-bg);">Live Feed</span>
+                </div>
+                <div style="height: 300px;">
+                    <canvas id="portfolioWorkloadChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="glass-panel p-4 h-100 d-flex flex-column justify-content-center text-center">
+                <div class="mb-4">
+                    <i class="fas fa-shield-virus display-3 text-accent mb-3 opacity-50 pulse-glow"></i>
+                    <h4 class="fw-bold">Security Compliance</h4>
+                    <p class="text-muted small px-3">All project assets are tracked via forensic cryptographic audit trails.</p>
+                </div>
+                <div class="mt-2">
+                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-20 rounded-pill px-4 py-2">
+                        <i class="fas fa-check-circle me-1"></i> System Secured
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── PORTFOLIO DISCOVERY TABLE ── #}
+    <div class="glass-panel p-0 overflow-hidden">
+        <div class="p-4 border-bottom border-secondary border-opacity-25">
+            <h5 class="fw-bold mb-0">Project <span class="text-accent">Governance Matrix</span></h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-minimal align-middle mb-0">
+                <thead class="text-muted small text-uppercase">
+                    <tr>
+                        <th class="ps-4">Project Identity</th>
+                        <th>Owner</th>
+                        <th>Progress</th>
+                        {% if can_view_financials %}<th>Budget</th>{% endif %}
+                        <th>AI Risk</th>
+                        <th class="text-end pe-4">Records Intelligence</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in project_health %}
+                    {% with p=item.project h=item.health ai=item.ai %}
+                    <tr>
+                        <td class="ps-4">
+                            <div class="fw-bold">{{ p.name }}</div>
+                            <div class="extra-small text-muted">{{ p.department.name }}</div>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="bg-accent rounded-circle d-flex align-items-center justify-content-center text-white small fw-bold" style="width:24px;height:24px;">{{ p.owner.username|slice:":1" }}</div>
+                                <span class="small">{{ p.owner.username }}</span>
+                            </div>
+                        </td>
+                        <td style="min-width: 140px;">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress flex-grow-1" style="height:4px; background: var(--glass-border);">
+                                    <div class="progress-bar bg-accent" {% if True %}style="width:{{ p.progress_percentage }}%"{% endif %}></div>
+                                </div>
+                                <span class="extra-small fw-bold">{{ p.progress_percentage }}%</span>
+                            </div>
+                        </td>
+                        {% if can_view_financials %}
+                        <td class="small text-accent fw-semibold">${{ p.budget|intcomma }}</td>
+                        {% endif %}
+                        <td>
+                            <span class="status-pill {% if h.risk_level == 'High' %}text-danger{% elif h.risk_level == 'Medium' %}text-warning{% else %}text-success{% endif %}" style="background: var(--glass-bg); font-size: 0.65rem;">
+                                {{ h.risk_level|default:"Low" }}
+                            </span>
+                        </td>
+                        <td class="text-end pe-4">
+                            <a href="{% url 'project-detail' p.pk %}" class="btn glass-panel btn-sm rounded-pill px-3">
+                                <i class="fas fa-arrow-right text-accent"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endwith %}
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">No projects found in the governance Records Intelligence.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+
+{{ org_stats.dept_data|json_script:"dept-stats-data" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const deptData = JSON.parse(document.getElementById('dept-stats-data').textContent);
+        const ctx = document.getElementById('portfolioWorkloadChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: deptData.map(d => d.name),
+                datasets: [{
+                    label: 'Projects',
+                    data: deptData.map(d => d.count),
+                    backgroundColor: 'rgba(79, 70, 229, 0.8)',
+                    borderRadius: 8,
+                    barThickness: 25
+                }, {
+                    label: 'Avg Progress %',
+                    data: deptData.map(d => d.progress),
+                    backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                    borderRadius: 8,
+                    barThickness: 25
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { boxWidth: 12, font: { size: 10 } } }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { display: false } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    });
+</script>
+<style>
+    .extra-small {
+        font-size: .72rem;
+    }
+</style>
+{% endblock pageContent %}

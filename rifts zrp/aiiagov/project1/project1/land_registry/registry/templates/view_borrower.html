@@ -1,0 +1,28 @@
+ {% load static %} {% load humanize %}
+<style>#uni_modal .modal-footer {
+        display: none
+    }
+    
+    #uni_modal .modal-sub-footer {
+        display: flex
+    }</style>
+<div class="container-fluid" id="e-details">
+    <div class="">
+        <dl><dt>National ID</dt>
+            <dd class="ps-4"> {{borrower.code}}</dd>
+            <dt>Department</dt>
+            <dd class="ps-4"> {{borrower.department}}</dd>
+            <dt>Name</dt>
+            <dd class="ps-4"> {{borrower.name}}</dd>
+            <dt>Gender</dt>
+            <dd class="ps-4"> {{borrower.gender}}</dd>
+            
+            <dt>Status</dt>
+            <dd class="ps-4">
+                {% if borrower.status == '1' %}
+                <span class="badge badge-success bg-gradient bg-success px-3 rounded-pill bg-opacity-75 text-sm py-1"> Active</span> {% else %}
+                <span class="badge badge-danger bg-gradient bg-danger px-3 rounded-pill bg-opacity-75 text-sm py-1"> Inactive</span> {% endif %}</dd></dl></div></div>
+
+
+
+

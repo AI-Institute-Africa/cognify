@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+        <div class="card-header bg-white py-3 d-flex align-items-center justify-content-between border-0">
+            <div><h5 class="mb-0 fw-bold text-dark"> <i class="fas fa-calendar-alt text-primary me-2"></i> My Leave
+                    Requests</h5>
+                <p class="text-muted small mb-0"> Track and manage your leave applications</p></div>
+            <button class="btn btn-primary rounded-pill px-4" id="apply_leave">
+                <i class="fas fa-plus me-2"></i> Apply for Leave</button></div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-muted small text-uppercase">
+                        <tr><th class="ps-4"> Type</th>
+                            <th>Dates</th>
+                            <th>Status</th>
+                            <th>Applied On</th>
+                            <th class="text-end pe-4"> Action</th></tr></thead>
+                    <tbody>{% for leave in leaves %}
+                        <tr><td class="ps-4">
+                                <div class="fw-bold"> {{ leave.leave_type }}</div>
+                                <div class="extra-small text-muted"> {{ leave.reason|truncatechars:30 }}</div></td>
+                            <td><div class="small fw-bold text-white">{{ leave.start_date }} to {{ leave.end_date }}</div>
+                                <span class="badge bg-success text-white px-2 py-1 mt-1 extra-small fw-bold rounded-pill"><i class="fas fa-clock me-1"></i>{{ leave.days }} Days</span></td>
+                            <td>{% if leave.status == 'Pending' %}
+                                <span class="badge bg-warning-soft text-warning rounded-pill px-3"> Pending</span>
+                                {% elif leave.status == 'Approved' %}
+                                <span class="badge bg-success-soft text-success rounded-pill px-3"> Approved</span>
+                                {% elif leave.status == 'Rejected' %}
+                                <span class="badge bg-danger-soft text-danger rounded-pill px-3"> Rejected</span>
+                                {% else %}
+                                <span class="badge bg-secondary-soft text-secondary rounded-pill px-3"> {{ leave.status
+                                    }}</span>
+                                {% endif %}</td>
+                            <td><div class="extra-small text-muted"> {{ leave.date_applied|date:"M d, Y" }}</div></td>
+                            <td class="text-end pe-4">
+                                <div class="dropdown">
+                                    <button class="btn btn-light btn-sm rounded-circle shadow-none"
+                                        data-bs-toggle="dropdown">
+                                        <i class="fas fa-ellipsis-v"></i></button>
+                                    <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg rounded-3">
+                                        {% if leave.status == 'Pending' %}
+                                        <li><a class="dropdown-item py-2 edit_leave" href="javascript:void(0)"
+                                                data-id="{{ leave.id }}"> <i
+                                                    class="fas fa-edit me-2 text-primary"></i> Edit Request</a></li>
+                                        {% endif %}
+                                        <li><a class="dropdown-item py-2 view_comment" href="javascript:void(0)"
+                                                data-comment="{{ leave.supervisor_comment|default:'No comment yet.' }}"> <i
+                                                    class="fas fa-comment-dots me-2 text-info"></i> View Comments</a></li></ul></div></td></tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-center py-5 text-muted">
+                                <i class="fas fa-info-circle mb-2 d-block fa-2x"></i>
+                                No leave requests found.</td></tr>
+                        {% endfor %}</tbody></table></div></div></div></div>
+
+<script>$(function () {
+        $('#apply_leave').click(function () {
+            uni_modal(" <i class='fa fa-plus'></i> Apply for Leave", "{% url 'manage-leave' %}")
+        })
+        $('.edit_leave').click(function () {
+            uni_modal(" <i class='fa fa-edit'></i> Edit Leave Request", "{% url 'manage-leave' %}?id=" + $(this).attr('data-id'))
+        })
+        $('.view_comment').click(function () {
+            alert_toast($(this).attr('data-comment'), 'info')
+        })
+    })</script>
+{% endblock pageContent %}
+
+
+
+

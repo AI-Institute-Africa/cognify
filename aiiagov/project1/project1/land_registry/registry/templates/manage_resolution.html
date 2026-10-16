@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block pageContent %}
+<div class="container py-4" style="max-width:860px;">
+
+    <!-- Header -->
+    <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'view-meeting' meeting.id %}" class="btn btn-sm btn-light rounded-circle me-3 shadow-sm">
+            <i class="fas fa-arrow-left"></i></a>
+        <div><h5 class="fw-bold mb-0"> {% if resolution %}Edit Resolution{% else %}New Resolution{% endif %}</h5>
+            <p class="text-muted small mb-0"> Meeting: <strong>{{ meeting.title }}</strong> — {{ meeting.meeting_date|date:"d M Y" }}</p></div></div>
+
+    <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-4">
+            <form id="resolutionForm">
+                {% csrf_token %}
+                <input type="hidden" name="id" value="{{ resolution.id|default:'None' }}">
+                <input type="hidden" name="meeting" value="{{ meeting.id }}">
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold small"> Resolution Number <span
+                                class="text-danger"> *</span></label>
+                        {{ form.resolution_number }}
+                        <div class="form-text extra-small"> e.g. RES/2026/001</div></div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold small"> Status</label>
+                        {{ form.status }}</div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold small"> Deadline</label>
+                        {{ form.deadline }}</div>
+
+                    <div class="col-12">
+                        <label class="form-label fw-bold small"> Resolution Description <span
+                                class="text-danger"> *</span></label>
+                        {{ form.description }}
+                        <div class="form-text extra-small"> State the resolution clearly and concisely as it was decided.</div></div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small"> Assigned To</label>
+                        <select name="assigned_to" class="form-select border-0 shadow-sm rounded-pill">
+                            <option value=""> — Unassigned —</option>
+                            {% for u in users %}
+                            <option value="{{ u.id }}" {% if resolution and resolution.assigned_to_id == u.id %}selected{% endif %}>
+                                {{ u.get_full_name|default:u.username }}</option>
+                            {% endfor %}</select></div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small"> Linked Records Intelligence Files</label>
+                        <select name="files" class="form-select border-0 shadow-sm rounded-3 select2" multiple>
+                            {% for f in files %}
+                            <option value="{{ f.id }}" {% if resolution and f in resolution.files.all %}selected{% endif %}>
+                                [{{ f.ref_num }}] {{ f.title|truncatechars:50 }}</option>
+                            {% endfor %}</select>
+                        <div class="form-text extra-small"> Hold Ctrl to select multiple files</div></div></div>
+
+                <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                    <a href="{% url 'view-meeting' meeting.id %}" class="btn btn-light rounded-pill px-4"> Cancel</a>
+                    <button type="button" id="saveResolution" class="btn btn-primary rounded-pill px-5">
+                        <i class="fas fa-save me-2"></i> Save Resolution</button></div></form></div></div></div>
+
+<style>.extra-small {
+        font-size: .72rem;
+    }
+
+    .select2-container {
+        width: 100% !important;
+    }</style>
+
+<script>$(function () {
+        $('.select2').select2({ placeholder: "Select linked files..." });
+
+        $('#saveResolution').click(function () {
+            var formData = $('#resolutionForm').serialize();
+            // Manually add multi-select values
+            var files = $('[name="files"]').val();
+            if (files) {
+                formData += '&' + files.map(v => 'files=' + v).join('&');
+            }
+            // Re-serialize without the default from .serialize for files
+            var data = {
+                id: $('[name="id"]').val(),
+                meeting: $('[name="meeting"]').val(),
+                resolution_number: $('[name="resolution_number"]').val(),
+                description: $('[name="description"]').val(),
+                status: $('[name="status"]').val(),
+                deadline: $('[name="deadline"]').val(),
+                assigned_to: $('[name="assigned_to"]').val(),
+                files: $('[name="files"]').val() || [],
+                csrfmiddlewaretoken: $('[name="csrfmiddlewaretoken"]').val()
+            };
+            start_loader();
+            $.ajax({
+                url: "{% url 'save-resolution' %}",
+                method: "POST",
+                data: data,
+                traditional: true, // needed for array params
+                success: function (resp) {
+                    if (resp.status == 'success') {
+                        alert_toast("Resolution saved!", "success");
+                        setTimeout(() => { location.href = "{% url 'view-meeting' meeting.id %}"; }, 1200);
+                    } else {
+                        alert_toast(resp.msg || "Validation failed.", "error");
+                        end_loader();
+                    }
+                },
+                error: function () {
+                    alert_toast("An error occurred.", "error");
+                    end_loader();
+                }
+            });
+        });
+    });</script>
+{% endblock pageContent %}
+
+
+
+

@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% load static %}
+{% block headerContent %}
+<style>
+@keyframes urgentPulse{0%,100%{box-shadow:0 0 0 0 rgba(220,53,69,.4);}50%{box-shadow:0 0 0 8px rgba(220,53,69,0);}}
+
+/* ── Prevent vertical text squishing / tiling in workspace table ── */
+.table-responsive {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    width: 100% !important;
+}
+
+#supplyReqTable {
+    width: 100% !important;
+    min-width: 1100px !important;
+    border-collapse: collapse !important;
+}
+
+#supplyReqTable th,
+#supplyReqTable td {
+    vertical-align: middle !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    padding: 12px 14px !important;
+}
+
+#supplyReqTable th {
+    white-space: nowrap !important;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+}
+
+/* Explicit column behaviors */
+#supplyReqTable .col-ref {
+    white-space: nowrap !important;
+    width: 140px;
+}
+
+#supplyReqTable .col-purpose {
+    min-width: 220px;
+    max-width: 320px;
+    white-space: normal !important;
+    word-break: normal !important;
+    line-height: 1.45;
+}
+
+#supplyReqTable .col-dept {
+    white-space: nowrap !important;
+    width: 140px;
+}
+
+#supplyReqTable .col-items {
+    white-space: nowrap !important;
+    width: 90px;
+    text-align: center;
+}
+
+#supplyReqTable .col-total {
+    white-space: nowrap !important;
+    width: 110px;
+}
+
+#supplyReqTable .col-status {
+    min-width: 260px;
+    white-space: normal !important;
+    word-break: normal !important;
+    line-height: 1.4;
+}
+
+#supplyReqTable .col-date {
+    white-space: nowrap !important;
+    width: 110px;
+}
+
+#supplyReqTable .col-actions {
+    white-space: nowrap !important;
+    width: 200px;
+    text-align: right;
+}
+
+/* Ensure buttons in table NEVER break letters vertically */
+#supplyReqTable .btn {
+    white-space: nowrap !important;
+    word-break: normal !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1.2 !important;
+    padding: 0.35rem 0.85rem !important;
+    font-size: 0.8rem !important;
+}
+
+/* Ensure badges in table NEVER break letters vertically */
+#supplyReqTable .badge {
+    white-space: nowrap !important;
+    word-break: normal !important;
+    display: inline-flex !important;
+    align-items: center !important;
+}
+
+.approver-tag {
+    font-size: 0.76rem;
+    margin-top: 4px;
+    display: block;
+    line-height: 1.35;
+    word-break: normal !important;
+}
+</style>
+{% endblock headerContent %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <h4 class="fw-bold mb-1 text-white"><i class="fas fa-cart-flatbed text-warning me-2"></i>My Purchase Requisitions</h4>
+      <p class="text-muted small mb-0">Track and manage your institutional requisitions with real-time approver accountability</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'supply-requisition-create' %}" class="btn btn-warning rounded-pill px-4 fw-bold shadow-sm">
+        <i class="fas fa-plus me-2"></i>New Requisition
+      </a>
+    </div>
+  </div>
+
+  <div class="glass-card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="card-body p-0">
+      <div class="table-responsive p-3">
+        <table class="table table-hover align-middle mb-0 text-white" id="supplyReqTable">
+          <thead class="bg-dark text-muted text-uppercase">
+            <tr>
+              <th class="col-ref ps-3">Ref #</th>
+              <th class="col-purpose">Purpose / Initiator</th>
+              <th class="col-dept">Department</th>
+              <th class="col-items text-center">Items</th>
+              <th class="col-total">Grand Total</th>
+              <th class="col-status">Status &amp; Approver Accountability</th>
+              <th class="col-date">Date</th>
+              <th class="col-actions text-end pe-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for req in requisitions %}
+            <tr>
+              <!-- 1. Ref # -->
+              <td class="col-ref ps-3">
+                <span class="badge bg-warning bg-opacity-20 text-warning border border-warning border-opacity-25 rounded-pill px-3 py-1 fw-bold font-monospace">
+                  {{ req.ref_number }}
+                </span>
+                {% if req.is_urgent %}
+                  <span class="badge bg-danger ms-1" style="font-size:.65rem; animation: urgentPulse 1.2s ease-in-out infinite;">URGENT</span>
+                {% endif %}
+              </td>
+
+              <!-- 2. Purpose / Initiator -->
+              <td class="col-purpose">
+                <div class="fw-bold text-white small">{{ req.purpose|truncatechars:70 }}</div>
+                <div class="extra-small text-muted mt-1">
+                  <i class="fas fa-user-pen me-1 text-info"></i>Initiator: <strong class="text-light">{{ req.requester.get_full_name|default:req.requester.username }}</strong>
+                </div>
+              </td>
+
+              <!-- 3. Department -->
+              <td class="col-dept small text-muted">{{ req.department.name|default:"General Police" }}</td>
+
+              <!-- 4. Items -->
+              <td class="col-items text-center">
+                <span class="badge bg-secondary bg-opacity-50 text-light rounded-pill px-3 py-1 extra-small">
+                  {{ req.items.count }} item{{ req.items.count|pluralize }}
+                </span>
+              </td>
+
+              <!-- 5. Grand Total -->
+              <td class="col-total fw-bold text-white small font-monospace">${{ req.grand_total|floatformat:2 }}</td>
+
+              <!-- 6. Status & Approver Accountability -->
+              <td class="col-status">
+                {% with a=req.approver_accountability_info %}
+                  {% if a.status_type == 'approved' %}
+                    <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 rounded-pill px-3 py-1 fw-bold">
+                      <i class="fas fa-check-circle me-1"></i>Approved
+                    </span>
+                    <div class="approver-tag text-success">
+                      <i class="fas fa-user-check me-1"></i>{{ a.officer_name }}
+                      <span class="text-muted extra-small">({{ a.officer_role }})</span>
+                    </div>
+                  {% elif a.status_type == 'rejected' %}
+                    <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-50 rounded-pill px-3 py-1 fw-bold">
+                      <i class="fas fa-times-circle me-1"></i>Rejected
+                    </span>
+                    <div class="approver-tag text-danger">
+                      <i class="fas fa-user-xmark me-1"></i>{{ a.officer_name }}
+                      <span class="text-muted extra-small">({{ a.officer_role }})</span>
+                    </div>
+                  {% else %}
+                    <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-50 rounded-pill px-3 py-1 fw-bold">
+                      <i class="fas fa-clock me-1"></i>{{ req.status }}
+                    </span>
+                    <div class="approver-tag text-warning">
+                      <i class="fas fa-user-clock me-1"></i>Holding: <strong>{{ a.officer_name }}</strong>
+                      <div class="text-muted extra-small">{{ a.officer_role }}</div>
+                    </div>
+                  {% endif %}
+                {% endwith %}
+              </td>
+
+              <!-- 7. Date -->
+              <td class="col-date extra-small text-muted text-nowrap">{{ req.date_requested|date:"d M Y" }}</td>
+
+              <!-- 8. Actions -->
+              <td class="col-actions text-end pe-3">
+                <div class="d-flex gap-2 justify-content-end align-items-center flex-nowrap">
+                  <a href="{% url 'track-requisition-movement' req.pk %}" class="btn btn-sm btn-outline-warning rounded-pill px-3 fw-bold" title="Requisition Movement Tracker">
+                    <i class="fas fa-route me-1"></i>Tracker
+                  </a>
+                  <a href="{% url 'supply-requisition-view' req.pk %}" class="btn btn-sm btn-outline-info rounded-pill px-3" title="View Requisition">
+                    <i class="fas fa-eye me-1"></i>View
+                  </a>
+                  <a href="{% url 'supply-requisition-signatories' req.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill px-2" title="Signatories Audit">
+                    <i class="fas fa-pen-nib"></i>
+                  </a>
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="8" class="text-center py-5 text-muted">
+                <i class="fas fa-cart-flatbed fa-3x mb-3 d-block opacity-25"></i>
+                No purchase requisitions found.<br>
+                <a href="{% url 'supply-requisition-create' %}" class="btn btn-warning rounded-pill mt-3 px-4 fw-bold">
+                  <i class="fas fa-plus me-1"></i> Create First Requisition
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+$(function(){
+    if($('#supplyReqTable').length && $.fn.DataTable){
+        $('#supplyReqTable').DataTable({
+            responsive: false,
+            scrollX: false,
+            autoWidth: false,
+            order: [[6, 'desc']],
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search requisitions..."
+            }
+        });
+    }
+});
+</script>
+{% endblock pageContent %}

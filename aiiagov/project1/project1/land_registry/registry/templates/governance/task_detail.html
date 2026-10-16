@@ -1,0 +1,668 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block pageContent %}
+<div class="container-fluid py-4">
+
+    {# ── Breadcrumb ── #}
+    <nav class="mb-4">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="{% url 'project-list' %}"
+                    class="text-decoration-none text-primary">Projects</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'project-detail' task.phase.project.pk %}"
+                    class="text-decoration-none text-primary">{{ task.phase.project.name }}</a></li>
+            {% if task.sprint %}<li class="breadcrumb-item"><a href="{% url 'sprint-detail' task.sprint.pk %}"
+                    class="text-decoration-none text-primary">{{ task.sprint.name }}</a></li>{% endif %}
+            <li class="breadcrumb-item active">{{ task.title }}</li>
+        </ol>
+    </nav>
+
+    <div class="row g-4">
+        {# ── Main Task Card (Left) ── #}
+        <div class="col-lg-8">
+
+            {# Task Header #}
+            <div class="card border-0 shadow mb-4 rounded-4">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <span
+                                class="badge bg-{% if task.priority == 'Critical' %}danger{% elif task.priority == 'High' %}warning text-dark{% elif task.priority == 'Medium' %}info text-dark{% else %}secondary{% endif %} rounded-pill px-3 py-2 me-2">
+                                {{ task.priority }}
+                            </span>
+                            <span
+                                class="badge bg-{% if task.status == 'Done' %}success{% elif task.status == 'In Progress' %}primary{% elif task.status == 'Awaiting Project Leader Approval' %}info text-dark{% elif task.status == 'Blocked' %}danger{% else %}secondary{% endif %} rounded-pill px-3 py-2">
+                                <i class="fas fa-{% if task.status == 'Done' %}check-circle{% elif task.status == 'In Progress' %}spinner fa-spin{% elif task.status == 'Awaiting Project Leader Approval' %}eye{% else %}clock{% endif %} me-1"></i>
+                                {{ task.status }}
+                            </span>
+                        </div>
+                    <div class="d-flex gap-2">
+                        {% if can_edit_task %}
+                        <a href="{% url 'edit-task' task.phase.pk task.pk %}"
+                            class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                            <i class="fas fa-edit me-1"></i> Edit
+                        </a>
+                        {% endif %}
+                        {% if can_reassign_task %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#reassignModal">
+                            <i class="fas fa-exchange-alt me-1"></i> Reassign
+                        </button>
+                        {% endif %}
+                        {% if can_approve_task and task.status == 'Done' %}
+                        <form method="post" style="display:inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="approve">
+                            <button type="submit" class="btn btn-sm btn-success rounded-pill px-3">
+                                <i class="fas fa-check-double me-1"></i> Approve Completion
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    </div>
+                    <h3 class="fw-bold text-dark mb-2">{{ task.title }}</h3>
+                    <p class="text-muted mb-3">{{ task.description|default:"No description provided." }}</p>
+                    <div class="row g-2 small text-muted">
+                        <div class="col-auto"><i class="fas fa-user me-1"></i> <strong>Assigned To:</strong> {{ task.owner.username }}</div>
+                        {% if task.assigned_by %}
+                        <div class="col-auto"><i class="fas fa-user-edit me-1"></i> <strong>Assigned By:</strong> {{ task.assigned_by.username }} 
+                            {% if task.self_assigned %}<span class="badge bg-secondary extra-small ms-1">Self-assigned</span>{% endif %}
+                        </div>
+                        {% endif %}
+                        <div class="col-auto"><i class="fas fa-calendar me-1"></i> <strong>Due:</strong> {{ task.due_date }}</div>
+                        <div class="col-auto"><i class="fas fa-paperclip me-1"></i> <strong>Attachments:</strong> ({{ task.attachments.count }})</div>
+                        {% if task.sprint %}<div class="col-auto"><i class="fas fa-bolt me-1"></i>
+                            <strong>Sprint:</strong> {{ task.sprint.name }}</div>{% endif %}
+                        {% if task.completed_at %}<div class="col-auto text-success"><i class="fas fa-check me-1"></i>
+                            Done {{ task.completed_at|naturaltime }}</div>{% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {# ── Status Update (Owner / PM / Admin only) ── #}
+            {% if can_update_status %}
+            <div class="card border-0 shadow-sm rounded-4 mb-4">
+                <div class="card-body p-3">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="status">
+                        <div class="d-flex align-items-center gap-3 flex-wrap mb-2">
+                            <span class="small fw-semibold text-muted">Update Status:</span>
+                            <div class="d-flex gap-2 flex-wrap">
+                                {% for val, label in task.STATUS_CHOICES %}
+                                <button type="submit" name="status" value="{{ val }}"
+                                    class="btn btn-sm {% if task.status == val %}btn-primary{% else %}btn-outline-secondary{% endif %} rounded-pill px-3">
+                                    {{ label }}
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <textarea name="comment" class="form-control form-control-sm rounded-3 bg-light border-0" rows="2" placeholder="Add a comment/justification (optional)..."></textarea>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% elif not is_task_owner and is_team_member_only %}
+            <div class="glass-panel p-3 mb-4 d-flex align-items-center gap-3 border-start border-4 border-info">
+                <i class="fas fa-eye text-info"></i>
+                <span class="small">You have <strong>read-only</strong> access to this task. Contact your Project Leader to update status.</span>
+            </div>
+            {% endif %}
+
+            {# Linked Documents #}
+            {% if linked_docs %}
+            <div class="card border-0 shadow-sm rounded-4 mb-4">
+                <div class="card-body p-4">
+                    <h6 class="fw-bold mb-3"><i class="fas fa-file-alt me-2 text-primary"></i> Linked Documents</h6>
+                    {% for doc in linked_docs %}
+                    <a href="{% url 'view-file_doc-pk' doc.pk %}"
+                        class="badge bg-light text-primary border me-1 mb-1 px-3 py-2">
+                        <i class="fas fa-file me-1"></i> {{ doc.title|truncatechars:30 }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {# Attachments #}
+            <div class="card border-0 shadow-sm rounded-4 mb-4">
+                <div class="card-body p-4">
+                    <h6 class="fw-bold mb-3"><i class="fas fa-paperclip me-2 text-primary"></i> Attachments ({{ task.attachments.count }})</h6>
+                    {% for att in attachments %}
+                    <div class="d-flex align-items-center gap-2 mb-2 p-2 bg-light rounded-3">
+                        <i class="fas fa-{% if att.external_link %}link{% else %}file-alt{% endif %} text-muted"></i>
+                        <a href="{% if att.external_link %}{{ att.external_link }}{% else %}{{ att.file.url }}{% endif %}" target="_blank"
+                            class="small text-primary fw-semibold text-decoration-none">
+                            {{ att.filename }}
+                            {% if att.external_link %}<i class="fas fa-external-link-alt ms-1 small"></i>{% endif %}
+                        </a>
+                        <span class="extra-small text-muted ms-auto">{{ att.uploaded_at|naturaltime }}</span>
+                    </div>
+                    {% empty %}<p class="text-muted small">No attachments yet.</p>{% endfor %}
+
+            {# Upload Form (Task owner can submit deliverables; PM/Admin can also upload) #}
+                    {% if can_upload_deliverable %}
+                    <form method="post" enctype="multipart/form-data" class="mt-3">
+                        {% csrf_token %}<input type="hidden" name="action" value="attach">
+                        {% if is_task_owner and not is_pm_or_above %}
+                        <div class="alert alert-info border-0 rounded-4 py-2 px-3 mb-2 extra-small">
+                            <i class="fas fa-paper-plane me-1 text-primary"></i>
+                            <strong>Submit your deliverable to the Project Leader</strong> — upload evidence of task completion below.
+                        </div>
+                        {% endif %}
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="extra-small fw-bold text-muted mb-1 d-block"><i class="fas fa-file-upload me-1"></i> Upload File</label>
+                                <input type="file" name="file" class="form-control form-control-sm rounded-pill">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="extra-small fw-bold text-muted mb-1 d-block"><i class="fas fa-link me-1"></i> External Link</label>
+                                <input type="url" name="external_link" class="form-control form-control-sm rounded-pill" placeholder="https://external-link.com">
+                            </div>
+                            <div class="col-12 text-end">
+                                <button type="submit" class="btn btn-sm {% if is_task_owner and not is_pm_or_above %}btn-success{% else %}btn-outline-primary{% endif %} rounded-pill px-4 shadow-sm">
+                                    <i class="fas fa-{% if is_task_owner and not is_pm_or_above %}paper-plane{% else %}upload{% endif %} me-1"></i>
+                                    {% if is_task_owner and not is_pm_or_above %}Submit Deliverables{% else %}Upload Attachments{% endif %}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# Collaboration Hub (Threaded Discussions & Action Items) #}
+            <div class="card border-0 shadow-sm rounded-4">
+                <div class="card-header bg-white border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0 text-primary"><i class="fas fa-comments me-2"></i> Collaboration Hub</h6>
+                    <button class="btn btn-xs btn-primary rounded-pill px-3 fw-bold extra-small" data-bs-toggle="collapse" data-bs-target="#newTaskCommentForm">
+                        <i class="fas fa-plus me-1"></i> New Entry
+                    </button>
+                </div>
+                <div class="card-body p-4">
+                    <!-- New Comment Form -->
+                    <div class="collapse mb-4" id="newTaskCommentForm">
+                        <form action="{% url 'add-comment' %}" method="POST" class="p-3 bg-light rounded-4 shadow-sm border">
+                            {% csrf_token %}
+                            <input type="hidden" name="obj_type" value="Task">
+                            <input type="hidden" name="obj_id" value="{{ task.id }}">
+                             <div class="mb-3 position-relative">
+                                <textarea name="content" id="taskCommentArea" class="form-control rounded-3 border-0 shadow-sm small" rows="3" placeholder="Type message, use @username..." required></textarea>
+                                <div id="mentionSuggestions" class="mention-suggestions shadow-sm border rounded-3 d-none">
+                                    <ul class="list-group list-group-flush"></ul>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div class="d-flex gap-3">
+                                    <div class="form-check form-switch extra-small">
+                                        <input class="form-check-input" type="checkbox" name="is_decision" id="taskDecision">
+                                        <label class="form-check-label fw-semibold text-muted" for="taskDecision">Decision</label>
+                                    </div>
+                                    <div class="form-check form-switch extra-small">
+                                        <input class="form-check-input" type="checkbox" name="is_action_item" id="taskAction">
+                                        <label class="form-check-label fw-semibold text-muted" for="taskAction">Action Item</label>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm rounded-pill px-4 fw-bold">Post Entry</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Threaded Comments -->
+                    <div class="discussion-timeline">
+                        {% for comment in comments %}
+                            <div class="mb-4 d-flex gap-3">
+                                <div class="flex-shrink-0">
+                                    <div class="rounded-circle bg-primary-subtle d-flex align-items-center justify-content-center text-primary fw-bold" style="width: 36px; height: 36px; font-size: 0.8rem;">
+                                        {{ comment.author.username|slice:":1"|upper }}
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="p-3 rounded-4 shadow-sm border {% if comment.is_decision %}bg-info-subtle border-info{% elif comment.is_action_item %}bg-warning-subtle border-warning{% else %}bg-white{% endif %}">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="extra-small fw-bold text-dark">{{ comment.author.username }}</span>
+                                            <span class="extra-small text-muted">{{ comment.created_at|naturaltime }}</span>
+                                        </div>
+                                        <p class="small mb-2 text-dark">{{ comment.content|linebreaksbr }}</p>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex gap-2">
+                                                {% if comment.is_decision %}
+                                                <span class="badge bg-info rounded-pill extra-small" style="font-size:0.6rem;">DECISION</span>
+                                                {% endif %}
+                                                {% if comment.is_action_item %}
+                                                <span class="badge bg-warning text-dark rounded-pill extra-small" style="font-size:0.6rem;">
+                                                    ACTION {% if comment.is_resolved %}(Done){% endif %}
+                                                </span>
+                                                {% endif %}
+                                            </div>
+                                            <button class="btn btn-link btn-sm text-decoration-none extra-small fw-bold p-0" data-bs-toggle="collapse" data-bs-target="#replyFormTask{{ comment.id }}">
+                                                Reply
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="ms-4 mt-2 discussion-replies border-start ps-3">
+                                        {% for reply in comment.replies.all %}
+                                        <div class="mb-2 p-2 rounded-3 bg-light border-0 shadow-sm extra-small">
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="fw-bold text-dark">{{ reply.author.username }}</span>
+                                                <span class="text-muted">{{ reply.created_at|naturaltime }}</span>
+                                            </div>
+                                            <div class="text-secondary">{{ reply.content }}</div>
+                                        </div>
+                                        {% endfor %}
+                                        <div class="collapse" id="replyFormTask{{ comment.id }}">
+                                            <form action="{% url 'add-comment' %}" method="POST" class="mt-2">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="obj_type" value="Task">
+                                                <input type="hidden" name="obj_id" value="{{ task.id }}">
+                                                <input type="hidden" name="parent_id" value="{{ comment.id }}">
+                                                <div class="input-group input-group-sm">
+                                                    <input type="text" name="content" class="form-control rounded-start-pill border-primary border-opacity-25" placeholder="Write a reply..." required>
+                                                    <button class="btn btn-primary rounded-end-pill px-3" type="submit">Send</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% empty %}
+                        <div class="text-center py-4 text-muted extra-small">
+                            <p class="mb-0">No entries yet. Start the collaboration!</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# ── Sidebar ── #}
+        <div class="col-lg-4">
+            {# Institutional Context (Deep Integration) #}
+            <div class="card border-0 shadow-sm rounded-4 mb-3" style="background: linear-gradient(to bottom right, #f8f9fa, #e9ecef);">
+                <div class="card-body p-4">
+                    <h6 class="fw-bold mb-3 text-secondary"><i class="fas fa-landmark me-2"></i> Institutional Context</h6>
+                    
+                    {# Physical File #}
+                    <div class="mb-3">
+                        <label class="extra-small fw-bold text-muted text-uppercase d-block mb-1">Physical File Trail</label>
+                        {% if task.physical_file %}
+                        <div class="d-flex align-items-center justify-content-between bg-white p-2 rounded-3 border">
+                            <span class="small text-dark truncate"><i class="fas fa-folder-open text-warning me-2"></i>{{ task.physical_file.ref_num }}</span>
+                            {% if is_pm_or_above %}
+                            <form action="" method="POST" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="unlink_entity">
+                                <input type="hidden" name="entity_type" value="physical_file">
+                                <button type="submit" class="btn btn-link btn-sm text-danger p-0"><i class="fas fa-times-circle"></i></button>
+                            </form>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <button class="btn btn-xs btn-outline-secondary w-100 rounded-pill extra-small" data-bs-toggle="modal" data-bs-target="#linkFileModal">
+                            <i class="fas fa-link me-1"></i> Link Physical File
+                        </button>
+                        {% endif %}
+                    </div>
+
+                    {# Requisition #}
+                    <div class="mb-3">
+                        <label class="extra-small fw-bold text-muted text-uppercase d-block mb-1">Financial Requisition</label>
+                        {% if task.linked_requisition %}
+                        <div class="d-flex align-items-center justify-content-between bg-white p-2 rounded-3 border">
+                            <span class="small text-dark truncate">
+                                <i class="fas fa-file-invoice-dollar text-success me-2"></i>{{ task.linked_requisition.item_name }}
+                            </span>
+                            <form action="" method="POST" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="unlink_entity">
+                                <input type="hidden" name="entity_type" value="requisition">
+                                <button type="submit" class="btn btn-link btn-sm text-danger p-0"><i class="fas fa-times-circle"></i></button>
+                            </form>
+                        </div>
+                        {% else %}
+                        <button class="btn btn-xs btn-outline-secondary w-100 rounded-pill extra-small" data-bs-toggle="modal" data-bs-target="#linkReqModal">
+                            <i class="fas fa-link me-1"></i> Link Requisition
+                        </button>
+                        {% endif %}
+                    </div>
+
+                    {# Contract #}
+                    <div class="mb-3">
+                        <label class="extra-small fw-bold text-muted text-uppercase d-block mb-1">Active Contract</label>
+                        {% if task.linked_contract %}
+                        <div class="d-flex align-items-center justify-content-between bg-white p-2 rounded-3 border">
+                            <span class="small text-dark truncate">
+                                <i class="fas fa-file-contract text-primary me-2"></i>{{ task.linked_contract.contract_ref }}
+                            </span>
+                            <form action="" method="POST" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="unlink_entity">
+                                <input type="hidden" name="entity_type" value="contract">
+                                <button type="submit" class="btn btn-link btn-sm text-danger p-0"><i class="fas fa-times-circle"></i></button>
+                            </form>
+                        </div>
+                        {% else %}
+                        <button class="btn btn-xs btn-outline-secondary w-100 rounded-pill extra-small" data-bs-toggle="modal" data-bs-target="#linkContractModal">
+                            <i class="fas fa-link me-1"></i> Link Contract
+                        </button>
+                        {% endif %}
+                    </div>
+
+                    {# Meeting Resolution #}
+                    <div class="mb-0">
+                        <label class="extra-small fw-bold text-muted text-uppercase d-block mb-1">Meeting Resolution</label>
+                        {% if task.linked_resolution %}
+                        <div class="d-flex align-items-center justify-content-between bg-white p-2 rounded-3 border">
+                            <span class="small text-dark truncate"><i class="fas fa-gavel me-2"></i>Res #{{ task.linked_resolution.resolution_number }}</span>
+                            <form action="" method="POST" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="unlink_entity">
+                                <input type="hidden" name="entity_type" value="resolution">
+                                <button type="submit" class="btn btn-link btn-sm text-danger p-0"><i class="fas fa-times-circle"></i></button>
+                            </form>
+                        </div>
+                        {% else %}
+                        <button class="btn btn-xs btn-outline-secondary w-100 rounded-pill extra-small" data-bs-toggle="modal" data-bs-target="#linkResModal">
+                            <i class="fas fa-link me-1"></i> Link Resolution
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm rounded-4 mb-3">
+                <div class="card-body p-4">
+                    <h6 class="fw-bold mb-3"><i class="fas fa-history me-2 text-primary"></i> Institutional Audit Trail</h6>
+                    <div class="timeline-audit small" style="max-height: 250px; overflow-y: auto;">
+                        {% for log in task.phase.project.project_logs.all|dictsortreversed:"created_at"|slice:":20" %}
+                        <div class="mb-3 border-start ps-3 pb-2" style="border-width: 2px !important;">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="extra-small fw-900 text-dark">{{ log.user.username }}</span>
+                                <span class="extra-small text-muted">{{ log.created_at|naturaltime }}</span>
+                            </div>
+                            <p class="extra-small text-muted mb-0">{{ log.message }}</p>
+                        </div>
+                        {% empty %}
+                        <p class="extra-small text-muted">No audit trail recorded.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm rounded-4 mb-3">
+                <div class="card-body p-4">
+                    <h6 class="fw-bold mb-3"><i class="fas fa-info-circle me-2 text-primary"></i> Task Details</h6>
+                    <div class="small mb-2"><span class="text-muted">Project:</span> <strong>{{ task.phase.project.name }}</strong></div>
+                    <div class="small mb-2"><span class="text-muted">Phase:</span> <strong>{{ task.phase.name }}</strong></div>
+                    {% if task.sprint %}<div class="small mb-2"><span class="text-muted">Sprint:</span> <strong>{{ task.sprint.name }}</strong></div>{% endif %}
+                    <div class="small mb-2"><span class="text-muted">Priority:</span> <strong>{{ task.priority }}</strong></div>
+                    <div class="small mb-2"><span class="text-muted">Due:</span> <strong>{{ task.due_date }}</strong></div>
+                    <div class="small mb-2"><span class="text-muted">Assigned:</span> <strong>{{ task.owner.username }}</strong></div>
+                    <hr class="my-3">
+                    <a href="{% url 'project-detail' task.phase.project.pk %}" class="btn btn-outline-dark rounded-pill w-100 btn-sm">
+                        <i class="fas fa-arrow-left me-1"></i> Back to Project
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .extra-small { font-size: .72rem; }
+    .truncate { display: inline-block; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+    
+    /* Mention Suggestions Styles */
+    .mention-suggestions {
+        position: absolute;
+        z-index: 1050;
+        background: white;
+        width: 200px;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    .mention-suggestions .list-group-item {
+        cursor: pointer;
+        padding: 5px 12px;
+        font-size: 0.8rem;
+    }
+    .mention-suggestions .list-group-item:hover {
+        background-color: #f8f9fa;
+        color: #0d6efd;
+    }
+</style>
+
+<script>
+$(document).ready(function() {
+    let eligibleUsers = [];
+    const $textarea = $('#taskCommentArea');
+    const $suggestions = $('#mentionSuggestions');
+    const $list = $suggestions.find('ul');
+
+    // Fetch eligible users
+    $.getJSON("{% url 'get-mention-users' %}", function(data) {
+        eligibleUsers = data.users;
+    });
+
+    $textarea.on('input keyup click', function(e) {
+        const text = $(this).val();
+        const cursorPosition = this.selectionStart;
+        const lastAtChar = text.lastIndexOf('@', cursorPosition - 1);
+
+        if (lastAtChar !== -1) {
+            const query = text.substring(lastAtChar + 1, cursorPosition);
+            if (!query.includes(' ')) {
+                filterMentions(query, lastAtChar);
+                return;
+            }
+        }
+        $suggestions.addClass('d-none');
+    });
+
+    function filterMentions(query, atIndex) {
+        const filtered = eligibleUsers.filter(u => 
+            u.username.toLowerCase().startsWith(query.toLowerCase())
+        );
+
+        if (filtered.length > 0) {
+            $list.empty();
+            filtered.forEach(user => {
+                const $item = $(`<li class="list-group-item">${user.username}</li>`);
+                $item.on('click', function() {
+                    const text = $textarea.val();
+                    const before = text.substring(0, atIndex);
+                    const after = text.substring($textarea[0].selectionStart);
+                    $textarea.val(before + '@' + user.username + ' ' + after);
+                    $suggestions.addClass('d-none');
+                    $textarea.focus();
+                });
+                $list.append($item);
+            });
+
+            // Position suggestions below the textarea
+            $suggestions.css({
+                top: $textarea.outerHeight() + 'px',
+                left: '0px',
+                width: '100%'
+            }).removeClass('d-none');
+        } else {
+            $suggestions.addClass('d-none');
+        }
+    }
+
+    // Helper to estimate caret position for positioning the dropdown
+    function getCaretCoordinates(element, position) {
+        const { offsetLeft: left, offsetTop: top } = element;
+        return { left: 15, top: 40 }; // Simplified positioning for this UI
+    }
+
+    // Hide suggestions on click outside
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('.position-relative').length) {
+            $suggestions.addClass('d-none');
+        }
+    });
+});
+</script>
+
+{# LINKING MODALS #}
+
+{# Physical File Modal #}
+<div class="modal fade" id="linkFileModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-0 pb-0 px-4 pt-4">
+                <h6 class="fw-bold mb-0">Link Physical File</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="list-group list-group-flush" style="max-height: 350px; overflow-y: auto;">
+                    {% for f in all_files %}
+                    <div class="list-group-item border-0 rounded-3 mb-2 bg-light d-flex justify-content-between align-items-center p-3">
+                        <div class="small">
+                            <div class="fw-bold text-dark">{{ f.ref_num }}</div>
+                            <div class="extra-small text-muted">{{ f.title|truncatechars:40 }}</div>
+                        </div>
+                        <form action="" method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="link_entity">
+                            <input type="hidden" name="entity_type" value="physical_file">
+                            <input type="hidden" name="entity_id" value="{{ f.id }}">
+                            <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold shadow-sm">Link</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Requisition Modal #}
+<div class="modal fade" id="linkReqModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-0 pb-0 px-4 pt-4">
+                <h6 class="fw-bold mb-0">Link Requisition</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="list-group list-group-flush" style="max-height: 350px; overflow-y: auto;">
+                    {% for r in all_requisitions %}
+                    <div class="list-group-item border-0 rounded-3 mb-2 bg-light d-flex justify-content-between align-items-center p-3">
+                        <div class="small">
+                            <div class="fw-bold text-dark">{{ r.item_name|truncatechars:35 }}</div>
+                            <div class="extra-small text-muted">Amt: {{ r.total_amount }} | {{ r.status }}</div>
+                        </div>
+                        <form action="" method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="link_entity">
+                            <input type="hidden" name="entity_type" value="requisition">
+                            <input type="hidden" name="entity_id" value="{{ r.id }}">
+                            <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold shadow-sm">Link</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Contract Modal #}
+<div class="modal fade" id="linkContractModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-0 pb-0 px-4 pt-4">
+                <h6 class="fw-bold mb-0">Link Contract</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="list-group list-group-flush" style="max-height: 350px; overflow-y: auto;">
+                    {% for c in all_contracts %}
+                    <div class="list-group-item border-0 rounded-3 mb-2 bg-light d-flex justify-content-between align-items-center p-3">
+                        <div class="small">
+                            <div class="fw-bold text-dark">{{ c.contract_ref }}</div>
+                            <div class="extra-small text-muted">{{ c.title|truncatechars:40 }}</div>
+                        </div>
+                        <form action="" method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="link_entity">
+                            <input type="hidden" name="entity_type" value="contract">
+                            <input type="hidden" name="entity_id" value="{{ c.id }}">
+                            <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold shadow-sm">Link</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Resolution Modal #}
+<div class="modal fade" id="linkResModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-0 pb-0 px-4 pt-4">
+                <h6 class="fw-bold mb-0">Link Resolution</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="list-group list-group-flush" style="max-height: 350px; overflow-y: auto;">
+                    {% for res in all_resolutions %}
+                    <div class="list-group-item border-0 rounded-3 mb-2 bg-light d-flex justify-content-between align-items-center p-3">
+                        <div class="small">
+                            <div class="fw-bold text-dark">Res #{{ res.resolution_number }}</div>
+                            <div class="extra-small text-muted">{{ res.meeting.title|truncatechars:40 }}</div>
+                        </div>
+                        <form action="" method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="link_entity">
+                            <input type="hidden" name="entity_type" value="resolution">
+                            <input type="hidden" name="entity_id" value="{{ res.id }}">
+                            <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold shadow-sm">Link</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Reassign Task Modal #}
+<div class="modal fade" id="reassignModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-0 pb-0 px-4 pt-4">
+                <h6 class="fw-bold mb-0"><i class="fas fa-exchange-alt me-2 text-primary"></i> Reassign Task</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="small text-muted mb-4">Select an approved project member to take ownership of this task.</p>
+                <form action="{% url 'update-task' task.pk %}" method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="reassign">
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold">Select New Owner</label>
+                        <select name="owner" class="form-select rounded-pill" required>
+                            <option value="" disabled selected>Select member...</option>
+                            {% for member in project_members %}
+                            <option value="{{ member.pk }}" {% if member.pk == task.owner_id %}disabled{% endif %}>
+                                {{ member.username }} {% if member.pk == task.owner_id %}(Current Owner){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary rounded-pill py-2 fw-bold shadow-sm">
+                            Confirm Reassignment
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock pageContent %}

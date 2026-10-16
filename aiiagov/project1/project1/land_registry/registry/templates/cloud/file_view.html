@@ -1,0 +1,339 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<style>.glass-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+    }
+
+    .file-preview-placeholder {
+        height: 400px;
+        background: #1e1e1e;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .watermark {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-45deg);
+        font-size: 5rem;
+        color: rgba(255, 255, 255, 0.03);
+        pointer-events: none;
+        white-space: nowrap;
+        text-transform: uppercase;
+        font-weight: bold;
+    }
+
+    .version-item {
+        border-left: 3px solid rgba(255, 255, 255, 0.1);
+        transition: border-color 0.3s;
+    }
+
+    .version-item:hover {
+        border-left-color: #007bff;
+    }</style>
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb bg-transparent p-0 mb-2">
+                    <li class="breadcrumb-item"> <a href="{% url 'cloud-dashboard' %}" class="text-white-50"> Cloud
+                            Vault</a></li>
+                    <li class="breadcrumb-item"> <a href="{% url 'cloud-dashboard' %}?folder={{ file.folder.id }}"
+                            class="text-white-50"> {{ file.folder.name }}</a></li>
+                    <li class="breadcrumb-item active text-white" aria-current="page"> {{ file.name }}</li></ol></nav>
+            <h1 class="text-white"> {{ file.name }}</h1></div>
+        <div class="col-auto">
+            <form action="{% url 'cloud-delete-file' file.id %}" method="POST" class="d-inline-block me-2">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger" onclick="return confirm('Delete document {{ file.name }}?');">
+                    <i class="fas fa-trash me-2"></i> Delete Document</button>
+            </form>
+            <button class="btn btn-outline-light me-2" data-bs-toggle="modal" data-bs-target="#shareModal">
+                <i class="fas fa-share-alt me-2"></i> Share Securely</button>
+            <a href="{{ file.latest_version.file_content.url }}" class="btn btn-primary" download>
+                <i class="fas fa-download me-2"></i> Download Latest</a></div></div>
+
+    <div class="row">
+        <!-- Main Content: Preview & Logs -->
+        <div class="col-lg-8">
+            <div class="glass-card p-4 mb-4">
+                <h5 class="text-white mb-4"> Secure Preview</h5>
+                <div class="file-preview-placeholder mb-4" style="height: 550px; position: relative; overflow: hidden; background: #2b2b2b;">
+                    <!-- Real-time Surveillance Watermark Overlay -->
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; z-index: 10; overflow: hidden;">
+                        <div style="transform: rotate(-30deg); font-size: 2.2rem; font-weight: 900; color: rgba(255, 255, 255, 0.05); text-transform: uppercase; white-space: nowrap; letter-spacing: 2px;">
+                            {{ request.user.department.name|default:"INTERNAL" }} SURVEILLANCE
+                        </div>
+                        <div style="transform: rotate(-30deg); font-size: 1.2rem; font-weight: bold; color: rgba(255, 255, 255, 0.03); white-space: nowrap; margin-top: 1rem; letter-spacing: 1px;">
+                            INSTITUTIONAL SURVEILLANCE ACTIVE • {{ request.user.username }}
+                        </div>
+                    </div>
+                    
+                    {% if ".pdf" in file.name|lower or ".pdf" in file.latest_version.file_content.name|lower %}
+                        <iframe src="{{ file.latest_version.file_content.url }}#toolbar=0" style="width: 100%; height: 100%; border: none; background: #fff; z-index: 1;"></iframe>
+                    {% else %}
+                        <div class="text-center p-5" style="z-index: 1;">
+                            <i class="fas fa-file-word fa-5x text-white-50 mb-3"></i>
+                            <h4 class="text-white"> Document Preview</h4>
+                            <p class="text-white-50">This document is watermarked for {{ request.user.department.name|default:"internal" }} surveillance.</p>
+                            <small class="text-muted">Direct browser embedding restricted for high-governance Word/non-PDF documents.</small>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <h5 class="text-white mb-3"> Audit Trail (Recent)</h5>
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover table-borderless align-middle"
+                        style="background: transparent;">
+                        <thead><tr class="text-white-50">
+                                <th>Timestamp</th>
+                                <th>Entity</th>
+                                <th>Action</th>
+                                <th>Version</th>
+                                <th>Origin</th></tr></thead>
+                        <tbody>{% for log in access_logs %}
+                            <tr><td>{{ log.timestamp|date:"M d, H:i" }}</td>
+                                <td>{{ log.user.username|default:"Public Share" }}</td>
+                                <td><span class="badge bg-secondary"> {{ log.action }}</span></td>
+                                <td>v{{ log.version.version_number }}</td>
+                                <td class="small"> {{ log.ip_address }}</td></tr>
+                            {% endfor %}</tbody></table></div></div></div>
+
+        <!-- Sidebar: Meta & Versions -->
+        <div class="col-lg-4">
+            <!-- Metadata Card -->
+            <div class="glass-card p-4 mb-4">
+                <h5 class="text-white mb-3"> Governance Info</h5>
+                <div class="mb-3">
+                    <label class="text-white-50 small d-block"> Department</label>
+                    <span class="text-white"> {{ file.folder.department.name }}</span></div>
+                <div class="mb-3">
+                    <label class="text-white-50 small d-block"> Project Context</label>
+                    <span class="text-white"> {{ file.folder.project_context|default:"N/A" }}</span></div>
+                <div class="mb-3">
+                    <label class="text-white-50 small d-block"> Owner</label>
+                    <span class="text-white"> {{ file.owner.get_full_name|default:file.owner.username }}</span></div>
+                <div class="mb-0">
+                    <label class="text-white-50 small d-block"> Status</label>
+                    <span class="badge bg-success"> {{ file.status }}</span>
+                    {% if file.is_internal_only %}
+                    <span class="badge bg-danger ms-2"> INTERNAL ONLY</span>
+                    {% endif %}</div></div>
+
+            <!-- Version History -->
+            <div class="glass-card p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="text-white mb-0"> Version History</h5>
+                    <button class="btn btn-sm btn-glass" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                        <i class="fas fa-plus"></i></button></div>
+                <div class="version-list">
+                    {% for v in versions %}
+                    <div class="version-item p-3 mb-2 bg-dark rounded">
+                        <div class="d-flex justify-content-between mb-1">
+                            <strong class="text-white"> v{{ v.version_number }}</strong>
+                            <small class="text-white-50"> {{ v.created_at|date:"M d, Y" }}</small></div>
+                        <p class="small text-white-50 mb-2"> {{ v.commit_message|default:"New version uploaded." }}</p>
+                        <div class="d-flex gap-2">
+                            <a href="{{ v.file_content.url }}" class="btn btn-sm btn-glass py-0" download> Download</a>
+                            {% if not forloop.first %}
+                            <button class="btn btn-sm btn-link text-white-50 text-decoration-none py-0"
+                                onclick="confirmRollback({{ v.version_number }})"> Rollback to here</button>
+                            {% endif %}</div></div>
+                    {% endfor %}</div></div></div></div></div>
+
+<!-- Upload New Version Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog modal-dark">
+        <div class="modal-content glass-card border-0">
+            <form action="{% url 'cloud-upload-version' file.id %}" method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-header border-bottom border-white-10">
+                    <h5 class="modal-title text-white"> Upload New Version</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-white-50"> Select File</label>
+                        <input type="file" name="file" class="form-control bg-dark text-white border-white-10" required></div>
+                    <div class="mb-3">
+                        <label class="form-label text-white-50"> Change Log / Commit Message</label>
+                        <textarea name="commit_message" class="form-control bg-dark text-white border-white-10" rows="3"
+                            required placeholder="What changes were made in this version?"></textarea></div></div>
+                <div class="modal-footer border-top border-white-10">
+                    <button type="button" class="btn btn-glass" data-bs-dismiss="modal"> Cancel</button>
+                    <button type="submit" class="btn btn-primary"> Commit Changes</button></div></form></div></div></div>
+
+<!-- Share Modal — Institutional Secure Sharing -->
+<div class="modal fade" id="shareModal" tabindex="-1">
+    <div class="modal-dialog modal-dark">
+        <div class="modal-content glass-card border-0">
+            <div class="modal-header border-bottom border-white-10">
+                <h5 class="modal-title text-white"><i class="fas fa-shield-alt me-2 text-primary"></i> Institutional Secure Sharing</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-white-50 small mb-4">
+                    Generate an encrypted link with a specific expiry date. All access is watermarked and logged in the audit trail.
+                </p>
+
+                <!-- Options -->
+                <div id="shareOptions">
+                    <div class="mb-3">
+                        <label class="form-label text-white-50">Link Expiry</label>
+                        <select id="shareExpiry" class="form-select bg-dark text-white border-secondary">
+                            <option value="24h">24 Hours</option>
+                            <option value="7d" selected>7 Days</option>
+                            <option value="30d">30 Days</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white-50">Access Level</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="allowDl" checked disabled>
+                            <label class="form-check-label text-white" for="allowDl">Watermarked Preview Only</label>
+                        </div>
+                    </div>
+                    <div class="alert alert-info py-2" style="font-size:0.8rem;">
+                        <i class="fas fa-info-circle me-1"></i> Sharing outside the institutional domain requires high-level clearance.
+                    </div>
+                </div>
+
+                <!-- Result (hidden until token generated) -->
+                <div id="shareResult" class="d-none">
+                    <div class="alert alert-success py-2 mb-3">
+                        <i class="fas fa-check-circle me-1"></i> Secure link generated successfully!
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label text-white-50 small">Secure Link</label>
+                        <div class="input-group">
+                            <input type="text" id="shareUrl" class="form-control bg-dark text-white border-secondary" readonly>
+                            <button class="btn btn-outline-light" type="button" id="copyBtn" onclick="copyShareLink()">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="text-white-50 small mt-2">
+                        <i class="fas fa-clock me-1"></i> Expires: <span id="shareExpiry2" class="text-warning fw-semibold"></span>
+                    </div>
+                    <hr class="border-secondary">
+                    <button class="btn btn-sm btn-outline-secondary text-white-50 w-100" onclick="resetShareModal()">
+                        <i class="fas fa-redo me-1"></i> Generate Another Link
+                    </button>
+                </div>
+
+                <!-- Spinner -->
+                <div id="shareSpinner" class="text-center py-3 d-none">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-white-50 small mt-2">Generating encrypted token…</p>
+                </div>
+
+                <!-- Error -->
+                <div id="shareError" class="alert alert-danger py-2 d-none small"></div>
+            </div>
+            <div class="modal-footer border-top border-white-10" id="shareFooter">
+                <button type="button" class="btn btn-primary w-100" id="generateTokenBtn" onclick="generateSecureToken()">
+                    <i class="fas fa-key me-2"></i> Generate Secure Token
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function confirmRollback(vNum) {
+    if (confirm('Are you sure you want to promote v' + vNum + ' to be the current version? This will create a new commit.')) {
+        alert('Rollback logic triggered for version ' + vNum + '. (View not yet linked)');
+    }
+}
+
+const FILE_ID = {{ file.id }};
+const GENERATE_URL = "{% url 'cloud-generate-share' file.id %}";
+const CSRF_TOKEN = "{{ csrf_token }}";
+
+function generateSecureToken() {
+    const expiry = document.getElementById('shareExpiry').value;
+    const btn = document.getElementById('generateTokenBtn');
+    const spinner = document.getElementById('shareSpinner');
+    const options = document.getElementById('shareOptions');
+    const errorBox = document.getElementById('shareError');
+
+    // Show spinner, hide options + button
+    btn.disabled = true;
+    errorBox.classList.add('d-none');
+    spinner.classList.remove('d-none');
+    options.classList.add('d-none');
+
+    fetch(GENERATE_URL, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': CSRF_TOKEN,
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'expiry=' + encodeURIComponent(expiry),
+    })
+    .then(r => r.json())
+    .then(data => {
+        spinner.classList.add('d-none');
+        if (data.status === 'ok') {
+            document.getElementById('shareUrl').value = data.url;
+            document.getElementById('shareExpiry2').textContent = data.expires_at;
+            document.getElementById('shareResult').classList.remove('d-none');
+            document.getElementById('shareFooter').classList.add('d-none');
+        } else {
+            showShareError(data.error || 'Unexpected error generating token.');
+        }
+    })
+    .catch(err => {
+        spinner.classList.add('d-none');
+        showShareError('Network error: ' + err.message);
+        options.classList.remove('d-none');
+        btn.disabled = false;
+    });
+}
+
+function showShareError(msg) {
+    const errorBox = document.getElementById('shareError');
+    errorBox.textContent = '⚠ ' + msg;
+    errorBox.classList.remove('d-none');
+    document.getElementById('shareOptions').classList.remove('d-none');
+    document.getElementById('generateTokenBtn').disabled = false;
+}
+
+function copyShareLink() {
+    const urlInput = document.getElementById('shareUrl');
+    urlInput.select();
+    navigator.clipboard.writeText(urlInput.value).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.innerHTML = '<i class="fas fa-check text-success"></i>';
+        setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 2000);
+    });
+}
+
+function resetShareModal() {
+    document.getElementById('shareResult').classList.add('d-none');
+    document.getElementById('shareOptions').classList.remove('d-none');
+    document.getElementById('shareFooter').classList.remove('d-none');
+    document.getElementById('generateTokenBtn').disabled = false;
+    document.getElementById('shareError').classList.add('d-none');
+}
+
+// Reset modal state every time it opens
+document.getElementById('shareModal').addEventListener('hidden.bs.modal', resetShareModal);
+</script>
+
+{% endblock pageContent %}
+
+
+
+
+

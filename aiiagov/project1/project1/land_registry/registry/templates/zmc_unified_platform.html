@@ -1,0 +1,85 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-cubes-stacked text-warning me-2"></i> ZRP Unified Integrated Platform Architecture</h3>
+            <p class="text-muted small mb-0">Core Principle: Single-point data capture and automated cross-module reuse across all 13 ZRP Commission modules</p>
+        </div>
+        <a href="{% url 'executive-analytics-dashboard' %}" class="btn btn-warning rounded-pill px-4 fw-bold shadow-sm">
+            <i class="fas fa-chart-line me-2"></i> Executive Dashboard
+        </a>
+    </div>
+
+    <!-- Inter-Module Single Point Data Capture Architecture Banner -->
+    <div class="glass-card p-4 mb-4 border-top border-4 border-warning">
+        <h5 class="fw-bold text-white mb-2"><i class="fas fa-diagram-project text-success me-2"></i> Unified Cross-Module Data Integration Flow</h5>
+        <p class="text-muted small mb-3">When data is captured once anywhere in RIFTS-X, automated signal triggers instantly update all related modules without manual re-entry:</p>
+        
+        <div class="row g-3 text-center">
+            <div class="col-md-2.4">
+                <div class="p-3 bg-dark rounded-3 border border-secondary border-opacity-25 h-100">
+                    <i class="fas fa-file-signature text-warning fs-3 mb-2"></i>
+                    <h6 class="fw-bold text-white mb-1">1. Action Origination</h6>
+                    <div class="extra-small text-muted">Approved Leave / Travel Request Submitted</div>
+                </div>
+            </div>
+            <div class="col-md-2.4">
+                <div class="p-3 bg-dark rounded-3 border border-success border-opacity-25 h-100">
+                    <i class="fas fa-id-card-clip text-success fs-3 mb-2"></i>
+                    <h6 class="fw-bold text-success mb-1">2. Employee Balance</h6>
+                    <div class="extra-small text-muted">Leave balance automatically deducted</div>
+                </div>
+            </div>
+            <div class="col-md-2.4">
+                <div class="p-3 bg-dark rounded-3 border border-info border-opacity-25 h-100">
+                    <i class="fas fa-clock text-info fs-3 mb-2"></i>
+                    <h6 class="fw-bold text-info mb-1">3. Attendance & Away</h6>
+                    <div class="extra-small text-muted">Attendance & Out-of-Office auto-synchronized</div>
+                </div>
+            </div>
+            <div class="col-md-2.4">
+                <div class="p-3 bg-dark rounded-3 border border-primary border-opacity-25 h-100">
+                    <i class="fas fa-shield-check text-primary fs-3 mb-2"></i>
+                    <h6 class="fw-bold text-primary mb-1">4. SHA-256 Audit</h6>
+                    <div class="extra-small text-muted">Cryptographic signature trail & forensic log</div>
+                </div>
+            </div>
+            <div class="col-md-2.4">
+                <div class="p-3 bg-dark rounded-3 border border-danger border-opacity-25 h-100">
+                    <i class="fas fa-bell text-danger fs-3 mb-2"></i>
+                    <h6 class="fw-bold text-danger mb-1">5. Multi-Channel Alert</h6>
+                    <div class="extra-small text-muted">Instant In-System, Email & SMS notification</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 13 Modules Grid -->
+    <h5 class="fw-bold text-white mb-3"><i class="fas fa-grid-2 text-info me-2"></i> 13 Core Integrated ZRP Commission Modules</h5>
+    <div class="row g-3">
+        {% for m in modules_status %}
+        <div class="col-md-4">
+            <div class="glass-card p-4 h-100 border border-secondary border-opacity-25 hover-elevate">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="bg-warning bg-opacity-20 text-warning p-3 rounded-circle">
+                        <i class="{{ m.icon }} fs-3"></i>
+                    </div>
+                    <span class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 rounded-pill px-3 py-1 extra-small fw-bold">
+                        {{ m.badge }}
+                    </span>
+                </div>
+                <h5 class="fw-bold text-white mb-2">{{ m.name }}</h5>
+                <p class="text-muted extra-small mb-3">Fully integrated with ZRP single-point data model, security RBAC, and automated reporting.</p>
+                <a href="{{ m.url }}" class="btn btn-sm btn-outline-warning rounded-pill px-4 fw-bold w-100">
+                    <i class="fas fa-arrow-right me-1"></i> Access Module
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock pageContent %}

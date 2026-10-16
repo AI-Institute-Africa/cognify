@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex align-items-center mb-3">
+        <a href="{% url 'tender-list' %}" class="btn btn-sm btn-light rounded-circle shadow-sm me-3">
+            <i class="fas fa-arrow-left"></i></a>
+        <h3 class="fw-bold mb-0"> Bids for Tender: {{ tender.ref_num }}</h3>
+    </div>
+</div>
+
+<div class="card border-0 shadow-lg rounded-4 overflow-hidden animate__animated animate__fadeInUp">
+    <div class="card-header bg-white border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
+        <div>
+            <h5 class="fw-bold mb-1"> {{ tender.title }}</h5>
+            <p class="text-muted small mb-0"> {{ bids.count }} total bids submitted</p>
+        </div>
+        {% if tender.status != 'Awarded' and tender.status != 'Cancelled' %}
+        <button class="btn btn-primary rounded-pill px-4"
+            onclick="uni_modal('Register New Bid', '{% url 'manage-bid-tender' tender.id %}', 'modal-md')">
+            <i class="fas fa-plus me-2"></i> Register Bid</button>
+        {% endif %}
+    </div>
+    <div class="card-body p-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="bid-table-full">
+                <thead class="bg-light bg-opacity-50 text-uppercase extra-small fw-bold text-muted">
+                    <tr>
+                        <th class="ps-3">Bidder Information</th>
+                        <th>Submission Amount</th>
+                        <th>Evaluation Score</th>
+                        <th>Status</th>
+                        <th class="text-end pe-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for bid in bids %}
+                    <tr>
+                        <td class="ps-3">
+                            <div class="fw-bold text-dark"> {{ bid.bidder_name }}</div>
+                            <div class="text-muted small"> <i class="fas fa-envelope me-1 opacity-50"></i> {{ bid.bidder_email }}</div>
+                        </td>
+                        <td>
+                            <span class="fw-bold text-success"> ${{ bid.amount|intcomma }}</span>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="progress flex-grow-1 me-2" style="height: 6px; width: 100px;">
+                                    <div class="progress-bar bg-{% if bid.evaluation_score > 70 %}success{% elif bid.evaluation_score > 40 %}warning{% else %}danger{% endif %}" 
+                                         role="progressbar" style="width: {{ bid.evaluation_score }}%"></div>
+                                </div>
+                                <span class="fw-bold small">{{ bid.evaluation_score|floatformat:0 }}%</span>
+                            </div>
+                        </td>
+                        <td>
+                            {% if bid.status == 'Successful' %}
+                            <span class="badge bg-success rounded-pill px-3 py-2 extra-small"> Successful / Awarded</span>
+                            {% elif bid.status == 'Unsuccessful' %}
+                            <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-3 py-2 extra-small"> Unsuccessful</span>
+                            {% else %}
+                            <span class="badge bg-light text-muted border rounded-pill px-3 py-2 extra-small"> Pending Review</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-3">
+                            <div class="btn-group shadow-sm rounded-pill overflow-hidden">
+                                <button class="btn btn-sm btn-light" title="Edit Bid"
+                                    onclick="uni_modal('Edit Bid Details', '{% url 'manage-bid-pk' tender.id bid.id %}', 'modal-md')">
+                                    <i class="fas fa-edit text-success"></i></button>
+                                {% if tender.status == 'Evaluation' %}
+                                <a href="{% url 'award-bid' bid.id %}" class="btn btn-sm btn-success text-white px-3"
+                                    onclick="return confirm('Confirm awarding this tender to {{ bid.bidder_name }}?')">
+                                    Award Tender</a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-5">
+                            <div class="text-muted opacity-25 mb-3"> <i class="fas fa-file-invoice-dollar fa-4x"></i></div>
+                            <h6 class="text-muted">No bids have been registered for this tender yet.</h6>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    .extra-small { font-size: 0.75rem; }
+    .shadow-xs { box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+</style>
+
+{% endblock pageContent %}
+
+{% block ScriptBlock %}
+<script>
+    $(function () {
+        $('#bid-table-full').DataTable({
+            order: [[2, 'desc']]
+        });
+    });
+</script>
+{% endblock ScriptBlock %}

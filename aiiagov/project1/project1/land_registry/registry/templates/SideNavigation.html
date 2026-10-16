@@ -1,0 +1,483 @@
+{% load static %}
+<style>
+  :root {
+    --sidebar-width: 220px;
+    --sidebar-collapsed-width: 60px;
+    --sidebar-bg: rgba(6, 13, 31, 0.97);
+    --sidebar-border: rgba(255, 255, 255, 0.08);
+  }
+
+  .ZRP-sidebar {
+    width: var(--sidebar-width) !important;
+    height: 100vh !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    background: var(--sidebar-bg) !important;
+    backdrop-filter: blur(14px) !important;
+    -webkit-backdrop-filter: blur(14px) !important;
+    border-right: 1px solid var(--sidebar-border) !important;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4) !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    z-index: 1040 !important;
+  }
+
+  body.has-sidebar main {
+    margin-left: var(--sidebar-width) !important;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    padding-top: 1.5rem !important;
+  }
+
+  body.has-sidebar footer {
+    margin-left: var(--sidebar-width) !important;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  body.sidebar-collapsed #ZRP-sidebar {
+    width: var(--sidebar-collapsed-width) !important;
+  }
+
+  body.sidebar-collapsed main {
+    margin-left: var(--sidebar-collapsed-width) !important;
+  }
+
+  body.sidebar-collapsed footer {
+    margin-left: var(--sidebar-collapsed-width) !important;
+  }
+
+  @media (max-width: 991.98px) {
+    .ZRP-sidebar {
+      left: -240px !important;
+    }
+    body.mobile-sidebar-open .ZRP-sidebar {
+      left: 0 !important;
+    }
+    body.has-sidebar main {
+      margin-left: 0 !important;
+      padding-top: 4.5rem !important;
+    }
+    body.has-sidebar footer {
+      margin-left: 0 !important;
+    }
+  }
+</style>
+
+<!-- ZRP Mobile Top Header (Visible only on screens < 992px) -->
+<div class="d-lg-none fixed-top glass-panel border-0 rounded-0 px-3 py-2 d-flex align-items-center justify-content-between z-1030 shadow-sm" style="background: rgba(6, 13, 31, 0.97); backdrop-filter: blur(12px);">
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-warning btn-sm border-0 text-white fs-6 p-1" type="button" id="mobileSidebarToggle">
+            <i class="fas fa-bars"></i>
+        </button>
+        <a class="d-flex align-items-center gap-2 text-decoration-none" href="{% url 'home-page' %}">
+            <img src="{% static 'assets/img/zrp_logo.png' %}?v=5.0" alt="ZRP Logo" style="height: 28px; width: 28px; border-radius: 50%; padding: 1px;">
+            <span class="fw-bold text-white small" style="font-size: 0.85rem;">RIFTS-X <span style="color: #D4AF37;">ZRP</span></span>
+        </a>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        {% if user.id %}
+        <a href="{% url 'notifications-center' %}" class="btn btn-outline-light btn-sm rounded-circle position-relative border-0 p-1">
+            <i class="fas fa-bell extra-small"></i>
+        </a>
+        <a href="{% url 'profile-page' %}" class="p-0">
+            <img src="https://ui-avatars.com/api/?name={{user.username}}&background=003EA6&color=D4AF37" alt="Avatar" width="26" height="26" class="rounded-circle border border-warning border-opacity-50">
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Mobile Sidebar Backdrop Overlay -->
+<div id="sidebarBackdrop" class="position-fixed inset-0 bg-dark bg-opacity-75 z-1035 d-none transition-all"></div>
+
+<!-- ZRP Compact Mini Sidebar (220px Slim Layout) -->
+<aside id="ZRP-sidebar" class="ZRP-sidebar d-flex flex-column z-1040 transition-all">
+    <!-- Sidebar Brand Header -->
+    <div class="sidebar-header px-3 py-2.5 d-flex align-items-center justify-content-between border-bottom border-white border-opacity-10">
+        <a href="{% url 'home-page' %}" class="d-flex align-items-center gap-2 text-decoration-none sidebar-brand">
+            <img src="{% static 'assets/img/zrp_logo.png' %}?v=5.0" alt="ZRP Logo" class="sidebar-logo">
+            <div class="sidebar-brand-text lh-1">
+                <div class="fw-bold text-white extra-small" style="letter-spacing: 0.3px; font-size: 0.82rem;">
+                    RIFTS-X <span style="color: #D4AF37;" class="fw-extrabold">ZRP</span>
+                </div>
+                <div class="text-muted extra-small" style="font-size: 0.6rem; opacity: 0.7;">
+                    Police Platform
+                </div>
+            </div>
+        </a>
+        <button type="button" class="btn btn-sm text-muted hover-white p-0 border-0 d-none d-lg-block" id="sidebarCollapseBtn" title="Toggle Sidebar">
+            <i class="fas fa-angles-left text-warning extra-small"></i>
+        </button>
+        <button type="button" class="btn btn-sm text-muted hover-white p-0 border-0 d-lg-none" id="mobileSidebarClose">
+            <i class="fas fa-times extra-small"></i>
+        </button>
+    </div>
+
+    <!-- User Profile Banner + Department Badge + Province/Scope -->
+    {% if user.id %}
+    <div class="sidebar-user-box mx-2 my-2 p-2 rounded-3 bg-dark bg-opacity-50 border border-white border-opacity-10 d-flex align-items-center gap-2">
+        <img src="https://ui-avatars.com/api/?name={{user.username}}&background=003EA6&color=D4AF37" alt="User Avatar" width="28" height="28" class="rounded-circle border border-warning border-opacity-50 flex-shrink-0">
+        <div class="sidebar-user-info lh-sm" style="min-width:0; flex:1;">
+            <div class="fw-bold text-white" style="font-size: 0.75rem; white-space:normal; word-break:break-word;">{{ user.get_full_name|default:user.username }}</div>
+            {% if is_supt_ict %}
+                <span class="badge py-0 px-1" style="font-size:0.58rem; background:#003EA6;">🏅 Supt ICT — Management</span>
+            {% elif is_chief_tech %}
+                <span class="badge py-0 px-1" style="font-size:0.58rem; background:#6d28d9;">📡 Chief Tech — Comms Mgr</span>
+            {% elif is_system_manager %}
+                <span class="badge py-0 px-1" style="font-size:0.58rem; background:#0e7490;">🖥️ Systems Mgr — IT Mgr</span>
+            {% elif is_deputy_director_comms %}
+                <span class="badge py-0 px-1" style="font-size:0.58rem; background:#4338ca;">⚡ DD Communications</span>
+            {% elif is_deputy_director_ict or is_deputy_director_it %}
+                <span class="badge py-0 px-1" style="font-size:0.58rem; background:#0369a1;">🏛️ DD ICT</span>
+            {% elif is_picto %}
+                <span class="badge py-0 px-1" style="font-size:0.58rem; background:#166534;">🗺️ PICTO — {{ user_province }}</span>
+            {% elif is_chief_director %}
+                <span class="badge py-0 px-1" style="font-size:0.58rem; background:#7f1d1d;">⭐ Chief Director</span>
+            {% else %}
+                <span class="badge bg-success py-0 px-1" style="font-size: 0.58rem;">{{ user_role|default:"Officer" }}</span>
+            {% endif %}
+            {% if dept_name %}
+            <div class="d-flex align-items-center gap-1 mt-1">
+                <i class="fas fa-building text-warning" style="font-size: 0.55rem;"></i>
+                <span class="text-warning fw-bold" style="font-size: 0.6rem; white-space:normal; word-break:break-word;">{{ dept_name }}</span>
+            </div>
+            {% endif %}
+            {% if user_province %}
+            <div class="d-flex align-items-center gap-1 mt-1">
+                <i class="fas fa-map-marker-alt text-info" style="font-size: 0.55rem;"></i>
+                <span class="text-info" style="font-size: 0.58rem;">{{ user_province }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Filter Input -->
+    <div class="px-2 pb-2 sidebar-search-box">
+        <input type="text" id="sidebarNavSearch" class="form-control bg-dark text-white border-secondary border-opacity-25 extra-small py-1 px-2" placeholder="Search menu..." style="font-size: 0.72rem; border-radius: 6px;">
+    </div>
+
+    <!-- Slim Navigation Menu — Department-Grouped -->
+    <div class="sidebar-menu-wrapper flex-grow-1 overflow-y-auto px-2 py-1">
+        <ul class="nav nav-pills flex-column gap-1" id="sidebarMenu">
+          {% if request.user.is_authenticated %}
+          {% with sp=request.user.security_profile dept=user_dept role=user_role is_exec=is_exec_or_above %}
+
+            <!-- HOME (everyone) -->
+            <li class="nav-item">
+                <a href="{% url 'home-page' %}?home=1" class="nav-link sidebar-link d-flex align-items-center gap-2 {% if page == 'home' %}active{% endif %}" title="Home">
+                    <i class="fas fa-house-chimney text-success flex-shrink-0" style="font-size:0.82rem;"></i>
+                    <span class="sidebar-text">Home</span>
+                </a>
+            </li>
+
+            <!-- ═══════════════════════════════════════════════
+                 🎯 ICT COMMAND CENTRE — ROLE-SPECIFIC QUICK ACCESS
+                 Shown only to ZRP ICT roles (Supt ICT, Chief Tech, System Manager, PICTO, etc.)
+                 ═══════════════════════════════════════════════ -->
+            {% if is_supt_ict or is_chief_tech or is_system_manager or is_picto or is_chief_director or is_general_police or is_deputy_director_comms or is_deputy_director_it or is_deputy_director_ict %}
+            <li class="sidebar-section-header extra-small fw-bold text-uppercase px-2 mt-2 mb-1" style="font-size:0.6rem; color:#60a5fa; letter-spacing:0.07em;">
+                🎯 ICT Command Centre
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sidebar-link d-flex align-items-center justify-content-between gap-2 text-white" data-bs-toggle="collapse" href="#menuICTCmd" role="button" aria-expanded="true" title="ICT Command">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-shield-halved flex-shrink-0" style="font-size:0.82rem; color:#60a5fa;"></i>
+                        <span class="sidebar-text fw-bold">
+                            {% if is_supt_ict %}Superintendent ICT Command
+                            {% elif is_chief_tech %}Comms & Radio Command (Chief Tech)
+                            {% elif is_system_manager %}IT Systems Command (Systems Mgr)
+                            {% elif is_deputy_director_comms %}Communications Directorate
+                            {% elif is_deputy_director_ict or is_deputy_director_it %}ICT Directorate
+                            {% elif is_picto %}{{ user_province }} Province
+                            {% elif is_chief_director %}Chief Director Executive Command
+                            {% else %}Stores & Operations Command
+                            {% endif %}
+                        </span>
+                    </div>
+                    <i class="fas fa-chevron-right extra-small sidebar-arrow transition-all"></i>
+                </a>
+                <div class="collapse show sidebar-submenu ms-2 mt-1" id="menuICTCmd">
+                    <ul class="nav flex-column gap-1 ps-2 border-start border-info border-opacity-25">
+                        {# Supt ICT — management tier oversight #}
+                        {% if is_supt_ict %}
+                        <li><a class="nav-link sidebar-sublink text-info fw-bold" href="{% url 'admin-operations-dashboard' %}"><i class="fas fa-boxes-packing me-1"></i>Stores Dashboard</a></li>
+                        <li><a class="nav-link sidebar-sublink text-warning" href="{% url 'procurement-analytics-dashboard' %}"><i class="fas fa-chart-bar me-1"></i>Procurement Analytics</a></li>
+                        <li><a class="nav-link sidebar-sublink text-success" href="{% url 'asset-list' %}"><i class="fas fa-boxes-stacked me-1"></i>All Assets (National)</a></li>
+                        <li><a class="nav-link sidebar-sublink" href="{% url 'form27-list' %}"><i class="fas fa-file-invoice me-1 text-primary"></i>All Form 27s</a></li>
+                        <li><a class="nav-link sidebar-sublink text-info" href="{% url 'intelligence-hub' %}"><i class="fas fa-robot me-1"></i>Intel Hub</a></li>
+                        {% endif %}
+
+                        {# Deputy Director Communications — supervises Chief Tech & Comms #}
+                        {% if is_deputy_director_comms %}
+                        <li><a class="nav-link sidebar-sublink text-info fw-bold" href="{% url 'asset-list' %}?scope=comms"><i class="fas fa-walkie-talkie me-1"></i>Comms Assets (Radios)</a></li>
+                        <li><a class="nav-link sidebar-sublink text-success" href="{% url 'goods-received-list' %}"><i class="fas fa-dolly me-1"></i>Goods Received</a></li>
+                        <li><a class="nav-link sidebar-sublink" href="{% url 'form216-list' %}"><i class="fas fa-table-list me-1 text-warning"></i>Form 216 (Stock)</a></li>
+                        <li><a class="nav-link sidebar-sublink text-warning" href="{% url 'admin-operations-dashboard' %}"><i class="fas fa-boxes-packing me-1"></i>Stores Dashboard</a></li>
+                        <li><a class="nav-link sidebar-sublink text-danger" href="{% url 'electronic-approval-center' %}"><i class="fas fa-stamp me-1"></i>Directorate Approvals</a></li>
+                        {% endif %}
+
+                        {# Deputy Director ICT — supervises Systems Manager & Systems #}
+                        {% if is_deputy_director_ict or is_deputy_director_it %}
+                        <li><a class="nav-link sidebar-sublink text-info fw-bold" href="{% url 'asset-list' %}?scope=systems"><i class="fas fa-server me-1"></i>IT Assets (Servers)</a></li>
+                        <li><a class="nav-link sidebar-sublink text-success" href="{% url 'goods-received-list' %}"><i class="fas fa-dolly me-1"></i>Goods Received</a></li>
+                        <li><a class="nav-link sidebar-sublink" href="{% url 'form216-list' %}"><i class="fas fa-table-list me-1 text-warning"></i>Form 216 (Stock)</a></li>
+                        <li><a class="nav-link sidebar-sublink text-warning" href="{% url 'admin-operations-dashboard' %}"><i class="fas fa-boxes-packing me-1"></i>Stores Dashboard</a></li>
+                        <li><a class="nav-link sidebar-sublink text-danger" href="{% url 'electronic-approval-center' %}"><i class="fas fa-stamp me-1"></i>Directorate Approvals</a></li>
+                        {% endif %}
+
+                        {# Systems Manager — IT servers & computing (reports to DD ICT) #}
+                        {% if is_system_manager %}
+                        <li><a class="nav-link sidebar-sublink text-info fw-bold" href="{% url 'asset-list' %}?scope=systems"><i class="fas fa-server me-1"></i>IT Assets (Servers)</a></li>
+                        <li><a class="nav-link sidebar-sublink text-success" href="{% url 'goods-received-list' %}"><i class="fas fa-dolly me-1"></i>Goods Received</a></li>
+                        <li><a class="nav-link sidebar-sublink" href="{% url 'form216-list' %}"><i class="fas fa-table-list me-1 text-warning"></i>Form 216 (Stock)</a></li>
+                        <li><a class="nav-link sidebar-sublink text-warning" href="{% url 'admin-operations-dashboard' %}"><i class="fas fa-boxes-packing me-1"></i>Stores Dashboard</a></li>
+                        {% endif %}
+
+                        {# Chief Tech — comms, radios, VHF/HF (reports to DD Communications) #}
+                        {% if is_chief_tech %}
+                        <li><a class="nav-link sidebar-sublink text-info fw-bold" href="{% url 'asset-list' %}?scope=comms"><i class="fas fa-walkie-talkie me-1"></i>Comms Assets (Radios)</a></li>
+                        <li><a class="nav-link sidebar-sublink text-success" href="{% url 'goods-received-list' %}"><i class="fas fa-dolly me-1"></i>Goods Received</a></li>
+                        <li><a class="nav-link sidebar-sublink" href="{% url 'form216-list' %}"><i class="fas fa-table-list me-1 text-warning"></i>Form 216 (Stock)</a></li>
+                        <li><a class="nav-link sidebar-sublink text-warning" href="{% url 'admin-operations-dashboard' %}"><i class="fas fa-boxes-packing me-1"></i>Stores Dashboard</a></li>
+                        {% endif %}
+
+                        {# Provincial ICT Officer — Harare / province assets & Form 27 signing #}
+                        {% if is_picto %}
+                        <li><a class="nav-link sidebar-sublink text-success fw-bold" href="{% url 'form27-list' %}"><i class="fas fa-file-signature me-1 text-warning"></i>Form 27 (Sign Voucher)</a></li>
+                        <li><a class="nav-link sidebar-sublink text-info" href="{% url 'asset-list' %}"><i class="fas fa-boxes-stacked me-1"></i>{{ user_province }} Assets</a></li>
+                        <li><a class="nav-link sidebar-sublink" href="{% url 'issues-register-list' %}"><i class="fas fa-truck-ramp-box me-1 text-danger"></i>Issues Register</a></li>
+                        <li><a class="nav-link sidebar-sublink text-warning" href="{% url 'electronic-approval-center' %}"><i class="fas fa-stamp me-1"></i>My Approvals</a></li>
+                        {% endif %}
+
+                        {# Chief Director — executive overview over everything #}
+                        {% if is_chief_director %}
+                        <li><a class="nav-link sidebar-sublink text-warning fw-bold" href="{% url 'procurement-analytics-dashboard' %}"><i class="fas fa-chart-line me-1"></i>Procurement Analytics</a></li>
+                        <li><a class="nav-link sidebar-sublink text-info" href="{% url 'admin-operations-dashboard' %}"><i class="fas fa-boxes-packing me-1"></i>Stores Dashboard</a></li>
+                        <li><a class="nav-link sidebar-sublink text-success" href="{% url 'asset-list' %}"><i class="fas fa-boxes-stacked me-1"></i>National Asset Register</a></li>
+                        <li><a class="nav-link sidebar-sublink" href="{% url 'tender-list' %}"><i class="fas fa-gavel me-1 text-warning"></i>Tenders & Bidding</a></li>
+                        <li><a class="nav-link sidebar-sublink text-danger" href="{% url 'electronic-approval-center' %}"><i class="fas fa-stamp me-1"></i>Executive Approvals</a></li>
+                        {% endif %}
+
+                        {# General Police / Stores Officer — operational data entry #}
+                        {% if is_general_police %}
+                        <li><a class="nav-link sidebar-sublink text-success fw-bold" href="{% url 'goods-received-list' %}"><i class="fas fa-dolly me-1"></i>Goods Received (GR)</a></li>
+                        <li><a class="nav-link sidebar-sublink text-info" href="{% url 'issues-register-list' %}"><i class="fas fa-truck-ramp-box me-1"></i>Issues Register</a></li>
+                        <li><a class="nav-link sidebar-sublink" href="{% url 'asset-list' %}"><i class="fas fa-boxes-stacked me-1 text-warning"></i>Asset Register</a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </li>
+            {% endif %}
+
+            <!-- ═══════════════════════════════════════════════
+                 🏛️ MY DEPARTMENT HUB
+                 Shows user's assigned department name & quick links
+                 ═══════════════════════════════════════════════ -->
+            <li class="sidebar-section-header extra-small fw-bold text-uppercase px-2 mt-2 mb-1" style="font-size:0.6rem; color:#F0CE5E; letter-spacing:0.07em;">
+                🏛️ {% if dept %}{{ dept.name }}{% else %}My Department{% endif %} Hub
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link sidebar-link d-flex align-items-center justify-content-between gap-2 text-white" data-bs-toggle="collapse" href="#menuMyDept" role="button" aria-expanded="true" title="My Department">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-building text-warning flex-shrink-0" style="font-size:0.82rem;"></i>
+                        <span class="sidebar-text">{% if dept %}{{ dept.name|truncatechars:18 }}{% else %}My Workspace{% endif %}</span>
+                    </div>
+                    <i class="fas fa-chevron-right extra-small sidebar-arrow transition-all"></i>
+                </a>
+                <div class="collapse show sidebar-submenu ms-2 mt-1" id="menuMyDept">
+                    <ul class="nav flex-column gap-1 ps-2 border-start border-warning border-opacity-25">
+                        <li><a class="nav-link sidebar-sublink text-warning" href="{% url 'supply-requisition-list' %}"><i class="fas fa-cart-flatbed me-1"></i>My Requisitions</a></li>
+                        <li><a class="nav-link sidebar-sublink text-success" href="{% url 'leave-list' %}"><i class="fas fa-calendar-check me-1"></i>My Leave</a></li>
+                        <li><a class="nav-link sidebar-sublink text-info" href="{% url 'employee-self-service' %}"><i class="fas fa-id-card-clip me-1"></i>Self-Service</a></li>
+                        <li><a class="nav-link sidebar-sublink text-warning" href="{% url 'electronic-approval-center' %}"><i class="fas fa-file-signature me-1"></i>My Approvals</a></li>
+                        <li><a class="nav-link sidebar-sublink" href="{% url 'certificates' %}"><i class="fas fa-certificate me-1 text-warning"></i>My Certificates</a></li>
+                        <li><a class="nav-link sidebar-sublink text-info fw-bold" href="{% url 'service-tickets' %}"><i class="fas fa-headset me-1"></i>Service Desk</a></li>
+                        <li><a class="nav-link sidebar-sublink text-warning fw-bold" href="{% url 'notice-board' %}"><i class="fas fa-bullhorn me-1"></i>Notice Board</a></li>
+                    </ul>
+                </div>
+            </li>
+
+            <!-- ═══════════════════════════════════════════════
+                 🛒 PROCUREMENT & SUPPLY CHAIN
+                 Always visible & remains open when active
+                 ═══════════════════════════════════════════════ -->
+            <li class="sidebar-section-header extra-small fw-bold text-uppercase px-2 mt-2 mb-1" style="font-size:0.6rem; color:#F0CE5E; letter-spacing:0.07em;">
+                🛒 Procurement &amp; Stores
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sidebar-link d-flex align-items-center justify-content-between gap-2 text-white {% if '/assets/' in request.path or '/supply_requisition' in request.path or '/procurement/' in request.path %}active{% endif %}" data-bs-toggle="collapse" href="#menuSupply" role="button" aria-expanded="{% if '/assets/' in request.path or '/supply_requisition' in request.path or '/procurement/' in request.path %}true{% else %}false{% endif %}" title="Supply Chain">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-truck-loading text-info flex-shrink-0" style="font-size:0.82rem;"></i>
+                        <span class="sidebar-text">Procurement &amp; Stores</span>
+                    </div>
+                    <i class="fas fa-chevron-right extra-small sidebar-arrow transition-all"></i>
+                </a>
+                <div class="collapse {% if '/assets/' in request.path or '/supply_requisition' in request.path or '/procurement/' in request.path %}show{% endif %} sidebar-submenu ms-2 mt-1" id="menuSupply">
+                    <ul class="nav flex-column gap-1 ps-2 border-start border-warning border-opacity-25">
+                        <li><a class="nav-link sidebar-sublink {% if '/assets/goods-received' in request.path %}active text-warning fw-bold{% else %}text-success{% endif %}" href="{% url 'goods-received-list' %}"><i class="fas fa-dolly me-1"></i>Goods Received Ledger</a></li>
+                        <li><a class="nav-link sidebar-sublink {% if '/assets/' in request.path and not '/assets/goods-received' in request.path and not '/assets/form27' in request.path and not '/assets/form216' in request.path and not '/assets/issues-register' in request.path and not '/assets/board-of-survey' in request.path and not '/assets/tender-procedures' in request.path %}active text-warning fw-bold{% else %}text-info{% endif %}" href="{% url 'asset-list' %}"><i class="fas fa-boxes-stacked me-1"></i>Asset Register</a></li>
+                        <li><a class="nav-link sidebar-sublink {% if '/assets/form27' in request.path %}active text-warning fw-bold{% else %}text-primary{% endif %}" href="{% url 'form27-list' %}"><i class="fas fa-file-invoice me-1"></i>Form 27 (Issue Voucher)</a></li>
+                        <li><a class="nav-link sidebar-sublink {% if '/assets/form216' in request.path %}active text-warning fw-bold{% else %}text-warning{% endif %}" href="{% url 'form216-list' %}"><i class="fas fa-table-list me-1"></i>Form 216 (Stock Card)</a></li>
+                        <li><a class="nav-link sidebar-sublink {% if '/assets/issues-register' in request.path %}active text-warning fw-bold{% else %}text-danger{% endif %}" href="{% url 'issues-register-list' %}"><i class="fas fa-truck-ramp-box me-1"></i>Issues Register</a></li>
+                        <li><a class="nav-link sidebar-sublink {% if '/supply_requisition' in request.path %}active text-warning fw-bold{% endif %}" href="{% url 'supply-requisition-list' %}"><i class="fas fa-cart-flatbed me-1 text-info"></i>Supply Requisitions</a></li>
+                        <li><a class="nav-link sidebar-sublink {% if '/assets/tender-procedures' in request.path %}active text-warning fw-bold{% endif %}" href="{% url 'tender-procedures-list' %}"><i class="fas fa-handshake me-1 text-primary"></i>Tender Procedures</a></li>
+                        <li><a class="nav-link sidebar-sublink {% if '/assets/board-of-survey' in request.path %}active text-warning fw-bold{% endif %}" href="{% url 'board-of-survey-list' %}"><i class="fas fa-balance-scale me-1 text-danger"></i>Board of Survey (BOS)</a></li>
+                        {% if sp.platform == 'RIFTS-X' %}<li><a class="nav-link sidebar-sublink" href="{% url 'tender-list' %}"><i class="fas fa-gavel me-1 text-warning"></i>Tenders &amp; Bidding</a></li>{% endif %}
+                        {% if sp.platform == 'RIFTS-X' %}<li><a class="nav-link sidebar-sublink" href="{% url 'contract-list' %}"><i class="fas fa-file-contract me-1 text-info"></i>Contracts</a></li>{% endif %}
+                        {% if is_exec or request.user.is_superuser %}<li><a class="nav-link sidebar-sublink text-secondary" href="{% url 'admin-operations-dashboard' %}"><i class="fas fa-boxes-packing me-1"></i>Stores Dashboard</a></li>{% endif %}
+                        {% if is_exec or request.user.is_superuser %}<li><a class="nav-link sidebar-sublink text-info" href="{% url 'procurement-analytics-dashboard' %}"><i class="fas fa-cart-shopping me-1"></i>Procurement Analytics</a></li>{% endif %}
+                    </ul>
+                </div>
+            </li>
+
+            <!-- ═══════════════════════════════════════════════
+                 📂 MEDIA REGISTRY & DOCUMENT CONTROL
+                 Visible to Registry dept and RIFTS-X platform users
+                 ═══════════════════════════════════════════════ -->
+            {% if sp.platform == 'RIFTS-X' or is_exec or dept and 'registry' in dept.name|lower or dept and 'record' in dept.name|lower or dept and 'media' in dept.name|lower %}
+            <li class="sidebar-section-header extra-small fw-bold text-uppercase px-2 mt-2 mb-1" style="font-size:0.6rem; color:#94a3b8; letter-spacing:0.07em;">
+                📂 Registry & Records
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sidebar-link d-flex align-items-center justify-content-between gap-2 text-white" data-bs-toggle="collapse" href="#menuRegistry" role="button" aria-expanded="false" title="Media Registry">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-folder-open text-warning flex-shrink-0" style="font-size:0.82rem;"></i>
+                        <span class="sidebar-text">Registry & Records</span>
+                    </div>
+                    <i class="fas fa-chevron-right extra-small sidebar-arrow transition-all"></i>
+                </a>
+                <div class="collapse sidebar-submenu ms-2 mt-1" id="menuRegistry">
+                    <ul class="nav flex-column gap-1 ps-2 border-start border-white border-opacity-10">
+                        <li><a class="nav-link sidebar-sublink" href="{% url 'file_doc-page' %}"><i class="fas fa-folder me-1 text-warning"></i>Physical File Registry</a></li>
+                        <li><a class="nav-link sidebar-sublink" href="{% url 'borrow-page' %}"><i class="fas fa-exchange-alt me-1 text-info"></i>File Transactions</a></li>
+                        <li><a class="nav-link sidebar-sublink" href="{% url 'recipient-dashboard' %}"><i class="fas fa-file-invoice me-1 text-success"></i>Issued Files</a></li>
+                        <li><a class="nav-link sidebar-sublink text-warning" href="{% url 'cloud-dashboard' %}"><i class="fas fa-cloud me-1"></i>Institutional Cloud</a></li>
+                        <li><a class="nav-link sidebar-sublink text-info" href="{% url 'ZRP-institutional-library' %}"><i class="fas fa-book-bookmark me-1"></i>Policy Library</a></li>
+                        {% if sp.platform == 'RIFTS-X' %}<li><a class="nav-link sidebar-sublink text-info" href="{% url 'digital-twin' %}"><i class="fa fa-cube me-1"></i>Digital Twin Vault</a></li>{% endif %}
+                    </ul>
+                </div>
+            </li>
+            {% endif %}
+
+            <!-- ═══════════════════════════════════════════════
+                 🏛️ EXECUTIVE GOVERNANCE & MEETINGS
+                 Visible to all — every user attends meetings
+                 ═══════════════════════════════════════════════ -->
+            <li class="sidebar-section-header extra-small fw-bold text-uppercase px-2 mt-2 mb-1" style="font-size:0.6rem; color:#94a3b8; letter-spacing:0.07em;">
+                🏛️ Governance & Meetings
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sidebar-link d-flex align-items-center justify-content-between gap-2 text-white" data-bs-toggle="collapse" href="#menuMeetings" role="button" aria-expanded="false" title="Meetings & Governance">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-landmark text-warning flex-shrink-0" style="font-size:0.82rem;"></i>
+                        <span class="sidebar-text">Meetings & Minutes</span>
+                    </div>
+                    <i class="fas fa-chevron-right extra-small sidebar-arrow transition-all"></i>
+                </a>
+                <div class="collapse sidebar-submenu ms-2 mt-1" id="menuMeetings">
+                    <ul class="nav flex-column gap-1 ps-2 border-start border-white border-opacity-10">
+                        <li><a class="nav-link sidebar-sublink text-warning" href="{% url 'meetings-dashboard' %}"><i class="fas fa-landmark me-1"></i>Meetings Board</a></li>
+                        <li><a class="nav-link sidebar-sublink text-success" href="{% url 'action-tracking' %}"><i class="fas fa-list-check me-1"></i>Action Tracker</a></li>
+                        <li><a class="nav-link sidebar-sublink text-warning" href="{% url 'electronic-approval-center' %}"><i class="fas fa-file-signature me-1"></i>Electronic Approvals</a></li>
+                        {% if is_exec %}<li><a class="nav-link sidebar-sublink text-warning" href="{% url 'executive-analytics-dashboard' %}"><i class="fas fa-chart-line me-1"></i>Executive Analytics</a></li>{% endif %}
+                        {% if sp.platform == 'Governance' and is_exec %}
+                        <li><a class="nav-link sidebar-sublink text-primary" href="{% url 'project-portfolio' %}"><i class="fas fa-chart-network me-1"></i>Project Portfolio</a></li>
+                        <li><a class="nav-link sidebar-sublink" href="{% url 'executive-dashboard' %}"><i class="fas fa-microchip me-1"></i>Ops Board</a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </li>
+
+            <!-- ═══════════════════════════════════════════════
+                 🧠 INTELLIGENCE & AI
+                 Visible to RIFTS-X platform users
+                 ═══════════════════════════════════════════════ -->
+            {% if sp.platform == 'RIFTS-X' or is_exec %}
+            <li class="sidebar-section-header extra-small fw-bold text-uppercase px-2 mt-2 mb-1" style="font-size:0.6rem; color:#94a3b8; letter-spacing:0.07em;">
+                🧠 Intelligence & AI
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sidebar-link d-flex align-items-center justify-content-between gap-2 text-white" data-bs-toggle="collapse" href="#menuIntel" role="button" aria-expanded="false" title="Intelligence">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-brain flex-shrink-0" style="font-size:0.82rem; color:#a855f7;"></i>
+                        <span class="sidebar-text">Intelligence</span>
+                    </div>
+                    <i class="fas fa-chevron-right extra-small sidebar-arrow transition-all"></i>
+                </a>
+                <div class="collapse sidebar-submenu ms-2 mt-1" id="menuIntel">
+                    <ul class="nav flex-column gap-1 ps-2 border-start border-white border-opacity-10">
+                        {% if request.user.is_superuser %}<li><a class="nav-link sidebar-sublink text-info" href="{% url 'intelligence-hub' %}"><i class="fas fa-robot me-1"></i>Intel Hub</a></li>{% endif %}
+                        <li><a class="nav-link sidebar-sublink" href="{% url 'knowledge-vault' %}"><i class="fas fa-book-reader me-1"></i>Knowledge Vault</a></li>
+                        <li><a class="nav-link sidebar-sublink text-warning" href="{% url 'ai-assistant' %}"><i class="fas fa-magic me-1"></i>AI Assistant</a></li>
+                    </ul>
+                </div>
+            </li>
+            {% endif %}
+
+            <!-- ═══════════════════════════════════════════════
+                 🛡️ SECURITY, AUDIT & SYSTEM ADMIN
+                 Visible to Admins, Auditors, Superusers only
+                 ═══════════════════════════════════════════════ -->
+            {% if is_exec or request.user.is_superuser or request.user.is_staff or role == 'Auditor' or role == 'Department Manager' %}
+            <li class="sidebar-section-header extra-small fw-bold text-uppercase px-2 mt-2 mb-1" style="font-size:0.6rem; color:#94a3b8; letter-spacing:0.07em;">
+                🛡️ Security & Admin
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sidebar-link d-flex align-items-center justify-content-between gap-2 text-warning" data-bs-toggle="collapse" href="#menuAdmin" role="button" aria-expanded="false" title="Admin">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-cogs text-warning flex-shrink-0" style="font-size:0.82rem;"></i>
+                        <span class="sidebar-text fw-bold">Admin & Security</span>
+                    </div>
+                    <i class="fas fa-chevron-right extra-small sidebar-arrow transition-all"></i>
+                </a>
+                <div class="collapse sidebar-submenu ms-2 mt-1" id="menuAdmin">
+                    <ul class="nav flex-column gap-1 ps-2 border-start border-white border-opacity-10">
+                        <li><a class="nav-link sidebar-sublink text-danger" href="{% url 'security-audit-center' %}"><i class="fas fa-shield-halved me-1"></i>Security Audit</a></li>
+                        <li><a class="nav-link sidebar-sublink text-warning" href="{% url 'notifications-center' %}"><i class="fas fa-bell me-1"></i>Notifications</a></li>
+                        {% if request.user.is_superuser %}
+                        <li><a class="nav-link sidebar-sublink text-warning" href="{% url 'user-page' %}"><i class="fas fa-users-gear me-1"></i>User Accounts</a></li>
+                        <li><a class="nav-link sidebar-sublink" href="{% url 'department-page' %}"><i class="fas fa-building me-1 text-muted"></i>Departments</a></li>
+                        <li><a class="nav-link sidebar-sublink text-success" href="{% url 'ZRP-unified-platform' %}"><i class="fas fa-cubes-stacked me-1"></i>Platform Architecture</a></li>
+                        <li><a class="nav-link sidebar-sublink text-danger" href="{% url 'travel-analytics-dashboard' %}"><i class="fas fa-plane me-1"></i>Training & Travel</a></li>
+                        {% if sp.platform == 'RIFTS-X' %}<li><a class="nav-link sidebar-sublink" href="{% url 'asset-depreciation-report' %}"><i class="fas fa-chart-line-down me-1 text-danger"></i>Asset Depreciation</a></li>{% endif %}
+                        {% endif %}
+                    </ul>
+                </div>
+            </li>
+            {% endif %}
+
+          {% endwith %}
+          {% endif %}
+        </ul>
+    </div>
+
+
+
+
+    <!-- Sidebar Footer -->
+    <div class="sidebar-footer p-2 border-top border-white border-opacity-10 bg-dark bg-opacity-60">
+        <div class="d-flex align-items-center justify-content-between px-1">
+            <!-- Dark / Light Switch -->
+            <div class="d-flex align-items-center gap-1 extra-small text-muted">
+                <i class="fas fa-moon text-warning" id="themeIcon" style="font-size: 0.65rem;"></i>
+                <div class="form-check form-switch m-0 p-0">
+                    <input class="form-check-input cursor-pointer" type="checkbox" id="themeToggle" style="width: 26px; height: 13px;">
+                </div>
+            </div>
+
+            <!-- Footer Quick Actions -->
+            <div class="d-flex align-items-center gap-1">
+                <a href="{% url 'notifications-center' %}" class="btn btn-sm text-muted hover-white p-0 px-1 position-relative" title="Notifications">
+                    <i class="fas fa-bell extra-small"></i>
+                    <span id="overdue-count-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display: none; font-size: 0.5rem; padding: 0.15em 0.25em;">0</span>
+                </a>
+                <a href="{% url 'profile-page' %}" class="btn btn-sm text-muted hover-white p-0 px-1" title="Profile Settings">
+                    <i class="fas fa-gear extra-small"></i>
+                </a>
+                <a href="{% url 'logout' %}" class="btn btn-sm text-danger p-0 px-1" title="Log Out">
+                    <i class="fas fa-power-off extra-small"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</aside>

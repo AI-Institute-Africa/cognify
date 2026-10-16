@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container py-5 animate-fade-in">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="glass-panel p-5 animate-slide-up">
+                <div class="text-center mb-5">
+                    <div class="mb-3 text-primary"><i class="fas fa-file-invoice-dollar display-4"></i></div>
+                    <h2 class="fw-bold">Strategic Benefit Record</h2>
+                    <p class="text-muted">Institutional Value Tracking Phase: Governance Registration</p>
+                </div>
+
+                <form method="POST" class="row g-4">
+                    {% csrf_token %}
+                    
+                    <div class="col-12">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Revenue Line / Strategy Description</label>
+                        {{ form.revenue_line }}
+                        <div class="extra-small text-muted mt-1">Provide a clear description of the specific revenue source or cost-saving initiative.</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Departmental Alignment</label>
+                        {{ form.department }}
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Monthly Realized Savings (USD)</label>
+                        {{ form.monthly_savings }}
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Projected Year End (USD)</label>
+                        {{ form.projected_year_end }}
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Total Annual Projection (USD)</label>
+                        {{ form.annual_projection }}
+                    </div>
+
+                    <div class="col-12 mt-5">
+                        <div class="d-flex gap-3">
+                            <button type="submit" class="btn btn-primary rounded-pill px-5 fw-bold shadow-sm">
+                                <i class="fas fa-save me-2"></i> Commit Strategic Record
+                            </button>
+                            <a href="{% url 'benefit-list' %}" class="btn btn-light rounded-pill px-4">Cancel</a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .extra-small { font-size: 0.75rem; }
+    .form-control, .form-select {
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.05);
+        color: #fff;
+    }
+    .form-control:focus, .form-select:focus {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: #0d6efd;
+        color: #fff;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+</style>
+{% endblock pageContent %}

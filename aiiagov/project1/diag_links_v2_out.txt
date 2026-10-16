@@ -1,0 +1,18 @@
+﻿--- All Files ---
+File: R20245TY, Title: TAKUE, Dept: Records Management, Status: available
+File: R202022S, Title: The Rise, Dept: Legal Affairs, Status: borrowed
+File: TEST-FED-001, Title: Federated Test Document, Dept: NONE, Status: external
+File: REF-SCAN-001, Title: Test File for Scanner, Dept: NONE, Status: available
+File: REF-AI-777, Title: AI Verification File, Dept: NONE, Status: available
+
+--- Borrowers ---
+Borrower: 62-3378997x34, Name: Takudzwa Kuwenyi, Dept: NONE
+Borrower: 62-3378997L34, Name: Takudzwa Kuwenyi, Dept: NONE
+Borrower: 65-86736635L65, Name: Patience Mupikeni, Dept: NONE
+
+--- Departments ---
+Dept: Records Management
+Dept: Legal Affairs
+Dept: Survey & Mapping
+Dept: Valuation
+Dept: Customer Service

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% load customfilter %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex align-items-center mb-3">
+        <a href="{% url 'asset-list' %}" class="btn btn-sm btn-light rounded-circle shadow-sm me-3">
+            <i class="fas fa-arrow-left"></i></a>
+        <h3 class="fw-bold mb-0"> Asset Depreciation Report</h3></div></div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-4 animate__animated animate__fadeIn">
+        <div class="card border-0 shadow-sm rounded-4 bg-primary text-white overflow-hidden">
+            <div class="card-body p-4 position-relative">
+                <i class="fas fa-shopping-cart position-absolute top-0 end-0 m-4 opacity-25 fa-3x"></i>
+                <div class="extra-small text-white-50 text-uppercase fw-bold mb-1"> Total Acquisition Cost</div>
+                <div class="h3 fw-bold mb-0"> ${{ total_cost|floatformat:2|intcomma }}</div></div></div></div>
+    <div class="col-md-4 animate__animated animate__fadeIn animate__delay-1s">
+        <div class="card border-0 shadow-sm rounded-4 bg-success text-white overflow-hidden">
+            <div class="card-body p-4 position-relative">
+                <i class="fas fa-chart-line position-absolute top-0 end-0 m-4 opacity-25 fa-3x"></i>
+                <div class="extra-small text-white-50 text-uppercase fw-bold mb-1"> Current Book Value</div>
+                <div class="h3 fw-bold mb-0"> ${{ total_value|floatformat:2|intcomma }}</div></div></div></div>
+    <div class="col-md-4 animate__animated animate__fadeIn animate__delay-2s">
+        <div class="card border-0 shadow-sm rounded-4 bg-danger text-white overflow-hidden">
+            <div class="card-body p-4 position-relative">
+                <i class="fas fa-arrow-trend-down position-absolute top-0 end-0 m-4 opacity-25 fa-3x"></i>
+                <div class="extra-small text-white-50 text-uppercase fw-bold mb-1"> Total Accumulated Depreciation</div>
+                <div class="h3 fw-bold mb-0"> ${{ total_cost|subtract:total_value|floatformat:2|intcomma }}</div></div></div></div></div>
+
+<div class="card border-0 shadow-sm rounded-4 animate__animated animate__fadeInUp">
+    <div class="card-body p-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="report-table">
+                <thead class="extra-small text-uppercase text-muted fw-bold">
+                    <tr><th>Asset Code</th>
+                        <th>Name</th>
+                        <th>Acquisition Date</th>
+                        <th class="text-end"> Cost</th>
+                        <th class="text-end"> Accumulated Depr.</th>
+                        <th class="text-end text-success"> Current Value</th></tr></thead>
+                <tbody>{% for item in report_data %}
+                    <tr><td><span class="font-monospace small"> {{ item.asset.asset_code }}</span></td>
+                        <td>{{ item.asset.name }}</td>
+                        <td class="small"> {{ item.asset.acquisition_date }}</td>
+                        <td class="text-end font-monospace"> ${{ item.asset.acquisition_cost|intcomma }}</td>
+                        <td class="text-end font-monospace text-danger"> -${{ item.depreciation|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace fw-bold text-success"> ${{ item.current_value|floatformat:2|intcomma }}</td></tr>
+                    {% endfor %}</tbody>
+                <tfoot class="fw-bold">
+                    <tr><td colspan="3" class="text-end text-uppercase extra-small text-muted"> Grand Totals</td>
+                        <td class="text-end"> ${{ total_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end text-danger"> -${{ total_cost|subtract:total_value|floatformat:2|intcomma }}</td>
+                        <td class="text-end text-success"> ${{ total_value|floatformat:2|intcomma }}</td></tr></tfoot></table></div></div></div>
+
+<script>$(function () {
+        $('#report-table').DataTable({
+            "order": [[5, "desc"]],
+            "pageLength": 25
+        });
+    });</script>
+{% endblock pageContent %}
+
+
+
+

@@ -1,0 +1,215 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-clipboard-user text-warning me-2"></i> ZRP Interview & Selection Governance</h3>
+            <p class="text-muted small mb-0">End-to-end recruitment, panel assessment, weighted scoring, and vetting platform for Zimbabwe Republic Police</p>
+        </div>
+        <button class="btn btn-success rounded-pill px-4 shadow-sm fw-bold" style="background: #003EA6; border-color: #D4AF37;" data-bs-toggle="modal" data-bs-target="#createInterviewModal">
+            <i class="fas fa-plus me-2"></i> Schedule Recruitment Exercise
+        </button>
+    </div>
+
+    <!-- Management Dashboard Metrics -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-success">
+                <span class="text-muted extra-small text-uppercase fw-bold">Total Exercises</span>
+                <h2 class="fw-bold text-success mb-0 mt-1">{{ total_exercises }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-warning">
+                <span class="text-muted extra-small text-uppercase fw-bold">In Progress</span>
+                <h2 class="fw-bold text-warning mb-0 mt-1">{{ in_progress }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-info">
+                <span class="text-muted extra-small text-uppercase fw-bold">Completed Scorecards</span>
+                <h2 class="fw-bold text-info mb-0 mt-1">{{ completed_assessments }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-danger">
+                <span class="text-muted extra-small text-uppercase fw-bold">Pending Police Vetting</span>
+                <h2 class="fw-bold text-danger mb-0 mt-1">{{ pending_vetting }}</h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters & Table -->
+    <div class="glass-card border-0 shadow-sm overflow-hidden">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead>
+                        <tr class="bg-success bg-opacity-10 text-white">
+                            <th class="ps-4 py-3">Position Title & Ref</th>
+                            <th class="py-3">Category & Mode</th>
+                            <th class="py-3">Department & Grade</th>
+                            <th class="py-3">Scheduled Date</th>
+                            <th class="py-3">Panel & Candidates</th>
+                            <th class="py-3">Workflow Stage</th>
+                            <th class="pe-4 text-end py-3">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for exercise in exercises %}
+                        <tr>
+                            <td class="ps-4">
+                                <div class="fw-bold text-white">{{ exercise.title }}</div>
+                                <div class="extra-small text-warning">Position: {{ exercise.position_title }}</div>
+                            </td>
+                            <td>
+                                <div class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 rounded-pill px-2 extra-small">
+                                    {{ exercise.interview_type }}
+                                </div>
+                                <div class="extra-small text-muted mt-1">{{ exercise.recruitment_mode }}</div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-white small">{{ exercise.department.name }}</div>
+                                <div class="extra-small text-muted">Grade: {{ exercise.grade_level }}</div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-white small">{{ exercise.scheduled_date|date:"d M Y" }}</div>
+                                <div class="extra-small text-muted">{{ exercise.scheduled_date|time:"H:i A" }}</div>
+                            </td>
+                            <td>
+                                <div class="extra-small text-white"><i class="fas fa-users-gear text-info me-1"></i> {{ exercise.panel_members.count }} Panelists</div>
+                                <div class="extra-small text-muted"><i class="fas fa-user-tie text-warning me-1"></i> {{ exercise.candidates.count }} Candidates</div>
+                            </td>
+                            <td>
+                                <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25 rounded-pill px-3 py-1 extra-small fw-bold">
+                                    {{ exercise.workflow_status }}
+                                </span>
+                            </td>
+                            <td class="pe-4 text-end">
+                                <a href="{% url 'interview-reports' exercise.pk %}" class="btn btn-success btn-sm rounded-pill px-3 fw-bold" style="background: #003EA6;">
+                                    <i class="fas fa-chart-line me-1"></i> Scorecard & Reports
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="fas fa-clipboard-user fs-3 d-block mb-2"></i>
+                                No recruitment exercises scheduled yet. Click <strong>Schedule Recruitment Exercise</strong> to begin.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Interview Modal -->
+<div class="modal fade" id="createInterviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content glass-card text-white border border-success border-opacity-25">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-warning"><i class="fas fa-clipboard-check me-2"></i> Schedule ZRP Recruitment Exercise</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'create-interview-exercise' %}" method="POST">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label small fw-bold">Exercise Title</label>
+                            <input type="text" name="title" class="form-control bg-dark text-white border-secondary" placeholder="e.g. Senior Media Monitoring Officer Recruitment 2026" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Interview Type</label>
+                            <select name="interview_type" class="form-select bg-dark text-white border-secondary">
+                                <option value="Recruitment">Recruitment Interview</option>
+                                <option value="Internal Promotion">Internal Promotion Interview</option>
+                                <option value="Special Category">Special Category Interview</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Recruitment Mode</label>
+                            <select name="recruitment_mode" class="form-select bg-dark text-white border-secondary">
+                                <option value="External">External Recruitment</option>
+                                <option value="Internal">Internal Recruitment</option>
+                                <option value="Combined">Combined Internal & External</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Target Department</label>
+                            <select name="department" class="form-select bg-dark text-white border-secondary" required>
+                                {% for d in departments %}
+                                <option value="{{ d.id }}">{{ d.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Grade Level</label>
+                            <input type="text" name="grade_level" class="form-control bg-dark text-white border-secondary" placeholder="e.g. Grade ZRP-6 / Officer" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Position Title</label>
+                            <input type="text" name="position_title" class="form-control bg-dark text-white border-secondary" placeholder="e.g. Senior Media Analyst" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Interview Stage</label>
+                            <select name="interview_stage" class="form-select bg-dark text-white border-secondary">
+                                <option value="Initial Screening">Initial Screening</option>
+                                <option value="First Round">First Round</option>
+                                <option value="Technical Assessment">Technical Assessment</option>
+                                <option value="Final Panel Interview">Final Panel Interview</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Scheduled Date & Time</label>
+                            <input type="datetime-local" name="scheduled_date" class="form-control bg-dark text-white border-secondary" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Venue / Link</label>
+                            <input type="text" name="venue_or_link" class="form-control bg-dark text-white border-secondary" placeholder="Boardroom B or Zoom Meeting Link">
+                        </div>
+
+                        <!-- Panel Members -->
+                        <div class="col-md-12">
+                            <label class="form-label small fw-bold text-warning"><i class="fas fa-users-gear me-1"></i> Assign Interview Panel Members</label>
+                            <select name="panel_members" class="form-select bg-dark text-white border-secondary" multiple style="height: 100px;" required>
+                                {% for u in users %}
+                                <option value="{{ u.id }}">{{ u.username }} ({{ u.email }})</option>
+                                {% endfor %}
+                            </select>
+                            <span class="extra-small text-muted">Hold Ctrl / Cmd to select panel members.</span>
+                        </div>
+
+                        <!-- Candidates -->
+                        <div class="col-md-12">
+                            <label class="form-label small fw-bold text-warning"><i class="fas fa-user-tie me-1"></i> Registered Candidates</label>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6"><input type="text" name="candidate_name" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Candidate 1 Full Name"></div>
+                                <div class="col-6"><input type="email" name="candidate_email" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Candidate 1 Email"></div>
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6"><input type="text" name="candidate_name" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Candidate 2 Full Name"></div>
+                                <div class="col-6"><input type="email" name="candidate_email" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Candidate 2 Email"></div>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-6"><input type="text" name="candidate_name" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Candidate 3 Full Name"></div>
+                                <div class="col-6"><input type="email" name="candidate_email" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Candidate 3 Email"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold" style="background: #003EA6;">Schedule & Notify Panel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock pageContent %}

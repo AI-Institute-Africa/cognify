@@ -1,0 +1,86 @@
+{% load static %}
+<div class="container-fluid">
+    <form action="" id="folio-form">
+        <input type="hidden" name="id" value="{{folio.id}}">
+        <div class="mb-4">
+            <label for="filee" class="form-label small fw-bold text-muted text-uppercase mb-2"> Associated Records Intelligence
+                File</label>
+            <select id="filee" name="filee" class="form-select border-0 shadow-sm rounded-pill" required>
+                {% if not folio %}
+                <option value="" selected disabled> Select File</option>
+                {% endif %}
+                {% for f in folios %}
+                <option value="{{f.id}}" {% if folio.filee.id == f.id %}selected{% endif %} > {{f.title}}</option>
+                {% endfor %}</select></div>
+        <div class="mb-4">
+            <label for="title" class="form-label small fw-bold text-muted text-uppercase mb-2"> Folio Title /
+                Label</label>
+            <input type="text" id="title" name="title" class="form-control border-0 shadow-sm rounded-pill px-3"
+                value="{{folio.title}}" required placeholder="Enter Title"></div>
+        <div class="mb-4">
+            <label for="description" class="form-label small fw-bold text-muted text-uppercase mb-2"> Folio
+                Description</label>
+            <textarea rows="3" id="description" name="description"
+                class="form-control border-0 shadow-sm rounded-3 px-3 py-2" required
+                placeholder="Enter description..."> {{folio.description}}</textarea></div></form></div>
+<script>$(function () {
+        $('#uni_modal').on('shown.bs.modal', function () {
+            $('#filee').select2({
+                placeholder: "Please Select File Here",
+                width: "100%",
+                dropdownParent: $('#uni_modal'),
+                selectionCssClass: "form-control border-0 shadow-sm rounded-pill"
+            })
+        })
+        $('#folio-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg rounded-3 small p-2 mb-3")
+            el.hide()
+            if (_this[0].checkValidity() == false) {
+                _this[0].reportValidity();
+                return false;
+            }
+            start_loader();
+            $.ajax({
+                headers: {
+                    "X-CSRFToken": '{{csrf_token}}'
+                },
+                url: "{% url 'save-folio' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.error(err)
+                    alert("An error occured", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.text(resp.msg)
+                    } else {
+                        el.text("An error occured", 'error');
+                        end_loader();
+                        console.error(resp)
+                    }
+                    _this.prepend(el)
+                    el.show('slow')
+                    $("html, body, .modal").scrollTop(0);
+                    end_loader()
+                }
+            })
+        })
+    })</script>
+
+
+
+
+

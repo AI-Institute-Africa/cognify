@@ -1,0 +1,93 @@
+<div class="container-fluid">
+    <form action="" id="knowledge-form">
+        <input type="hidden" name="id" value="{{ entry.pk }}">
+        <div class="row g-3">
+            <div class="col-12">
+                <label class="control-label extra-small fw-bold text-muted text-uppercase"> Title</label>
+                {{ form.title }}</div>
+            <div class="col-md-6">
+                <label class="control-label extra-small fw-bold text-muted text-uppercase"> Type</label>
+                {{ form.entry_type }}</div>
+            <div class="col-md-6">
+                <label class="control-label extra-small fw-bold text-muted text-uppercase"> Category</label>
+                {{ form.category }}</div>
+            <div class="col-md-6">
+                <label class="control-label extra-small fw-bold text-muted text-uppercase"> Department</label>
+                {{ form.department }}</div>
+            <div class="col-md-6">
+                <label class="control-label extra-small fw-bold text-muted text-uppercase"> Meeting Source</label>
+                {{ form.meeting }}</div>
+            <div class="col-md-12">
+                <label class="control-label extra-small fw-bold text-muted text-uppercase"> Linked Physical File</label>
+                {{ form.physical_file }}</div>
+            <div class="col-12">
+                <label class="control-label extra-small fw-bold text-muted text-uppercase"> Content Body</label>
+                {{ form.content }}</div>
+            <div class="col-12">
+                <label class="control-label extra-small fw-bold text-muted text-uppercase"> Tags (comma
+                    separated)</label>
+                <input type="text" name="tag_names" class="form-control rounded-pill px-3"
+                    placeholder="e.g. Records Intelligence, Records Intelligence, Policy, Decision_2024"
+                    value="{% for tag in entry.tags.all %}{{ tag.name }}{% if not forloop.last %}, {% endif %}{% endfor %}"></div>
+            {% if entry %}
+            <div class="col-12">
+                <div class="alert alert-info py-2 extra-small mb-0">
+                    <i class="fas fa-info-circle me-2"></i> Updating the content will automatically create a new version
+                    in the history logs.</div>
+                <label class="control-label extra-small fw-bold text-muted text-uppercase mt-2"> Change Summary</label>
+                <textarea name="change_summary" class="form-control rounded-3" rows="1"
+                    placeholder="Briefly describe what changed..."></textarea></div>
+            {% endif %}
+            <div class="col-md-6">
+                <label class="control-label extra-small fw-bold text-muted text-uppercase"> Status</label>
+                {{ form.status }}</div></div></form></div>
+
+<script>$(function () {
+        $('#knowledge-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg")
+            el.hide()
+            if (_this[0].checkValidity() == false) {
+                _this[0].reportValidity();
+                return false;
+            }
+            start_loader();
+            $.ajax({
+                url: "{% url 'save-knowledge' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.log(err)
+                    alert_toast("An error occured", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.text(resp.msg)
+                    } else {
+                        el.text("An error occured", 'error');
+                        end_loader();
+                        console.err(resp)
+                    }
+                    _this.prepend(el)
+                    el.show('slow')
+                    $("html, body, .modal").scrollTop(0);
+                    end_loader();
+                }
+            })
+        })
+    })</script>
+
+
+
+

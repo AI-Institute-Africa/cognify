@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+            <h3 class="fw-bold mb-1"><i class="fas fa-handshake text-primary me-2"></i>TENDER PROCEDURES REGISTER</h3>
+            <div class="small text-muted">
+                Zimbabwe Republic Police &bull; Procurement Management Unit (PMU) &bull; Tender &amp; Purchase Order Ledger
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="{% url 'print-tender-procedures' %}" target="_blank" class="btn btn-dark rounded-pill px-3 shadow-sm">
+                <i class="fas fa-print me-1 text-warning"></i> Print Procedures Sheet
+            </a>
+            <button class="btn btn-primary rounded-pill px-4 shadow-sm fw-bold"
+                onclick="uni_modal('Record Tender Procedure Entry', '{% url 'manage-tender-procedure' %}', 'modal-lg')">
+                <i class="fas fa-plus-circle me-2"></i> Record Tender Procedure
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- KPI Metrics -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light border-start border-4 border-primary">
+            <div class="extra-small text-muted text-uppercase fw-bold">Total Tender Entries</div>
+            <div class="h3 fw-bold mb-0 text-dark">{{ total_entries|default:0 }}</div>
+            <div class="extra-small text-muted">Procurements in register</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light border-start border-4 border-info">
+            <div class="extra-small text-muted text-uppercase fw-bold">Total Units Procured</div>
+            <div class="h3 fw-bold mb-0 text-info">{{ total_qty|intcomma }}</div>
+            <div class="extra-small text-muted">Cumulative hardware/items</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light border-start border-4 border-success">
+            <div class="extra-small text-muted text-uppercase fw-bold">Total Tender Value</div>
+            <div class="h3 fw-bold mb-0 text-success">${{ total_value|floatformat:2|intcomma }}</div>
+            <div class="extra-small text-muted">Awarded contract commitments</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light border-start border-4 border-warning">
+            <div class="extra-small text-muted text-uppercase fw-bold">Beneficiary Stations</div>
+            <div class="h3 fw-bold mb-0 text-warning">{{ stations_count|default:0 }}</div>
+            <div class="extra-small text-muted">Requesting police posts/units</div>
+        </div>
+    </div>
+</div>
+
+<!-- Search & Ledger Table -->
+<div class="card border-0 shadow-sm rounded-4">
+    <div class="card-header bg-white border-0 pt-4 px-4 pb-2">
+        <form method="GET" action="{% url 'tender-procedures-list' %}" class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0 rounded-pill-start ps-3"><i class="fas fa-search text-muted"></i></span>
+                    <input type="text" name="q" value="{{ q }}" class="form-control bg-light border-start-0 rounded-pill-end"
+                        placeholder="Search Item, Station, ICT Ref, PO No., Remarks...">
+                </div>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary rounded-pill px-4">Search</button>
+                {% if q %}
+                <a href="{% url 'tender-procedures-list' %}" class="btn btn-outline-secondary rounded-pill px-3">Clear</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+    <div class="card-body p-4">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle">
+                <thead class="table-dark extra-small text-uppercase">
+                    <tr class="text-center align-middle">
+                        <th style="width: 70px;">ENTRY</th>
+                        <th style="width: 90px;">DATE</th>
+                        <th>ITEM DESCRIPTION</th>
+                        <th>REQUESTING STATION</th>
+                        <th style="width: 60px;">QTY</th>
+                        <th style="width: 120px;">TOTAL PRICE</th>
+                        <th>ICT REF</th>
+                        <th>PURCHASE ORDER No.</th>
+                        <th>REMARKS</th>
+                        <th style="width: 80px;">ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody class="small">
+                    {% for e in entries %}
+                    <tr>
+                        <td class="text-center fw-bold">{{ e.entry_no|default:e.id }}</td>
+                        <td class="text-center text-nowrap">{{ e.date|date:"d/m/y" }}</td>
+                        <td class="fw-semibold text-dark">{{ e.item_description }}</td>
+                        <td><span class="badge bg-light text-primary border"><i class="fas fa-map-marker-alt me-1"></i>{{ e.requesting_station }}</span></td>
+                        <td class="text-center fw-bold">{{ e.qty|intcomma }}</td>
+                        <td class="text-end fw-bold text-success">${{ e.total_price|floatformat:2|intcomma }}</td>
+                        <td class="text-nowrap font-monospace">{{ e.ict_ref }}</td>
+                        <td class="text-nowrap font-monospace fw-bold">{{ e.purchase_order_no }}</td>
+                        <td class="text-muted extra-small">
+                            {{ e.remarks|default:"-" }}
+                            {% if e.tender_doc_scan %}
+                            <div class="mt-1">
+                                <a href="{{ e.tender_doc_scan.url }}" target="_blank" class="badge bg-secondary text-white">
+                                    <i class="fas fa-file-pdf me-1"></i> Tender Doc
+                                </a>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="text-end text-nowrap">
+                            <button type="button" class="btn btn-sm btn-outline-primary" title="Edit Entry"
+                                onclick="uni_modal('Edit Tender Procedure Entry', '{% url 'manage-tender-procedure-pk' e.pk %}', 'modal-lg')">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <a href="{% url 'delete-tender-procedure' e.pk %}" class="btn btn-sm btn-outline-danger"
+                                onclick="return confirm('Are you sure you want to delete Tender Procedure entry #{{ e.entry_no|default:e.id }}?')"
+                                title="Delete Entry">
+                                <i class="fas fa-trash-alt"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center py-5 text-muted">
+                            <i class="fas fa-handshake fs-1 text-muted opacity-25 d-block mb-3"></i>
+                            <div class="fw-bold fs-6">No Tender Procedures Logged</div>
+                            <div class="extra-small mb-3">Record tender awards, contract values, requesting stations, ICT refs, and Purchase Order numbers.</div>
+                            <button class="btn btn-primary btn-sm rounded-pill px-4 fw-bold"
+                                onclick="uni_modal('Record Tender Procedure Entry', '{% url 'manage-tender-procedure' %}', 'modal-lg')">
+                                <i class="fas fa-plus me-1"></i> Record First Tender Procedure
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

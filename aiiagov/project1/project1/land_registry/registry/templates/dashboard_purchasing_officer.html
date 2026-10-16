@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% load static %}
+{% block headerContent %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+.po-stat{border-radius:18px;padding:1.5rem 1.75rem;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;}
+.po-stat:hover{transform:translateY(-4px);box-shadow:0 16px 40px rgba(0,0,0,.13)!important;}
+.po-stat .ico{position:absolute;right:1.25rem;top:50%;transform:translateY(-50%);font-size:3rem;opacity:.1;}
+.po-stat .val{font-size:2.2rem;font-weight:900;line-height:1;}
+.po-stat .lbl{font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.25rem;}
+.sec-hdr{font-size:.68rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#6c757d;padding-bottom:.75rem;border-bottom:2px solid rgba(102,126,234,.18);margin-bottom:1.25rem;}
+.rrow:hover{background:rgba(13,110,253,.04);}
+.sbadge{font-size:.67rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:.28rem .7rem;border-radius:50px;}
+</style>
+{% endblock headerContent %}
+{% block pageContent %}
+<div class="container-fluid py-4">
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
+    <div>
+      <h2 class="fw-bold mb-1">Purchasing Officer Dashboard</h2>
+      <p class="text-muted small mb-0">
+        <i class="bi bi-cart3 me-1"></i>
+        {{ request.user.get_full_name|default:request.user.username }}
+        {% if request.user.security_profile.department %}
+          &mdash; {{ request.user.security_profile.department.name }}
+        {% endif %}
+      </p>
+    </div>
+    <a href="{% url 'supply-requisition-list' %}" class="btn btn-primary rounded-pill px-4 shadow-sm">
+      <i class="bi bi-list-check me-2"></i>All Requisitions
+    </a>
+  </div>
+
+  <!-- KPIs -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-4 col-sm-6">
+      <div class="po-stat glass-card shadow-sm border-start border-5 border-warning">
+        <div class="lbl text-warning">Awaiting Bid Analysis</div>
+        <div class="val text-warning mt-1">{{ pending_requisitions|length }}</div>
+        <i class="bi bi-clipboard-data ico text-warning"></i>
+      </div>
+    </div>
+    <div class="col-md-4 col-sm-6">
+      <div class="po-stat glass-card shadow-sm border-start border-5 border-success">
+        <div class="lbl text-success">Processed by Me</div>
+        <div class="val text-success mt-1">{{ processed_requisitions|length }}</div>
+        <i class="bi bi-check-square ico text-success"></i>
+      </div>
+    </div>
+    <div class="col-md-4 col-sm-6">
+      <div class="po-stat glass-card shadow-sm border-start border-5 border-primary">
+        <div class="lbl text-primary">Total Assigned</div>
+        <div class="val text-primary mt-1">{% with pending_requisitions|length as p %}{% with processed_requisitions|length as d %}{{ p|add:d }}{% endwith %}{% endwith %}</div>
+        <i class="bi bi-file-earmark-bar-graph ico text-primary"></i>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Pending Bid Analysis -->
+    <div class="col-lg-7">
+      <div class="glass-card p-4">
+        <div class="sec-hdr"><i class="bi bi-clipboard-data me-2"></i>Pending &mdash; Bid Analysis Required</div>
+        {% if pending_bid_analysis %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light text-muted small text-uppercase">
+              <tr>
+                <th class="ps-3">Ref #</th>
+                <th>Department</th>
+                <th>Purpose</th>
+                <th class="text-end">Amount</th>
+                <th class="text-end pe-3">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in pending_bid_analysis %}
+              <tr class="rrow">
+                <td class="ps-3 fw-bold text-primary">
+                  {{ r.ref_number }}
+                  {% if r.is_urgent %}<span class="badge bg-danger ms-1" style="font-size:.6rem;">URGENT</span>{% endif %}
+                </td>
+                <td>{{ r.department.name|default:"&mdash;" }}</td>
+                <td><span class="text-truncate d-inline-block" style="max-width:150px;" title="{{ r.purpose }}">{{ r.purpose }}</span></td>
+                <td class="text-end fw-semibold">{{ r.grand_total|floatformat:2 }}</td>
+                <td class="text-end pe-3">
+                  <a href="{% url 'supply-requisition-sign' r.pk 'purchasing_officer' %}" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold">
+                    <i class="bi bi-clipboard-check me-1"></i>Analyse
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+          <i class="bi bi-check2-circle text-success" style="font-size:3rem;"></i>
+          <p class="text-muted mt-3 mb-0">No pending bid analyses.</p>
+        </div>
+        {% endif %}
+
+        {% if pending_final_review %}
+        <hr class="my-3">
+        <div class="sec-hdr"><i class="bi bi-check2-all me-2 text-success"></i>Pending &mdash; Final Review &amp; Forward</div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light text-muted small text-uppercase">
+              <tr>
+                <th class="ps-3">Ref #</th>
+                <th>Department</th>
+                <th class="text-end">Amount</th>
+                <th class="text-end pe-3">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in pending_final_review %}
+              <tr class="rrow">
+                <td class="ps-3 fw-bold text-success">
+                  {{ r.ref_number }}
+                  {% if r.is_urgent %}<span class="badge bg-danger ms-1" style="font-size:.6rem;">URGENT</span>{% endif %}
+                </td>
+                <td>{{ r.department.name|default:"&mdash;" }}</td>
+                <td class="text-end fw-semibold">{{ r.grand_total|floatformat:2 }}</td>
+                <td class="text-end pe-3">
+                  <a href="{% url 'supply-requisition-sign' r.pk 'purchasing_officer_review' %}" class="btn btn-success btn-sm rounded-pill px-3 fw-bold">
+                    <i class="bi bi-send me-1"></i>Final Review
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Processed Requisitions -->
+    <div class="col-lg-5">
+      <div class="glass-card p-4">
+        <div class="sec-hdr"><i class="bi bi-archive me-2"></i>Processed Requisitions</div>
+        {% if processed_requisitions %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="text-muted small text-uppercase">
+              <tr>
+                <th class="ps-2">Ref #</th>
+                <th>Dept</th>
+                <th>Status</th>
+                <th class="text-end pe-2">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in processed_requisitions|slice:":15" %}
+              <tr class="rrow">
+                <td class="ps-2">
+                  <a href="{% url 'supply-requisition-view' r.pk %}" class="text-primary fw-semibold text-decoration-none small">{{ r.ref_number }}</a>
+                  {% if r.is_urgent %}<span class="badge bg-danger" style="font-size:.55rem;">!</span>{% endif %}
+                </td>
+                <td class="small text-muted">{{ r.department.name|default:"—"|truncatechars:10 }}</td>
+                <td>
+                  {% if r.status == 'Approved' %}
+                    <span class="sbadge bg-success bg-opacity-15 text-success">Approved</span>
+                  {% elif r.status == 'Pending Finance' %}
+                    <span class="sbadge bg-info bg-opacity-15 text-info">Pending Finance</span>
+                  {% elif r.status == 'Pending CEO' %}
+                    <span class="sbadge bg-warning bg-opacity-20 text-warning">Pending CEO</span>
+                  {% else %}
+                    <span class="sbadge bg-secondary bg-opacity-10 text-secondary">{{ r.status }}</span>
+                  {% endif %}
+                </td>
+                <td class="text-end pe-2 fw-semibold small">{{ r.grand_total|floatformat:2 }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+          <i class="bi bi-inbox text-muted" style="font-size:3rem;"></i>
+          <p class="text-muted mt-3 mb-0">No processed requisitions yet.</p>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Quick Guide -->
+      <div class="glass-card p-4 mt-4">
+        <div class="sec-hdr"><i class="bi bi-info-circle me-2"></i>PO Workflow Checklist</div>
+        <div class="small">
+          <div class="d-flex gap-2 mb-2"><i class="bi bi-1-circle-fill text-warning mt-1"></i><span><strong>Bid Analysis Stage:</strong> Edit requisition items (unit costs, budgets, balances), input up to 5 supplier quotations, choose the approved supplier, and sign to send to Requester.</span></div>
+          <div class="d-flex gap-2 mb-2"><i class="bi bi-2-circle-fill text-primary mt-1"></i><span><strong>Requester Review:</strong> Requester reviews quotation comparison, signs to confirm approval.</span></div>
+          <div class="d-flex gap-2 mb-2"><i class="bi bi-3-circle-fill text-success mt-1"></i><span><strong>Final Review:</strong> PO performs final review and signs to route to CEO.</span></div>
+          <div class="d-flex gap-2"><i class="bi bi-4-circle-fill text-info mt-1"></i><span><strong>CEO &amp; Finance:</strong> Final signatures by CEO and payment by Finance.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Department Categorization -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="glass-card p-4">
+        <div class="sec-hdr"><i class="bi bi-folder-symlink me-2"></i>Requisitions Grouped by Department</div>
+        {% if dept_requisitions_grouped %}
+        <div class="accordion" id="deptRequisitionAccordion">
+          {% for dept_name, reqs in dept_requisitions_grouped.items %}
+          <div class="accordion-item bg-transparent border-0 mb-3 shadow-sm rounded-3 overflow-hidden">
+            <h2 class="accordion-header" id="heading_{{ forloop.counter }}">
+              <button class="accordion-button {% if not forloop.first %}collapsed{% endif %} fw-bold bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_{{ forloop.counter }}" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}" aria-controls="collapse_{{ forloop.counter }}">
+                <i class="bi bi-building me-2 text-primary"></i>{{ dept_name }}
+                <span class="badge bg-secondary ms-2">{{ reqs|length }}</span>
+              </button>
+            </h2>
+            <div id="collapse_{{ forloop.counter }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" aria-labelledby="heading_{{ forloop.counter }}" data-bs-parent="#deptRequisitionAccordion">
+              <div class="accordion-body bg-white p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-muted small text-uppercase">
+                      <tr>
+                        <th class="ps-3">Ref #</th>
+                        <th>Requester</th>
+                        <th>Purpose</th>
+                        <th>Status</th>
+                        <th class="text-end pe-3">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for r in reqs %}
+                      <tr class="rrow">
+                        <td class="ps-3 fw-bold">
+                          <a href="{% url 'supply-requisition-view' r.pk %}" class="text-primary text-decoration-none">{{ r.ref_number }}</a>
+                          {% if r.is_urgent %}<span class="badge bg-danger ms-1" style="font-size:.65rem;">URGENT</span>{% endif %}
+                        </td>
+                        <td>{{ r.requester.get_full_name|default:r.requester.username }}</td>
+                        <td><span class="text-truncate d-inline-block" style="max-width:250px;" title="{{ r.purpose }}">{{ r.purpose }}</span></td>
+                        <td>
+                          {% if r.status == 'Approved' %}
+                            <span class="badge bg-success bg-opacity-15 text-success">Approved</span>
+                          {% elif r.status == 'Pending Dept' %}
+                            <span class="badge bg-warning bg-opacity-15 text-warning">Pending Dept</span>
+                          {% elif r.status == 'Pending Purchasing' %}
+                            <span class="badge bg-primary bg-opacity-15 text-primary">Pending PO (Bid Analysis)</span>
+                          {% elif r.status == 'Pending Requester Review' %}
+                            <span class="badge bg-info bg-opacity-15 text-info">Pending Requester Review</span>
+                          {% elif r.status == 'Pending Purchasing Final' %}
+                            <span class="badge bg-primary bg-opacity-15 text-primary">Pending PO (Final Review)</span>
+                          {% elif r.status == 'Pending CEO' %}
+                            <span class="badge bg-warning bg-opacity-20 text-warning">Pending CEO</span>
+                          {% elif r.status == 'Pending Finance' %}
+                            <span class="badge bg-secondary bg-opacity-15 text-secondary">Pending Finance</span>
+                          {% else %}
+                            <span class="badge bg-light text-muted">{{ r.status }}</span>
+                          {% endif %}
+                        </td>
+                        <td class="text-end fw-semibold pe-3">{{ r.grand_total|floatformat:2 }}</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+          <i class="bi bi-folder-x text-muted" style="font-size:3rem;"></i>
+          <p class="text-muted mt-3 mb-0">No department-categorized requisitions found.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock pageContent %}

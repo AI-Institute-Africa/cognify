@@ -1,0 +1,97 @@
+<div class="container-fluid">
+    <form action="" id="bid-form">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{ bid.id|default:'' }}">
+        <input type="hidden" name="tender" value="{{ tender.id }}">
+
+        <div class="row g-3">
+            <div class="col-md-12">
+                <div class="alert alert-light border-0 shadow-sm rounded-3 extra-small mb-3">
+                    <span class="text-muted fw-bold text-uppercase"> Tender:</span> {{ tender.ref_num }} &middot; {{ tender.title }}</div></div>
+
+            <div class="col-md-12">
+                <label for="bidder_name" class="control-label extra-small fw-bold text-uppercase text-muted mb-1"> Bidder
+                    Name / Company</label>
+                {{ form.bidder_name }}</div>
+
+            <div class="col-md-12">
+                <label for="bidder_email"
+                    class="control-label extra-small fw-bold text-uppercase text-muted mb-1"> Contact Email</label>
+                {{ form.bidder_email }}</div>
+
+            <div class="col-md-6">
+                <label for="amount" class="control-label extra-small fw-bold text-uppercase text-muted mb-1"> Bid Amount
+                    ($)</label>
+                {{ form.amount }}</div>
+
+            <div class="col-md-6">
+                <label for="proposal_doc"
+                    class="control-label extra-small fw-bold text-uppercase text-muted mb-1"> Proposal Document</label>
+                {{ form.proposal_doc }}</div>
+
+            {% if bid %}
+            <hr class="mt-4 mb-2 opacity-10">
+            <div class="col-md-12">
+                <div class="card bg-light border-0 rounded-3 p-3">
+                    <h6 class="extra-small fw-bold text-uppercase text-primary mb-2"> Internal Evaluation</h6>
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="extra-small text-muted mb-1"> Score (0-100)</label>
+                            <input type="number" name="evaluation_score"
+                                class="form-control form-control-sm rounded-pill"
+                                value="{{ bid.evaluation_score|floatformat:0 }}"></div>
+                        <div class="col-md-12">
+                            <label class="extra-small text-muted mb-1"> Notes</label>
+                            <textarea name="evaluation_notes" class="form-control form-control-sm rounded-3"
+                                rows="2"> {{ bid.evaluation_notes }}</textarea></div></div></div></div>
+            {% endif %}</div></form></div>
+
+<script>$(function () {
+        $('#bid-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg")
+            el.hide()
+            start_loader()
+            $.ajax({
+                headers: {
+                    "X-CSRFToken": '{{ csrf_token }}'
+                },
+                url: "{% url 'save-bid' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.log(err)
+                    alert_toast("An error occured", 'error');
+                    end_loader()
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.text(resp.msg)
+                    } else {
+                        el.text("An error occured", 'error');
+                        end_loader()
+                    }
+                    _this.prepend(el)
+                    el.show('slow')
+                    $("html, body, .modal").animate({
+                        scrollTop: 0
+                    }, "fast");
+                    end_loader()
+                }
+            })
+        })
+    })</script>
+
+
+
+

@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container py-4" style="max-width:860px;">
+
+  <div class="mb-4">
+    <a href="{% url 'brd-detail' brd.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill me-2">
+      <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+    <h2 class="fw-bold d-inline-block mb-0" style="color:#1a1a2e;">Edit BRD: {{ brd.title }}</h2>
+    <p class="text-muted mt-1">Update your Business Requirements Document.</p>
+  </div>
+
+  {% for message in messages %}
+  <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'warning' %}warning{% else %}success{% endif %} alert-dismissible fade show">
+    {{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endfor %}
+
+  <div class="alert alert-warning border-0 rounded-3 mb-4">
+    <strong><i class="bi bi-exclamation-triangle-fill me-2"></i>Warning:</strong> Editing the document will reset all current signatures and set the status back to "Awaiting PMT".
+  </div>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header border-0 py-3 px-4" style="background:#f0f4ff;">
+        <h6 class="mb-0 fw-semibold" style="color:#4361ee;"><i class="bi bi-file-text-fill me-2"></i>Document Information</h6>
+      </div>
+      <div class="card-body p-4">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">BRD Title <span class="text-danger">*</span></label>
+          <input type="text" name="title" value="{{ brd.title }}" class="form-control form-control-lg" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Description / Summary</label>
+          <textarea name="description" rows="5" class="form-control">{{ brd.description }}</textarea>
+        </div>
+        <div class="mb-1">
+          <label class="form-label fw-semibold">Update BRD Document</label>
+          <input type="file" name="document" accept=".pdf,.doc,.docx,.xlsx,.xls" class="form-control p-3 bg-light">
+          <small class="text-muted">Leave this blank if you do not want to replace the current document (which resets approvers). Accepted formats: PDF, Word, Excel.</small>
+          {% if brd.document %}
+          <div class="mt-2 text-muted small">
+            Current file: <a href="{% url 'download-brd' brd.pk %}" target="_blank">{{ brd.document.name }}</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2 justify-content-end">
+      <a href="{% url 'brd-detail' brd.pk %}" class="btn btn-outline-secondary px-4 rounded-pill">Cancel</a>
+      <button type="submit" class="btn btn-primary px-5 rounded-pill">
+        <i class="bi bi-save me-2"></i>Save Changes
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock pageContent %}

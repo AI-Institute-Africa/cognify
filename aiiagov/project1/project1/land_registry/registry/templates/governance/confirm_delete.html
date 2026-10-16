@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container py-5 animate-reveal">
+    <div class="row justify-content-center">
+        <div class="col-md-6 text-center">
+            <div class="glass-panel p-5 border-danger border-opacity-25">
+                <div class="display-3 text-danger mb-4">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <h2 class="fw-bold text-white mb-3">Delete Project?</h2>
+                <p class="text-muted mb-5">
+                    You are about to move <b>{{ project.name }}</b> to the Recycle Bin. 
+                    It will be deactivated and hidden from the active Records Intelligence, but can be restored later.
+                </p>
+                
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="d-grid gap-3">
+                        <button type="submit" class="btn btn-danger rounded-pill py-3 fw-bold shadow-lg">
+                            <i class="fas fa-trash me-2"></i> Move to Recycle Bin
+                        </button>
+                        <a href="{% url 'project-detail' project.pk %}" class="btn btn-outline-light rounded-pill py-3">
+                            Cancel and Go Back
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock pageContent %}

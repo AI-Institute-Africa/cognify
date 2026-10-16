@@ -1,0 +1,18 @@
+--- Digital Twin Data Diagnostic ---
+Total Departments: 5
+  ID: 1, Name: Records Management
+  ID: 2, Name: Legal Affairs
+  ID: 3, Name: Survey & Mapping
+  ID: 4, Name: Valuation
+  ID: 5, Name: Customer Service
+Total Active Files: 2
+Total Active Borrows (status='0'): 2
+  Borrow ID: 1, File: R20245TY - TAKUE, Borrower: 62-3378997x34 - Takudzwa Emmanuel Kuwenyi
+    Borrower Dept: None
+  Borrow ID: 12, File: R202022S - The Rise, Borrower: 62-3378997L34 - Takudzwa Samuel Kuwenyi
+    Borrower Dept: None
+  Dept 'Records Management' (ID: 1) -> Calculated File Count: 0
+  Dept 'Legal Affairs' (ID: 2) -> Calculated File Count: 0
+  Dept 'Survey & Mapping' (ID: 3) -> Calculated File Count: 0
+  Dept 'Valuation' (ID: 4) -> Calculated File Count: 0
+  Dept 'Customer Service' (ID: 5) -> Calculated File Count: 0

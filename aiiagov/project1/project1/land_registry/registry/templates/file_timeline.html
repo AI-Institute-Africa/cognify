@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="container py-4">
+    <div class="glass-card p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div><div class="text-end d-flex flex-column align-items-end">
+                    {% if file_doc.qr_code %}
+                    <img src="{{ file_doc.qr_code.url }}" alt="QR Code" class="img-fluid rounded shadow-sm mb-2"
+                        style="width: 80px;">
+                    {% else %}
+                    <div class="bg-light bg-opacity-10 p-2 rounded mb-2 text-center" style="width: 80px;">
+                        <i class="fas fa-qrcode text-muted"></i>
+                        <div class="extra-small text-muted" style="font-size: 0.6rem;"> No QR</div></div>
+                    {% endif %}
+                    <div
+                        class="badge {% if location.is_precise %}bg-success{% else %}bg-secondary{% endif %} rounded-pill px-3 py-2 small shadow-sm">
+                        <i class="fas fa-map-marker-alt me-1"></i>
+                        {% if location.is_precise %}
+                        {{ location.building }} - F{{ location.floor }} (C:{{ location.cabinet }})
+                        {% else %}
+                        {{ location.details }}
+                        {% endif %}</div></div></div></div>
+
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="glass-card p-4">
+                    <h5 class="fw-bold mb-4"> <i class="fas fa-history me-2 text-primary"></i> Chain of Custody Timeline</h5>
+
+                    <div class="timeline-container px-3">
+                        {% for log in logs %}
+                        <div class="timeline-item pb-4 position-relative">
+                            <div class="timeline-marker position-absolute rounded-circle bg-primary bg-opacity-25 border border-primary"
+                                style="width: 15px; height: 15px; left: -25px; top: 5px;"></div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill small px-3">
+                                    {{ log.action }}</span>
+                                <small class="text-muted"> {{ log.timestamp|naturaltime }}</small></div>
+                            <div class="p-3 bg-light bg-opacity-10 rounded-3">
+                                <div class="small fw-bold mb-1">
+                                    <i class="fas fa-user-circle me-1"></i> {{ log.handler.username }}
+                                    {% if log.to_department %}
+                                    <i class="fas fa-arrow-right mx-2 text-muted"></i>
+                                    <span class="text-primary"> {{ log.to_department.name }}</span>
+                                    {% endif %}</div>
+                                <p class="small text-muted mb-0 italic"> "{{ log.reason|default:"No reason provided" }}"</p>
+                                {% if log.location %}
+                                <div class="mt-2 extra-small text-muted">
+                                    <i class="fas fa-map-marker-alt me-1"></i> {{ log.location }}</div>
+                                {% endif %}</div></div>
+                        {% empty %}
+                        <p class="text-center text-muted py-5 italic"> No movement records found for this file.</p>
+                        {% endfor %}</div></div></div>
+
+            <div class="col-lg-4">
+                <div class="glass-card p-4 mb-4 border-start border-4 border-info">
+                    <h6 class="fw-bold text-uppercase small text-muted mb-3"> System Intelligence</h6>
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-info bg-opacity-10 p-3 rounded-3 me-3">
+                            <i class="fas fa-shield-alt text-info fs-4"></i></div>
+                        <div><div class="extra-small text-muted"> Risk Level</div>
+                            <div class="fw-bold text-{{ file_doc.risk_level|lower }}"> {{ file_doc.risk_level }}</div></div></div>
+                    <div class="progress mb-3" style="height: 6px;">
+                        <div class="progress-bar bg-info" role="progressbar" style="width: {{ file_doc.risk_score }}%"></div></div>
+                    <p class="extra-small text-muted mb-0"> Predicted risk score based on movement frequency and handler
+                        history.</p></div></div></div></div>
+
+    <style>.timeline-container {
+            border-left: 2px solid rgba(var(--bs-primary-rgb), 0.1);
+        }
+
+        .timeline-item:last-child {
+            border-left: none;
+        }</style>
+    {% endblock pageContent %}
+
+
+
+

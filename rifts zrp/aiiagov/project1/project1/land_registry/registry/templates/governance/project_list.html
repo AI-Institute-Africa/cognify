@@ -1,0 +1,291 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block pageContent %}
+<div class="container-fluid py-5 px-4 animate-reveal">
+
+    {# ────────────────────────────────────────────────────────────── #}
+    {# UNIVERSAL: Personal Task Board (Visible to owners only)        #}
+    {# ────────────────────────────────────────────────────────────── #}
+    {% if my_tasks %}
+    <div class="d-flex justify-content-between align-items-end mb-4">
+        <div>
+            <span class="status-pill status-live text-accent mb-2" style="background: var(--accent-glow);">My Workspace</span>
+            <h1 class="display-6 fw-bold mb-0">My <b>Task Board</b></h1>
+            <p class="text-muted small mb-0">Tasks assigned directly to you across all project layers</p>
+        </div>
+    </div>
+
+    {# My Tasks Grid #}
+    <div class="dashboard-grid mb-5">
+        {% for task in my_tasks %}
+        <a href="{% url 'task-detail' task.pk %}" class="glass-panel stats-card p-4 text-decoration-none">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="extra-small fw-bold text-muted text-uppercase">{{ task.phase.project.name }}</span>
+                <span class="badge {% if task.priority == 'Critical' %}bg-danger{% elif task.priority == 'High' %}bg-warning text-dark{% else %}bg-secondary{% endif %} rounded-pill extra-small">{{ task.priority }}</span>
+            </div>
+            <div class="fw-bold text-white mb-3">{{ task.title }}</div>
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="status-pill {% if task.status == 'Done' %}text-success{% elif task.status == 'In Progress' %}text-accent{% elif task.status == 'Blocked' %}text-danger{% else %}text-muted{% endif %}" style="background: var(--glass-bg); font-size: 0.65rem;">
+                    {{ task.status }}
+                </span>
+                <span class="extra-small text-muted">
+                    <i class="fas fa-user me-1"></i> Assigned: {{ task.owner.username }} • 
+                    <i class="fas fa-calendar me-1"></i> Due: {{ task.due_date }}, ({{ task.attachments.count }})
+                </span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    <hr class="border-white border-opacity-10 mb-5">
+    {% endif %}
+
+    {# ────────────────────────────────────────────────────────────── #}
+    {# ROLE-BASED CONTEXTS                                            #}
+    {# ────────────────────────────────────────────────────────────── #}
+    {% if is_team_member_only %}
+    <div class="d-flex justify-content-between align-items-end mb-4">
+        <div>
+            <h2 class="h4 fw-bold mb-0">Assigned <b>Projects</b></h2>
+            <p class="text-muted small mb-0">Strategic initiatives you are contributing to</p>
+        </div>
+    </div>
+
+    {# Linked Projects (read-only overview) #}
+    {% if projects %}
+    <div class="glass-panel p-4 mb-4">
+        <h6 class="fw-bold mb-4 text-muted text-uppercase small">Your Projects</h6>
+        <div class="d-flex flex-column gap-3">
+            {% for project in projects %}
+            <div class="d-flex align-items-center justify-content-between glass-panel p-3" style="border-radius: 14px;">
+                <div>
+                    <div class="fw-bold text-white">{{ project.name }}</div>
+                    <div class="extra-small text-muted"><i class="fas fa-building me-1"></i> {{ project.department.name }}</div>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="progress" style="width: 100px; height: 4px; background: var(--glass-border);">
+                            <div class="progress-bar bg-accent" style="width: {{ project.progress_percentage }}%;"></div>
+                        </div>
+                        <span class="extra-small text-muted">{{ project.progress_percentage }}%</span>
+                    </div>
+                    <a href="{% url 'project-detail' project.pk %}" class="btn glass-panel btn-sm rounded-pill px-3"><i class="fas fa-eye text-accent"></i></a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# ROLE: Institutional Governance — Departmental Project Intelligence #}
+    {% elif gov_role == 'HODs' or gov_role == 'Project Management Team' %}
+    <div class="d-flex justify-content-between align-items-end mb-5">
+        <div>
+            <span class="status-pill status-live mb-2 text-warning" style="background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.25);">Institutional Governance Hub</span>
+            <h1 class="display-5 fw-bold mb-0">Departmental <b>Intelligence</b></h1>
+            <p class="text-muted lead mb-0">Real-time governance analytics for your departmental portfolio</p>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        {% for project in projects %}
+        <div class="col-lg-6">
+            <div class="glass-panel p-4 h-100 animate-reveal">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <div class="fw-bold fs-5 text-white">{{ project.name }}</div>
+                        <div class="extra-small text-muted">Owner: {{ project.owner.username }}</div>
+                    </div>
+                    <span class="status-pill {% if project.status == 'Delayed' %}text-danger{% elif project.status == 'Done' %}text-success{% else %}text-accent{% endif %}" style="background: var(--glass-bg);">{{ project.status }}</span>
+                </div>
+                {# Phase progress bars #}
+                {% for phase in project.phases.all %}
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between extra-small text-muted mb-1">
+                        <span>{{ phase.name }}</span>
+                        <span class="{% if phase.status == 'Approved' %}text-success{% elif phase.status == 'In Progress' %}text-accent{% else %}text-muted{% endif %}">{{ phase.status }}</span>
+                    </div>
+                    <div class="progress" style="height: 4px; background: var(--glass-border);">
+                        <div class="progress-bar {% if phase.status == 'Approved' %}bg-success{% elif phase.status == 'In Progress' %}bg-accent{% else %}bg-secondary{% endif %}" style="width: {% if phase.status == 'Approved' %}100{% elif phase.status == 'In Progress' %}50{% else %}0{% endif %}%;"></div>
+                    </div>
+                </div>
+                {% endfor %}
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div class="small fw-bold text-accent">{{ project.progress_percentage }}% Complete</div>
+                    <a href="{% url 'project-detail' project.pk %}" class="btn glass-panel btn-sm rounded-pill px-3 text-white text-decoration-none">
+                        Oversee <i class="fas fa-chevron-right ms-1 text-accent extra-small"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12 glass-panel p-5 text-center">
+            <i class="fas fa-building text-muted display-3 mb-3 opacity-30"></i>
+            <h5 class="fw-bold">No departmental projects found.</h5>
+        </div>
+        {% endfor %}
+    </div>
+
+    {# ────────────────────────────────────────────────────────────── #}
+    {# ROLE: MD — Org-Wide Executive Dashboard                        #}
+    {# ────────────────────────────────────────────────────────────── #}
+    {% elif gov_role == 'Board of Executives' or can_view_org_dashboard %}
+    <div class="d-flex justify-content-between align-items-end mb-5">
+        <div>
+            <span class="status-pill status-live text-accent mb-2" style="background: var(--accent-glow);">Executive View</span>
+            <h1 class="display-5 fw-bold mb-0">Organizational <b>Intelligence</b></h1>
+            <p class="text-muted lead mb-0">Real-time governance across all institutional projects</p>
+        </div>
+        <div class="d-flex gap-3">
+            <a href="{% url 'recycle-bin' %}" class="btn glass-panel text-white rounded-pill px-4">
+                <i class="fas fa-recycle me-2 text-accent"></i>Recycle Bin
+            </a>
+            <a href="{% url 'project-portfolio' %}" class="btn btn-primary rounded-pill px-4 fw-bold">
+                <i class="fas fa-chart-bar me-2"></i>Portfolio Dashboard
+            </a>
+        </div>
+    </div>
+
+    <div class="glass-panel p-0 overflow-hidden">
+        <div class="p-4 border-bottom border-white border-opacity-10">
+            <h5 class="fw-bold mb-0">Institutional <span class="text-accent">Project Records Intelligence</span></h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-minimal align-middle mb-0 text-white">
+                <thead class="text-muted small text-uppercase">
+                    <tr>
+                        <th class="ps-4">Project</th>
+                        <th>Department</th>
+                        <th>Owner</th>
+                        <th>Progress</th>
+                        {% if can_view_financials %}<th>Budget</th>{% endif %}
+                        <th>Status</th>
+                        <th class="pe-4 text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for project in projects %}
+                    <tr>
+                        <td class="ps-4"><div class="fw-bold">{{ project.name }}</div></td>
+                        <td class="small text-muted">{{ project.department.name }}</td>
+                        <td class="small">{{ project.owner.username }}</td>
+                        <td style="min-width: 140px;">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress flex-grow-1" style="height: 4px; background: var(--glass-border);">
+                                    <div class="progress-bar bg-accent" style="width: {{ project.progress_percentage }}%;"></div>
+                                </div>
+                                <span class="extra-small fw-bold">{{ project.progress_percentage }}%</span>
+                            </div>
+                        </td>
+                        {% if can_view_financials %}
+                        <td class="small text-accent fw-semibold">${{ project.budget|intcomma }}</td>
+                        {% endif %}
+                        <td>
+                            <span class="status-pill {% if project.status == 'Delayed' %}text-danger{% elif project.status == 'Done' %}text-success{% else %}text-accent{% endif %}" style="background: var(--glass-bg);">{{ project.status }}</span>
+                        </td>
+                        <td class="pe-4 text-end">
+                            <a href="{% url 'project-detail' project.pk %}" class="btn glass-panel btn-sm rounded-pill px-3">
+                                <i class="fas fa-arrow-right text-accent"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="text-center py-5 text-muted">No projects found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# ────────────────────────────────────────────────────────────── #}
+    {# ROLE: PM / Portfolio Admin — Full Project Workflow             #}
+    {# ────────────────────────────────────────────────────────────── #}
+    {% else %}
+    <div class="d-flex justify-content-between align-items-end mb-5">
+        <div>
+            <span class="status-pill status-live text-primary mb-2" style="background: var(--glass-bg);">Project Leader View</span>
+            <h1 class="display-5 fw-bold mb-0">My <b>Projects</b></h1>
+            <p class="text-muted lead mb-0">Projects you own or manage</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'recycle-bin' %}" class="btn glass-panel text-white rounded-pill px-4">
+                <i class="fas fa-recycle me-2"></i> Recycle Bin
+            </a>
+            {% if can_create_project %}
+            <a href="{% url 'create-project' %}" class="btn btn-primary rounded-pill px-4 fw-bold">
+                <i class="fas fa-plus me-2"></i> Initiate Project
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-4">
+        {% for project in projects %}
+        <div class="col-lg-4 col-md-6">
+            <div class="glass-panel stats-card p-4 h-100 animate-reveal" style="animation-delay: {{ forloop.counter0 }}00ms;">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <span class="status-pill {% if project.status == 'Delayed' %}text-danger{% elif project.status == 'Done' %}text-success{% else %}text-accent{% endif %}" style="background: var(--glass-bg); font-size:0.65rem;">{{ project.status }}</span>
+                    <span class="extra-small text-muted"><i class="fas fa-calendar me-1"></i> {{ project.end_date }}</span>
+                </div>
+                <h5 class="fw-bold text-white mb-2">{{ project.name }}</h5>
+                <p class="text-muted small mb-4">{{ project.description|truncatechars:80|default:"No description." }}</p>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between extra-small text-muted mb-1">
+                        <span>Overall Progress</span>
+                        <span class="fw-bold text-accent">{{ project.progress_percentage }}%</span>
+                    </div>
+                    <div class="progress" style="height: 4px; background: var(--glass-border);">
+                        <div class="progress-bar bg-accent" style="width: {{ project.progress_percentage }}%;"></div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="bg-accent rounded-circle d-flex align-items-center justify-content-center text-white extra-small fw-bold" style="width:24px;height:24px;">{{ project.owner.username|slice:":1" }}</div>
+                        <span class="extra-small text-muted">{{ project.owner.username }}</span>
+                    </div>
+                    <a href="{% url 'project-detail' project.pk %}" class="btn glass-panel btn-sm rounded-pill px-3 text-white text-decoration-none">
+                        Manage <i class="fas fa-arrow-right ms-1 text-accent extra-small"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12 glass-panel p-5 text-center">
+            <i class="fas fa-folder-open text-muted display-3 mb-3 opacity-30"></i>
+            <h5 class="fw-bold">No projects assigned to you yet.</h5>
+            {% if can_create_project %}
+            <a href="{% url 'create-project' %}" class="btn btn-primary rounded-pill px-4 mt-3">Initialize First Project</a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if available_projects %}
+    <div class="glass-panel p-4 mt-5">
+        <h6 class="fw-bold mb-4 text-accent text-uppercase small"><i class="fas fa-search me-2"></i> Discover & Request to Join Projects</h6>
+        <div class="row g-4">
+            {% for project in available_projects %}
+            <div class="col-md-6 col-lg-4">
+                <div class="glass-panel p-3 h-100 d-flex justify-content-between align-items-center" style="border-radius:14px; border:1px dashed var(--glass-border);">
+                    <div>
+                        <div class="fw-bold text-white mb-1 text-truncate" style="max-width:150px;">{{ project.name }}</div>
+                        <div class="extra-small text-muted">Owner: {{ project.owner.username }}</div>
+                    </div>
+                    <a href="{% url 'project-detail' project.pk %}" class="btn btn-outline-accent btn-sm rounded-pill px-3 fw-bold">
+                        <i class="fas fa-user-plus me-1"></i> Request
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock pageContent %}
+
+
+
+

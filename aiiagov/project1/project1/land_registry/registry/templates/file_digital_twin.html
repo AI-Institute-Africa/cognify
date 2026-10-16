@@ -1,0 +1,422 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center">
+            <div class="bg-primary bg-opacity-10 p-3 rounded-3 me-3">
+                <i class="fas fa-microchip text-primary h3 mb-0"></i></div>
+            <div><h3 class="fw-bold mb-0 text-white"><i class="fas fa-microchip text-warning me-2"></i> ZRP Document Digital Twin</h3>
+                <p class="text-muted mb-0"> Virtual synchronization for Official ZRP Asset: <span class="badge bg-warning text-dark font-monospace"> {{ file_doc.ref_num }}</span></p></div></div>
+        <div class="d-flex gap-2">
+            {% if file_doc.is_lost %}
+            <a href="{% url 'mark-file-found' file_doc.pk %}" class="btn btn-success rounded-pill shadow-sm">
+                <i class="fas fa-search-location me-2"></i> Mark as Recovered</a>
+            {% else %}
+            <a href="{% url 'mark-file-lost' file_doc.pk %}" class="btn btn-outline-danger rounded-pill shadow-sm">
+                <i class="fas fa-exclamation-triangle me-2"></i> Report physical loss</a>
+            {% endif %}
+            <button class="btn btn-dark rounded-pill shadow-sm"
+                onclick="location.href='{% url 'sync-digital-twin' file_doc.pk %}'">
+                <i class="fas fa-sync-alt me-2"></i> Sync Twin</button></div></div>
+
+    <div class="row g-4">
+        <!-- Left Column: Core Intelligence -->
+        <div class="col-lg-4">
+            <!-- Health & Risk Gauges -->
+            <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden">
+                <div class="card-body p-4 text-center">
+                    <h6 class="text-uppercase extra-small fw-bold text-muted mb-4 ls-1"> Twin Health & Resilience</h6>
+
+                    <div class="row g-0">
+                        <div class="col-6 border-end">
+                            <div class="mb-2">
+                                <canvas id="slaGauge" width="100" height="100"></canvas></div>
+                            <span class="d-block small fw-bold text-dark"> SLA Status</span>
+                            <span
+                                class="badge bg-{% if sla_status.status == 'Normal' %}success{% elif sla_status.status == 'WARNING' %}warning{% else %}danger{% endif %} bg-opacity-10 text-{% if sla_status.status == 'Normal' %}success{% elif sla_status.status == 'WARNING' %}warning{% else %}danger{% endif %} mt-1">
+                                {{ sla_status.status }}</span></div>
+                        <div class="col-6">
+                            <div class="mb-2">
+                                <canvas id="riskGauge" width="100" height="100"></canvas></div>
+                            <span class="d-block small fw-bold text-dark"> Risk Score</span>
+                            <span
+                                class="badge bg-{% if file_doc.risk_level == 'Low' %}info{% elif file_doc.risk_level == 'Moderate' %}warning{% else %}danger{% endif %} bg-opacity-10 text-{% if file_doc.risk_level == 'Low' %}info{% elif file_doc.risk_level == 'Moderate' %}warning{% else %}danger{% endif %} mt-1">
+                                {{ file_doc.risk_level }}</span></div></div></div></div>
+
+            <!-- Physical Status Card -->
+            <div class="card border-0 shadow-sm rounded-4 mb-4">
+                <div class="card-body p-4">
+                    <h6 class="text-uppercase extra-small fw-bold text-muted mb-3 ls-1"> Physical Layer Status</h6>
+                    <div class="d-flex align-items-center mb-3">
+                        <div
+                            class="bg-{% if file_doc.is_lost %}danger{% else %}success{% endif %} bg-opacity-10 p-3 rounded-circle me-3">
+                            <i
+                                class="fas fa-{% if file_doc.is_lost %}ghost{% else %}box-open{% endif %} text-{% if file_doc.is_lost %}danger{% else %}success{% endif %} h4 mb-0"></i></div>
+                        <div><h6 class="fw-bold mb-0"> {% if file_doc.is_lost %}Physically Displaced{% else %}Securely
+                                Indexed{% endif %}</h6>
+                            <p class="text-muted extra-small mb-0"> Intelligence Resilience: <span
+                                    class="text-{% if resilience_score > 70 %}success{% elif resilience_score > 40 %}warning{% else %}danger{% endif %}"> {{ resilience_score }}% (Active)</span></p></div></div>
+                    <hr class="my-3 opacity-10">
+                    <div class="small">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted"> Current Dept:</span>
+                            <span class="fw-bold text-dark"> {{ file_doc.current_department.name|default:"External/Transit" }}</span></div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted"> Last Location:</span>
+                            <span class="fw-bold text-dark"> {{ file_doc.current_location|default:"In-Transit" }}</span></div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted"> Last Handler:</span>
+                            <span class="fw-bold text-primary"> {{ file_doc.last_handler.username|default:"System"
+                                }}</span></div></div></div></div>
+
+            <!-- Cloud Vault Link -->
+            <div class="card border-0 bg-primary shadow-lg rounded-4 overflow-hidden">
+                <div class="card-body p-4 text-white">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <i class="fas fa-cloud h3 mb-0"></i>
+                        <span class="badge bg-white text-primary rounded-pill"> Cloud Active</span></div>
+                    <h6 class="fw-bold"> RIFTS Document Cloud</h6>
+                    <p class="small opacity-75 mb-4"> Access raw digitized document partitions and full scan history.</p>
+                    <a href="{% url 'cloud-dashboard' %}?search={{ file_doc.ref_num }}"
+                        class="btn btn-light btn-sm w-100 rounded-pill fw-bold text-primary">
+                        Open Vault Folder <i class="fas fa-external-link-alt ms-1"></i></a></div></div></div>
+
+        <!-- Right Column: Data Streams -->
+        <div class="col-lg-8">
+            <!-- Tabs Navigation -->
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                <div class="card-header bg-white border-bottom-0 p-0">
+                    <ul class="nav nav-pills nav-fill twin-pills p-2 gap-2" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active rounded-pill fw-bold small" id="workflow-tab"
+                                data-bs-toggle="pill" data-bs-target="#tab-workflow" type="button" role="tab">
+                                <i class="fas fa-diagram-project me-2"></i> Workflow Pipeline</button></li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link rounded-pill fw-bold small" id="scans-tab"
+                                data-bs-toggle="pill" data-bs-target="#tab-scans" type="button" role="tab">
+                                <i class="fas fa-copy me-2"></i> Scanned Archive</button></li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link rounded-pill fw-bold small" id="audit-tab" data-bs-toggle="pill"
+                                data-bs-target="#tab-audit" type="button" role="tab">
+                                <i class="fas fa-shield-halved me-2"></i> Audit Trail</button></li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link rounded-pill fw-bold small" id="custody-tab" data-bs-toggle="pill"
+                                data-bs-target="#tab-custody" type="button" role="tab">
+                                <i class="fas fa-route me-2"></i> Custody Chain</button></li></ul></div>
+                <div class="card-body p-4">
+                    <div class="tab-content">
+                    <div class="tab-content">
+                        <!-- Workflow Pipeline Tab -->
+                        <div class="tab-pane fade show active" id="tab-workflow" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div>
+                                    <h6 class="fw-bold mb-0 text-dark"><i class="fas fa-arrows-spin text-success me-2"></i> Document Lifecycle Pipeline</h6>
+                                    <p class="text-muted extra-small mb-0">Configurable status: Initiated &rarr; Submitted &rarr; Reviewed &rarr; Recommended &rarr; Approved &rarr; Implemented &rarr; Closed</p>
+                                </div>
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-1 rounded-pill fw-bold">
+                                    Current: {{ file_doc.workflows.first.current_status|default:"Initiated" }}
+                                </span>
+                            </div>
+
+                            <!-- Workflow Visual Pipeline Bar -->
+                            <div class="p-3 bg-light rounded-4 mb-4 border">
+                                <div class="d-flex justify-content-between align-items-center text-center position-relative">
+                                    {% with wf_status=file_doc.workflows.first.current_status|default:"Initiated" %}
+                                    <div class="flex-fill">
+                                        <div class="badge rounded-circle p-2 {% if wf_status == 'Initiated' %}bg-primary text-white{% else %}bg-success text-white{% endif %} mb-1"><i class="fas fa-play"></i></div>
+                                        <div class="extra-small fw-bold">Initiated</div>
+                                    </div>
+                                    <i class="fas fa-chevron-right text-muted extra-small"></i>
+                                    <div class="flex-fill">
+                                        <div class="badge rounded-circle p-2 {% if wf_status == 'Submitted' %}bg-primary text-white{% elif wf_status in 'Reviewed Recommended Approved Implemented Closed' %}bg-success text-white{% else %}bg-secondary text-white-50{% endif %} mb-1"><i class="fas fa-paper-plane"></i></div>
+                                        <div class="extra-small fw-bold">Submitted</div>
+                                    </div>
+                                    <i class="fas fa-chevron-right text-muted extra-small"></i>
+                                    <div class="flex-fill">
+                                        <div class="badge rounded-circle p-2 {% if wf_status == 'Reviewed' %}bg-primary text-white{% elif wf_status in 'Recommended Approved Implemented Closed' %}bg-success text-white{% else %}bg-secondary text-white-50{% endif %} mb-1"><i class="fas fa-magnifying-glass"></i></div>
+                                        <div class="extra-small fw-bold">Reviewed</div>
+                                    </div>
+                                    <i class="fas fa-chevron-right text-muted extra-small"></i>
+                                    <div class="flex-fill">
+                                        <div class="badge rounded-circle p-2 {% if wf_status == 'Recommended' %}bg-primary text-white{% elif wf_status in 'Approved Implemented Closed' %}bg-success text-white{% else %}bg-secondary text-white-50{% endif %} mb-1"><i class="fas fa-thumbs-up"></i></div>
+                                        <div class="extra-small fw-bold">Recommended</div>
+                                    </div>
+                                    <i class="fas fa-chevron-right text-muted extra-small"></i>
+                                    <div class="flex-fill">
+                                        <div class="badge rounded-circle p-2 {% if wf_status == 'Approved' %}bg-success text-white{% elif wf_status == 'Rejected' %}bg-danger text-white{% elif wf_status in 'Implemented Closed' %}bg-success text-white{% else %}bg-secondary text-white-50{% endif %} mb-1"><i class="fas fa-check-double"></i></div>
+                                        <div class="extra-small fw-bold">Approved</div>
+                                    </div>
+                                    <i class="fas fa-chevron-right text-muted extra-small"></i>
+                                    <div class="flex-fill">
+                                        <div class="badge rounded-circle p-2 {% if wf_status == 'Implemented' %}bg-primary text-white{% elif wf_status == 'Closed' %}bg-success text-white{% else %}bg-secondary text-white-50{% endif %} mb-1"><i class="fas fa-gears"></i></div>
+                                        <div class="extra-small fw-bold">Implemented</div>
+                                    </div>
+                                    <i class="fas fa-chevron-right text-muted extra-small"></i>
+                                    <div class="flex-fill">
+                                        <div class="badge rounded-circle p-2 {% if wf_status == 'Closed' %}bg-dark text-white{% else %}bg-secondary text-white-50{% endif %} mb-1"><i class="fas fa-box-archive"></i></div>
+                                        <div class="extra-small fw-bold">Closed/Archived</div>
+                                    </div>
+                                    {% endwith %}
+                                </div>
+                            </div>
+
+                            <!-- Advance Workflow Form -->
+                            <form action="{% url 'transition-document-workflow' file_doc.pk %}" method="POST" class="card p-3 border-0 bg-light rounded-4">
+                                {% csrf_token %}
+                                <h6 class="fw-bold small mb-2"><i class="fas fa-sliders text-success me-2"></i> Update Document Workflow State</h6>
+                                <div class="row g-2">
+                                    <div class="col-md-5">
+                                        <select name="target_status" class="form-select form-select-sm" required>
+                                            <option value="Initiated">1. Initiated</option>
+                                            <option value="Submitted">2. Submitted for Review</option>
+                                            <option value="Reviewed">3. Reviewed</option>
+                                            <option value="Recommended">4. Recommended</option>
+                                            <option value="Approved">5. Approved</option>
+                                            <option value="Rejected">5b. Rejected</option>
+                                            <option value="Implemented">6. Implemented</option>
+                                            <option value="Closed">7. Closed / Archived</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <input type="text" name="comments" class="form-control form-control-sm" placeholder="Reviewer notes / approval comments...">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="submit" class="btn btn-success btn-sm w-100 rounded-pill fw-bold" style="background: #003EA6;">Update</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Scanned Archive Tab -->
+                        <div class="tab-pane fade" id="tab-scans" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h6 class="fw-bold mb-0"> <i class="fas fa-archive me-2 text-primary"></i> Linked Scanned
+                                    Documents</h6>
+                                <span class="badge bg-secondary rounded-pill"> {{ scans.count }} Records</span></div>
+
+                            {% if scans %}
+                            <div class="row g-3">
+                                {% for scan in scans %}
+                                <div class="col-md-6">
+                                    <div class="card border border-opacity-10 rounded-3 h-100">
+                                        <div class="card-body p-3">
+                                            <div class="d-flex align-items-center mb-2">
+                                                <div class="bg-light p-2 rounded me-2">
+                                                    <i class="far fa-file-pdf text-danger h5 mb-0"></i></div>
+                                                <div class="overflow-hidden">
+                                                    <h6 class="text-truncate small fw-bold mb-0"> Scan #{{ scan.id }}</h6>
+                                                    <span class="extra-small text-muted"> {{ scan.created_at|date:"d M Y"
+                                                        }}</span></div></div>
+                                            <p class="extra-small text-muted mb-3 line-clamp-2">
+                                                {{ scan.extracted_text|truncatechars:100|default:"No OCR text
+                                                available." }}</p>
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <span
+                                                    class="badge bg-success bg-opacity-10 text-success extra-small"> Processed</span>
+                                                <a href="{{ scan.raw_file.url }}"
+                                                    class="btn btn-xs btn-outline-primary py-1 px-3 extra-small rounded-pill"
+                                                    target="_blank"> View File</a></div></div></div></div>
+                                {% endfor %}</div>
+                            {% else %}
+                            <div class="text-center py-5">
+                                <div class="bg-light p-4 rounded-circle d-inline-block mb-3">
+                                    <i class="fas fa-cloud-upload-alt h2 mb-0 text-muted"></i></div>
+                                <h6 class="text-muted small"> No scanned documents linked to this twin.</h6></div>
+                            {% endif %}</div>
+
+                        <!-- Complete Audit Trail Tab -->
+                        <div class="tab-pane fade" id="tab-audit" role="tabpanel">
+                            <h6 class="fw-bold mb-3"><i class="fas fa-shield-halved me-2 text-success"></i> Document Audit Trail Log</h6>
+                            <p class="text-muted extra-small mb-4">Complete immutable history of who created, viewed, downloaded, edited, moved, approved, rejected, archived or deleted this document.</p>
+                            
+                            {% if file_doc.audit_logs.all %}
+                            <div class="table-responsive">
+                                <table class="table table-sm extra-small align-middle">
+                                    <thead class="bg-light text-uppercase fw-bold">
+                                        <tr>
+                                            <th>Timestamp</th>
+                                            <th>User</th>
+                                            <th>Action</th>
+                                            <th>Details</th>
+                                            <th>IP Address</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for alog in file_doc.audit_logs.all %}
+                                        <tr>
+                                            <td class="text-muted">{{ alog.timestamp|date:"d M Y, H:i:s" }}</td>
+                                            <td class="fw-bold text-dark">{{ alog.user.username|default:"System" }}</td>
+                                            <td>
+                                                <span class="badge bg-{% if alog.action in 'Create Approve Restore' %}success{% elif alog.action in 'Delete Reject' %}danger{% elif alog.action in 'Move Edit Rename' %}warning{% else %}info{% endif %} bg-opacity-20 text-{% if alog.action in 'Create Approve Restore' %}success{% elif alog.action in 'Delete Reject' %}danger{% elif alog.action in 'Move Edit Rename' %}warning{% else %}info{% endif %} rounded-pill px-2">
+                                                    {{ alog.action }}
+                                                </span>
+                                            </td>
+                                            <td>{{ alog.details }}</td>
+                                            <td class="text-muted">{{ alog.ip_address|default:"Local" }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="p-4 bg-light rounded text-center text-muted extra-small">
+                                <i class="fas fa-history fs-4 d-block mb-2 text-secondary"></i>
+                                Initialized Document Audit Log. Actions on this document will be recorded in real-time.
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Custody Chain Tab -->
+                        <div class="tab-pane fade" id="tab-custody" role="tabpanel">
+                            <h6 class="fw-bold mb-4"> <i class="fas fa-link me-2 text-primary"></i> Movement Intelligence
+                                Log</h6>
+                            <div class="timeline twin-timeline">
+                                {% for log in logs %}
+                                <div class="timeline-item border-start border-2 ps-4 pb-4 position-relative">
+                                    <div class="timeline-dot bg-{% if log.action == 'LOST' %}danger{% elif log.action == 'FOUND' %}success{% elif log.action == 'TRANSFER' %}warning{% else %}primary{% endif %} rounded-pill position-absolute"
+                                        style="width: 12px; height: 12px; left: -7px; top: 5px; box-shadow: 0 0 0 4px white;"></div>
+                                    <div class="d-flex justify-content-between align-items-start mb-1">
+                                        <span class="fw-bold small text-dark"> {{ log.action }}</span>
+                                        <span class="extra-small text-muted"> {{ log.timestamp|naturaltime }}</span></div>
+                                    <p class="mb-1 extra-small text-muted">
+                                        Executed by <span class="bg-primary bg-opacity-10 text-primary px-2 rounded"> {{ log.handler.username }}</span></p>
+                                    <p class="small text-dark mb-0"> {{ log.reason }}</p>
+                                    {% if log.to_department %}
+                                    <div class="mt-2">
+                                        <span class="extra-small px-2 py-1 bg-light rounded text-muted">
+                                            <i class="fas fa-arrow-right me-1"></i> Destination: {{ log.to_department.name }}</span></div>
+                                    {% endif %}</div>
+                                {% endfor %}</div></div>
+
+                        <!-- Approvals Tab -->
+                        <div class="tab-pane fade" id="tab-approvals" role="tabpanel">
+                            <h6 class="fw-bold mb-4"> <i class="fas fa-shield-alt me-2 text-primary"></i> Formal
+                                Authorization Trail</h6>
+                            {% if approvals %}
+                            <div class="table-responsive">
+                                <table class="table table-sm extra-small align-middle">
+                                    <thead class="text-muted text-uppercase fw-bold ls-1 h6 border-0">
+                                        <tr><th>Type</th>
+                                            <th>Requester</th>
+                                            <th>Status</th>
+                                            <th>Timestamp</th>
+                                            <th>Action</th></tr></thead>
+                                    <tbody class="border-0">
+                                        {% for app in approvals %}
+                                        <tr class="border-bottom border-light">
+                                            <td class="py-3 fw-bold"> {{ app.action_type }}</td>
+                                            <td class="py-3"> {{ app.requester.username }}</td>
+                                            <td class="py-3">
+                                                <span
+                                                    class="badge bg-{% if app.status == 'Approved' %}success{% elif app.status == 'Rejected' %}danger{% else %}warning{% endif %} bg-opacity-10 text-{% if app.status == 'Approved' %}success{% elif app.status == 'Rejected' %}danger{% else %}warning{% endif %} rounded-pill">
+                                                    {{ app.status }}</span></td>
+                                            <td class="py-3 text-muted"> {{ app.timestamp|date:"d M, H:i" }}</td>
+                                            <td class="py-3">
+                                                {% if app.status == 'Pending' and user.is_superuser %}
+                                                <div class="btn-group">
+                                                    <a href="{% url 'handle-approval' app.pk 'Approved' %}"
+                                                        class="btn btn-xs btn-success"> <i class="fas fa-check"></i></a>
+                                                    <a href="{% url 'handle-approval' app.pk 'Rejected' %}"
+                                                        class="btn btn-xs btn-danger"> <i class="fas fa-times"></i></a></div>
+                                                {% else %}
+                                                <span class="text-muted italic"> Logged</span>
+                                                {% endif %}</td></tr>
+                                        {% endfor %}</tbody></table></div>
+                            {% else %}
+                            <div class="text-center py-5">
+                                <i class="fas fa-user-lock h3 mb-3 text-muted"></i>
+                                <h6 class="text-muted small"> No formal approvals recorded for this twin yet.</h6></div>
+                            {% endif %}</div></div></div></div></div></div></div>
+
+<style>.twin-pills .nav-link {
+        color: #6c757d;
+        background: transparent;
+        border: 1px solid transparent;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .twin-pills .nav-link.active {
+        background: #f8f9fa !important;
+        color: #0d6efd !important;
+        border-color: rgba(13, 110, 253, 0.2) !important;
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.08);
+    }
+
+    .extra-small {
+        font-size: 0.75rem;
+        letter-spacing: 0.02em;
+    }
+
+    .ls-1 {
+        letter-spacing: 1px;
+    }
+
+    .twin-timeline .timeline-item:last-child {
+        border-start: 0 !important;
+        padding-bottom: 0 !important;
+    }
+
+    .line-clamp-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>document.addEventListener('DOMContentLoaded', function () {
+        // SLA Gauge
+        const slaCtx = document.getElementById('slaGauge').getContext('2d');
+        const slaStatus = "{{ sla_status.status }}";
+        const slaColor = slaStatus === 'Normal' ? '#198754' : (slaStatus === 'WARNING' ? '#ffc107' : '#dc3545');
+
+        new Chart(slaCtx, {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [85, 15],
+                    backgroundColor: [slaColor, '#f1f1f1'],
+                    borderWidth: 0,
+                    circumference: 180,
+                    rotation: 270,
+                    cutout: '80%'
+                }]
+            },
+            options: {
+                responsive: false,
+                plugins: { legend: { display: false }, tooltip: { enabled: false } }
+            }
+        });
+
+        // Risk Gauge
+        const riskCtx = document.getElementById('riskGauge').getContext('2d');
+        const riskScore = parseInt("{{ risk_score }}");
+        const riskColor = riskScore> 70 ? '#dc3545' : (riskScore> 40 ? '#ffc107' : '#0dcaf0');
+
+        new Chart(riskCtx, {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [riskScore, 100 - riskScore],
+                    backgroundColor: [riskColor, '#f1f1f1'],
+                    borderWidth: 0,
+                    circumference: 180,
+                    rotation: 270,
+                    cutout: '80%'
+                }]
+            },
+            options: {
+                responsive: false,
+                plugins: { legend: { display: false }, tooltip: { enabled: false } }
+            }
+        });
+    });</script>
+{% endblock %}
+
+
+
+

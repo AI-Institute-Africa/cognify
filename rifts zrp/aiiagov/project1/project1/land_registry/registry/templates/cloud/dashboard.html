@@ -1,0 +1,304 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load folder_perms %}
+
+{% block pageContent %}
+<style>.glass-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .glass-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .folder-icon {
+        color: #ffca28;
+        font-size: 3rem;
+    }
+
+    .file-icon {
+        color: #64b5f6;
+        font-size: 3rem;
+    }
+
+    .breadcrumb-item+.breadcrumb-item::before {
+        content: "> ";
+        color: rgba(255, 255, 255, 0.5);
+    }
+
+    .btn-glass {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white;
+        backdrop-filter: blur(5px);
+    }
+
+    .btn-glass:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+    }
+
+    .governance-badge {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        padding: 3px 8px;
+        border-radius: 5px;
+        background: rgba(0, 123, 255, 0.2);
+        color: #007bff;
+        border: 1px solid rgba(0, 123, 255, 0.3);
+    }</style>
+
+<div class="container-fluid py-4">
+    <div class="row mb-4 align-items-center">
+        <div class="col">
+            <h1 class="text-white mb-0"> <i class="fas fa-cloud me-2"></i> Institutional Cloud Vault</h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb bg-transparent p-0 mb-0">
+                    <li class="breadcrumb-item"> <a href="{% url 'cloud-dashboard' %}" class="text-white-50"> Root</a></li>
+                    {% if current_folder %}
+                    <li class="breadcrumb-item active text-white" aria-current="page"> {{ current_folder.name }}</li>
+                    {% endif %}</ol></nav></div>
+        <div class="col-auto">
+            <div class="btn-group">
+                {% if request.user|can_create_folder %}
+                <button class="btn btn-glass" data-bs-toggle="modal" data-bs-target="#newFolderModal">
+                    <i class="fas fa-folder-plus me-2"></i> New Folder</button>
+                {% endif %}
+                <button class="btn btn-secondary ms-2" data-bs-toggle="modal" data-bs-target="#newDocModal">
+                    <i class="fas fa-file-word me-2"></i> New Word Doc</button>
+                <button class="btn btn-primary ms-2" data-bs-toggle="modal" data-bs-target="#uploadFileModal">
+                    <i class="fas fa-upload me-2"></i> Upload Document</button>
+                {% if current_folder and request.user|can_download_folder %}
+                <a href="{% url 'cloud-download-folder' current_folder.id %}" class="btn btn-warning text-dark ms-2">
+                    <i class="fas fa-download me-2"></i> Download ZIP</a>
+                {% endif %}
+                <a href="{% if deleted_mode %}{% url 'cloud-dashboard' %}{% else %}{% url 'cloud-dashboard' %}?show_deleted=1{% endif %}" class="btn btn-outline-light ms-2">
+                    <i class="fas fa-trash-restore me-2"></i> {% if deleted_mode %}Back to Vault{% else %}Recycle Bin{% endif %}</a></div></div></div>
+
+    <!-- Folders Grid -->
+    {% if folders %}
+    <h5 class="text-white-50 mb-3 ml-2"> Folders</h5>
+    <div class="row g-4 mb-5">
+        {% for folder in folders %}
+        <div class="col-6 col-md-3 col-lg-2">
+            <div class="glass-card p-4 text-center position-relative">
+                {% if deleted_mode %}
+                <form action="{% url 'cloud-restore-folder' folder.id %}" method="POST" class="position-absolute top-0 end-0 m-2">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-success p-1" title="Restore folder">
+                        <i class="fas fa-trash-restore"></i></button>
+                </form>
+                {% else %}
+                    {% if request.user|can_delete_folder %}
+                    <form action="{% url 'cloud-delete-folder' folder.id %}" method="POST" class="position-absolute top-0 end-0 m-2">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-danger p-1" title="Delete folder" onclick="return confirm('Delete folder {{ folder.name }} and all its contents?');">
+                            <i class="fas fa-trash"></i></button>
+                    </form>
+                    {% endif %}
+                    {% if request.user|can_download_folder %}
+                    <a href="{% url 'cloud-download-folder' folder.id %}" class="position-absolute top-0 start-0 m-2 btn btn-sm btn-warning p-1" title="Download ZIP" style="z-index: 10;">
+                        <i class="fas fa-download text-dark"></i>
+                    </a>
+                    {% endif %}
+                {% endif %}
+                <a href="?folder={{ folder.id }}" class="text-decoration-none text-white">
+                    <i class="fas fa-folder folder-icon mb-3"></i>
+                    <h6 class="text-white text-truncate mb-1"> {{ folder.name }}</h6>
+                    <span class="governance-badge"> {{ folder.department.name }}</span></a></div></div>
+        {% endfor %}</div>
+    {% endif %}
+
+    <!-- Files Grid -->
+    <h5 class="text-white-50 mb-3 ml-2"> Documents</h5>
+    <div class="row g-4">
+        {% for file in files %}
+        <div class="col-6 col-md-3 col-lg-2">
+            <div class="glass-card p-4 text-center position-relative">
+                {% if deleted_mode %}
+                <form action="{% url 'cloud-restore-file' file.id %}" method="POST" class="position-absolute top-0 end-0 m-2">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-success p-1" title="Restore document">
+                        <i class="fas fa-trash-restore"></i></button>
+                </form>
+                {% else %}
+                <form action="{% url 'cloud-delete-file' file.id %}" method="POST" class="position-absolute top-0 end-0 m-2">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-danger p-1" title="Delete document" onclick="return confirm('Delete document {{ file.name }}?');">
+                        <i class="fas fa-trash"></i></button>
+                </form>
+                {% endif %}
+                <a href="{% url 'cloud-file-view' file.id %}" class="text-decoration-none text-white">
+                    <i class="fas fa-file-pdf file-icon mb-3"></i>
+                    <h6 class="text-white text-truncate mb-1"> {{ file.name }}</h6>
+                    <small class="text-white-50 d-block mb-2"> v{{ file.latest_version.version_number }}</small>
+                    {% if file.is_internal_only %}
+                    <span class="badge bg-danger p-1" style="font-size: 0.6rem;"> INTERNAL ONLY</span>
+                    {% endif %}</a></div></div>
+        {% empty %}
+        <div class="col-12 text-center py-5">
+            <i class="fas fa-file-import text-white-50 fa-3x mb-3"></i>
+            <p class="text-white-50"> No governing documents found in this directory.</p></div>
+        {% endfor %}</div></div>
+
+<!-- New Folder Modal -->
+<div class="modal fade" id="newFolderModal" tabindex="-1">
+    <div class="modal-dialog modal-dark">
+        <div class="modal-content glass-card border-0">
+            <form action="{% url 'cloud-create-folder' %}" method="POST">
+                {% csrf_token %}
+                <div class="modal-header border-bottom border-white-10">
+                    <h5 class="modal-title text-white"> Establish Governance Folder</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <input type="hidden" name="parent_id" value="{{ current_folder.id|default:'' }}">
+                    <div class="mb-3">
+                        <label class="form-label text-white-50"> Folder Name</label>
+                        <input type="text" name="name" class="form-control bg-dark text-white border-white-10" required
+                            placeholder="e.g. Legal Contracts 2024"></div>
+                    <div class="mb-3">
+                        <label class="form-label text-white-50"> Owning Department</label>
+                        <select name="department_id" class="form-select bg-dark text-white border-white-10" required>
+                            {% for dept in departments %}
+                            <option value="{{ dept.id }}" {% if current_folder.department_id == dept.id %}selected{% endif %} > {{ dept.name }}</option>
+                            {% endfor %}</select></div></div>
+                <div class="modal-footer border-top border-white-10">
+                    <button type="button" class="btn btn-glass" data-bs-dismiss="modal"> Cancel</button>
+                    <button type="submit" class="btn btn-primary"> Create Folder</button></div></form></div></div></div>
+
+<!-- Upload File Modal -->
+<div class="modal fade" id="uploadFileModal" tabindex="-1">
+    <div class="modal-dialog modal-dark">
+        <div class="modal-content glass-card border-0">
+            <form action="{% url 'cloud-upload' %}" method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-header border-bottom border-white-10">
+                    <h5 class="modal-title text-white"> Secure Upload</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    {% if current_folder %}
+                        <input type="hidden" name="folder_id" value="{{ current_folder.id }}" required>
+                    {% else %}
+                        <div class="mb-3">
+                            <label class="form-label text-white-50"> Select Target Folder</label>
+                            <select name="folder_id" class="form-select bg-dark text-white border-white-10" required>
+                                {% for folder in folders %}
+                                <option value="{{ folder.id }}">{{ folder.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label class="form-label text-white-50"> Select File</label>
+                        <input type="file" name="file" class="form-control bg-dark text-white border-white-10" required></div>
+                    <div class="mb-3">
+                        <label class="form-label text-white-50"> Commit Message</label>
+                        <textarea name="commit_message" class="form-control bg-dark text-white border-white-10" rows="2"
+                            placeholder="Describe the purpose of this version..."></textarea></div></div>
+                <div class="modal-footer border-top border-white-10">
+                    <button type="button" class="btn btn-glass" data-bs-dismiss="modal"> Cancel</button>
+                    <button type="submit" class="btn btn-primary"> Start Logged Upload</button></div></form></div></div></div>
+
+<!-- New Word Doc Modal -->
+<div class="modal fade" id="newDocModal" tabindex="-1">
+    <div class="modal-dialog modal-dark modal-lg">
+        <div class="modal-content glass-card border-0">
+            <form action="{% url 'cloud-create-doc' %}" method="POST">
+                {% csrf_token %}
+                <div class="modal-header border-bottom border-white-10">
+                    <h5 class="modal-title text-white"> Create New Word Document</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    {% if current_folder %}
+                        <input type="hidden" name="folder_id" value="{{ current_folder.id }}" required>
+                    {% else %}
+                        <div class="mb-3">
+                            <label class="form-label text-white-50"> Select Target Folder</label>
+                            <select name="folder_id" class="form-select bg-dark text-white border-white-10" required>
+                                {% for folder in folders %}
+                                <option value="{{ folder.id }}">{{ folder.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label class="form-label text-white-50"> Document Title</label>
+                        <input type="text" name="name" class="form-control bg-dark text-white border-white-10" required
+                            placeholder="Enter a document title"></div>
+                    <div class="mb-3">
+                        <label class="form-label text-white-50"> Document Content</label>
+                        <div id="docEditorToolbar" class="ql-toolbar bg-dark rounded mb-2" style="border:1px solid rgba(255,255,255,0.12);">
+                            <span class="ql-formats">
+                                <button class="ql-bold"></button>
+                                <button class="ql-italic"></button>
+                                <button class="ql-underline"></button>
+                                <button class="ql-strike"></button>
+                            </span>
+                            <span class="ql-formats">
+                                <button class="ql-list" value="ordered"></button>
+                                <button class="ql-list" value="bullet"></button>
+                            </span>
+                            <span class="ql-formats">
+                                <button class="ql-align" value=""></button>
+                                <button class="ql-align" value="center"></button>
+                                <button class="ql-align" value="right"></button>
+                                <button class="ql-align" value="justify"></button>
+                            </span>
+                            <span class="ql-formats">
+                                <button class="ql-blockquote"></button>
+                                <button class="ql-code-block"></button>
+                            </span>
+                            <span class="ql-formats">
+                                <button class="ql-link"></button>
+                                <button class="ql-image"></button>
+                            </span>
+                            <span class="ql-formats">
+                                <button class="ql-clean"></button>
+                            </span>
+                        </div>
+                        <div id="docEditor" class="form-control bg-dark text-white border-white-10" style="min-height: 300px; overflow:auto;"></div>
+                        <input type="hidden" name="content" id="docContentInput">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white-50"> Commit Message</label>
+                        <textarea name="commit_message" class="form-control bg-dark text-white border-white-10" rows="2"
+                            placeholder="Describe the purpose of this document..."></textarea></div></div>
+                <div class="modal-footer border-top border-white-10">
+                    <button type="button" class="btn btn-glass" data-bs-dismiss="modal"> Cancel</button>
+                    <button type="submit" class="btn btn-primary"> Create Document</button></div></form></div></div></div>
+</div>
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.7/quill.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var quill = new Quill('#docEditor', {
+            theme: 'snow',
+            modules: {
+                toolbar: '#docEditorToolbar'
+            }
+        });
+
+        var form = document.querySelector('#newDocModal form');
+        if (form) {
+            form.addEventListener('submit', function() {
+                var contentInput = document.querySelector('#docContentInput');
+                if (contentInput) {
+                    contentInput.value = quill.root.innerHTML;
+                }
+            });
+        }
+    });
+</script>
+{% endblock pageContent %}
+
+
+
+
+

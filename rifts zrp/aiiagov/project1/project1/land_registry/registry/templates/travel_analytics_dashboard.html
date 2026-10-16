@@ -1,0 +1,179 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="fw-bold mb-0 text-white"><i class="fas fa-plane text-warning me-2"></i> ZRP Training &amp; Travel Analytics Dashboard</h3>
+      <p class="text-muted small mb-0">Training requests, approvals, TSA expenditure, departmental breakdown &amp; outstanding acquittals</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'export-reports' 'travel_tsa' %}" class="btn btn-outline-success rounded-pill px-3 fw-bold">
+        <i class="fas fa-file-csv me-1"></i> Export TSA CSV
+      </a>
+      <a href="{% url 'executive-analytics-dashboard' %}" class="btn btn-outline-light rounded-pill px-3">
+        <i class="fas fa-arrow-left me-1"></i> Executive Dashboard
+      </a>
+    </div>
+  </div>
+
+  <!-- Period Filter -->
+  <div class="glass-card p-3 mb-4 border border-warning border-opacity-25">
+    <form method="GET" class="row g-2 align-items-center">
+      <div class="col-auto small text-muted fw-bold">Period:</div>
+      <div class="col-md-2">
+        <select name="period" class="form-select form-select-sm bg-dark text-white border-secondary">
+          <option value="monthly" {% if period == 'monthly' %}selected{% endif %}>Monthly</option>
+          <option value="quarterly" {% if period == 'quarterly' %}selected{% endif %}>Quarterly</option>
+          <option value="annual" {% if period == 'annual' %}selected{% endif %}>Annual</option>
+        </select>
+      </div>
+      <div class="col-md-1">
+        <select name="month" class="form-select form-select-sm bg-dark text-white border-secondary">
+          {% for m in months_list %}
+          <option value="{{ m }}" {% if month == m %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <input type="number" name="year" value="{{ year }}" class="form-control form-control-sm bg-dark text-white border-secondary">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-warning rounded-pill px-3 fw-bold">Generate</button>
+      </div>
+      <div class="col-auto ms-auto small text-muted">Period: <strong class="text-warning">{{ period|title }} — {{ year }}</strong></div>
+    </form>
+  </div>
+
+  <!-- Training Metrics -->
+  <h6 class="text-uppercase fw-bold text-muted mb-2 small"><i class="fas fa-graduation-cap me-1 text-primary"></i> Training Metrics</h6>
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="glass-card p-3 text-center border-top border-4 border-info">
+        <div class="extra-small text-muted fw-bold text-uppercase">Training Requests</div>
+        <h2 class="fw-bold text-info mb-0 mt-1">{{ total_training }}</h2>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="glass-card p-3 text-center border-top border-4 border-success">
+        <div class="extra-small text-muted fw-bold text-uppercase">Approved Training</div>
+        <h2 class="fw-bold text-success mb-0 mt-1">{{ approved_training }}</h2>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="glass-card p-3 text-center border-top border-4 border-primary">
+        <div class="extra-small text-muted fw-bold text-uppercase">Training Undertaken</div>
+        <h2 class="fw-bold text-primary mb-0 mt-1">{{ training_undertaken }}</h2>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="glass-card p-3 text-center border-top border-4 border-warning">
+        <div class="extra-small text-muted fw-bold text-uppercase">Training TSA Expenditure</div>
+        <h4 class="fw-bold text-warning mb-0 mt-1">${{ training_expenditure|floatformat:2 }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <!-- Travel / TSA Metrics -->
+  <h6 class="text-uppercase fw-bold text-muted mb-2 small mt-2"><i class="fas fa-plane-departure me-1 text-danger"></i> Official Business Travel & TSA Metrics</h6>
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="glass-card p-3 text-center border-top border-4 border-danger">
+        <div class="extra-small text-muted fw-bold text-uppercase">Travel Requests</div>
+        <h2 class="fw-bold text-danger mb-0 mt-1">{{ total_travel }}</h2>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="glass-card p-3 text-center border-top border-4 border-success">
+        <div class="extra-small text-muted fw-bold text-uppercase">Approved Travel</div>
+        <h2 class="fw-bold text-success mb-0 mt-1">{{ approved_travel }}</h2>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="glass-card p-3 text-center border-top border-4 border-warning">
+        <div class="extra-small text-muted fw-bold text-uppercase">TSA Expenditure (Official Biz)</div>
+        <h4 class="fw-bold text-warning mb-0 mt-1">${{ tsa_expenditure|floatformat:2 }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+
+    <!-- Training by Department -->
+    <div class="col-md-5">
+      <div class="glass-card p-4 h-100">
+        <h5 class="fw-bold text-white mb-3"><i class="fas fa-sitemap text-info me-2"></i> Training by Department</h5>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0 text-white small">
+            <thead><tr class="extra-small text-uppercase bg-dark">
+              <th class="ps-3 py-2">Department</th>
+              <th class="text-center py-2">Requests</th>
+              <th class="text-end pe-3 py-2">TSA Spend ($)</th>
+            </tr></thead>
+            <tbody>
+              {% for d in training_by_dept %}
+              <tr>
+                <td class="ps-3 fw-bold text-white">{{ d.department__name|default:"Unassigned" }}</td>
+                <td class="text-center"><span class="badge bg-primary rounded-pill">{{ d.count }}</span></td>
+                <td class="text-end pe-3 fw-bold text-warning">${{ d.spend|floatformat:2|default:"0.00" }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="3" class="text-center text-muted py-3">No training requests this period.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Outstanding Acquittals -->
+    <div class="col-md-7">
+      <div class="glass-card p-4 h-100">
+        <h5 class="fw-bold text-white mb-3">
+          <i class="fas fa-triangle-exclamation text-danger me-2"></i>
+          Outstanding Acquittals
+          {% if outstanding_acquittals %}
+          <span class="badge bg-danger ms-1">{{ outstanding_acquittals|length }}</span>
+          {% endif %}
+        </h5>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0 text-white small">
+            <thead><tr class="extra-small text-uppercase bg-dark">
+              <th class="ps-3 py-2">Ref & Title</th>
+              <th class="py-2">Requestor</th>
+              <th class="py-2">Return Date</th>
+              <th class="pe-3 text-end py-2">Acquittal Status</th>
+            </tr></thead>
+            <tbody>
+              {% for t in outstanding_acquittals %}
+              <tr>
+                <td class="ps-3">
+                  <div class="font-monospace text-warning fw-bold extra-small">{{ t.ref_number }}</div>
+                  <div class="small text-white">{{ t.title }}</div>
+                </td>
+                <td class="small">{{ t.requestor.get_full_name|default:t.requestor.username }}</td>
+                <td class="fw-bold {% if t.end_date < today %}text-danger{% else %}text-info{% endif %}">
+                  {{ t.end_date|date:"d M Y" }}
+                </td>
+                <td class="text-end pe-3">
+                  <span class="badge bg-danger rounded-pill extra-small">{{ t.acquittal_status }}</span>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="4" class="text-center text-muted py-3">
+                <i class="fas fa-check-circle text-success me-1"></i> No outstanding acquittals for this period.
+              </td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+{% endblock pageContent %}

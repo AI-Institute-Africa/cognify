@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-0 text-gradient"> Executive Intelligence</h2>
+            <p class="text-muted small"> Real-time oversight of Records Intelligence operations and accountability.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary btn-sm rounded-pill px-3"> <i class="fas fa-sync me-1"></i> Refresh
+                Data</button>
+            <button class="btn btn-primary btn-sm rounded-pill px-3"> <i class="fas fa-file-export me-1"></i> Export
+                Report</button>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="glass-card p-4 text-center border-bottom border-4 border-info h-100">
+                <div class="extra-small text-muted text-uppercase fw-bold mb-2"> System Health</div>
+                <h1 class="fw-bold mb-1 text-info"> {{ health }}%</h1>
+                <div class="extra-small text-success"> <i class="fas fa-caret-up me-1"></i> +2.3% this week</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-4 text-center border-bottom border-4 border-warning h-100">
+                <div class="extra-small text-muted text-uppercase fw-bold mb-2"> Active SLA Breaches</div>
+                <h1 class="fw-bold mb-1 text-warning"> {{ breached_count }}</h1>
+                <div class="extra-small text-danger"> <i class="fas fa-exclamation-triangle me-1"></i> Action Required
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-4 text-center border-bottom border-4 border-danger h-100">
+                <div class="extra-small text-muted text-uppercase fw-bold mb-2"> Critical Risk Records</div>
+                <h1 class="fw-bold mb-1 text-danger"> {{ critical_count }}</h1>
+                <div class="extra-small text-muted"> Movement outliers detected</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-4 text-center border-bottom border-4 border-primary h-100">
+                <div class="extra-small text-muted text-uppercase fw-bold mb-2"> File Circulation</div>
+                <h1 class="fw-bold mb-1 text-primary"> {{ movement_count }}</h1>
+                <div class="extra-small text-muted"> Logs in last 24h</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-4">
+            <div class="glass-card p-4 h-100">
+                <h5 class="fw-bold mb-4"> Building Storage Density</h5>
+                <canvas id="locationChart" style="max-height: 250px;"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="glass-card p-4 h-100">
+                <h5 class="fw-bold mb-4"> Department Concentration</h5>
+                <canvas id="departmentHeatmapChart" style="max-height: 250px;"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="glass-card p-4 h-100">
+                <h5 class="fw-bold mb-4"> Records Intelligence Throughput Analysis</h5>
+                <canvas id="throughputChart" style="max-height: 250px;"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="glass-card p-4 h-100">
+                <h5 class="fw-bold mb-4"> Accountability Index</h5>
+                {% for dept in departments %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="fw-bold"> {{ dept.name }}</span>
+                        <span class="text-muted"> {{ dept.efficiency_score|floatformat:1 }}%</span>
+                    </div>
+                    <div class="progress rounded-pill" style="height: 8px;">
+                        <div class="progress-bar {% if dept.efficiency_score > 80 %}bg-success{% elif dept.efficiency_score > 60 %}bg-warning{% else %}bg-danger{% endif %}"
+                            role="progressbar" style="width: {{ dept.efficiency_score }}%"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Load Chart.js from CDN if not present in project -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>document.addEventListener('DOMContentLoaded', function () {
+        const ctx = document.getElementById('throughputChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                datasets: [{
+                    label: 'File Movements',
+                    data: [12, 19, 3, 5, 2, 3, 9],
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 3,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#0d6efd',
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { display: false } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        // Location Heatmap
+        const locationCtx = document.getElementById('locationChart').getContext('2d');
+        const heatmapData = {{ location_heatmap|safe }};
+    new Chart(locationCtx, {
+        type: 'doughnut',
+        data: {
+            labels: heatmapData.map(d => `${d.building} (F${d.floor})`),
+            datasets: [{
+                data: heatmapData.map(d => d.file_count),
+                backgroundColor: ['#0d6efd', '#6610f2', '#6f42c1', '#d63384', '#dc3545'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } }
+            }
+        }
+    });
+
+    // Department Heatmap
+    const deptCtx = document.getElementById('departmentHeatmapChart').getContext('2d');
+    const deptData = {{ department_heatmap| safe }};
+    new Chart(deptCtx, {
+        type: 'bar',
+        data: {
+            labels: deptData.map(d => d.name),
+            datasets: [{
+                label: 'Files in Custody',
+                data: deptData.map(d => d.file_count),
+                backgroundColor: 'rgba(13, 202, 240, 0.6)',
+                borderColor: '#0dcaf0',
+                borderWidth: 1,
+                borderRadius: 5
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: { beginAtZero: true, grid: { display: false } },
+                y: { grid: { display: false } }
+            }
+        }
+    });
+    });</script>
+<style>
+    .text-gradient {
+        background: linear-gradient(90deg, #0d6efd, #0dcaf0);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+</style>
+{% endblock pageContent %}

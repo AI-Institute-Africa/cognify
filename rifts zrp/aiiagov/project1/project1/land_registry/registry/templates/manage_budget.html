@@ -1,0 +1,69 @@
+{% load static %}
+<div class="container-fluid">
+    <form action="" id="budget-form">
+        <input type="hidden" name="id" value="{{ budget.id|default:'' }}">
+        <div class="mb-4">
+            <label for="department" class="form-label small fw-bold text-muted text-uppercase mb-2"> Department</label>
+            {{ form.department }}</div>
+        <div class="mb-4">
+            <label for="fiscal_year" class="form-label small fw-bold text-muted text-uppercase mb-2"> Fiscal Year (e.g.,
+                2024/2025)</label>
+            {{ form.fiscal_year }}</div>
+        <div class="mb-4">
+            <label for="total_allocation" class="form-label small fw-bold text-muted text-uppercase mb-2"> Total
+                Allocation Amount</label>
+            {{ form.total_allocation }}</div>
+        <div class="alert alert-info small rounded-3 border-0 shadow-none mb-0">
+            <i class="fa fa-info-circle me-2"></i> Allocation will be used to validate all departmental requisitions for
+            the specified fiscal year.</div></form></div>
+<script>$(function () {
+        $('#budget-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg rounded-3 small p-2 mb-3")
+            el.hide()
+            if (_this[0].checkValidity() == false) {
+                _this[0].reportValidity();
+                return false;
+            }
+            start_loader();
+            $.ajax({
+                headers: {
+                    "X-CSRFToken": '{{csrf_token}}'
+                },
+                url: "{% url 'save-budget' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.error(err)
+                    alert("An error occured", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.text(resp.msg)
+                    } else {
+                        el.text("An error occured", 'error');
+                        end_loader();
+                    }
+                    _this.prepend(el)
+                    el.show('slow')
+                    $("html, body, .modal").scrollTop(0);
+                    end_loader()
+                }
+            })
+        })
+    })</script>
+
+
+
+

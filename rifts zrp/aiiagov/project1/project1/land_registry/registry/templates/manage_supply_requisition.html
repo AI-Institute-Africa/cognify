@@ -1,0 +1,548 @@
+{% extends "base.html" %}
+{% load static %}
+{% block headerContent %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+.sr-section-title{font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6c757d;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid rgba(102,126,234,.2);}
+.sr-card{background:var(--secondary-color,#fff);border:1px solid var(--glass-border,rgba(0,0,0,.1));border-radius:16px;padding:1.5rem;margin-bottom:1.5rem;}
+.item-row{background:rgba(102,126,234,.04);border:1px solid rgba(102,126,234,.15);border-radius:12px;padding:1rem;margin-bottom:.75rem;transition:box-shadow .2s;}
+.item-row:hover{box-shadow:0 4px 15px rgba(102,126,234,.15);}
+.supplier-card{border:1px solid rgba(0,0,0,.1);border-radius:12px;padding:1rem;position:relative;background:rgba(255,255,255,.05);}
+.supplier-card .sup-badge{position:absolute;top:-10px;left:16px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border-radius:20px;padding:2px 12px;font-size:.7rem;font-weight:700;}
+.sig-area{border:2px dashed rgba(102,126,234,.4);border-radius:12px;padding:1.5rem;text-align:center;min-height:120px;display:flex;align-items:center;justify-content:center;flex-direction:column;transition:border-color .2s;}
+.sig-area.has-sig{border-color:#28a745;border-style:solid;}
+.sig-preview{max-height:80px;object-fit:contain;border-radius:8px;}
+.required-star{color:#dc3545;}
+.highlight-requester{background:linear-gradient(135deg,rgba(102,126,234,.1),rgba(118,75,162,.1));border:1px solid rgba(102,126,234,.3);border-radius:16px;padding:1.5rem;}
+</style>
+{% endblock headerContent %}
+{% block pageContent %}
+<div class="container-fluid py-4">
+  <div class="d-flex align-items-center mb-4 gap-3">
+    <a href="{% url 'supply-requisition-list' %}" class="btn btn-outline-secondary rounded-pill px-3">
+      <i class="fas fa-arrow-left me-1"></i>Back
+    </a>
+    <div>
+      <h4 class="fw-bold mb-1">New Purchase Requisition</h4>
+      <p class="text-muted small mb-0">Fill in the details below. All items with (+) can be added dynamically.</p>
+    </div>
+  </div>
+
+  <div id="sr-error" class="alert alert-danger d-none rounded-3 mb-3"></div>
+  <form id="srForm" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <!-- HEADER -->
+    <div class="sr-card">
+      <div class="sr-section-title"><i class="fas fa-info-circle me-2"></i>Requisition Header</div>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Department</label>
+          <select name="department" class="form-select rounded-3">
+            <option value="">— Select Department —</option>
+            {% for d in departments %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Budget Line <span class="text-muted">(optional)</span></label>
+          <select name="budget_line" class="form-select rounded-3">
+            <option value="">— Select Budget Line —</option>
+            {% for b in budgets %}<option value="{{ b.id }}">{{ b.department.name }} – {{ b.fiscal_year }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Date</label>
+          <input type="text" class="form-control rounded-3" value="{% now 'd F Y' %}" readonly>
+        </div>
+        <div class="col-12">
+          <label class="form-label small fw-semibold">Purpose / Justification <span class="required-star">*</span></label>
+          <textarea name="purpose" class="form-control rounded-3" rows="3" placeholder="Describe the purpose of this requisition..." required></textarea>
+        </div>
+        <!-- Urgent Flag -->
+        <div class="col-12">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="is_urgent" id="isUrgentCheck" role="switch">
+            <label class="form-check-label fw-semibold" for="isUrgentCheck">
+              <span class="badge bg-danger me-1"><i class="bi bi-exclamation-triangle-fill"></i> URGENT</span>
+              Mark as Urgent
+              <span class="text-muted fw-normal small ms-1">— Bypasses batch email windows, sends immediately &amp; appears at top of all dashboards</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- APPROVERS -->
+    <div class="sr-card">
+      <div class="sr-section-title"><i class="fas fa-users-cog me-2"></i>Approval Chain</div>
+      <p class="small text-muted mb-3">
+        <i class="bi bi-arrow-right-circle me-1 text-primary"></i>
+        Workflow: <strong>You</strong> &rarr; <strong>Supervisor</strong> &rarr; <strong>Dept Manager</strong> &rarr; <strong>Purchasing Officer</strong> <em>(Bid Analysis)</em> &rarr; <strong>You</strong> <em>(Review &amp; Sign)</em> &rarr; <strong>Purchasing Officer</strong> <em>(Final Review)</em> &rarr; <strong>Chief Director</strong> &rarr; <strong>Finance Officer</strong>
+      </p>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold">
+            <span class="badge bg-primary bg-opacity-15 text-primary rounded-pill me-1">Stage 2</span>
+            Supervisor <span class="required-star">*</span>
+          </label>
+          <select name="supervisor" class="form-select rounded-3" required>
+            <option value="">— Select Supervisor —</option>
+            {% for u in users %}
+              {% if u != request.user %}
+              <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }} ({{ u.username }})</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+          <div class="form-text">Reviews &amp; signs after you submit.</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold">
+            <span class="badge bg-primary bg-opacity-15 text-primary rounded-pill me-1">Stage 3</span>
+            Department Manager <span class="required-star">*</span>
+          </label>
+          <select name="dept_manager" class="form-select rounded-3" required>
+            <option value="">— Select Department Manager —</option>
+            {% for u in users %}
+              {% if u != request.user %}
+              <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }} ({{ u.username }})</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+          <div class="form-text">Reviews &amp; signs after Supervisor approves.</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold">
+            <span class="badge bg-info bg-opacity-15 text-info rounded-pill me-1">Stage 4</span>
+            Deputy Director (ICT / Communications) <span class="required-star">*</span>
+          </label>
+          <select name="deputy_director" class="form-select rounded-3" required>
+            <option value="">— Select Deputy Director —</option>
+            {% for u in deputy_directors %}
+              {% if u != request.user %}
+              <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }} ({{ u.username }}) - {{ u.security_profile.role|default:"Directorate" }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+          <div class="form-text">Directorate-tier review (supervises Systems Manager / Chief Tech).</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold">
+            <span class="badge bg-warning bg-opacity-15 text-warning rounded-pill me-1">Stage 5</span>
+            Purchasing Officer <span class="required-star">*</span>
+          </label>
+          <select name="purchasing_officer" class="form-select rounded-3" required>
+            <option value="">— Select Purchasing Officer —</option>
+            {% for u in users %}
+              {% if u != request.user %}
+              <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }} ({{ u.username }})</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+          <div class="form-text">Adds suppliers, bid analysis &amp; quotations.</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold">
+            <span class="badge bg-danger bg-opacity-15 text-danger rounded-pill me-1">Stage 6</span>
+            Chief Director <span class="required-star">*</span>
+          </label>
+          <select name="ceo" class="form-select rounded-3" required>
+            <option value="">— Select Chief Director —</option>
+            {% for u in chief_directors %}
+              {% if u != request.user %}
+              <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }} ({{ u.username }})</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+          <div class="form-text">Apex executive authorization after PO analysis.</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold">
+            <span class="badge bg-success bg-opacity-15 text-success rounded-pill me-1">Stage 7</span>
+            Finance Officer <span class="required-star">*</span>
+          </label>
+          <select name="finance_officer" class="form-select rounded-3" required>
+            <option value="">— Select Finance Officer —</option>
+            {% for u in users %}
+              {% if u != request.user %}
+              <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }} ({{ u.username }})</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+          <div class="form-text">Processes payment &amp; auto-files the requisition.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LINE ITEMS -->
+    <div class="sr-card">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="sr-section-title mb-0"><i class="fas fa-list me-2"></i>Requisition Items</div>
+        <button type="button" class="btn btn-sm btn-primary rounded-pill px-3" id="addItemBtn">
+          <i class="fas fa-plus me-1"></i>Add Item
+        </button>
+      </div>
+
+      <!-- Column headers -->
+      <div class="row g-2 mb-2 d-none d-md-flex">
+        <div class="col-md-4"><span class="small fw-semibold text-muted text-uppercase" style="font-size:.65rem;">Description <span class="required-star">*</span></span></div>
+        <div class="col-md-1"><span class="small fw-semibold text-muted text-uppercase" style="font-size:.65rem;">Qty</span></div>
+        <div class="col-md-1"><span class="small fw-semibold text-muted text-uppercase" style="font-size:.65rem;">Unit Cost</span></div>
+        <div class="col-md-2"><span class="small fw-semibold text-muted text-uppercase" style="font-size:.65rem;">Annual Budget</span></div>
+        <div class="col-md-2"><span class="small fw-semibold text-muted text-uppercase" style="font-size:.65rem;">Current Balance</span></div>
+        <div class="col-md-1"><span class="small fw-semibold text-muted text-uppercase" style="font-size:.65rem;">Budget Balance</span></div>
+        <div class="col-md-1"></div>
+      </div>
+
+      <div id="itemsContainer">
+        <!-- JS will inject first row -->
+      </div>
+
+      <div class="d-flex justify-content-end mt-3 pt-2 border-top">
+        <div class="text-end">
+          <span class="small text-muted me-2">Grand Total:</span>
+          <span class="fs-5 fw-bold text-primary" id="grandTotal">0.00</span>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- REQUESTER SIGNATURE -->
+    <div class="highlight-requester mb-4">
+      <div class="sr-section-title"><i class="fas fa-signature me-2"></i>Requested By — Your Electronic Signature</div>
+      <div class="row g-3 align-items-start">
+        <div class="col-md-5">
+          <div class="mb-2">
+            <div class="fw-semibold">{{ request.user.get_full_name|default:request.user.username }}</div>
+            <div class="small text-muted">{{ request.user.username }} &bull; {% now "d F Y" %}</div>
+          </div>
+          <div class="sig-area" id="requesterSigArea">
+            <i class="fas fa-signature fa-2x text-muted mb-2 opacity-50"></i>
+            <p class="small text-muted mb-0">No signature yet</p>
+          </div>
+          <input type="hidden" name="requester_signature_data" id="requesterSigData">
+        </div>
+        <div class="col-md-7">
+          <div class="d-flex flex-column gap-2">
+            <button type="button" class="btn btn-outline-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#sigDrawModal">
+              <i class="bi bi-pencil-square me-2"></i>Draw Signature
+            </button>
+            {% if saved_signature %}
+            <button type="button" class="btn btn-outline-success rounded-pill" id="useSavedSigBtn">
+              <i class="bi bi-cloud-check me-2"></i>Use Saved Signature
+            </button>
+            {% endif %}
+            <div class="text-muted small text-center fw-semibold">— OR —</div>
+            <label class="btn btn-outline-secondary rounded-pill mb-0">
+              <i class="fas fa-upload me-2"></i>Upload Signature Image
+              <input type="file" name="requester_sig_upload" accept="image/*" class="d-none" id="requesterSigUpload">
+            </label>
+            <div class="form-check mt-1">
+              <input class="form-check-input" type="checkbox" name="save_to_profile" id="saveToProfile">
+              <label class="form-check-label small" for="saveToProfile">Save signature to my profile for future use</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DOCUMENT UPLOAD -->
+    <div class="sr-card">
+      <div class="sr-section-title"><i class="fas fa-file-upload me-2"></i>Supporting Document <span class="text-muted fw-normal">(Optional)</span></div>
+      <p class="small text-muted">You may upload a Word or PDF requisition document. It will go through the same signature process.</p>
+      <input type="file" name="uploaded_document" accept=".pdf,.doc,.docx" class="form-control rounded-3" style="max-width:400px;">
+    </div>
+
+    <!-- SIGNATORIES PREVIEW -->
+    <div class="sr-card" id="signatoriesPreviewCard">
+      <div class="sr-section-title"><i class="fas fa-pen-nib me-2"></i>Signatories — Approval Chain Preview</div>
+      <p class="small text-muted mb-3">The following officials will be required to sign this requisition in order:</p>
+      <div class="table-responsive">
+        <table class="table table-bordered align-middle mb-0 small">
+          <thead class="bg-light text-muted text-uppercase" style="font-size:.65rem;">
+            <tr>
+              <th class="ps-3" style="width:40px;">#</th>
+              <th>Stage</th>
+              <th>Signatory</th>
+              <th>Role</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="ps-3 text-muted">1</td>
+              <td>Requester</td>
+              <td class="fw-semibold">{{ request.user.get_full_name|default:request.user.username }}</td>
+              <td><span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill">Requester</span></td>
+              <td><span class="badge bg-success bg-opacity-10 text-success rounded-pill"><i class="fas fa-signature me-1"></i>Signs on submission</span></td>
+            </tr>
+            <tr>
+              <td class="ps-3 text-muted">2</td>
+              <td>Supervisor</td>
+              <td class="fw-semibold text-primary" id="preview_supervisor">— Not selected —</td>
+              <td><span class="badge bg-primary bg-opacity-10 text-primary rounded-pill">Stage 2</span></td>
+              <td><span class="badge bg-warning bg-opacity-10 text-warning rounded-pill"><i class="fas fa-clock me-1"></i>Pending</span></td>
+            </tr>
+            <tr>
+              <td class="ps-3 text-muted">3</td>
+              <td>Department Manager</td>
+              <td class="fw-semibold text-primary" id="preview_dept_manager">— Not selected —</td>
+              <td><span class="badge bg-primary bg-opacity-10 text-primary rounded-pill">Stage 3</span></td>
+              <td><span class="badge bg-warning bg-opacity-10 text-warning rounded-pill"><i class="fas fa-clock me-1"></i>Pending</span></td>
+            </tr>
+            <tr>
+              <td class="ps-3 text-muted">4</td>
+              <td>Chief Director</td>
+              <td class="fw-semibold text-danger" id="preview_ceo">— Not selected —</td>
+              <td><span class="badge bg-danger bg-opacity-10 text-danger rounded-pill">Stage 4</span></td>
+              <td><span class="badge bg-warning bg-opacity-10 text-warning rounded-pill"><i class="fas fa-clock me-1"></i>Pending</span></td>
+            </tr>
+            <tr>
+              <td class="ps-3 text-muted">5</td>
+              <td>Purchasing Officer</td>
+              <td class="fw-semibold text-warning" id="preview_purchasing_officer">— Not selected —</td>
+              <td><span class="badge bg-warning bg-opacity-10 text-warning rounded-pill">Stage 5</span></td>
+              <td><span class="badge bg-warning bg-opacity-10 text-warning rounded-pill"><i class="fas fa-clock me-1"></i>Pending</span></td>
+            </tr>
+            <tr>
+              <td class="ps-3 text-muted">6</td>
+              <td>Finance Officer</td>
+              <td class="fw-semibold text-success" id="preview_finance_officer">— Not selected —</td>
+              <td><span class="badge bg-success bg-opacity-10 text-success rounded-pill">Stage 6</span></td>
+              <td><span class="badge bg-warning bg-opacity-10 text-warning rounded-pill"><i class="fas fa-clock me-1"></i>Pending</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SUBMIT -->
+    <div class="d-flex gap-3 justify-content-end">
+      <a href="{% url 'supply-requisition-list' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+      <button type="submit" class="btn btn-warning rounded-pill px-5 shadow fw-bold" id="srSubmitBtn">
+        <i class="fas fa-file-signature me-2"></i>Approve, Sign &amp; Submit Requisition
+      </button>
+    </div>
+  </form>
+</div>
+
+<!-- Draw Signature Modal -->
+<div class="modal fade" id="sigDrawModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold">Draw Your Signature</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4 text-center">
+        <div class="border rounded bg-white mx-auto overflow-hidden shadow-inner mb-3" style="touch-action:none;">
+          <canvas id="sigPad" width="400" height="180" style="cursor:crosshair;background:#fafafa;"></canvas>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" id="clearSigPad">
+          <i class="fas fa-eraser me-1"></i>Clear
+        </button>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary rounded-pill px-4 shadow" id="saveSigBtn">
+          <i class="fas fa-check me-1"></i>Save & Use
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<script>
+let signaturePad;
+let itemCount = 0;
+let supplierCount = 0;
+
+// ── ITEM ROWS ──
+function addItemRow(){
+  itemCount++;
+  const html = `
+  <div class="item-row" id="itemRow${itemCount}">
+    <div class="row g-2 align-items-center">
+      <div class="col-md-4">
+        <label class="form-label small text-muted d-md-none">Description</label>
+        <textarea name="item_description[]" class="form-control form-control-sm rounded-3 item-desc" rows="2"
+          placeholder="Detailed description of the item..." required></textarea>
+      </div>
+      <div class="col-6 col-md-1">
+        <label class="form-label small text-muted d-md-none">Qty</label>
+        <input type="number" name="item_quantity[]" class="form-control form-control-sm rounded-3 item-qty" min="1" value="1">
+      </div>
+      <div class="col-6 col-md-1">
+        <label class="form-label small text-muted d-md-none">Unit Cost</label>
+        <input type="number" name="item_unit_cost[]" class="form-control form-control-sm rounded-3 item-cost" step="0.01" min="0" value="0" placeholder="0.00">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small text-muted d-md-none">Annual Budget</label>
+        <input type="number" name="item_annual_budget[]" class="form-control form-control-sm rounded-3" step="0.01" min="0" value="0" placeholder="0.00">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small text-muted d-md-none">Current Balance</label>
+        <input type="number" name="item_current_balance[]" class="form-control form-control-sm rounded-3 item-balance" step="0.01" min="0" value="0" placeholder="0.00">
+      </div>
+      <div class="col-6 col-md-1">
+        <label class="form-label small text-muted d-md-none">Budget Balance</label>
+        <div class="form-control form-control-sm rounded-3 bg-light fw-semibold text-center item-budget-balance" style="font-size:.8rem;">0.00</div>
+      </div>
+      <div class="col-6 col-md-1 text-end">
+        <button type="button" class="btn btn-sm btn-danger rounded-circle remove-item" onclick="removeItem(${itemCount})" ${itemCount===1?'disabled':''}>
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+  </div>`;
+  $('#itemsContainer').append(html);
+  // Bind recalc
+  $(`#itemRow${itemCount} .item-qty, #itemRow${itemCount} .item-cost, #itemRow${itemCount} .item-balance`).on('input', recalcAll);
+}
+
+function removeItem(n){
+  $(`#itemRow${n}`).remove();
+  recalcAll();
+  // Re-enable remove on first if only 1 left
+  if($('.item-row').length === 1){
+    $('.remove-item').prop('disabled', true);
+  }
+}
+
+function recalcAll(){
+  let grand = 0;
+  $('.item-row').each(function(){
+    const qty  = parseFloat($(this).find('.item-qty').val()) || 0;
+    const cost = parseFloat($(this).find('.item-cost').val()) || 0;
+    const bal  = parseFloat($(this).find('.item-balance').val()) || 0;
+    const lineTotal = qty * cost;
+    const budgetBal = bal - lineTotal;
+    $(this).find('.item-budget-balance').text(budgetBal.toFixed(2))
+      .toggleClass('text-danger', budgetBal < 0)
+      .toggleClass('text-success', budgetBal >= 0);
+    grand += lineTotal;
+  });
+  $('#grandTotal').text(grand.toFixed(2));
+}
+
+$('#addItemBtn').click(function(){ addItemRow(); });
+
+
+
+// ── SIGNATURE PAD ──
+document.addEventListener('DOMContentLoaded', function(){
+  addItemRow(); // start with one item row
+
+  const canvas = document.getElementById('sigPad');
+  if(canvas){
+    signaturePad = new SignaturePad(canvas, { backgroundColor:'rgba(255,255,255,0)', penColor:'#000033' });
+    document.getElementById('clearSigPad').addEventListener('click', ()=> signaturePad.clear());
+    document.getElementById('saveSigBtn').addEventListener('click', function(){
+      if(signaturePad.isEmpty()){ alert('Please draw a signature first.'); return; }
+      applySignature(signaturePad.toDataURL());
+      bootstrap.Modal.getInstance(document.getElementById('sigDrawModal')).hide();
+    });
+  }
+
+  {% if saved_signature %}
+  document.getElementById('useSavedSigBtn').addEventListener('click', function(){
+    applySignature("{{ saved_signature|safe }}");
+  });
+  {% endif %}
+
+  document.getElementById('requesterSigUpload').addEventListener('change', function(e){
+    if(e.target.files[0]){
+      const reader = new FileReader();
+      reader.onload = ev => applySignature(ev.target.result, true);
+      reader.readAsDataURL(e.target.files[0]);
+    }
+  });
+
+  // ── SIGNATORIES PREVIEW DYNAMIC UPDATES ──
+  function initSignatoryPreview(selectName, previewId) {
+    const selectEl = document.querySelector(`select[name="${selectName}"]`);
+    const previewEl = document.getElementById(previewId);
+    if (!selectEl || !previewEl) return;
+    
+    const updatePreview = () => {
+      const selectedOption = selectEl.options[selectEl.selectedIndex];
+      if (selectedOption && selectedOption.value) {
+        // Strip out parenthesized username at the end, e.g. "Full Name (username)" -> "Full Name"
+        let displayName = selectedOption.text.replace(/\s*\([^)]*\)$/, '').trim();
+        previewEl.textContent = displayName;
+        previewEl.classList.remove('text-muted');
+      } else {
+        previewEl.textContent = '— Not selected —';
+        previewEl.classList.add('text-muted');
+      }
+    };
+    
+    selectEl.addEventListener('change', updatePreview);
+    updatePreview(); // Run once initially to populate if values are pre-selected
+  }
+
+  initSignatoryPreview('supervisor', 'preview_supervisor');
+  initSignatoryPreview('dept_manager', 'preview_dept_manager');
+  initSignatoryPreview('ceo', 'preview_ceo');
+  initSignatoryPreview('purchasing_officer', 'preview_purchasing_officer');
+  initSignatoryPreview('finance_officer', 'preview_finance_officer');
+});
+
+function applySignature(dataUrl, fromFile=false){
+  const area = document.getElementById('requesterSigArea');
+  area.innerHTML = `<img src="${dataUrl}" class="sig-preview">`;
+  area.classList.add('has-sig');
+  if(!fromFile) document.getElementById('requesterSigData').value = dataUrl;
+}
+
+// ── FORM SUBMIT ──
+$('#srForm').submit(function(e){
+  e.preventDefault();
+  // Validate at least 1 item has description
+  let hasItem = false;
+  $('.item-desc').each(function(){ if($(this).val().trim()) hasItem = true; });
+  if(!hasItem){ showError('Please add at least one item with a description.'); return; }
+
+  // Check initiator signature
+  const sigData = $('#requesterSigData').val();
+  const sigUpload = document.getElementById('requesterSigUpload').files.length > 0;
+  if (!sigData && !sigUpload) {
+    showError('Please approve and apply your signature as the initiator before submitting.');
+    const modalEl = document.getElementById('sigDrawModal');
+    if (modalEl) {
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    }
+    return;
+  }
+
+  const btn = $('#srSubmitBtn');
+  btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Signing & Submitting...');
+
+  $.ajax({
+    url: "{% url 'supply-requisition-save' %}",
+    method: 'POST',
+    headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+    data: new FormData(this),
+    processData: false,
+    contentType: false,
+    dataType: 'json',
+    success: function(resp){
+      if(resp.status === 'success'){
+        window.location.href = resp.redirect || "{% url 'supply-requisition-list' %}";
+      } else {
+        showError(resp.msg || 'An error occurred. Please try again.');
+        btn.prop('disabled', false).html('<i class="fas fa-file-signature me-2"></i>Approve, Sign &amp; Submit Requisition');
+      }
+    },
+    error: function(){ showError('Server error. Please try again.'); btn.prop('disabled',false).html('<i class="fas fa-file-signature me-2"></i>Approve, Sign &amp; Submit Requisition'); }
+  });
+});
+
+function showError(msg){
+  const el = $('#sr-error');
+  el.text(msg).removeClass('d-none');
+  $('html,body').animate({scrollTop:0},300);
+}
+</script>
+{% endblock pageContent %}

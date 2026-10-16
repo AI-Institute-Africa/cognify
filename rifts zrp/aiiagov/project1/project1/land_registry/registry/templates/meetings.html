@@ -1,0 +1,207 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-landmark text-warning me-2"></i> ZRP Electronic Minuting & Meetings</h3>
+            <p class="text-muted small mb-0">Create, manage, approve, distribute and track minutes and meeting actions for Zimbabwe Republic Police</p>
+        </div>
+        <button class="btn btn-success rounded-pill px-4 shadow-sm fw-bold" style="background: #003EA6; border-color: #D4AF37;" data-bs-toggle="modal" data-bs-target="#createMeetingModal">
+            <i class="fas fa-plus me-2"></i> Schedule New Meeting
+        </button>
+    </div>
+
+    <!-- Management Dashboard Metrics Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-2">
+            <div class="glass-card p-3 text-center border-top border-4 border-success">
+                <span class="text-muted extra-small text-uppercase fw-bold">Meetings Held</span>
+                <h2 class="fw-bold text-success mb-0 mt-1">{{ total_meetings }}</h2>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="glass-card p-3 text-center border-top border-4 border-warning">
+                <span class="text-muted extra-small text-uppercase fw-bold">Awaiting Approval</span>
+                <h2 class="fw-bold text-warning mb-0 mt-1">{{ awaiting_approval }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-info">
+                <span class="text-muted extra-small text-uppercase fw-bold">Outstanding Actions</span>
+                <h2 class="fw-bold text-info mb-0 mt-1">{{ outstanding_actions }}</h2>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="glass-card p-3 text-center border-top border-4 border-danger">
+                <span class="text-muted extra-small text-uppercase fw-bold">Overdue Actions</span>
+                <h2 class="fw-bold text-danger mb-0 mt-1">{{ overdue_actions }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card p-3 text-center border-top border-4 border-primary">
+                <span class="text-muted extra-small text-uppercase fw-bold">Completion Performance</span>
+                <h2 class="fw-bold text-primary mb-0 mt-1">{{ completion_rate }}%</h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters & Action Tracker Bar -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold text-white mb-0"><i class="fas fa-list-check me-2 text-success"></i> Registered ZRP Meetings</h5>
+        <a href="{% url 'action-tracking' %}" class="btn btn-outline-warning btn-sm rounded-pill px-3 fw-bold">
+            <i class="fas fa-tasks me-1"></i> Open Action Item Tracking Engine <i class="fas fa-arrow-right ms-1"></i>
+        </a>
+    </div>
+
+    <!-- Meetings Table -->
+    <div class="glass-card border-0 shadow-sm overflow-hidden">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead>
+                        <tr class="bg-success bg-opacity-10 text-white">
+                            <th class="ps-4 py-3">Meeting Title & Ref</th>
+                            <th class="py-3">Type</th>
+                            <th class="py-3">Date & Time</th>
+                            <th class="py-3">Chairperson / Secretary</th>
+                            <th class="py-3">Approval Workflow State</th>
+                            <th class="py-3 text-center">Actions</th>
+                            <th class="pe-4 text-end py-3">Open Studio</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for meeting in meetings %}
+                        <tr>
+                            <td class="ps-4">
+                                <div class="fw-bold text-white">{{ meeting.title }}</div>
+                                <div class="extra-small text-muted"><i class="fas fa-location-dot me-1"></i> {{ meeting.venue_or_link|default:meeting.location|default:"ZRP Boardroom" }}</div>
+                            </td>
+                            <td>
+                                <span class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 rounded-pill px-3 extra-small">
+                                    {{ meeting.get_meeting_type_display }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-white small">{{ meeting.meeting_date|date:"d M Y" }}</div>
+                                <div class="extra-small text-muted">{{ meeting.meeting_date|time:"H:i A" }}</div>
+                            </td>
+                            <td>
+                                <div class="extra-small text-white"><strong>Chair:</strong> {{ meeting.chairperson.username|default:"N/A" }}</div>
+                                <div class="extra-small text-muted"><strong>Secretary:</strong> {{ meeting.secretary.username|default:"N/A" }}</div>
+                            </td>
+                            <td>
+                                {% if meeting.approval_status == 'Approved' %}
+                                    <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 rounded-pill px-3"><i class="fas fa-check-double me-1"></i> Approved</span>
+                                {% elif meeting.approval_status == 'Distributed' %}
+                                    <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25 rounded-pill px-3"><i class="fas fa-paper-plane me-1"></i> Distributed</span>
+                                {% elif meeting.approval_status == 'Chairperson Review' %}
+                                    <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25 rounded-pill px-3"><i class="fas fa-user-clock me-1"></i> Chair Review</span>
+                                {% elif meeting.approval_status == 'Secretary Review' %}
+                                    <span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-25 rounded-pill px-3"><i class="fas fa-file-pen me-1"></i> Secretary Review</span>
+                                {% else %}
+                                    <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25 rounded-pill px-3"><i class="fas fa-pen-to-square me-1"></i> {{ meeting.approval_status }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-info bg-opacity-20 text-info rounded-pill px-2 small">{{ meeting.action_items.count }} Actions</span>
+                            </td>
+                            <td class="pe-4 text-end">
+                                <a href="{% url 'digital-minute-taking' meeting.pk %}" class="btn btn-success btn-sm rounded-pill px-3 fw-bold" style="background: #003EA6;">
+                                    <i class="fas fa-edit me-1"></i> Minute Studio
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="fas fa-calendar-times fs-3 d-block mb-2"></i>
+                                No meetings found. Click <strong>Schedule New Meeting</strong> to record minutes.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Meeting Modal -->
+<div class="modal fade" id="createMeetingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content glass-card text-white border border-success border-opacity-25">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-warning"><i class="fas fa-calendar-plus me-2"></i> Schedule ZRP Meeting</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'create-meeting' %}" method="POST">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label small fw-bold">Meeting Title</label>
+                            <input type="text" name="title" class="form-control bg-dark text-white border-secondary" placeholder="e.g. 45th ZRP Executive Commission Meeting" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Meeting Type</label>
+                            <select name="meeting_type" class="form-select bg-dark text-white border-secondary" required>
+                                <option value="Commission">Commission Board Meeting</option>
+                                <option value="Committee">Committee Meeting</option>
+                                <option value="Executive">Executive Management Meeting</option>
+                                <option value="Departmental">Departmental Meeting</option>
+                                <option value="General">General Meeting</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Date & Time</label>
+                            <input type="datetime-local" name="meeting_date" class="form-control bg-dark text-white border-secondary" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Venue / Online Link (Zoom/MS Teams)</label>
+                            <input type="text" name="venue_or_link" class="form-control bg-dark text-white border-secondary" placeholder="ZRP Boardroom A or https://zoom.us/j/...">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Chairperson</label>
+                            <select name="chairperson" class="form-select bg-dark text-white border-secondary">
+                                <option value="">Select Chairperson...</option>
+                                {% for u in users %}
+                                <option value="{{ u.id }}">{{ u.username }} ({{ u.email }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Secretary / Scribe</label>
+                            <select name="secretary" class="form-select bg-dark text-white border-secondary">
+                                <option value="">Select Secretary...</option>
+                                {% for u in users %}
+                                <option value="{{ u.id }}">{{ u.username }} ({{ u.email }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label small fw-bold">Participants</label>
+                            <select name="participants" class="form-select bg-dark text-white border-secondary" multiple style="height: 100px;">
+                                {% for u in users %}
+                                <option value="{{ u.id }}">{{ u.username }}</option>
+                                {% endfor %}
+                            </select>
+                            <span class="extra-small text-muted">Hold Ctrl / Cmd to select multiple participants.</span>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label small fw-bold">Meeting Agenda</label>
+                            <textarea name="agenda_text" class="form-control bg-dark text-white border-secondary" rows="3" placeholder="1. Opening remarks&#10;2. Approval of previous minutes&#10;3. Departmental reports..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold" style="background: #003EA6;">Schedule & Notify Participants</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock pageContent %}

@@ -1,0 +1,289 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+        <div class="card-header bg-white py-3 d-flex align-items-center justify-content-between border-0">
+            <div>
+                <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-tasks text-primary me-2"></i>Leave Applications Management</h5>
+                <p class="text-muted small mb-0">Review and action staff leave applications</p>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-muted small text-uppercase">
+                        <tr>
+                            <th class="ps-4">Staff Member</th>
+                            <th>Leave Type</th>
+                            <th>Duration</th>
+                            <th>Document</th>
+                            <th>Approvers</th>
+                            <th>Status</th>
+                            <th class="text-end pe-4">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for leave in leaves %}
+                        <tr>
+                            <td class="ps-4">
+                                <div class="fw-bold">{{ leave.user.get_full_name|default:leave.user.username }}</div>
+                                <div class="extra-small text-muted">{{ leave.user.email }}</div>
+                            </td>
+                            <td><div class="small fw-bold">{{ leave.leave_type }}</div></td>
+                            <td>
+                                <div class="small fw-bold text-white">{{ leave.start_date }} to {{ leave.end_date }}</div>
+                                <span class="badge bg-success text-white px-2 py-1 mt-1 extra-small fw-bold rounded-pill">
+                                    <i class="fas fa-clock me-1"></i>{{ leave.days }} Days
+                                </span>
+                            </td>
+                            <td>
+                                {% if leave.supporting_document %}
+                                    {% if leave.is_assigned_approver and leave.status == 'Pending' %}
+                                    <a href="{% url 'leave-sign-visual' leave.id %}" class="text-decoration-none text-warning fw-bold small">
+                                        <i class="fas fa-file-signature me-1"></i>Review &amp; Sign
+                                    </a>
+                                    {% else %}
+                                    <a href="{% url 'leave-view' leave.id %}" class="text-decoration-none text-info small">
+                                        <i class="fas fa-eye me-1"></i>View
+                                    </a>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted small">None</span>
+                                {% endif %}
+                            </td>
+                            <td><div class="small text-muted">{{ leave.approver_names|default:'Not assigned' }}</div></td>
+                            <td>
+                                {% if leave.status == 'Pending' %}
+                                    <span class="badge bg-warning-soft text-warning rounded-pill px-3">Pending</span>
+                                    <div class="extra-small text-muted mt-1" style="font-size:0.75rem;">
+                                        <i class="fas fa-sitemap me-1 text-primary"></i>{{ leave.get_approval_stage_display }}
+                                    </div>
+                                {% elif leave.status == 'Approved' %}
+                                    <span class="badge bg-success-soft text-success rounded-pill px-3">Approved</span>
+                                    <div class="extra-small text-success mt-1" style="font-size:0.75rem;">
+                                        <i class="fas fa-check-double me-1"></i>All Tiers Approved
+                                    </div>
+                                {% elif leave.status == 'Rejected' %}
+                                    <span class="badge bg-danger-soft text-danger rounded-pill px-3">Rejected</span>
+                                {% else %}
+                                    <span class="badge bg-secondary-soft text-secondary rounded-pill px-3">{{ leave.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end pe-4">
+                                <div class="dropdown">
+                                    <button class="btn btn-light btn-sm rounded-circle shadow-none" data-bs-toggle="dropdown">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg rounded-3">
+                                        <li>
+                                            <a class="dropdown-item py-2 view_reason" href="javascript:void(0)"
+                                               data-reason="{{ leave.reason }}">
+                                                <i class="fas fa-info-circle me-2 text-primary"></i>View Reason
+                                            </a>
+                                        </li>
+                                        {% if leave.supervisor_comment %}
+                                        <li>
+                                            <a class="dropdown-item py-2 view_comment" href="javascript:void(0)"
+                                               data-comment="{{ leave.supervisor_comment }}">
+                                                <i class="fas fa-comment-dots me-2 text-info"></i>View Comment
+                                            </a>
+                                        </li>
+                                        {% endif %}
+                                        {% if leave.status == 'Pending' %}
+                                        <li><hr class="dropdown-divider my-1"></li>
+                                        {% if leave.can_current_user_approve %}
+                                        <li>
+                                            <a class="dropdown-item py-2 text-primary fw-bold" href="{% url 'leave-sign-visual' leave.id %}">
+                                                <i class="fas fa-signature me-2 text-primary"></i>Sign &amp; Approve
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item py-2 action_leave text-success fw-bold" href="javascript:void(0)"
+                                               data-id="{{ leave.id }}" data-status="Approved">
+                                                <i class="fas fa-check me-2 text-success"></i>Quick Approve
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item py-2 open_reject_modal text-danger fw-bold" href="javascript:void(0)"
+                                               data-id="{{ leave.id }}"
+                                               data-name="{{ leave.user.get_full_name|default:leave.user.username }}"
+                                               data-type="{{ leave.leave_type }}"
+                                               data-days="{{ leave.days }}">
+                                                <i class="fas fa-ban me-2 text-danger"></i>Reject
+                                            </a>
+                                        </li>
+                                        {% else %}
+                                        <li>
+                                            <span class="dropdown-item py-2 text-muted small">
+                                                <i class="fas fa-lock me-2 text-secondary"></i>Awaiting: {{ leave.get_approval_stage_display }}
+                                            </span>
+                                        </li>
+                                        {% endif %}
+                                        {% endif %}
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="7" class="text-center py-5 text-muted">
+                            <i class="fas fa-info-circle mb-2 d-block fa-2x"></i>
+                            No leave applications found.
+                        </td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- REJECT MODAL -->
+<div class="modal fade" id="rejectLeaveModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-danger border-opacity-50">
+      <div class="modal-header bg-danger bg-opacity-10 border-danger border-opacity-25">
+        <h5 class="modal-title fw-bold"><i class="fas fa-ban text-danger me-2"></i>Reject Leave Request</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="alert alert-danger border-0 small mb-3">
+          <i class="fas fa-exclamation-triangle me-1"></i>
+          You are rejecting the leave request for <strong id="rejectLeaveEmployee">—</strong>
+          (<span id="rejectLeaveType">—</span>, <span id="rejectLeaveDays">—</span> days).
+          The employee will be notified.
+        </div>
+        <label class="form-label fw-bold small">
+          <i class="fas fa-comment-dots me-1 text-danger"></i> Reason for Rejection <span class="text-danger">*</span>
+        </label>
+        <textarea id="rejectCommentField" rows="4" class="form-control"
+                  placeholder="Provide a clear reason for rejecting this leave request..."></textarea>
+        <div id="rejectCommentError" class="text-danger small mt-1" style="display:none;">
+          <i class="fas fa-exclamation-circle me-1"></i>Please provide a reason before rejecting.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger rounded-pill px-4 fw-bold" id="confirmRejectLeaveBtn">
+          <i class="fas fa-ban me-1"></i> Confirm Rejection
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- APPROVE COMMENT MODAL -->
+<div class="modal fade" id="approveLeaveModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-success border-opacity-50">
+      <div class="modal-header bg-success bg-opacity-10 border-success border-opacity-25">
+        <h5 class="modal-title fw-bold"><i class="fas fa-check-circle text-success me-2"></i>Approve Leave Request</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <p class="small text-muted mb-3">
+          <i class="fas fa-info-circle me-1"></i>
+          You are approving this leave request. The employee will be notified.
+          Optionally add an approval comment below.
+        </p>
+        <label class="form-label fw-bold small">
+          <i class="fas fa-comment me-1 text-success"></i> Approval Comment (Optional)
+        </label>
+        <textarea id="approveCommentField" rows="3" class="form-control"
+                  placeholder="Optional note to include with approval notification..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success rounded-pill px-4 fw-bold" id="confirmApproveLeaveBtn">
+          <i class="fas fa-check me-1"></i> Confirm Approval
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+$(function () {
+    var currentLeaveId = null;
+
+    // View reason
+    $('.view_reason').click(function () {
+        alert_toast($(this).attr('data-reason'), 'info');
+    });
+
+    // View comment
+    $('.view_comment').click(function () {
+        alert_toast($(this).attr('data-comment'), 'info');
+    });
+
+    // Open approve modal
+    $('.action_leave').click(function () {
+        currentLeaveId = $(this).attr('data-id');
+        $('#approveCommentField').val('');
+        var modal = new bootstrap.Modal(document.getElementById('approveLeaveModal'));
+        modal.show();
+    });
+
+    // Confirm approval
+    $('#confirmApproveLeaveBtn').click(function () {
+        if (!currentLeaveId) return;
+        var comment = $('#approveCommentField').val();
+        $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Approving...');
+        doLeaveAction(currentLeaveId, 'Approved', comment, this);
+    });
+
+    // Open reject modal
+    $('.open_reject_modal').click(function () {
+        currentLeaveId = $(this).attr('data-id');
+        $('#rejectLeaveEmployee').text($(this).attr('data-name'));
+        $('#rejectLeaveType').text($(this).attr('data-type'));
+        $('#rejectLeaveDays').text($(this).attr('data-days'));
+        $('#rejectCommentField').val('');
+        $('#rejectCommentError').hide();
+        $('#rejectCommentField').removeClass('is-invalid');
+        var modal = new bootstrap.Modal(document.getElementById('rejectLeaveModal'));
+        modal.show();
+    });
+
+    // Confirm rejection
+    $('#confirmRejectLeaveBtn').click(function () {
+        if (!currentLeaveId) return;
+        var comment = $('#rejectCommentField').val().trim();
+        if (!comment) {
+            $('#rejectCommentError').show();
+            $('#rejectCommentField').addClass('is-invalid');
+            return;
+        }
+        $('#rejectCommentError').hide();
+        $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Rejecting...');
+        doLeaveAction(currentLeaveId, 'Rejected', comment, this);
+    });
+
+    function doLeaveAction(id, status, comment, btn) {
+        start_loader();
+        $.ajax({
+            headers: { "X-CSRFToken": '{{ csrf_token }}' },
+            url: "{% url 'approve-leave' %}",
+            method: "POST",
+            data: { id: id, status: status, comment: comment },
+            dataType: "json",
+            error: function (err) {
+                console.error(err);
+                alert("An error occurred. Please try again.");
+                end_loader();
+                $(btn).prop('disabled', false).html(status === 'Approved' ? '<i class="fas fa-check me-1"></i> Confirm Approval' : '<i class="fas fa-ban me-1"></i> Confirm Rejection');
+            },
+            success: function (resp) {
+                if (resp.status === 'success') {
+                    location.reload();
+                } else {
+                    alert(resp.msg || 'Action failed.');
+                    end_loader();
+                    $(btn).prop('disabled', false);
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock pageContent %}

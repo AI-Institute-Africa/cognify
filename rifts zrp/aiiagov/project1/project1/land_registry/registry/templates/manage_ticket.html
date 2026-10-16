@@ -1,0 +1,71 @@
+<div class="container-fluid">
+    <form action="" id="ticket-form">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{ pk|default:'' }}">
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="department" class="control-label small fw-bold text-muted text-uppercase mb-1"> Target
+                    Department</label>
+                {{ form.department }}</div>
+            <div class="col-md-6 mb-3">
+                <label for="category" class="control-label small fw-bold text-muted text-uppercase mb-1"> Request
+                    Category</label>
+                {{ form.category }}</div></div>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="priority" class="control-label small fw-bold text-muted text-uppercase mb-1"> Priority
+                    Level</label>
+                {{ form.priority }}</div>
+            <div class="col-md-6 mb-3">
+                <label for="subject" class="control-label small fw-bold text-muted text-uppercase mb-1"> Subject</label>
+                {{ form.subject }}</div></div>
+
+        <div class="mb-3">
+            <label for="description" class="control-label small fw-bold text-muted text-uppercase mb-1"> Description of
+                Issue/Request</label>
+            {{ form.description }}</div></form></div>
+
+<script>$(function () {
+        $('#ticket-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            start_loader();
+            $.ajax({
+                url: "{% url 'save-service-ticket' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.log(err)
+                    alert_toast("An error occured", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        var el = $(' <div>')
+                        el.addClass("alert alert-danger err-msg").text(resp.msg)
+                        _this.prepend(el)
+                        el.show('slow')
+                        $("html, body, .modal").animate({ scrollTop: 0 }, "fast");
+                        end_loader();
+                    } else {
+                        alert_toast("An error occured", 'error');
+                        end_loader();
+                    }
+                }
+            })
+        })
+    })</script>
+
+
+
+

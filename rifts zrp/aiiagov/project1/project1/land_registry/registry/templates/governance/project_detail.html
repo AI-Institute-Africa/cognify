@@ -1,0 +1,2470 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load customfilter %}
+
+{% block headerContent %}
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.5/dist/signature_pad.umd.min.js"></script>
+    <style>
+        .signature-wrapper {
+            border: 2px dashed #dee2e6;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.5);
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        .signature-pad {
+            width: 100%;
+            height: 150px;
+            cursor: crosshair;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+{% endblock headerContent %}
+
+{% block pageContent %}
+<div class="container-fluid py-5 px-4 animate-reveal project-container">
+
+    {# ── MESSAGES ── #}
+    {% for message in messages %}
+    <div class="glass-panel p-3 mb-4 d-flex align-items-center gap-3 border-start border-4 border-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}">
+        <i class="fas fa-info-circle text-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}"></i>
+        <span>{{ message }}</span>
+    </div>
+    {% endfor %}
+    {# ── ELITE HEADER ── #}
+    <div class="d-flex justify-content-between align-items-center mb-5">
+        <div>
+            <span class="status-pill status-live text-primary mb-2" style="background: var(--accent-glow);">Project Intelligence</span>
+            <h1 class="display-4 fw-bold mb-1">{{ project.name }}</h1>
+            <p class="text-muted lead mb-0"><i class="fas fa-building me-2"></i>{{ project.department.name }} &bull; Strategic Governance</p>
+            
+            <div class="d-flex gap-2 mt-4">
+                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-20 rounded-pill px-3 py-2">
+                    <i class="fas fa-id-badge me-1"></i> ID: #{{ project.id|stringformat:"04d" }}
+                </span>
+                <span class="badge {% if project.health == 'Red' %}bg-danger{% elif project.health == 'Yellow' %}bg-warning{% else %}bg-success{% endif %} bg-opacity-10 {% if project.health == 'Red' %}text-danger{% elif project.health == 'Yellow' %}text-warning{% else %}text-success{% endif %} border border-opacity-20 rounded-pill px-3 py-2">
+                    <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> {{ project.status }}
+                </span>
+                {% if project.external_link %}
+                <a href="{{ project.external_link }}" target="_blank" class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-20 rounded-pill px-3 py-2 text-decoration-none">
+                    <i class="fas fa-external-link-alt me-1"></i> Launch System
+                </a>
+                {% endif %}
+            </div>
+
+            <!-- Governance Gate Badges -->
+            <div class="d-flex gap-2 mt-2 flex-wrap">
+                <span class="badge rounded-pill px-3 py-1" style="font-size:0.72rem; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15);">
+                    <i class="fas fa-shield-alt me-1 text-primary"></i> Gates:
+                </span>
+                <span class="badge rounded-pill px-3 py-1" style="font-size:0.72rem; {% if project.requires_pmt %}background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.4); color:#a5b4fc;{% else %}background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.35); text-decoration:line-through;{% endif %}">
+                    <i class="fas fa-users me-1"></i> PMT{% if not project.requires_pmt %} Skipped{% endif %}
+                </span>
+                <span class="badge rounded-pill px-3 py-1" style="font-size:0.72rem; {% if project.requires_hods %}background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4); color:#6ee7b7;{% else %}background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.35); text-decoration:line-through;{% endif %}">
+                    <i class="fas fa-user-tie me-1"></i> HODs{% if not project.requires_hods %} Skipped{% endif %}
+                </span>
+                <span class="badge rounded-pill px-3 py-1" style="font-size:0.72rem; {% if project.requires_board %}background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#fca5a5;{% else %}background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.35); text-decoration:line-through;{% endif %}">
+                    <i class="fas fa-landmark me-1"></i> Board{% if not project.requires_board %} Skipped{% endif %}
+                </span>
+            </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-3">
+            {% if is_pm_or_above %}
+                <a href="{% url 'delete-project' project.id %}" class="btn btn-outline-danger rounded-pill px-4 fw-bold">
+                    <i class="fas fa-trash-alt me-2"></i> Delete Project
+                </a>
+            {% endif %}
+
+            {% if gov_role == 'Team Member' and not is_approved_member %}
+                {% if has_pending_request %}
+                    <button class="btn btn-warning rounded-pill px-4 fw-bold" disabled>
+                        <i class="fas fa-hourglass-half me-2"></i> Request Pending
+                    </button>
+                {% else %}
+                    <a href="{% url 'request-project-membership' project.id %}" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm animate-pulse">
+                        <i class="fas fa-user-plus me-2"></i> Request to Join Project
+                    </a>
+                {% endif %}
+            {% endif %}
+
+            <!-- Progress Ring -->
+            <div class="position-relative d-flex align-items-center justify-content-center" style="width:120px; height:120px;">
+                <svg width="120" height="120" viewBox="0 0 160 160">
+                    <circle cx="80" cy="80" r="68" fill="transparent" stroke="var(--glass-border)" stroke-width="12" />
+                    <circle cx="80" cy="80" r="68" fill="transparent" stroke="var(--accent-color)" stroke-width="12"
+                            stroke-dasharray="427.26" stroke-dashoffset="{{ progress_offset }}"
+                            transform="rotate(-90 80 80)" style="transition:stroke-dashoffset 1.2s ease-out;" />
+                </svg>
+                <div class="position-absolute text-center">
+                    <div style="font-size:1.4rem;font-weight:800;color:var(--text-color);">{{ project.progress_percentage }}%</div>
+                    <div style="font-size:0.6rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Progress</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Smart Alerts & Predictive Health -->
+    {% if alerts %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="premium-card p-0" style="border-left: 5px solid #ff4757;">
+                <div class="card-header border-0 py-3 d-flex justify-content-between align-items-center" style="background: transparent;">
+                    <h6 class="fw-bold mb-0 text-danger animate-pulse">
+                        <i class="fas fa-robot me-2"></i> Smart Alerts & AI Prediction
+                    </h6>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="text-end">
+                            <div class="extra-small text-muted fw-bold text-uppercase" style="font-size:0.6rem;">Delay Probability</div>
+                            <div class="small fw-bold {% if ai_prediction.status == 'CRITICAL' %}text-danger{% elif ai_prediction.status == 'Warning' %}text-warning{% else %}text-success{% endif %}">
+                                {{ ai_prediction.probability }} ({{ ai_prediction.status }})
+                            </div>
+                        </div>
+                        <div class="vr"></div>
+                        <div class="text-end">
+                            <div class="extra-small text-muted fw-bold text-uppercase" style="font-size:0.6rem;">Active Overdue</div>
+                            <div class="small fw-bold text-danger">{{ ai_prediction.overdue_count }} Tasks</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for alert in alerts %}
+                        <div class="list-group-item border-0 py-3 px-4 d-flex align-items-center gap-3" 
+                             style="background: {% if 'Escalation' in alert.alert_type or alert.alert_type == 'Predictive' %}var(--danger-glow){% else %}var(--glass-bg){% endif %}; border-bottom: 1px solid var(--glass-border) !important; color: var(--text-color);">
+                            
+                            <div class="flex-shrink-0">
+                                {% if alert.alert_type == 'Predictive' %}
+                                    <div class="rounded-circle bg-info bg-opacity-10 p-2 text-info d-flex align-items-center justify-content-center" style="width:36px; height:36px;">
+                                        <i class="fas fa-brain"></i>
+                                    </div>
+                                {% elif alert.alert_type == 'Escalation' or alert.alert_type == 'EscalationPMT' or alert.alert_type == 'EscalationHODs' %}
+                                    <div class="rounded-circle bg-danger bg-opacity-10 p-2 text-danger d-flex align-items-center justify-content-center" style="width:36px; height:36px;">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                    </div>
+                                {% elif alert.alert_type == 'DeadlineMorning' %}
+                                    <div class="rounded-circle bg-warning bg-opacity-10 p-2 text-warning d-flex align-items-center justify-content-center" style="width:36px; height:36px;">
+                                        <i class="fas fa-sun"></i>
+                                    </div>
+                                {% else %}
+                                    <div class="rounded-circle bg-warning bg-opacity-10 p-2 text-warning d-flex align-items-center justify-content-center" style="width:36px; height:36px;">
+                                        <i class="fas fa-bell"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="small text-muted fw-bold text-uppercase" style="font-size:0.65rem; letter-spacing:0.5px;">
+                                        {{ alert.get_alert_type_display }}
+                                    </span>
+                                    <span class="extra-small text-muted">{{ alert.created_at|timesince }} ago</span>
+                                </div>
+                                <p class="mb-0 small fw-semibold" style="color: var(--text-color);">{{ alert.message }}</p>
+                            </div>
+                            
+                            {% if alert.task %}
+                            <a href="#kanban" data-bs-toggle="tab" class="btn btn-sm btn-light rounded-pill px-3 fw-bold extra-small border">View Task</a>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tab Navigation -->
+    <ul class="nav nav-pills nav-fill mb-4 p-2 premium-card shadow-lg" id="projectTabs" role="tablist" style="background: var(--card-bg);">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active rounded-pill fw-bold" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+                <i class="fas fa-home me-2"></i> Overview
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill fw-bold" id="kanban-tab" data-bs-toggle="tab" data-bs-target="#kanban" type="button" role="tab">
+                <i class="fas fa-columns me-2"></i> Task Board
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill fw-bold" id="gantt-tab" data-bs-toggle="tab" data-bs-target="#gantt" type="button" role="tab">
+                <i class="fas fa-stream me-2"></i> Gantt Timeline
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill fw-bold" id="analytics-tab" data-bs-toggle="tab" data-bs-target="#analytics" type="button" role="tab">
+                <i class="fas fa-chart-pie me-2"></i> Analytics
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill fw-bold" id="collaboration-tab" data-bs-toggle="tab" data-bs-target="#collaboration" type="button" role="tab">
+                <i class="fas fa-comments me-2"></i> Collaboration Hub
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill fw-bold position-relative" id="team-tab" data-bs-toggle="tab" data-bs-target="#team" type="button" role="tab">
+                <i class="fas fa-users me-2"></i> Project Team
+                {% if pending_members_count > 0 and is_pm_or_above %}
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger shadow-sm" style="font-size: 0.65rem;">
+                    {{ pending_members_count }}
+                </span>
+                {% endif %}
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="projectTabContent">
+        <!-- OVERVIEW TAB -->
+        <div class="tab-pane fade show active" id="overview" role="tabpanel">
+    {# ── OPERATIONAL VIEW (PM + APPROVED MEMBERS) ── #}
+    {% if is_pm_or_above or is_approved_member %}
+    {% if pending_members_count > 0 %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="glass-panel p-4 border-start border-4 border-warning d-flex justify-content-between align-items-center shadow-sm">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 text-warning">
+                        <i class="fas fa-user-clock fs-4"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-1">Pending Membership Requests</h5>
+                        <p class="text-muted mb-0">There are {{ pending_members_count }} personnel awaiting approval for this project.</p>
+                    </div>
+                </div>
+                <button onclick="$('#team-tab').tab('show')" class="btn btn-warning rounded-pill px-4 fw-bold">
+                    Review Requests <i class="fas fa-arrow-right ms-2"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold mb-0"> <i class="fas fa-layer-group me-2 text-primary"></i> All Phases &amp; Tasks
+                </h5>
+                <span class="badge bg-primary text-white rounded-pill px-3"> {{ phases|length }} Phase{{ phases|length|pluralize }}</span>
+            </div>
+
+            {% if is_project_leader %}
+            <!-- Governance Settings Panel (PL Only) -->
+            <div class="card border-0 shadow-sm rounded-4 mb-4" style="background: rgba(255,255,255,0.03);">
+                <div class="card-header bg-transparent border-bottom border-light border-opacity-10 py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-cogs me-2 text-secondary"></i> Project Governance Configuration</h6>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">Enable or disable upper-level governance gates for this project. When a gate is disabled, phases will bypass it automatically.</p>
+                    <form method="POST" action="{% url 'edit-governance-levels' project.pk %}" class="d-flex flex-wrap gap-4 align-items-center">
+                        {% csrf_token %}
+                        <div class="form-check form-switch custom-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="switchPMT" name="requires_pmt" {% if project.requires_pmt %}checked{% endif %}>
+                            <label class="form-check-label ms-2 fw-bold" for="switchPMT" style="color: {% if project.requires_pmt %}#a5b4fc{% else %}gray{% endif %};">Require PMT</label>
+                        </div>
+                        <div class="form-check form-switch custom-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="switchHODs" name="requires_hods" {% if project.requires_hods %}checked{% endif %}>
+                            <label class="form-check-label ms-2 fw-bold" for="switchHODs" style="color: {% if project.requires_hods %}#6ee7b7{% else %}gray{% endif %};">Require HODs</label>
+                        </div>
+                        <div class="form-check form-switch custom-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="switchBoard" name="requires_board" {% if project.requires_board %}checked{% endif %}>
+                            <label class="form-check-label ms-2 fw-bold" for="switchBoard" style="color: {% if project.requires_board %}#fca5a5{% else %}gray{% endif %};">Require Board</label>
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-outline-primary rounded-pill px-4 ms-auto fw-bold">Save Settings</button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            {% for phase in phases %}
+            <div class="card border-0 shadow-sm mb-3 phase-card"
+                style="background: var(--card-bg) !important; border-radius:16px; border-left:5px solid {% if phase.status == 'Done' %}#198754{% elif phase.status == 'Active' %}#0d6efd{% elif phase.status == 'Awaiting Team Member Approval' %}#ffc107{% elif phase.status == 'Awaiting Project Leader Approval' %}#ffc107{% elif phase.status == 'Awaiting PMT Approval' %}#17a2b8{% elif phase.status == 'Awaiting HODs Approval' %}#0dcaf0{% elif phase.status == 'Awaiting Board Approval' %}#6610f2{% else %}#dee2e6{% endif %} !important;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
+                                style="width:40px;height:40px;font-size:0.9rem;background:{% if phase.status == 'Done' %}#198754{% elif phase.status == 'Active' %}#0d6efd{% elif phase.status == 'Awaiting Team Member Approval' %}#ffc107{% elif phase.status == 'Awaiting Project Leader Approval' %}#ffc107{% elif phase.status == 'Awaiting PMT Approval' %}#0dcaf0{% elif phase.status == 'Awaiting HODs Approval' %}#0dcaf0{% elif phase.status == 'Awaiting Board Approval' %}#6610f2{% else %}#adb5bd{% endif %}; color: #fff;">
+                                {% if phase.status == 'Done' %} <i class="fas fa-check"
+                                    style="font-size:0.8rem;"></i> {% else %}{{ phase.sequence }}{% endif %}</div>
+                            <div>
+                                <h6 class="fw-bold mb-1" style="color: var(--text-color);"> {{ phase.name }}</h6>
+                                <div class="d-flex gap-2 mb-2">
+                                    <span class="extra-small text-muted"> <i class="fas fa-calendar-alt me-1"></i>
+                                        Start: {{ phase.start_date|default:"TBD" }}</span>
+                                    <span class="extra-small text-muted"> <i class="fas fa-calendar-check me-1"></i>
+                                        End: {{ phase.end_date|default:"TBD" }}</span>
+                                </div>
+                                <div class="extra-small text-primary fw-semibold"> <i class="fas fa-user-tie me-1"></i>
+                                    PL: {{ phase.pm.username|default:"Unassigned" }}</div>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                             {% if phase.status == 'Active' %}
+                             <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-info rounded-pill px-3 extra-small" type="button" data-bs-toggle="dropdown">
+                                    <i class="fas fa-file-upload me-1"></i> Deliverable
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-end p-3 shadow border-0 rounded-4" style="width: 280px; background: var(--secondary-color);">
+                                    <h6 class="fw-bold mb-3 small" style="color: var(--text-color);"><i class="fas fa-shield-alt me-2 text-primary"></i> Secure Evidence Upload</h6>
+                                    <form action="{% url 'attach-phase-document' phase.pk %}" method="POST" enctype="multipart/form-data">
+                                        {% csrf_token %}
+                                        <div class="mb-2">
+                                            <input type="text" name="title" class="form-control form-control-sm rounded-3" placeholder="Document Title..." required>
+                                        </div>
+                                        <div class="mb-2">
+                                            <input type="file" name="file_attachment" class="form-control form-control-sm rounded-3">
+                                            <div class="extra-small text-muted mt-1">OR</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <input type="url" name="external_link" class="form-control form-control-sm rounded-3" placeholder="https://external-link.com">
+                                        </div>
+                                        <button type="submit" class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">Submit Deliverable</button>
+                                    </form>
+                                </div>
+                             </div>
+                             {% endif %}
+
+                              {% if is_pm_or_above and phase.status == 'Active' %}
+                             <a href="{% url 'create-task' phase.pk %}" class="btn btn-sm btn-outline-primary rounded-pill px-3 extra-small">
+                                <i class="fas fa-plus me-1"></i> Add Task
+                             </a>
+                             {% endif %}
+                             
+                             {% if phase.status == 'Done' %}
+                             <a href="{% url 'download-phase-deliverables' phase.pk %}" class="btn btn-sm btn-success rounded-pill px-3 extra-small shadow-sm">
+                                <i class="fas fa-cloud-download-alt me-1"></i> Deliverables
+                             </a>
+                             <span class="badge bg-success text-white rounded-pill px-3 py-2"> <i
+                                     class="fas fa-check-circle me-1"></i> Approved</span>
+                             {% elif phase.status == 'Active' %}
+                             <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2"> <i
+                                     class="fas fa-bolt me-1"></i> Active</span>
+                             {% elif phase.status == 'Awaiting Team Member Approval' %}
+                             <span class="badge bg-warning-subtle text-warning rounded-pill px-3 py-2"> <i class="fas fa-user"></i> Awaiting Team Member</span>
+                             {% elif phase.status == 'Awaiting Project Leader Approval' %}
+                             <span class="badge bg-warning-subtle text-warning rounded-pill px-3 py-2"> <i
+                                     class="fas fa-search me-1"></i> PL Review Due</span>
+                             {% elif phase.status == 'Awaiting PMT Approval' %}
+                             <span class="badge bg-info text-white rounded-pill px-3 py-2"> <i
+                                     class="fas fa-user-shield me-1"></i> Awaiting Project Management Team</span>
+                             {% elif phase.status == 'Awaiting HODs Approval' %}
+                             <span class="badge bg-info text-white rounded-pill px-3 py-2"> <i
+                                     class="fas fa-user-shield me-1"></i> Awaiting Head of Departments</span>
+                             {% elif phase.status == 'Awaiting Board Approval' %}
+                             <span class="badge bg-indigo text-white rounded-pill px-3 py-2" style="background: #6610f2; color: #fff;"> <i
+                                     class="fas fa-crown me-1"></i> Awaiting Executive Committee</span>
+                             {% else %}
+                             <span class="badge rounded-pill px-3 py-2 border" style="background: var(--glass-bg); color: var(--text-color);"> <i
+                                     class="fas fa-pause me-1"></i> Pending</span>
+                             {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Tasks for PM: see all, can approve/reassign -->
+                    {% with task_list=phase.tasks.all %}
+                    {% if task_list %}
+                    <div class="rounded-3 mb-3" style="background: var(--glass-bg); padding:12px;">
+                        {% for task in task_list %}
+                        <div
+                            class="d-flex align-items-center justify-content-between py-2 {% if not forloop.last %}border-bottom{% endif %}">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 
+                                            {% if task.status == 'Done' %}bg-success{% elif task.status == 'Blocked' or task.is_overdue %}bg-danger{% elif task.status == 'In Progress' %}bg-primary{% else %}border border-2 border-secondary{% endif %}"
+                                    style="width:24px;height:24px;">
+                                    {% if task.status == 'Done' %}
+                                    <i class="fas fa-check text-white" style="font-size:0.6rem;"></i>
+                                    {% elif task.status == 'Blocked' or task.is_overdue %}
+                                    <i class="fas fa-exclamation text-white" style="font-size:0.6rem;"></i>
+                                    {% elif task.status == 'In Progress' %}
+                                    <i class="fas fa-spinner text-white" style="font-size:0.6rem;"></i>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <div class="small fw-semibold" style="color: var(--text-color); {% if task.status == 'Done' %}text-decoration:line-through; opacity: 0.6;{% endif %}">
+                                         <a href="{% url 'task-detail' task.pk %}" class="text-decoration-none" style="color: inherit;">{{ task.title }}</a>
+                                        {% if task.is_deliverable %}
+                                        <span class="badge bg-info rounded-pill extra-small ms-1" style="font-size: 0.6rem;"><i class="fas fa-box-open me-1"></i> DELIVERABLE</span>
+                                        {% endif %}
+                                        {% if task.is_overdue %}
+                                        <span class="badge bg-danger rounded-pill extra-small ms-1 animate-pulse">OVERDUE</span>
+                                        {% elif task.deadline_status == 'warning' %}
+                                        <span class="badge bg-warning text-primary rounded-pill extra-small ms-1">DUE SOON</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="extra-small text-muted"> 
+                                        <i class="fas fa-user me-1"></i> Assigned: {{ task.owner.username }} &bull; 
+                                        <span class="{% if task.is_overdue %}text-danger fw-bold{% elif task.deadline_status == 'warning' %}text-warning fw-bold{% endif %}">
+                                            Due: {{ task.due_date }}
+                                        </span>
+                                        &bull; <i class="fas fa-paperclip ms-1"></i> ({{ task.attachments.count }})
+                                    </div>
+                                    {% if task.attachments.exists %}
+                                    <div class="mt-2 d-flex flex-wrap gap-2">
+                                        {% for attachment in task.attachments.all %}
+                                        <a href="{% if attachment.external_link %}{{ attachment.external_link }}{% else %}{{ attachment.file.url }}{% endif %}" 
+                                           target="_blank" 
+                                           class="badge bg-light text-primary border rounded-pill text-decoration-none extra-small py-1 px-2" 
+                                           title="{{ attachment.filename }}">
+                                            <i class="fas fa-{% if attachment.external_link %}link{% else %}file-download{% endif %} me-1"></i> 
+                                            {{ attachment.filename|truncatechars:15 }}
+                                        </a>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <a href="{% url 'edit-task' phase.pk task.pk %}" class="btn btn-link p-0 text-primary small me-2"><i class="fas fa-edit"></i></a>
+                                <span class="badge {% if task.priority == 'Critical' %}bg-danger{% elif task.priority == 'High' %}bg-warning{% else %}bg-secondary{% endif %} extra-small">
+                                    {{ task.priority }}
+                                </span>
+                                <span class="badge border extra-small" style="background: var(--glass-bg); color: var(--text-color);"> {{ task.status }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-muted small mb-3 fst-italic"> <i class="fas fa-inbox me-1"></i> No tasks assigned.
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+
+                    <!-- ✧ Stage-Gate Deliverables & Criteria -->
+                    <div class="row g-3 mb-4 mt-2">
+                        <div class="col-md-6">
+                            <div class="p-3 rounded-4 shadow-sm h-100"
+                                style="background: var(--glass-bg) !important;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="extra-small text-uppercase fw-bold text-primary mb-0"> <i
+                                            class="fas fa-clipboard-list me-2"></i> Deliverables Checklist</h6>
+                                    {% if is_pm_or_above %}
+                                    <button class="btn btn-link btn-sm p-0 text-primary text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#editDeliv{{ phase.pk }}">
+                                        <i class="fas fa-edit small"></i> <span class="extra-small">Edit</span>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="collapse mb-2" id="editDeliv{{ phase.pk }}">
+                                    <form action="{% url 'edit-phase-meta' phase.pk %}" method="POST">
+                                        {% csrf_token %}
+                                        <textarea name="deliverables" class="form-control form-control-sm mb-2" rows="4" placeholder="Enter deliverables (one per line)...">{{ phase.deliverables|default:"" }}</textarea>
+                                        <input type="hidden" name="completion_criteria" value="{{ phase.completion_criteria|default:"" }}">
+
+                                        {# ── Quorum Settings (Project Leader only) ── #}
+                                        <div class="border rounded-3 p-3 mb-2" style="background: rgba(var(--accent-rgb, 13,110,253), 0.05);">
+                                            <h6 class="extra-small fw-bold text-uppercase text-primary mb-3">
+                                                <i class="fas fa-sliders-h me-2"></i>Quorum Settings
+                                                <span class="badge bg-primary bg-opacity-10 text-primary ms-2" style="font-size:0.55rem;">Set by Project Leader</span>
+                                            </h6>
+                                            <div class="row g-2">
+                                                <div class="col-4">
+                                                    <label class="extra-small text-muted fw-bold text-uppercase mb-1" style="font-size:0.6rem;"><i class="fas fa-users me-1 text-info"></i> PMT Required</label>
+                                                    <input type="number" name="pmt_required" min="1" max="20" value="{{ phase.pmt_required }}" class="form-control form-control-sm text-center fw-bold">
+                                                </div>
+                                                <div class="col-4">
+                                                    <label class="extra-small text-muted fw-bold text-uppercase mb-1" style="font-size:0.6rem;"><i class="fas fa-building me-1" style="color:#6610f2"></i> HODs Required</label>
+                                                    <input type="number" name="hods_required" min="1" max="20" value="{{ phase.hods_required }}" class="form-control form-control-sm text-center fw-bold">
+                                                </div>
+                                                <div class="col-4">
+                                                    <label class="extra-small text-muted fw-bold text-uppercase mb-1" style="font-size:0.6rem;"><i class="fas fa-crown me-1 text-danger"></i> Board Required</label>
+                                                    <input type="number" name="board_required" min="1" max="20" value="{{ phase.board_required }}" class="form-control form-control-sm text-center fw-bold">
+                                                </div>
+                                            </div>
+                                            <p class="extra-small text-muted mt-2 mb-0"><i class="fas fa-info-circle me-1"></i> Number of signatures needed before advancing to the next governance level.</p>
+                                        </div>
+
+                                        <button type="submit" class="btn btn-primary btn-sm rounded-pill w-100 fw-bold">Save Deliverables &amp; Quorum</button>
+                                    </form>
+                                </div>
+
+                                <div class="small" style="line-height:1.5; color: var(--text-color);"> {{ phase.deliverables|default:"Define specific deliverables for this phase."|linebreaksbr }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 rounded-4 shadow-sm h-100"
+                                style="background: var(--glass-bg) !important;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="extra-small text-uppercase fw-bold text-info mb-0"> <i
+                                            class="fas fa-tasks me-2"></i> Gate Entry Criteria</h6>
+                                    {% if is_pm_or_above %}
+                                    <button class="btn btn-link btn-sm p-0 text-info text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#editCrit{{ phase.pk }}">
+                                        <i class="fas fa-edit small"></i> <span class="extra-small">Edit</span>
+                                    </button>
+                                    {% endif %}
+                                </div>
+
+                                <div class="collapse mb-2" id="editCrit{{ phase.pk }}">
+                                    <form action="{% url 'edit-phase-meta' phase.pk %}" method="POST">
+                                        {% csrf_token %}
+                                        <textarea name="completion_criteria" class="form-control form-control-sm mb-2" rows="4" placeholder="Enter gate entry criteria...">{{ phase.completion_criteria|default:"" }}</textarea>
+                                        <input type="hidden" name="deliverables" value="{{ phase.deliverables|default:"" }}">
+                                        <button type="submit" class="btn btn-info text-white btn-sm rounded-pill w-100 fw-bold">Save Criteria</button>
+                                    </form>
+                                </div>
+
+                                <div class="small" style="line-height:1.5; color: var(--text-color);">
+                                    <h6 class="small text-info fw-bold mb-2"> <i class="fas fa-box-open me-2"></i> Phase Deliverables</h6>
+                                    <p class="small mb-3" style="color: var(--text-color);">
+                                        {{ phase.deliverables|default:"Define specific deliverables for this phase."|linebreaksbr }}
+                                    </p>
+
+                                    <h6 class="small text-info fw-bold mb-2"> <i class="fas fa-bullseye me-2"></i> Gate Entry Criteria</h6>
+                                    <p class="small mb-0" style="color: var(--text-color);">
+                                        {{ phase.completion_criteria|default:"Gate clearance requires all tasks in this phase to be marked as 'Done' and all deliverables submitted."|linebreaksbr }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ✧ Sprints (Layer 4) -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="extra-small text-uppercase fw-bold mb-0" style="color: var(--text-color);"><i
+                                    class="fas fa-bolt me-2 text-warning"></i> Sprints</h6>
+                            <a href="{% url 'create-sprint' phase.pk %}"
+                                class="btn btn-sm btn-outline-warning rounded-pill px-3 extra-small">
+                                <i class="fas fa-plus me-1"></i> Add Sprint
+                            </a>
+                        </div>
+                        {% with sprint_list=phase.sprints.all %}
+                        {% if sprint_list %}
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for sprint in sprint_list %}
+                            <a href="{% url 'sprint-detail' sprint.pk %}"
+                                class="badge px-3 py-2 rounded-pill text-decoration-none
+                                {% if sprint.status == 'Done' %}bg-success{% elif sprint.status == 'Active' %}bg-primary{% else %}bg-secondary{% endif %}">
+                                <i class="fas fa-bolt me-1"></i> {{ sprint.name }}
+                                <span class="ms-1 badge extra-small" style="background: var(--secondary-color); color: var(--text-color);">
+                                    {{ sprint.tasks.filter.count }}t
+                                </span>
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <span class="extra-small text-muted fst-italic"><i class="fas fa-info-circle me-1"></i> No
+                            sprints yet. Add one to start agile tracking.</span>
+                        {% endif %}
+                        {% endwith %}
+                    </div>
+
+                    
+                    <!-- 5-LEVEL GOVERNANCE GATE CONTROLS -->
+                    
+                    {% if phase.status == 'Active' and gov_role == 'Team Member' or phase.status == 'Active' and gov_role == 'Project Leader' or phase.status == 'Active' and gov_role == 'Portfolio Admin' or phase.status == 'Active' and phase.pm == request.user %}
+                    <!-- LEVEL 1: TEAM MEMBER -->
+                    <div class="rounded-4 p-3 shadow-sm border mt-3" style="background: var(--card-bg); color: var(--text-color); border: 1px solid rgba(13, 110, 253, 0.2) !important;">
+                        <h6 class="fw-bold mb-3 d-flex align-items-center justify-content-between">
+                            <span><i class="fas fa-layer-group text-primary me-2"></i>
+                            {% if gov_role == 'Project Leader' or gov_role == 'Portfolio Admin' or phase.pm == request.user %}
+                                Initial Phase Submission
+                            {% else %}
+                                Initial Phase Submission (Team Member)
+                            {% endif %}
+                            </span>
+                            <span class="badge bg-primary bg-opacity-10 text-primary extra-small">Execution Phase</span>
+                        </h6>
+                        <form action="{% url 'advance-phase' phase.pk %}" method="POST">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label class="small text-muted fw-bold mb-1">
+                                {% if gov_role == 'Project Leader' or gov_role == 'Portfolio Admin' or phase.pm == request.user %}
+                                    YOUR COMMENTS (Optional)
+                                {% else %}
+                                    TEAM MEMBER COMMENTS (Optional)
+                                {% endif %}
+                                </label>
+                                <textarea name="comments" class="form-control form-control-sm rounded-3" rows="2" placeholder="Peer review comments..."></textarea>
+                            </div>
+
+                            {% if phase.tasks.all or phase.required_documents.exists %}
+                            <div class="mb-3">
+                                <label class="small text-muted fw-bold mb-2 text-uppercase" style="font-size: 0.65rem;">Deliverables to be Submitted:</label>
+
+                                <!-- Files Section -->
+                                <h6 class="small text-primary fw-bold mt-2 mb-1"><i class="fas fa-file-alt"></i> Files</h6>
+                                <div class="list-group list-group-flush border rounded-3 overflow-hidden mb-3">
+                                    {% for task in phase.tasks.all %}
+                                        {% for attach in task.attachments.all %}
+                                            {% if not attach.external_link %}
+                                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.03); color: var(--text-color); border-color: rgba(255,255,255,0.05);">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="fas fa-file-alt text-primary extra-small"></i>
+                                                    <span class="extra-small opacity-75">{{ attach.filename|default:"File" }} ({{ task.title }})</span>
+                                                </div>
+                                                <a href="{{ attach.file.url }}" target="_blank" class="text-primary text-decoration-none extra-small fw-bold">View</a>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endfor %}
+                                    {% for doc in phase.required_documents.all %}
+                                        {% if not doc.external_link %}
+                                        <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.03); color: var(--text-color); border-color: rgba(255,255,255,0.05);">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <i class="fas fa-file-contract text-primary extra-small"></i>
+                                                <span class="extra-small opacity-75">{{ doc.title }}</span>
+                                            </div>
+                                            <a href="{{ doc.file_attachment.url }}" target="_blank" class="text-primary text-decoration-none extra-small fw-bold">View</a>
+                                        </div>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+
+                                <!-- Links Section -->
+                                <h6 class="small text-info fw-bold mt-2 mb-1"><i class="fas fa-link"></i> External Links</h6>
+                                <div class="list-group list-group-flush border rounded-3 overflow-hidden">
+                                    {% for task in phase.tasks.all %}
+                                        {% for attach in task.attachments.all %}
+                                            {% if attach.external_link %}
+                                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.03); color: var(--text-color); border-color: rgba(255,255,255,0.05);">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="fas fa-external-link-alt text-info extra-small"></i>
+                                                    <span class="extra-small opacity-75">{{ attach.filename|default:"External Link" }} ({{ task.title }})</span>
+                                                </div>
+                                                <a href="{{ attach.external_link }}" target="_blank" class="text-info text-decoration-none extra-small fw-bold">Open Link</a>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endfor %}
+                                    {% for doc in phase.required_documents.all %}
+                                        {% if doc.external_link %}
+                                        <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.03); color: var(--text-color); border-color: rgba(255,255,255,0.05);">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <i class="fas fa-external-link-alt text-info extra-small"></i>
+                                                <span class="extra-small opacity-75">{{ doc.title }}</span>
+                                            </div>
+                                            <a href="{{ doc.external_link }}" target="_blank" class="text-info text-decoration-none extra-small fw-bold">Open Link</a>
+                                        </div>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm rounded-pill px-4 fw-bold shadow-sm">
+                                    <i class="fas fa-paper-plane me-2"></i> 
+                                    {% if request.user == project.pm or gov_role == 'Project Leader' %}
+                                        Forward to Project Management Team
+                                    {% else %}
+                                        Forward Deliverables to PL
+                                    {% endif %}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    {% elif phase.status == 'Awaiting Project Leader Approval' and gov_role == 'Project Leader' or phase.status == 'Awaiting Project Leader Approval' and gov_role == 'Portfolio Admin' or phase.status == 'Awaiting Project Leader Approval' and phase.pm == request.user %}
+                    <!-- LEVEL 2: PROJECT LEADER -->
+                    <div class="rounded-4 p-3 shadow-sm border mt-3" style="background: var(--card-bg); color: var(--text-color); border: 1px solid rgba(255, 193, 7, 0.5) !important;">
+                        <h6 class="fw-bold mb-3 d-flex align-items-center justify-content-between">
+                            <span><i class="fas fa-user-tie text-warning me-2"></i> Consolidation & Submission to Project Management Team</span>
+                            <span class="badge bg-warning bg-opacity-10 text-warning extra-small">PL Gate Review</span>
+                        </h6>
+                        <form action="{% url 'pm-consolidate-phase' phase.pk %}" method="POST" enctype="multipart/form-data" class="signature-form">
+                            {% csrf_token %}
+                            <div class="row g-3">
+                                <div class="col-md-7">
+                                    <div class="mb-3">
+                                        <label class="small text-muted fw-bold mb-1 text-uppercase" style="font-size: 0.65rem;">Consolidation Notes (Executive Summary)</label>
+                                        <textarea name="comments" class="form-control form-control-sm rounded-3" rows="3" required placeholder="Consolidate tasks and provide a summary for Project Management Team/Head of Departments/Executive Committee..."></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="small text-muted fw-bold mb-1 text-uppercase" style="font-size: 0.65rem;">Upload Consolidated Deliverable (Optional)</label>
+                                        <input type="file" name="consolidated_file" class="form-control form-control-sm rounded-3">
+                                        <div class="extra-small text-muted mt-1">
+                                            If you created a single summary document, upload it here. 
+                                            <strong>Otherwise, the system will automatically zip all team deliverables with their names included.</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-5">
+                                    <div class="mb-2 d-flex justify-content-between align-items-center">
+                                        <label class="small text-muted fw-bold text-uppercase" style="font-size: 0.65rem;">Electronic Signature</label>
+                                        <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none extra-small clear-signature">Clear</button>
+                                    </div>
+                                    <div class="bg-white rounded-3 border overflow-hidden mb-2" style="height: 120px;">
+                                        <canvas class="signature-pad" width="400" height="120" style="width: 100%; height: 120px; cursor: crosshair;"></canvas>
+                                    </div>
+                                    <input type="hidden" name="signature_data" class="signature-input">
+                                </div>
+                            </div>
+
+                            <div class="mb-3 mt-2">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="small text-muted fw-bold text-uppercase" style="font-size: 0.65rem;">Team Deliverables to Review:</label>
+                                    <a href="{% url 'pm-auto-consolidate-auto' phase.pk %}" class="btn btn-outline-info btn-sm rounded-pill px-3 extra-small" style="font-size:0.65rem;">
+                                        <i class="fas fa-file-archive me-1"></i> Download All as ZIP
+                                    </a>
+                                </div>
+
+                                <!-- PM Files Section -->
+                                <h6 class="small text-primary fw-bold mt-2 mb-1"><i class="fas fa-file-alt"></i> Submitted Files</h6>
+                                <div class="list-group list-group-flush border rounded-3 overflow-hidden mb-3">
+                                    {% for task in phase.tasks.all %}
+                                        {% for attach in task.attachments.all %}
+                                            {% if not attach.external_link %}
+                                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.03); color: var(--text-color); border-color: rgba(255,255,255,0.05);">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="fas fa-file-alt text-primary extra-small"></i>
+                                                    <span class="extra-small">
+                                                        <b>{{ task.title }}</b> — {{ attach.filename|default:"File" }}
+                                                    </span>
+                                                    <span class="text-muted extra-small ms-1" style="font-size:0.6rem;">by {{ task.owner.get_full_name|default:task.owner.username }}</span>
+                                                </div>
+                                                <a href="{{ attach.file.url }}" target="_blank" class="text-primary text-decoration-none extra-small fw-bold">Review</a>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% empty %}
+                                    {% endfor %}
+                                </div>
+
+                                <!-- PM Links Section -->
+                                <h6 class="small text-info fw-bold mt-2 mb-1"><i class="fas fa-link"></i> Submitted External Links</h6>
+                                <div class="list-group list-group-flush border rounded-3 overflow-hidden">
+                                    {% for task in phase.tasks.all %}
+                                        {% for attach in task.attachments.all %}
+                                            {% if attach.external_link %}
+                                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.03); color: var(--text-color); border-color: rgba(255,255,255,0.05);">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="fas fa-link text-info extra-small"></i>
+                                                    <span class="extra-small">
+                                                        <b>{{ task.title }}</b> — {{ attach.filename|default:"External Link" }}
+                                                    </span>
+                                                    <span class="text-muted extra-small ms-1" style="font-size:0.6rem;">by {{ task.owner.get_full_name|default:task.owner.username }}</span>
+                                                </div>
+                                                <a href="{{ attach.external_link }}" target="_blank" class="text-info text-decoration-none extra-small fw-bold">Open Link</a>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% empty %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-semibold" onclick="openReturnModal({{ phase.pk }}, 'Project Leader')">
+                                        <i class="fas fa-undo me-1"></i> Return for Correction
+                                    </button>
+                                </div>
+                                <div>
+                                    <button type="submit" class="btn btn-warning text-dark btn-sm rounded-pill px-4 fw-bold shadow-sm">
+                                        <i class="fas fa-paper-plane me-2"></i> 
+                                        {% if gov_role == 'Project Management Team' %}
+                                            Forward to Head of Departments
+                                        {% else %}
+                                            Sign & Forward to Project Management Team
+                                        {% endif %}
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    {% elif phase.status == 'Awaiting PMT Approval' and gov_role == 'Project Management Team' and project.requires_pmt %}
+                    <!-- LEVEL 3: PMT -->
+                    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mt-3" style="border: 1px solid rgba(13, 202, 240, 0.5);">
+                        <div class="card-header bg-info bg-opacity-10 border-0 py-3">
+                            <h6 class="fw-bold mb-0 text-info"><i class="fas fa-user-shield me-2"></i> Project Management Team Verification</h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <!-- Visual Progress Bar for Project Management Team Gate (X/required) -->
+                            <div class="mb-4 text-center">
+                                <h6 class="extra-small fw-bold text-uppercase text-info mb-2">Gate Clearance Progress ({{ phase.pmt_approval_count }}/{{ phase.pmt_required }} Approvals)</h6>
+                                <div class="progress" style="height: 10px; background: rgba(13, 202, 240, 0.1); border-radius: 5px;">
+                                    <div class="progress-bar bg-info progress-bar-striped progress-bar-animated" role="progressbar" style="width: {{ phase.pmt_approval_percentage }}%;" aria-valuenow="{{ phase.pmt_approval_count }}" aria-valuemin="0" aria-valuemax="{{ phase.pmt_required }}"></div>
+                                </div>
+                            </div>
+
+                            {% if request.user.id not in phase.approver_ids %}
+                             <form action="{% url 'pmt-verify-phase' phase.pk %}" method="POST" class="signature-form">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label class="small text-muted fw-bold mb-1">YOUR VERIFICATION COMMENTS (MANDATORY)</label>
+                                    <textarea name="comments" class="form-control form-control-sm rounded-3" rows="2" required placeholder="Add your Project Management Team verification notes..."></textarea>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="small text-muted fw-bold mb-2 text-uppercase" style="font-size: 0.65rem;">Evidence & Deliverables for Verification:</label>
+                                    
+                                    <!-- Consolidated Executive Deliverables Section -->
+                                    <h6 class="small text-warning fw-bold mb-1 mt-2 text-uppercase"><i class="fas fa-file-archive"></i> Consolidated Executive Deliverable</h6>
+                                    <div class="list-group list-group-flush border rounded-3 overflow-hidden mb-3">
+                                        {% for doc in phase.required_documents.all %}
+                                            {% if 'Consolidated' in doc.title %}
+                                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.03); color: var(--text-color); border-color: rgba(255,255,255,0.05);">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="fas fa-file-archive text-warning extra-small"></i>
+                                                    <span class="extra-small">{{ doc.title }}</span>
+                                                </div>
+                                                <a href="{% if doc.external_link %}{{ doc.external_link }}{% else %}{{ doc.file_attachment.url }}{% endif %}" target="_blank" class="text-warning text-decoration-none extra-small fw-bold">Download ZIP</a>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+
+                                    <!-- Raw Submitted Files Section -->
+                                    <h6 class="small text-info fw-bold mb-1 mt-3 px-1 text-uppercase"><i class="fas fa-file-alt"></i> Raw Submitted Files</h6>
+                                    <div class="list-group list-group-flush border rounded-3 overflow-hidden mb-2">
+                                        {% for task in phase.tasks.all %}
+                                            {% if task.is_deliverable %}
+                                                {% for attach in task.attachments.all %}
+                                                    {% if attach.file %}
+                                                    <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.015); color: var(--text-color); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <i class="fas fa-file-pdf text-danger extra-small"></i>
+                                                            <span class="extra-small"><b>{{ task.title }}</b> — {{ attach.filename }}</span>
+                                                        </div>
+                                                        <a href="{{ attach.file.url }}" target="_blank" class="text-info text-decoration-none extra-small fw-bold">Download/View</a>
+                                                    </div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        {% for doc in phase.required_documents.all %}
+                                            {% if 'Consolidated' not in doc.title and not doc.external_link %}
+                                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.015); color: var(--text-color); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="fas fa-file-contract text-info extra-small"></i>
+                                                    <span class="extra-small"><b>Phase Doc</b> — {{ doc.title }}</span>
+                                                </div>
+                                                <a href="{{ doc.file_attachment.url }}" target="_blank" class="text-info text-decoration-none extra-small fw-bold">Download/View</a>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+
+                                    <!-- Raw Submitted Links Section -->
+                                    <h6 class="small text-success fw-bold mb-1 mt-3 px-1 text-uppercase"><i class="fas fa-link"></i> Raw Submitted External Links</h6>
+                                    <div class="list-group list-group-flush border rounded-3 overflow-hidden mb-2">
+                                        {% for task in phase.tasks.all %}
+                                            {% if task.is_deliverable %}
+                                                {% for attach in task.attachments.all %}
+                                                    {% if attach.external_link %}
+                                                    <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.015); color: var(--text-color); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <i class="fas fa-external-link-alt text-success extra-small"></i>
+                                                            <span class="extra-small"><b>{{ task.title }}</b> — {{ attach.filename|default:"External Link" }}</span>
+                                                        </div>
+                                                        <a href="{{ attach.external_link }}" target="_blank" class="text-info text-decoration-none extra-small fw-bold">Open Link</a>
+                                                    </div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        {% for doc in phase.required_documents.all %}
+                                            {% if 'Consolidated' not in doc.title and doc.external_link %}
+                                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.015); color: var(--text-color); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="fas fa-external-link-alt text-success extra-small"></i>
+                                                    <span class="extra-small"><b>Phase Doc</b> — {{ doc.title }}</span>
+                                                </div>
+                                                <a href="{{ doc.external_link }}" target="_blank" class="text-info text-decoration-none extra-small fw-bold">Open Link</a>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="small text-muted fw-bold mb-1">ELECTRONIC SIGNATURE (REQUIRED)</label>
+                                    <div class="signature-wrapper glass-panel p-1 rounded-3 mb-2" style="background: rgba(255,255,255,0.05);">
+                                        <canvas class="signature-pad" width="400" height="150" style="width: 100%; height: 150px; cursor: crosshair;"></canvas>
+                                    </div>
+                                    <input type="hidden" name="signature_data" class="signature-input">
+                                </div>
+                                <div class="d-flex justify-content-end gap-2">
+                                     <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-semibold" onclick="openReturnModal({{ phase.pk }}, 'PMT')">Return to PL</button>
+                                     <button type="submit" class="btn btn-info text-white btn-sm rounded-pill px-4 fw-bold submit-approval">Forward to Head of Departments</button>
+                                </div>
+                            </form>
+                            {% else %}
+                            <div class="alert alert-info rounded-4 border-0 small py-3 px-4 mb-0">
+                                <i class="fas fa-info-circle me-2"></i> You have already submitted your verification for this phase.
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% elif phase.status == 'Awaiting HODs Approval' and gov_role == 'HODs' and project.requires_hods %}
+                    <!-- LEVEL 4: HODs -->
+                    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mt-3" style="border: 1px solid rgba(102, 16, 242, 0.5);">
+                        <div class="card-header border-0 py-3" style="background: rgba(102, 16, 242, 0.1);">
+                            <h6 class="fw-bold mb-0 text-indigo" style="color: #6610f2;"><i class="fas fa-building me-2"></i> Head of Departments Endorsement</h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <!-- Visual Progress Bar for HOD Gate (X/required) -->
+                            <div class="mb-4 text-center">
+                                <h6 class="extra-small fw-bold text-uppercase text-indigo mb-2" style="color: #6610f2;">HOD Clearance Progress ({{ phase.hods_approval_count }}/{{ phase.hods_required }} Approvals)</h6>
+                                <div class="progress" style="height: 10px; background: rgba(102, 16, 242, 0.1); border-radius: 5px;">
+                                    <div class="progress-bar bg-indigo progress-bar-striped progress-bar-animated" role="progressbar" style="width: {{ phase.hods_approval_percentage }}%; background: #6610f2;" aria-valuenow="{{ phase.hods_approval_count }}" aria-valuemin="0" aria-valuemax="{{ phase.hods_required }}"></div>
+                                </div>
+                            </div>
+
+                            {% if request.user.id not in phase.approver_ids %}
+                             <form action="{% url 'hods-verify-phase' phase.pk %}" method="POST" class="signature-form">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label class="small text-muted fw-bold mb-1">YOUR STRATEGIC COMMENTS (MANDATORY)</label>
+                                    <textarea name="comments" class="form-control form-control-sm rounded-3" rows="2" required placeholder="Head of Departments notes and endorsement..."></textarea>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="small text-muted fw-bold mb-2 text-uppercase" style="font-size: 0.65rem;">Deliverables to Endorse:</label>
+
+                                    <!-- Consolidated Executive Deliverables Section -->
+                                    <h6 class="small text-warning fw-bold mb-1 mt-2 text-uppercase"><i class="fas fa-file-archive"></i> Consolidated Executive Deliverable</h6>
+                                    <div class="list-group list-group-flush border rounded-3 overflow-hidden mb-3">
+                                        {% for doc in phase.required_documents.all %}
+                                            {% if 'Consolidated' in doc.title %}
+                                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.03); color: var(--text-color); border-color: rgba(255,255,255,0.05);">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="fas fa-file-archive text-warning extra-small"></i>
+                                                    <span class="extra-small">{{ doc.title }}</span>
+                                                </div>
+                                                <a href="{% if doc.external_link %}{{ doc.external_link }}{% else %}{{ doc.file_attachment.url }}{% endif %}" target="_blank" class="text-warning text-decoration-none extra-small fw-bold">Download ZIP</a>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+
+                                    <!-- Raw Submitted Files Section -->
+                                    <h6 class="small text-indigo fw-bold mb-1 mt-3 px-1 text-uppercase" style="color:#6610f2;"><i class="fas fa-file-alt"></i> Raw Submitted Files</h6>
+                                    <div class="list-group list-group-flush border rounded-3 overflow-hidden mb-2">
+                                        {% for task in phase.tasks.all %}
+                                            {% if task.is_deliverable %}
+                                                {% for attach in task.attachments.all %}
+                                                    {% if attach.file %}
+                                                    <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.015); color: var(--text-color); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <i class="fas fa-file-pdf text-danger extra-small"></i>
+                                                            <span class="extra-small"><b>{{ task.title }}</b> — {{ attach.filename }}</span>
+                                                        </div>
+                                                        <a href="{{ attach.file.url }}" target="_blank" class="text-indigo text-decoration-none extra-small fw-bold">Endorsement Review</a>
+                                                    </div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        {% for doc in phase.required_documents.all %}
+                                            {% if 'Consolidated' not in doc.title and not doc.external_link %}
+                                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.015); color: var(--text-color); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="fas fa-file-contract text-indigo extra-small"></i>
+                                                    <span class="extra-small"><b>Phase Doc</b> — {{ doc.title }}</span>
+                                                </div>
+                                                <a href="{{ doc.file_attachment.url }}" target="_blank" class="text-indigo text-decoration-none extra-small fw-bold">Endorsement Review</a>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+
+                                    <!-- Raw Submitted Links Section -->
+                                    <h6 class="small text-success fw-bold mb-1 mt-3 px-1 text-uppercase"><i class="fas fa-link"></i> Raw Submitted External Links</h6>
+                                    <div class="list-group list-group-flush border rounded-3 overflow-hidden mb-2">
+                                        {% for task in phase.tasks.all %}
+                                            {% if task.is_deliverable %}
+                                                {% for attach in task.attachments.all %}
+                                                    {% if attach.external_link %}
+                                                    <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.015); color: var(--text-color); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <i class="fas fa-external-link-alt text-success extra-small"></i>
+                                                            <span class="extra-small"><b>{{ task.title }}</b> — {{ attach.filename|default:"External Link" }}</span>
+                                                        </div>
+                                                        <a href="{{ attach.external_link }}" target="_blank" class="text-indigo text-decoration-none extra-small fw-bold">Open Link</a>
+                                                    </div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        {% for doc in phase.required_documents.all %}
+                                            {% if 'Consolidated' not in doc.title and doc.external_link %}
+                                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.015); color: var(--text-color); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="fas fa-external-link-alt text-success extra-small"></i>
+                                                    <span class="extra-small"><b>Phase Doc</b> — {{ doc.title }}</span>
+                                                </div>
+                                                <a href="{{ doc.external_link }}" target="_blank" class="text-indigo text-decoration-none extra-small fw-bold">Open Link</a>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="small text-muted fw-bold mb-1">ELECTRONIC SIGNATURE (REQUIRED)</label>
+                                    <div class="signature-wrapper glass-panel p-1 rounded-3 mb-2" style="background: rgba(255,255,255,0.05);">
+                                        <canvas class="signature-pad" width="400" height="150" style="width: 100%; height: 150px; cursor: crosshair;"></canvas>
+                                    </div>
+                                    <input type="hidden" name="signature_data" class="signature-input">
+                                </div>
+                                <div class="d-flex justify-content-end gap-2">
+                                     <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-semibold" onclick="openReturnModal({{ phase.pk }}, 'HODs')">Return to Project Management Team</button>
+                                     <button type="submit" class="btn btn-indigo text-white btn-sm rounded-pill px-4 fw-bold submit-approval" style="background: #6610f2;">Forward to Executive Committee</button>
+                                </div>
+                            </form>
+                            {% else %}
+                            <div class="alert alert-indigo rounded-4 border-0 small py-3 px-4 mb-0" style="background: rgba(102, 16, 242, 0.08); color: #6610f2;">
+                                <i class="fas fa-info-circle me-2"></i> You have already endorsed this phase.
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% elif phase.status == 'Awaiting Board Approval' and gov_role == 'Board of Executives' and project.requires_board %}
+                    <!-- LEVEL 5: BOARD -->
+                    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mt-3" style="border: 2px solid #ff4757;">
+                        <div class="card-header border-0 py-3" style="background: rgba(255, 71, 87, 0.1);">
+                            <h6 class="fw-bold mb-0 text-danger"><i class="fas fa-crown me-2"></i> Final Executive Committee Approval</h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <!-- Visual Progress Bar for Board Gate (X/required) -->
+                            <div class="mb-4 text-center">
+                                <h6 class="extra-small fw-bold text-uppercase text-danger mb-2">Executive Committee Approval Progress ({{ phase.board_approval_count }}/{{ phase.board_required }} Approvals)</h6>
+                                <div class="progress" style="height: 10px; background: rgba(255, 71, 87, 0.1); border-radius: 5px;">
+                                    <div class="progress-bar bg-danger progress-bar-striped progress-bar-animated" role="progressbar" style="width: {{ phase.board_approval_percentage }}%;" aria-valuenow="{{ phase.board_approval_count }}" aria-valuemin="0" aria-valuemax="{{ phase.board_required }}"></div>
+                                </div>
+                            </div>
+
+                            {% if request.user.id not in phase.approver_ids %}
+                             <form action="{% url 'approve-phase' phase.pk 'Approved' %}" method="POST" class="signature-form">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label class="small text-muted fw-bold mb-1">FINAL VERDICT NOTES (MANDATORY)</label>
+                                    <textarea name="comments" class="form-control form-control-sm rounded-3" rows="2" required placeholder="Executive Committee resolution notes..."></textarea>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="small text-muted fw-bold mb-2 text-uppercase" style="font-size: 0.65rem;">Final Deliverables for Executive Committee Approval:</label>
+                                    
+                                    <!-- Consolidated Executive Deliverables Section -->
+                                    <h6 class="small text-warning fw-bold mb-1 mt-2 text-uppercase"><i class="fas fa-file-archive"></i> Consolidated Executive Deliverable</h6>
+                                    <div class="list-group list-group-flush border rounded-3 overflow-hidden mb-3">
+                                        {% for doc in phase.required_documents.all %}
+                                            {% if 'Consolidated' in doc.title %}
+                                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.03); color: var(--text-color); border-color: rgba(255,255,255,0.05);">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="fas fa-file-archive text-warning extra-small"></i>
+                                                    <span class="extra-small">{{ doc.title }}</span>
+                                                </div>
+                                                <a href="{% if doc.external_link %}{{ doc.external_link }}{% else %}{{ doc.file_attachment.url }}{% endif %}" target="_blank" class="text-warning text-decoration-none extra-small fw-bold">Download ZIP</a>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+
+                                    <!-- Raw Submitted Files Section -->
+                                    <h6 class="small text-danger fw-bold mb-1 mt-3 px-1 text-uppercase"><i class="fas fa-file-alt"></i> Raw Submitted Files</h6>
+                                    <div class="list-group list-group-flush border rounded-3 overflow-hidden mb-2">
+                                        {% for task in phase.tasks.all %}
+                                            {% if task.is_deliverable %}
+                                                {% for attach in task.attachments.all %}
+                                                    {% if attach.file %}
+                                                    <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.015); color: var(--text-color); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <i class="fas fa-file-pdf text-danger extra-small"></i>
+                                                            <span class="extra-small"><b>{{ task.title }}</b> — {{ attach.filename }}</span>
+                                                        </div>
+                                                        <a href="{{ attach.file.url }}" target="_blank" class="text-danger text-decoration-none extra-small fw-bold">Final Review</a>
+                                                    </div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        {% for doc in phase.required_documents.all %}
+                                            {% if 'Consolidated' not in doc.title and not doc.external_link %}
+                                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.015); color: var(--text-color); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="fas fa-file-contract text-danger extra-small"></i>
+                                                    <span class="extra-small"><b>Phase Doc</b> — {{ doc.title }}</span>
+                                                </div>
+                                                <a href="{{ doc.file_attachment.url }}" target="_blank" class="text-danger text-decoration-none extra-small fw-bold">Final Review</a>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+
+                                    <!-- Raw Submitted Links Section -->
+                                    <h6 class="small text-success fw-bold mb-1 mt-3 px-1 text-uppercase"><i class="fas fa-link"></i> Raw Submitted External Links</h6>
+                                    <div class="list-group list-group-flush border rounded-3 overflow-hidden mb-2">
+                                        {% for task in phase.tasks.all %}
+                                            {% if task.is_deliverable %}
+                                                {% for attach in task.attachments.all %}
+                                                    {% if attach.external_link %}
+                                                    <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.015); color: var(--text-color); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <i class="fas fa-external-link-alt text-success extra-small"></i>
+                                                            <span class="extra-small"><b>{{ task.title }}</b> — {{ attach.filename|default:"External Link" }}</span>
+                                                        </div>
+                                                        <a href="{{ attach.external_link }}" target="_blank" class="text-danger text-decoration-none extra-small fw-bold">Open Link</a>
+                                                    </div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        {% for doc in phase.required_documents.all %}
+                                            {% if 'Consolidated' not in doc.title and doc.external_link %}
+                                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: rgba(255,255,255,0.015); color: var(--text-color); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="fas fa-external-link-alt text-success extra-small"></i>
+                                                    <span class="extra-small"><b>Phase Doc</b> — {{ doc.title }}</span>
+                                                </div>
+                                                <a href="{{ doc.external_link }}" target="_blank" class="text-danger text-decoration-none extra-small fw-bold">Open Link</a>
+                                            </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="small text-muted fw-bold mb-1">ELECTRONIC SIGNATURE (REQUIRED)</label>
+                                    <div class="signature-wrapper glass-panel p-1 rounded-3 mb-2" style="background: rgba(255,255,255,0.05);">
+                                        <canvas class="signature-pad" width="400" height="150" style="width: 100%; height: 150px; cursor: crosshair;"></canvas>
+                                    </div>
+                                    <input type="hidden" name="signature_data" class="signature-input">
+                                </div>
+                                <div class="d-flex justify-content-end gap-2">
+                                     <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-semibold" onclick="openReturnModal({{ phase.pk }}, 'Board')">Reject / Return to Head of Departments</button>
+                                     <button type="submit" class="btn btn-danger text-white btn-sm rounded-pill px-4 fw-bold submit-approval">GRANT FINAL APPROVAL</button>
+                                </div>
+                            </form>
+                            {% else %}
+                            <div class="alert alert-danger rounded-4 border-0 small py-3 px-4 mb-0" style="background: rgba(255, 71, 87, 0.08);">
+                                <i class="fas fa-info-circle me-2"></i> You have already approved this phase.
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if phase.approvals.exists %}
+                    <div class="mt-4">
+                        <h6 class="fw-bold mb-3 text-muted extra-small text-uppercase tracking-wider"><i class="fas fa-file-signature me-2"></i> Governance Approval History</h6>
+                        <div class="row g-3">
+                            {% for approval in phase.approvals.all %}
+                            {% if approval.is_relevant_history %}
+                            <div class="col-md-6">
+                                <div class="p-3 rounded-4 border bg-opacity-10 mb-2 h-100" style="background: var(--glass-bg); border-color: rgba(255,255,255,0.1) !important;">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div>
+                                            <div class="extra-small fw-bold" style="color: var(--text-color);">{{ approval.role }}</div>
+                                            <div class="extra-small text-muted">{{ approval.approver.get_full_name|default:approval.approver.username }}</div>
+                                        </div>
+                                        <div class="extra-small text-muted">{{ approval.timestamp|date:"d M Y H:i" }}</div>
+                                    </div>
+                                    <p class="extra-small mb-2 italic" style="opacity: 0.8; color: var(--text-color);">"{{ approval.comment }}"</p>
+                                    {% if approval.signature_data %}
+                                    <div class="mt-2 pt-2 border-top border-white border-opacity-10 text-center">
+                                        <img src="{{ approval.signature_data }}" alt="Signature" style="max-height: 50px; filter: contrast(150%) brightness(90%);">
+                                        <div class="extra-small text-muted mt-1" style="font-size: 0.6rem;">Digitally Signed</div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-layer-group" style="font-size:3rem;opacity:0.3;"></i>
+                <p class="mt-3"> No phases defined.</p>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="col-lg-4">
+            <!-- Team Workload Summary -->
+            <div class="card border-0 shadow-sm mb-4" style="border-radius:16px; background: var(--card-bg);">
+                <div class="card-header border-0 pt-4 px-4 pb-0" style="background: transparent;">
+                    <h6 class="fw-bold mb-0" style="color: var(--text-color);"> <i class="fas fa-users me-2 text-primary"></i> Team Workload</h6>
+                </div>
+                <div class="card-body p-4">
+                    {% for phase in phases %}
+                    {% for task in phase.tasks.all %}
+                    <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                        <div>
+                            <div class="small fw-semibold" style="color: var(--text-color);"> {{ task.owner.username }}</div>
+                            <div class="extra-small text-muted"> {{ task.title|truncatechars:25 }}</div>
+                        </div>
+                        {% if task.status == 'Done' %}
+                        <span class="badge bg-success extra-small"> Done</span>
+                        {% elif task.status == 'In Progress' %}
+                        <span class="badge bg-primary extra-small"> Active</span>
+                        {% elif task.status == 'Blocked' %}
+                        <span class="badge bg-danger extra-small"> Blocked</span>
+                        {% else %}
+                        <span class="badge bg-secondary extra-small"> Pending</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    {% endfor %}
+                </div>
+            </div>
+            <!-- Activity Feed -->
+            <div class="card border-0 shadow-sm" style="border-radius:16px; background: var(--card-bg);">
+                <div class="card-header border-0 pt-4 px-4 pb-0" style="background: transparent;">
+                    <h6 class="fw-bold mb-0"> <i class="fas fa-stream me-2 text-primary"></i> Activity Feed</h6>
+                </div>
+                <div class="card-body p-4">
+                    {% for log in logs %}
+                    <div class="d-flex gap-3 mb-3 {% if not forloop.last %}pb-3 border-bottom{% endif %}">
+                        <div class="bg-primary-subtle rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                            style="width:32px;height:32px;">
+                            <i class="fas fa-user text-primary" style="font-size:0.7rem;"></i>
+                        </div>
+                        <div>
+                            <div class="small fw-bold" style="color: var(--text-color);"> {{ log.user.username }}</div>
+                            <div class="extra-small text-muted"> {{ log.timestamp|timesince }} ago</div>
+                            <div class="small text-secondary"> {{ log.message }}</div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-3 text-muted small"> No activity yet.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── STRATEGIC VIEW (EXECUTIVE / AUDITOR / UNAPPROVED) ── #}
+    {% else %}
+    <div class="row g-4">
+        <!-- Phase Progress Overview -->
+        <div class="col-lg-8">
+            <h5 class="fw-bold mb-3"> <i class="fas fa-layer-group me-2 text-primary"></i> Phase Governance Status</h5>
+            {% for phase in phases %}
+            <div class="card border-0 shadow-sm mb-3"
+                style="background: var(--card-bg) !important; border-radius:16px; border-left:5px solid {% if phase.status == 'Done' %}#198754{% elif phase.status == 'Active' %}#0d6efd{% elif phase.status == 'Awaiting Team Member Approval' or phase.status == 'Awaiting Project Leader Approval' %}#ffc107{% else %}#dee2e6{% endif %} !important;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
+                                 style="width:40px;height:40px;font-size:0.9rem;background:{% if phase.status == 'Done' %}#198754{% elif phase.status == 'Active' %}#0d6efd{% elif phase.status == 'Awaiting Team Member Approval' or phase.status == 'Awaiting Project Leader Approval' %}#ffc107{% elif phase.status == 'Awaiting PMT Approval' %}#17a2b8{% elif phase.status == 'Awaiting HODs Approval' %}#0dcaf0{% elif phase.status == 'Awaiting Board Approval' %}#6610f2{% else %}#adb5bd{% endif %}; color: #fff; {% if phase.status == 'Pending' %}opacity: 0.5; filter: grayscale(1);{% endif %}">
+                                {% if phase.status == 'Done' %} <i class="fas fa-check"
+                                    style="font-size:0.8rem;"></i> 
+                                {% elif phase.status == 'Pending' %} <i class="fas fa-lock" style="font-size:0.7rem;"></i>
+                                {% else %}{{ phase.sequence }}{% endif %}</div>
+                            <div>
+                                <h6 class="fw-bold mb-0" style="color: var(--text-color);"> {{ phase.name }}</h6>
+                                {% if phase.approver %}
+                                <span class="extra-small text-success d-block"> <i class="fas fa-user-check me-1"></i>
+                                    Approved by {{ phase.approver.username }} on {{ phase.approved_at|date:"d M Y" }}</span>
+                                {% endif %}
+                                {% if phase.decision_reason %}
+                                <div class="mt-2 p-2 rounded-3 border-start border-3 {% if phase.status == 'Done' %}border-success{% else %}border-warning{% endif %}" style="background: var(--glass-bg);">
+                                    <div class="extra-small fw-bold text-uppercase text-muted" style="font-size:0.6rem;">Gate Decision Reason:</div>
+                                    <div class="small italic" style="color: var(--text-color);">"{{ phase.decision_reason }}"</div>
+                                </div>
+                                {% endif %}
+                                <div class="mt-2 d-flex gap-2">
+                                    <span class="extra-small text-muted"> <i class="fas fa-calendar-alt me-1"></i>
+                                        Start: {{ phase.start_date|default:"TBD" }}</span>
+                                    <span class="extra-small text-muted"> <i class="fas fa-calendar-check me-1"></i>
+                                        End: {{ phase.end_date|default:"TBD" }}</span>
+                                </div>
+                                <div class="extra-small text-primary mt-1"> <i class="fas fa-user-shield me-1"></i> PM:
+                                    {{ phase.pm.username|default:"Unassigned" }}</div>
+                            </div>
+                        </div>
+                        {% if phase.status == 'Done' %}
+                        <span class="badge bg-success-subtle text-success rounded-pill px-3 py-2"> <i
+                                class="fas fa-check me-1"></i> Done</span>
+                        {% elif phase.status == 'Active' %}
+                        <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2"> <i
+                                class="fas fa-bolt me-1"></i> Active</span>
+                        {% elif phase.status == 'Awaiting Team Member Approval' %}
+                             <span class="badge bg-warning-subtle text-warning rounded-pill px-3 py-2"> <i class="fas fa-user"></i> Awaiting Team Member</span>
+                             {% elif phase.status == 'Awaiting Project Leader Approval' %}
+                        <span class="badge bg-warning-subtle text-warning rounded-pill px-3 py-2"> <i
+                                class="fas fa-search me-1"></i> PM Reviewing</span>
+                         {% elif phase.status == 'Awaiting PMT Approval' %}
+                         <span class="badge bg-info-subtle text-info rounded-pill px-3 py-2"> <i
+                                 class="fas fa-sitemap me-1"></i> Awaiting Project Management Team Approval ({{ phase.pmt_approval_count }}/5)</span>
+                         <div class="progress mt-2 mb-3" style="height: 6px; background: rgba(0,0,0,0.1); border-radius: 3px;">
+                            <div class="progress-bar bg-info" role="progressbar" style="width: {{ phase.pmt_approval_percentage }}%;" aria-valuenow="{{ phase.pmt_approval_count }}" aria-valuemin="0" aria-valuemax="5"></div>
+                         </div>
+                         {% elif phase.status == 'Awaiting HODs Approval' %}
+                         <span class="badge bg-info-subtle text-info rounded-pill px-3 py-2"> <i
+                                 class="fas fa-user-shield me-1"></i> Awaiting Head of Departments Clearance ({{ phase.hods_approval_count }}/5)</span>
+                         <div class="progress mt-2 mb-3" style="height: 6px; background: rgba(0,0,0,0.1); border-radius: 3px;">
+                            <div class="progress-bar bg-info" role="progressbar" style="width: {{ phase.hods_approval_percentage }}%;" aria-valuenow="{{ phase.hods_approval_count }}" aria-valuemin="0" aria-valuemax="5"></div>
+                         </div>
+                         {% elif phase.status == 'Awaiting Board Approval' %}
+                         <span class="badge bg-indigo text-white rounded-pill px-3 py-2" style="background: #6610f2; color: #fff;"> <i
+                                 class="fas fa-crown me-1"></i> Awaiting Executive Committee Final Approval ({{ phase.board_approval_count }}/5)</span>
+                         <div class="progress mt-2 mb-3" style="height: 6px; background: rgba(0,0,0,0.1); border-radius: 3px;">
+                            <div class="progress-bar bg-indigo" role="progressbar" style="width: {{ phase.board_approval_percentage }}%;" aria-valuenow="{{ phase.board_approval_count }}" aria-valuemin="0" aria-valuemax="5"></div>
+                         </div>
+                        {% else %}
+                        <span class="badge rounded-pill px-3 py-2 border" style="background: var(--glass-bg); color: var(--text-color);"> <i
+                                class="fas fa-lock me-1"></i> Stage Locked</span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Task summary bar for Executive — no individual task edit -->
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-4 mb-3">
+                        <div class="d-flex gap-4">
+                            <div class="small text-muted"> <i class="fas fa-tasks me-1"></i> {{ phase.tasks.count }} Tasks
+                                Total</div>
+                            <div class="small text-success"> <i class="fas fa-check-circle me-1"></i> Stage-Gate Compliance
+                                verified</div>
+                        </div>
+                        
+                        {% if phase.status == 'Active' %}
+                        <div class="d-flex gap-2">
+                            <!-- Deliverable Upload Action (PM only) -->
+                            {% if is_pm_or_above %}
+                            <div class="dropdown">
+                                <button class="btn btn-primary btn-sm rounded-pill px-3 fw-bold shadow-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-file-upload me-2"></i> Submit Deliverable
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-end p-3 shadow border-0 rounded-4" style="width: 300px; background: var(--secondary-color);">
+                                    <h6 class="fw-bold mb-3 small" style="color: var(--text-color);"><i class="fas fa-shield-alt me-2 text-primary"></i> RIFTS-X Secure Upload</h6>
+                                    <form action="{% url 'attach-phase-document' phase.pk %}" method="POST" enctype="multipart/form-data">
+                                        {% csrf_token %}
+                                        <div class="mb-2">
+                                            <input type="text" name="title" class="form-control form-control-sm rounded-3" placeholder="Document Title..." required>
+                                        </div>
+                                        <div class="mb-2">
+                                            <input type="file" name="file_attachment" class="form-control form-control-sm rounded-3">
+                                            <div class="extra-small text-muted mt-1">OR</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <input type="url" name="external_link" class="form-control form-control-sm rounded-3" placeholder="https://external-link.com">
+                                        </div>
+                                        <button type="submit" class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">Submit Deliverable</button>
+                                    </form>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <!-- ADVANCE PHASE ACTION (PM ONLY) -->
+                            {% if is_pm_or_above %}
+                            <a href="{% url 'advance-phase' phase.pk %}" class="btn btn-success btn-sm rounded-pill px-3 fw-bold shadow-sm">
+                                <i class="fas fa-arrow-right me-2"></i> Submit for Gate Review
+                            </a>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Executive Metadata View -->
+                    <div class="row g-3 mb-4 mt-1">
+                        <div class="col-md-6">
+                            <div class="p-3 rounded-4 border-0 h-100 shadow-sm"
+                                style="background: var(--glass-bg) !important;">
+                                <h6 class="extra-small text-uppercase fw-bold text-primary mb-2"> <i
+                                        class="fas fa-clipboard-list me-2"></i> Deliverables Checklist</h6>
+                                <div class="small" style="line-height:1.5; color: var(--text-color);"> {{ phase.deliverables|default:"No
+                                    specific deliverables defined for this phase."|linebreaksbr }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 rounded-4 border-0 h-100 shadow-sm"
+                                style="background: var(--glass-bg) !important;">
+                                <h6 class="extra-small text-uppercase fw-bold text-info mb-2"> <i
+                                        class="fas fa-tasks me-2"></i> Gate Entry Criteria</h6>
+                                <div class="small" style="line-height:1.5; color: var(--text-color);"> {{ phase.completion_criteria|default:"Tasks must be 100% complete for gate
+                                    clearance."|linebreaksbr }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if phase.status == 'Awaiting HODs Approval' and gov_role == 'HODs' %}
+                    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mt-3" style="border: 1px solid rgba(13, 110, 253, 0.2);">
+                        <div class="card-header bg-info bg-opacity-10 border-0 py-3">
+                            <h6 class="fw-bold mb-0 text-info"><i class="fas fa-building me-2"></i> Departmental Endorsement (Head of Departments)</h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <!-- Deliverables for HOD Review -->
+                            <div class="mb-4">
+                                <h6 class="extra-small fw-bold text-uppercase text-muted mb-2">Phase Deliverables for Review</h6>
+                                <div class="list-group list-group-flush border rounded-3 overflow-hidden">
+                                    {% for doc in phase.required_documents.all %}
+                                    <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: var(--glass-bg); color: var(--text-color);">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <i class="fas fa-file-pdf text-danger"></i>
+                                            <span class="small fw-semibold">{{ doc.title }}</span>
+                                        </div>
+                                        <a href="{{ doc.file_attachment.url }}" target="_blank" class="btn btn-info btn-sm rounded-pill px-3 text-white extra-small fw-bold">
+                                            <i class="fas fa-eye me-1"></i> Review
+                                        </a>
+                                    </div>
+                                    {% empty %}
+                                    <div class="list-group-item py-3 text-center text-muted small italic">No evidence documents uploaded.</div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <form action="{% url 'hod-verify-phase' phase.pk %}" method="POST">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label class="small text-muted fw-bold mb-1">YOUR VERIFICATION COMMENTS (MANDATORY)</label>
+                                    <textarea name="comments" class="form-control form-control-sm rounded-3" rows="2" required placeholder="Add departmental verification notes..."></textarea>
+                                </div>
+                                <div class="d-flex justify-content-end gap-2">
+                                     <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-semibold" onclick="openReturnModal({{ phase.pk }}, 'HODs')">Return to Project Management Team</button>
+                                     <button type="submit" class="btn btn-info text-white btn-sm rounded-pill px-4 fw-bold">Verify & Send to Executive Committee</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    {% elif phase.status == 'Awaiting Board Approval' and gov_role == 'Board of Executives' %}
+                    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mt-3" style="border: 1px solid #6610f2;">
+                        <div class="card-header border-0 py-3" style="background: rgba(102, 16, 242, 0.1);">
+                            <h6 class="fw-bold mb-0 text-indigo" style="color: #6610f2;"><i class="fas fa-crown me-2"></i> Strategic Approval (Executive Committee)</h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <!-- Deliverables for MD Review -->
+                            <div class="mb-4">
+                                <h6 class="extra-small fw-bold text-uppercase text-muted mb-2">Consolidated Deliverables Review</h6>
+                                <div class="list-group list-group-flush border rounded-3 overflow-hidden">
+                                    {% for doc in phase.required_documents.all %}
+                                    <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="background: var(--glass-bg); color: var(--text-color);">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <i class="fas fa-file-contract text-indigo"></i>
+                                            <span class="small fw-semibold">{{ doc.title }}</span>
+                                        </div>
+                                        <a href="{{ doc.file_attachment.url }}" target="_blank" class="btn btn-indigo btn-sm rounded-pill px-3 text-white extra-small fw-bold" style="background:#6610f2;">
+                                            <i class="fas fa-download me-1"></i> Audit File
+                                        </a>
+                                    </div>
+                                    {% empty %}
+                                    <div class="list-group-item py-3 text-center text-muted small italic">No evidence documents found.</div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <form action="{% url 'approve-phase' phase.pk 'Approved' %}" method="POST">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label class="small text-muted fw-bold mb-1">FINAL_MD_LABEL</label>
+                                    <textarea name="notes" class="form-control form-control-sm rounded-3" rows="2" placeholder="Final instructions or observations..."></textarea>
+                                </div>
+                                <div class="d-flex justify-content-end gap-2">
+                                     <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-semibold" onclick="openReturnModal({{ phase.pk }}, 'MD')">Reject Stage</button>
+                                     <button type="submit" class="btn btn-indigo text-white btn-sm rounded-pill px-4 fw-bold" style="background: #6610f2;">Final Approval</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    {% elif phase.status == 'Awaiting Project Leader Approval' and is_pm_or_above %}
+                    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mt-3" style="border: 1px solid rgba(25, 135, 84, 0.2);">
+                        <div class="card-header bg-success bg-opacity-10 border-0 py-3 d-flex align-items-center justify-content-between">
+                            <h6 class="fw-bold mb-0 text-success">
+                                <i class="fas fa-gavel me-2"></i> Stage-Gate Consolidation: {{ phase.name }}
+                            </h6>
+                            <span class="badge bg-success rounded-pill fw-bold">Gate Clearance Required</span>
+                        </div>
+                        <div class="card-body p-4">
+                            <!-- Document Verification Checklist -->
+                            <div class="mb-4">
+                                <h6 class="extra-small fw-bold text-uppercase text-muted mb-3">Deliverables Verification Checklist</h6>
+                                <div class="list-group list-group-flush border rounded-3 overflow-hidden">
+                                    {% for doc in phase.required_documents.all %}
+                                    <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3 opacity-75" style="background: var(--glass-bg); color: var(--text-color);">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <i class="fas fa-file-alt text-primary small"></i>
+                                            <span class="small fw-semibold">{{ doc.title }}</span>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <a href="{{ doc.file_attachment.url }}" target="_blank" class="btn btn-link text-primary p-0 text-decoration-none small fw-bold">Download</a>
+                                            <div class="badge bg-success bg-opacity-10 text-success rounded-pill extra-small">
+                                                <i class="fas fa-check-circle me-1"></i> Ready
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% empty %}
+                                    <div class="list-group-item py-3 text-center text-danger small bg-danger bg-opacity-10">
+                                         <i class="fas fa-lock me-1"></i> Gate Locked: No deliverable documents found for Phase '{{ phase.name }}'. Please upload required evidence.
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <form action="{% url 'pm-consolidate-phase' phase.pk %}" method="POST" enctype="multipart/form-data">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold" style="color: var(--text-color);">PM Consolidation Summary (Forwarded to Project Management Team)</label>
+                                    <textarea name="notes" class="form-control form-control-sm rounded-3" rows="3" placeholder="Summarize the phase performance and deliverable quality..." required></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold" style="color: var(--text-color);">Upload Manual Consolidated Deliverable (Optional)</label>
+                                    <input type="file" name="consolidated_file" class="form-control form-control-sm rounded-3">
+                                    <div class="form-text extra-small mt-1 text-muted">If left blank, the system will auto-consolidate all task deliverables into a ZIP.</div>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <a href="{% url 'approve-phase' phase.pk 'Rejected' %}" class="btn btn-outline-danger btn-sm rounded-pill px-4 fw-semibold flex-grow-1">
+                                        <i class="fas fa-times me-2"></i> Return for Corrections
+                                    </a>
+                                    <button type="submit" class="btn btn-success btn-sm rounded-pill px-4 fw-bold shadow-sm flex-grow-1">
+                                        <i class="fas fa-check-double me-2"></i> 
+                                        {% if gov_role == 'Project Management Team' %}
+                                            Consolidate & Forward to Head of Departments
+                                        {% else %}
+                                            Consolidate & Forward to Project Management Team
+                                        {% endif %}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    {% elif phase.status == 'Awaiting Team Member Approval' %}
+                             <span class="badge bg-warning-subtle text-warning rounded-pill px-3 py-2"> <i class="fas fa-user"></i> Awaiting Team Member</span>
+                             {% elif phase.status == 'Awaiting Project Leader Approval' %}
+                    <div class="alert alert-info rounded-4 border-0 d-flex align-items-center gap-3 mt-3 shadow-sm py-3 px-4">
+                        <div class="spinner-grow spinner-grow-sm text-info" role="status"></div>
+                        <div class="small fw-semibold">
+                             This stage is currently under executive review (Stage-Gate {{ phase.sequence }}). Next phase is locked.
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-layer-group" style="font-size:3rem;opacity:0.3;"></i>
+                <p class="mt-3"> No phases defined for this project.</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Right: Risk + Activity -->
+        <div class="col-lg-4">
+            <!-- Risk Alerts -->
+            {% if health != 'Green' %}
+            <div class="card border-0 mb-4 {% if health == 'Red' %}bg-danger{% else %}bg-warning{% endif %} text-white"
+                style="border-radius:16px;">
+                <div class="card-body p-4">
+                    <h6 class="fw-bold mb-2">
+                        {% if health == 'Red' %} <i class="fas fa-exclamation-triangle me-2"></i> Risk Alert: Delayed
+                        {% else %} <i class="fas fa-exclamation-circle me-2"></i> Risk Alert: At Risk{% endif %}</h6>
+                    <p class="small mb-0 {% if health != 'Red' %}text-dark{% endif %}">
+                        {% if health == 'Red' %}This project has missed phase deadline(s). Immediate executive attention
+                        required.
+                        {% else %}One or more tasks are overdue. Review required to maintain project health.{% endif %}
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Governance Score -->
+            <div class="card border-0 shadow mb-4 text-white"
+                style="border-radius:16px;background:linear-gradient(135deg,#1a1a2e,#0f3460);">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <h6 class="fw-bold text-white mb-0"> Governance Score</h6>
+                        <span class="badge bg-success rounded-pill"> Live</span>
+                    </div>
+                    <div class="d-flex align-items-end gap-2 mb-2">
+                        <span style="font-size:3rem;font-weight:800;line-height:1;"> 8.4</span>
+                        <span class="text-success small pb-2"> <i class="fas fa-caret-up"></i> 12%</span>
+                    </div>
+                    <p class="extra-small mb-3" style="color:rgba(255,255,255,0.6);"> Based on task velocity and
+                        approval
+                        latency.</p>
+                    <div class="d-flex gap-3">
+                        <div class="text-center">
+                            <div class="fw-bold text-white"> {{ phases|length }}</div>
+                            <div class="extra-small" style="color:rgba(255,255,255,0.5);"> Phases</div>
+                        </div>
+                        <div class="border-start border-white border-opacity-25 ps-3 text-center">
+                            <div class="fw-bold text-white"> {{ project.progress_percentage }}%</div>
+                            <div class="extra-small" style="color:rgba(255,255,255,0.5);"> Complete</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Feed -->
+            <div class="card border-0 shadow-sm" style="border-radius:16px; background: var(--card-bg);">
+                <div class="card-header border-0 pt-4 px-4 pb-0" style="background: transparent;">
+                    <h6 class="fw-bold mb-0"> <i class="fas fa-stream me-2 text-primary"></i> Activity Feed</h6>
+                </div>
+                <div class="card-body p-4">
+                    {% for log in logs %}
+                    <div class="d-flex gap-3 mb-3 {% if not forloop.last %}pb-3 border-bottom{% endif %}">
+                        <div class="bg-primary-subtle rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                            style="width:32px;height:32px;">
+                            <i class="fas fa-user text-primary" style="font-size:0.7rem;"></i>
+                        </div>
+                        <div>
+                            <div class="small fw-bold" style="color: var(--text-color);"> {{ log.user.username }}</div>
+                            <div class="extra-small text-muted"> {{ log.timestamp|timesince }} ago</div>
+                            <div class="small text-secondary"> {{ log.message }}</div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-3 text-muted small"> No activity yet.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+        </div>
+
+        <!-- KANBAN TAB -->
+        <div class="tab-pane fade" id="kanban" role="tabpanel">
+            <div class="row g-3 kanban-board">
+                {% for status_val, status_name in project.tasks.first.STATUS_CHOICES %}
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm h-100" style="border-radius:16px; background: var(--glass-bg);">
+                        <div class="card-header border-0 pt-3 px-3 pb-2" style="background: transparent;">
+                            <h6 class="fw-bold mb-0" style="color: var(--text-color);"> {{ status_name }} <span class="badge bg-secondary extra-small ms-1"></span></h6>
+                        </div>
+                        <div class="card-body p-2 kanban-column" id="kanban-{{ status_val }}" data-status="{{ status_val }}">
+                            {% for phase in phases %}
+                                {% for task in phase.tasks.all %}
+                                    {% if task.status == status_val %}
+                                    <div class="kanban-item" data-id="{{ task.id }}">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <div class="small fw-bold" style="color: var(--text-color);">
+                                                <a href="{% url 'task-detail' task.pk %}" class="text-decoration-none" style="color: inherit;">{{ task.title }}</a>
+                                            </div>
+                                            <div class="health-indicator {% if task.priority == 'Critical' %}bg-danger{% elif task.priority == 'High' %}bg-warning{% else %}bg-secondary{% endif %}" title="{{ task.priority }} Priority"></div>
+                                        </div>
+                                        <div class="extra-small text-muted truncate-1 mb-3">{{ task.description|default:"No details provided." }}</div>
+                                        
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="rounded-circle bg-primary bg-opacity-20 d-flex align-items-center justify-content-center text-primary" style="width:24px; height:24px; font-size:0.6rem;">
+                                                    {{ task.owner.username|slice:":1"|upper }}
+                                                </div>
+                                                <span class="extra-small text-muted">{{ task.owner.username }}</span>
+                                            </div>
+                                            {% if task.deadline_status == 'overdue' %}
+                                            <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill extra-small"><i class="fas fa-clock me-1"></i> OVERDUE</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- GANTT TAB -->
+        <div class="tab-pane fade" id="gantt" role="tabpanel">
+            <div class="card border-0 shadow-sm p-4" style="border-radius:16px;">
+                <h5 class="fw-bold mb-4">Project Timeline & Dependencies</h5>
+                <div id="gantt-container" style="overflow-x: auto;">
+                    <!-- Gantt will be rendered here via JS -->
+                    <div id="gantt-chart-viz" class="gantt-viz"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ANALYTICS TAB -->
+        <div class="tab-pane fade" id="analytics" role="tabpanel">
+            <div class="row g-4">
+                <div class="col-lg-4">
+                    <div class="card border-0 shadow-sm p-4 mb-4 text-center position-relative overflow-hidden" 
+                         style="border-radius:16px; min-height: 250px; background: var(--card-bg); border-top: 5px solid {{ project.risk_indicator.hex }} !important;">
+                        <div class="position-absolute top-0 start-0 w-100 h-100 opacity-10" 
+                             style="background: radial-gradient(circle at center, {{ project.risk_indicator.hex }} 0%, transparent 70%);"></div>
+                        <h6 class="extra-small text-uppercase fw-bold text-muted mb-4">Project Health Index</h6>
+                        <div class="health-glow-container mb-3">
+                            <i class="fas {{ project.risk_indicator.icon }} fa-5x text-{{ project.risk_indicator.color }} mb-3 pulse-{{ project.risk_indicator.color }}"></i>
+                        </div>
+                        <h3 class="fw-bold mb-1" style="color: var(--text-color);">{{ project.risk_indicator.level }}</h3>
+                        <p class="small mb-0" style="color: var(--text-color);">Based on active blockers and task slippage</p>
+                        
+                        <div class="mt-4 pt-3 border-top">
+                            <div class="d-flex justify-content-around">
+                                <div>
+                                    <h5 class="fw-bold mb-1" style="color: var(--text-color);">{{ project.progress_percentage }}%</h5>
+                                    <span class="extra-small text-muted">Progression</span>
+                                </div>
+                                <div class="vr"></div>
+                                <div>
+                                    <h5 class="fw-bold mb-1 text-danger">{{ project.phases.all|length }}</h5>
+                                    <span class="extra-small text-muted">Stages</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius:16px; background: var(--card-bg);">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h6 class="fw-bold mb-0 text-primary"><i class="fas fa-layer-group me-2"></i> Stage-Gate Progression</h6>
+                        </div>
+                        <div id="phase-progress-container">
+                            <!-- Populated by JS -->
+                            <div class="text-center py-4 text-muted small"><i class="fas fa-spinner fa-spin me-2"></i> Thinking...</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius:16px; background: var(--card-bg);">
+                        <h6 class="fw-bold mb-3" style="color: var(--text-color);"><i class="fas fa-chart-pie me-2 text-info"></i> Task Sentiment</h6>
+                        <div style="height: 250px;">
+                            <canvas id="riskHeatmap"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 mt-4">
+                <div class="card border-0 shadow-sm p-4" style="border-radius:16px; background: var(--card-bg);">
+                    <h6 class="fw-bold mb-3" style="color: var(--text-color);">Sprint Burndown Chart</h6>
+                    <canvas id="burndownChart" height="300"></canvas>
+                </div>
+            </div>
+        </div> <!-- end row -->
+    </div> <!-- end tab-pane (Analytics) -->
+
+    <!-- COLLABORATION HUB TAB -->
+    <div class="tab-pane fade" id="collaboration" role="tabpanel">
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="premium-card shadow-lg border-0 mb-4">
+                    <div class="card-header border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center" style="background: transparent;">
+                        <h5 class="fw-bold mb-0" style="color: var(--text-color);"><i class="fas fa-comments text-primary me-2"></i> Discussion Board</h5>
+                        <button class="btn btn-sm btn-primary rounded-pill px-3 fw-bold" data-bs-toggle="collapse" data-bs-target="#newCommentForm">
+                            <i class="fas fa-plus me-1"></i> New Entry
+                        </button>
+                    </div>
+                    <div class="card-body p-4">
+                        <!-- New Comment Form -->
+                        <div class="collapse mb-4" id="newCommentForm">
+                            <form action="{% url 'add-comment' %}" method="POST" class="p-3 rounded-4 shadow-sm border" style="background: var(--glass-bg);">
+                                {% csrf_token %}
+                                <input type="hidden" name="obj_type" value="Project">
+                                <input type="hidden" name="obj_id" value="{{ project.id }}">
+                                
+                                <div class="mb-3 position-relative">
+                                    <textarea name="content" id="projectCommentArea" class="form-control rounded-3 border-0 shadow-sm" rows="3" placeholder="Type your message, use @username to mention..." required></textarea>
+                                    <div id="projectMentionSuggestions" class="mention-suggestions shadow-sm border rounded-3 d-none">
+                                        <ul class="list-group list-group-flush"></ul>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                    <div class="d-flex gap-3 align-items-center">
+                                        <div class="form-check form-switch small">
+                                            <input class="form-check-input" type="checkbox" name="is_decision" id="checkDecision">
+                                            <label class="form-check-label fw-semibold text-muted" for="checkDecision">Decision</label>
+                                        </div>
+                                        <div class="form-check form-switch small">
+                                            <input class="form-check-input" type="checkbox" name="is_action_item" id="checkAction">
+                                            <label class="form-check-label fw-semibold text-muted" for="checkAction">Action Item</label>
+                                        </div>
+                                        <div class="ms-2">
+                                            <label for="commentFiles" class="btn btn-xs rounded-pill px-2 border extra-small pointer" style="background: var(--secondary-color); color: var(--text-color);">
+                                                <i class="fas fa-paperclip me-1"></i> Attach
+                                            </label>
+                                            <input type="file" name="attachments" id="commentFiles" multiple class="d-none">
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-sm rounded-pill px-4 fw-bold shadow-sm">Post Discussion</button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Comment Threads -->
+                        <div class="discussion-timeline">
+                            {% for comment in project_comments %}
+                            <div class="mb-4 d-flex gap-3">
+                                <div class="flex-shrink-0">
+                                    <div class="rounded-circle bg-primary-subtle d-flex align-items-center justify-content-center text-primary fw-bold" style="width: 40px; height: 40px;">
+                                        {{ comment.author.username|slice:":1"|upper }}
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="discussion-bubble shadow-sm {% if comment.is_decision %}border-info bg-info-subtle bg-opacity-10{% elif comment.is_action_item %}border-warning bg-warning-subtle bg-opacity-10{% endif %}">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="small fw-bold" style="color: var(--text-color);">{{ comment.author.username }}</span>
+                                            <span class="extra-small text-muted">{{ comment.created_at|timesince }} ago</span>
+                                        </div>
+                                        <p class="small mb-2" style="color: var(--text-color);">{{ comment.content|linebreaksbr }}</p>
+                                        
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex gap-2">
+                                                {% if comment.is_decision %}
+                                                <span class="badge bg-info rounded-pill extra-small"><i class="fas fa-gavel me-1"></i> DECISION</span>
+                                                {% endif %}
+                                                {% if comment.is_action_item %}
+                                                <span class="badge bg-warning rounded-pill extra-small">
+                                                    <i class="fas fa-thumbtack me-1"></i> ACTION ITEM 
+                                                    {% if comment.is_resolved %}(Resolved){% endif %}
+                                                </span>
+                                                {% endif %}
+                                            </div>
+                                            <button class="btn btn-link btn-sm text-decoration-none extra-small fw-bold p-0" data-bs-toggle="collapse" data-bs-target="#replyForm{{ comment.id }}">
+                                                Reply
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Replies -->
+                                    <div class="ms-4 mt-2 discussion-replies border-start ps-3">
+                                        {% for reply in comment.replies.all %}
+                                        <div class="mb-2 p-2 rounded-3 border-0 shadow-sm small" style="background: var(--glass-bg);">
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="fw-bold extra-small" style="color: var(--text-color);">{{ reply.author.username }}</span>
+                                                <span class="extra-small text-muted">{{ reply.created_at|timesince }} ago</span>
+                                            </div>
+                                            <div class="extra-small" style="color: var(--text-color); opacity: 0.8;">{{ reply.content }}</div>
+                                        </div>
+                                        {% endfor %}
+                                        
+                                        <div class="collapse" id="replyForm{{ comment.id }}">
+                                            <form action="{% url 'add-comment' %}" method="POST" class="mt-2">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="obj_type" value="Project">
+                                                <input type="hidden" name="obj_id" value="{{ project.id }}">
+                                                <input type="hidden" name="parent_id" value="{{ comment.id }}">
+                                                <div class="input-group input-group-sm">
+                                                    <input type="text" name="content" class="form-control rounded-start-pill border-primary border-opacity-25" placeholder="Write a reply..." required>
+                                                    <button class="btn btn-primary rounded-end-pill px-3" type="submit">Send</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="text-center py-5 text-muted">
+                                <i class="fas fa-comments" style="font-size:3rem; opacity:0.2;"></i>
+                                <p class="mt-3">No collaboration entries yet. Start the discussion!</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Sidebar: Action Items & History -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm rounded-4 mb-4" style="background: var(--card-bg); color: var(--text-color);">
+                    <div class="card-header border-0 pt-4 px-4 pb-0" style="background: transparent;">
+                        <h6 class="fw-bold mb-0 text-warning"><i class="fas fa-clipboard-list me-2"></i> Pending Actions</h6>
+                    </div>
+                    <div class="card-body p-4">
+                        {% for item in action_items %}
+                        <div class="p-3 rounded-4 mb-3 border" style="background: var(--warning-glow); border-color: rgba(245, 158, 11, 0.4) !important;">
+                            <div class="extra-small fw-bold mb-1">{{ item.author.username }} assigned:</div>
+                            <p class="extra-small mb-2" style="opacity: 0.8;">{{ item.content|truncatechars:100 }}</p>
+                            <a href="{% url 'resolve-action-item' item.id %}" class="btn btn-xs btn-warning rounded-pill px-3 fw-bold extra-small">
+                                <i class="fas fa-check-circle me-1"></i> Resolve
+                            </a>
+                        </div>
+                        {% empty %}
+                        <div class="text-center py-3 text-muted extra-small">None pending.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm rounded-4" style="background: var(--card-bg); color: var(--text-color);">
+                    <div class="card-header border-0 pt-4 px-4 pb-0" style="background: transparent;">
+                        <h6 class="fw-bold mb-0 text-info"><i class="fas fa-history me-2"></i> Activity Feed Highlights</h6>
+                    </div>
+                    <div class="card-body p-4">
+                        {% for log in logs|slice:":10" %}
+                        <div class="d-flex gap-3 mb-3 pb-3 border-bottom border-white border-opacity-10 last-child-border-0">
+                            <div class="extra-small text-muted flex-shrink-0" style="width: 60px;">{{ log.timestamp|timesince }}</div>
+                            <div class="extra-small fw-semibold">{{ log.message }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div> <!-- end tab-pane (Collaboration) -->
+    <div class="tab-pane fade" id="team" role="tabpanel">
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm rounded-4" style="background: var(--card-bg); color: var(--text-color);">
+                    <div class="card-header border-0 pt-4 px-4 pb-0" style="background: transparent;">
+                        <h5 class="fw-bold mb-0" style="color: var(--text-color);"><i class="fas fa-users text-primary me-2"></i> Team Members</h5>
+                        <p class="text-muted small mt-1">Approved personnel assigned to this project governance layer.</p>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle border-0" style="color: var(--text-color);">
+                                <thead style="background: var(--glass-bg);">
+                                    <tr>
+                                        <th class="border-0 small text-uppercase text-muted fw-bold">User</th>
+                                        <th class="border-0 small text-uppercase text-muted fw-bold">Joined</th>
+                                        <th class="border-0 small text-uppercase text-muted fw-bold">Status</th>
+                                        {% if is_pm_or_above %}
+                                        <th class="border-0 small text-uppercase text-muted fw-bold text-end">Action</th>
+                                        {% endif %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for mem in project_memberships %}
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center gap-3">
+                                                <div class="rounded-circle bg-primary bg-opacity-10 p-2 text-primary d-flex align-items-center justify-content-center" style="width:36px; height:36px;">
+                                                    <i class="fas fa-user small"></i>
+                                                </div>
+                                                <div>
+                                                    <div class="small fw-bold" style="color: var(--text-color);">{{ mem.user.username }}</div>
+                                                    <div class="extra-small text-muted">{{ mem.user.email|default:"No email" }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="small">{{ mem.joined_at|date:"d M Y" }}</td>
+                                        <td>
+                                            {% if mem.is_approved %}
+                                            <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3">Approved</span>
+                                            {% else %}
+                                            <span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-3">Pending</span>
+                                            {% endif %}
+                                        </td>
+                                        {% if is_pm_or_above %}
+                                        <td class="text-end">
+                                            {% if not mem.is_approved %}
+                                            <div class="d-flex gap-2 justify-content-end">
+                                                <a href="{% url 'approve-project-member' mem.id 'Approve' %}" class="btn btn-sm btn-success rounded-pill px-3 fw-bold">
+                                                    <i class="fas fa-check me-1"></i> Approve
+                                                </a>
+                                                <a href="{% url 'approve-project-member' mem.id 'Reject' %}" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold">
+                                                    <i class="fas fa-times me-1"></i> Reject
+                                                </a>
+                                            </div>
+                                            {% elif mem.user != project.owner %}
+                                            <a href="{% url 'approve-project-member' mem.id 'Reject' %}" class="btn btn-sm btn-outline-secondary rounded-pill px-2 border-0" title="Remove Member">
+                                                <i class="fas fa-user-minus"></i>
+                                            </a>
+                                            {% endif %}
+                                        </td>
+                                        {% endif %}
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="4" class="text-center py-5 text-muted">No team members yet.</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-4">
+                <div class="premium-card p-4 bg-primary text-white border-0 shadow-lg" style="background: linear-gradient(135deg, #0d6efd 0%, #004dc7 100%) !important;">
+                    <h6 class="fw-bold mb-2"><i class="fas fa-chart-line me-2"></i> Team Capacity</h6>
+                    <p class="small mb-4 text-white text-opacity-75">Analysis of total team velocity and current workload across all phases.</p>
+                    
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="small opacity-75">Approved Members</span>
+                        <span class="fw-bold">{{ project.approved_members.count }} / {{ project.project_memberships.count }}</span>
+                    </div>
+                    <div class="progress mb-4 shadow-sm" style="height: 10px; background: rgba(255,255,255,0.15); border-radius: 10px;">
+                        <div class="progress-bar bg-white shadow-sm" style="width: {% widthratio project.approved_members.count project.project_memberships.count 100 %}%"></div>
+                    </div>
+                    
+                    <div class="mt-4 pt-4 border-top border-white border-opacity-20">
+                        <div class="small fw-bold mb-2">Gate Mastery Access</div>
+                        <p class="extra-small text-white text-opacity-80 mb-0" style="line-height:1.6;">Only approved members can be assigned tasks or upload deliverables for Stage-Gate compliance. Unauthorized access is restricted.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> <!-- end tab-content -->
+</div> <!-- end container-fluid -->
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+    .extra-small { font-size: 0.75rem; }
+    :root {
+        --danger-glow: rgba(239, 68, 68, 0.15);
+        --warning-glow: rgba(245, 158, 11, 0.15);
+        --success-glow: rgba(16, 185, 129, 0.15);
+        --info-glow: rgba(59, 130, 246, 0.15);
+        --card-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    }
+    
+    .project-container {
+        font-family: 'Inter', -apple-system, sans-serif;
+        color: var(--text-color);
+        animation: animate-reveal 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    @keyframes animate-reveal {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .premium-card {
+        background: var(--card-bg);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid var(--glass-border);
+        border-radius: 20px;
+        box-shadow: var(--card-shadow);
+        transition: var(--transition-soft);
+    }
+
+    .premium-card:hover {
+        transform: translateY(-5px);
+        border-color: rgba(255, 255, 255, 0.2);
+        box-shadow: 0 15px 45px rgba(0, 0, 0, 0.3);
+    }
+
+    .phase-card { 
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+        transition: var(--transition-soft);
+    }
+    
+    .nav-pills .nav-link { 
+        color: var(--text-muted); 
+        padding: 10px 24px; 
+        border-radius: 12px;
+        font-weight: 600;
+        transition: var(--transition-fast); 
+        border: 1px solid transparent;
+    }
+    
+    .nav-pills .nav-link:hover {
+        background: var(--glass-bg);
+        color: var(--text-color);
+    }
+
+    .nav-pills .nav-link.active { 
+        background: linear-gradient(135deg, var(--accent-color) 0%, #3b82f6 100%) !important; 
+        color: #fff !important; 
+        box-shadow: 0 4px 15px var(--accent-glow);
+    }
+
+    .kanban-column { 
+        min-height: 500px; 
+        background: rgba(0,0,0,0.05); 
+        padding: 1rem;
+        border-radius: 16px; 
+        border: 1px dashed var(--glass-border);
+    }
+
+    .kanban-item { 
+        background: var(--card-bg); 
+        backdrop-filter: blur(8px);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        transition: var(--transition-soft);
+        cursor: grab;
+    }
+
+    .kanban-item:hover { 
+        transform: scale(1.03) translateY(-2px);
+        border-color: var(--accent-color);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+    }
+    
+    .ghost-class { 
+        opacity: 0.4; 
+        background: var(--accent-glow) !important; 
+        border: 2px dashed var(--accent-color) !important;
+    }
+
+    .health-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+    }
+
+    .gantt-viz { 
+        position: relative; 
+        min-height: 350px; 
+        background: var(--card-bg); 
+        border-radius: 20px; 
+        padding: 24px; 
+        border: 1px solid var(--glass-border); 
+        overflow-x: auto; 
+        color: var(--text-color); 
+    }
+
+    /* Scrollbar for Glassmorphism */
+    .table-responsive::-webkit-scrollbar {
+        height: 6px;
+    }
+    .table-responsive::-webkit-scrollbar-thumb {
+        background: var(--glass-border);
+        border-radius: 10px;
+    }
+
+    /* Discussion Bubbles */
+    .discussion-bubble {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 18px;
+        padding: 1.2rem;
+        transition: var(--transition-fast);
+    }
+    
+    .discussion-bubble:hover {
+        background: rgba(255, 255, 255, 0.05);
+    }
+   .segment.filled-success { background: #198754; }
+    .segment.active { animation: segment-pulse 1.5s infinite; background: #ffc107 !important; }
+    @keyframes segment-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    /* Mention Suggestions Styles */
+    .mention-suggestions .list-group-item {
+        cursor: pointer;
+        padding: 5px 12px;
+        font-size: 0.8rem;
+    }
+    .mention-suggestions .list-group-item:hover {
+        background-color: #f8f9fa;
+        color: #0d6efd;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const columns = document.querySelectorAll('.kanban-column');
+        columns.forEach(col => {
+            new Sortable(col, {
+                group: 'kanban',
+                animation: 150,
+                ghostClass: 'ghost-class',
+                disabled: {% if is_pm_or_above %}false{% else %}true{% endif %},
+                onEnd: function(evt) {
+                    const taskID = evt.item.dataset.id;
+                    const newStatus = evt.to.dataset.status;
+                    fetch("{% url 'update-task-kanban' %}", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                        body: JSON.stringify({ task_id: taskID, status: newStatus })
+                    }).then(r => r.json()).then(data => { if(data.status==='success') console.log('Updated'); });
+                }
+            });
+        });
+
+        fetch("{% url 'project-viz-data' project.pk %}")
+            .then(r => r.json())
+            .then(data => {
+                // Risk Heatmap
+                const ctx = document.getElementById('riskHeatmap').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Overdue', 'Due Soon', 'On Track'],
+                        datasets: [{
+                            data: [data.risk.distribution.Red, data.risk.distribution.Yellow, data.risk.distribution.Green],
+                            backgroundColor: ['#dc3545', '#ffc107', '#198754'],
+                            borderWidth: 0,
+                            hoverOffset: 15
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20, font: { size: 11 } } },
+                            tooltip: { backgroundColor: 'rgba(0,0,0,0.8)', padding: 12, borderRadius: 10 }
+                        }, 
+                        cutout: '75%' 
+                    }
+                });
+
+                // Phase Progress Bars (Segmented)
+                const phaseContainer = document.getElementById('phase-progress-container');
+                if (phaseContainer) {
+                    phaseContainer.innerHTML = '';
+                    data.phase_progress.forEach(p => {
+                        const phaseEl = document.createElement('div');
+                        phaseEl.className = 'mb-4';
+                        
+                        let segments = '';
+                        const segmentCount = 10;
+                        const filledCount = Math.floor(p.percentage / 10);
+                        
+                        for(let i=0; i<segmentCount; i++) {
+                            let stateClass = '';
+                            if (i < filledCount) stateClass = p.status === 'Done' ? 'filled-success' : 'filled';
+                            else if (i === filledCount && p.is_current) stateClass = 'active';
+                            
+                            segments += `<div class="segment ${stateClass}"></div>`;
+                        }
+
+                        phaseEl.innerHTML = `
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small fw-bold" style="color: var(--text-color);">${p.name}</span>
+                                <span class="extra-small fw-bold ${p.status === 'Done' ? 'text-success' : p.is_current ? 'text-primary' : 'text-muted'}">
+                                    ${p.percentage}% ${p.status}
+                                </span>
+                            </div>
+                            <div class="progress-segmented">${segments}</div>
+                        `;
+                        phaseContainer.appendChild(phaseEl);
+                    });
+                }
+
+                // Burndown Chart
+                const burnCtx = document.getElementById('burndownChart').getContext('2d');
+                new Chart(burnCtx, {
+                    type: 'line',
+                    data: {
+                        labels: data.burndown.map(d => d.day),
+                        datasets: [
+                            {
+                                label: 'Ideal Execution Path',
+                                data: data.burndown.map(d => d.ideal),
+                                borderColor: 'rgba(0,0,0,0.1)',
+                                borderDash: [5, 5],
+                                fill: false,
+                                tension: 0,
+                                pointRadius: 0
+                            },
+                            {
+                                label: 'Actual Progression',
+                                data: data.burndown.map(d => d.actual),
+                                borderColor: '#0d6efd',
+                                backgroundColor: 'rgba(13,110,253,0.1)',
+                                fill: true,
+                                tension: 0.4,
+                                pointBackgroundColor: '#0d6efd',
+                                pointBorderColor: '#fff',
+                                pointHoverRadius: 6
+                            }
+                        ]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false,
+                        interaction: { intersect: false, mode: 'index' },
+                        plugins: { 
+                            legend: { position: 'top', align: 'end', labels: { boxWidth: 10, usePointStyle: true } },
+                            tooltip: { padding: 12, borderRadius: 10 }
+                        },
+                        scales: { 
+                            y: { beginAtZero: true, grid: { display: false }, title: { display: true, text: 'Pending Tasks', font: { weight: 'bold' } } },
+                            x: { grid: { display: false } }
+                        }
+                    }
+                });
+
+                // Gantt Visualizer
+                const container = document.getElementById('gantt-chart-viz');
+                if (container) {
+                    if(!data.gantt || data.gantt.length === 0) {
+                        container.innerHTML = '<div class="text-center py-5 text-muted"><i class="fas fa-tasks fa-3x opacity-25 mb-3"></i><p>Initiate tasks to visualize timeline</p></div>';
+                    } else {
+                        container.innerHTML = '';
+                        data.gantt.forEach(t => {
+                            const row = document.createElement('div');
+                            row.className = 'gantt-row';
+                            
+                            const isOverdue = t.status !== 'Done' && new Date(t.end) < new Date();
+                            const color = t.status === 'Done' ? '#198754' : isOverdue ? '#dc3545' : '#0d6efd';
+                            
+                            row.innerHTML = `
+                                <div class="gantt-label d-flex align-items-center gap-2">
+                                    <i class="fas fa-circle extra-small" style="color:${color}"></i>
+                                    <span class="text-truncate">${t.name}</span>
+                                </div>
+                                <div class="gantt-bar-container">
+                                    <div class="gantt-bar" style="width:${t.progress}%; background:${color}; box-shadow: 0 0 10px ${color}44">
+                                        <span class="position-absolute end-0 bottom-100 extra-small fw-bold" style="color:${color}; font-size:10px;">${t.progress}%</span>
+                                    </div>
+                                </div>
+                            `;
+                            container.appendChild(row);
+                        });
+                    }
+                }
+            });
+    });
+
+    // @Mention Implementation for Project Collaboration Hub
+    $(document).ready(function() {
+        let eligibleUsers = [];
+        const $textarea = $('#projectCommentArea');
+        const $suggestions = $('#projectMentionSuggestions');
+        const $list = $suggestions.find('ul');
+
+        $.getJSON("{% url 'get-mention-users' %}", function(data) {
+            eligibleUsers = data.users;
+        });
+
+        $textarea.on('input keyup click', function(e) {
+            const text = $(this).val();
+            const cursorPosition = this.selectionStart;
+            const lastAtChar = text.lastIndexOf('@', cursorPosition - 1);
+
+            if (lastAtChar !== -1) {
+                const query = text.substring(lastAtChar + 1, cursorPosition);
+                if (!query.includes(' ')) {
+                    filterProjectMentions(query, lastAtChar);
+                    return;
+                }
+            }
+            $suggestions.addClass('d-none');
+        });
+
+        function filterProjectMentions(query, atIndex) {
+            const filtered = eligibleUsers.filter(u => 
+                u.username.toLowerCase().startsWith(query.toLowerCase())
+            );
+
+            if (filtered.length > 0) {
+                $list.empty();
+                filtered.forEach(user => {
+                    const $item = $(`<li class="list-group-item" style="color: var(--text-color) !important; cursor: pointer;">
+                        <i class="fas fa-user-circle me-1 text-primary opacity-75"></i> ${user.username}
+                    </li>`);
+                    $item.on('click', function() {
+                        const text = $textarea.val();
+                        const before = text.substring(0, atIndex);
+                        const after = text.substring($textarea[0].selectionStart);
+                        $textarea.val(before + '@' + user.username + ' ' + after);
+                        $suggestions.addClass('d-none');
+                        $textarea.focus();
+                    });
+                    $list.append($item);
+                });
+                // Position suggestions below the textarea
+                $suggestions.css({
+                    top: $textarea.outerHeight() + 'px',
+                    left: '0px',
+                    width: '100%'
+                }).removeClass('d-none');
+            } else {
+                $suggestions.addClass('d-none');
+            }
+        }
+
+        $(document).on('click', function(e) {
+            if (!$(e.target).closest('.position-relative').length) {
+                $suggestions.addClass('d-none');
+            }
+        });
+
+        // ── CELEBRATION (CONFETTI) ──
+        const successMessages = Array.from(document.querySelectorAll('.glass-panel span'));
+        successMessages.forEach(msg => {
+            const text = msg.textContent.toLowerCase();
+            if (text.includes('fully approved') || text.includes('project complete') || text.includes('forwarded to md')) {
+                // Initial burst
+                confetti({
+                    particleCount: 150,
+                    spread: 70,
+                    origin: { y: 0.6 },
+                    colors: ['#0d6efd', '#0dcaf0', '#198754', '#ffc107']
+                });
+                
+                // Side bursts after a delay
+                setTimeout(() => {
+                    confetti({
+                        particleCount: 100,
+                        angle: 60,
+                        spread: 55,
+                        origin: { x: 0 },
+                        colors: ['#0d6efd', '#0dcaf0']
+                    });
+                    confetti({
+                        particleCount: 100,
+                        angle: 120,
+                        spread: 55,
+                        origin: { x: 1 },
+                        colors: ['#198754', '#ffc107']
+                    });
+                }, 400);
+            }
+        });
+    });
+</script>
+
+<!-- Phase Rejection Modal -->
+<div class="modal fade" id="returnModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass-panel border-0 shadow-lg" style="background: var(--card-bg) !important;">
+            <div class="modal-header border-0 bg-danger bg-opacity-10 py-3">
+                <h6 class="modal-title fw-bold text-danger"><i class="fas fa-undo me-2"></i> Return Phase to PL</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="returnForm" method="POST">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="small text-muted fw-bold mb-2 text-uppercase">Reason for Return / Correction Required</label>
+                        <textarea name="reason" class="form-control form-control-sm rounded-3" rows="4" required placeholder="Explain why this phase is being returned to the Project Leader..."></textarea>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-light rounded-pill px-4 fw-bold border" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">Return to PL</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openReturnModal(phaseId, role = 'PMT') {
+        const form = document.getElementById('returnForm');
+        form.action = `/projects/return-phase/${phaseId}/`;
+        const title = document.querySelector('#returnModal .modal-title');
+        const submitBtn = document.querySelector('#returnModal button[type="submit"]');
+        
+        if (role === 'Board of Executives') {
+            title.innerHTML = '<i class="fas fa-undo me-2"></i> Reject Phase (Return to PL)';
+            submitBtn.textContent = 'Reject Stage';
+        } else {
+            title.innerHTML = '<i class="fas fa-undo me-2"></i> Return Phase to PL';
+            submitBtn.textContent = 'Return to PL';
+        }
+        
+        const modal = new bootstrap.Modal(document.getElementById('returnModal'));
+        modal.show();
+    }
+</script>
+
+<script>
+    function openHodReturnModal(phaseId) {
+        const form = document.getElementById('hodReturnForm');
+        form.action = `/projects/hod-return/${phaseId}/`;
+        const modal = new bootstrap.Modal(document.getElementById('hodReturnModal'));
+        modal.show();
+    }
+</script>
+<script>
+    $(document).ready(function() {
+        // Initialize Signature Pads
+        $('.signature-form').each(function() {
+            const form = $(this);
+            const canvas = form.find('.signature-pad')[0];
+            const signaturePad = new SignaturePad(canvas, {
+                backgroundColor: 'rgba(0,0,0,0)',
+                penColor: '#0d6efd'
+            });
+
+            form.find('.clear-signature').on('click', function() {
+                signaturePad.clear();
+            });
+
+            form.on('submit', function(e) {
+                if (signaturePad.isEmpty()) {
+                    e.preventDefault();
+                    Swal.fire({
+                        title: 'Signature Required',
+                        text: 'Please provide your electronic signature to proceed with institutional approval.',
+                        icon: 'warning',
+                        background: 'var(--secondary-color)',
+                        color: 'var(--text-color)'
+                    });
+                    return false;
+                }
+                const dataURL = signaturePad.toDataURL();
+                form.find('.signature-input').val(dataURL);
+            });
+        });
+    });
+</script>
+{% endblock pageContent %}

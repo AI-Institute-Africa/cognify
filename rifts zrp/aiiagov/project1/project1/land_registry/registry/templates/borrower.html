@@ -1,0 +1,144 @@
+{% extends 'base.html' %} {% load static %} {% block pageContent %}
+<section class="py-4">
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div><h3 class="fw-bold mb-0"> Records Intelligence Officers</h3>
+                <p class="text-muted small mb-0"> Directory of authorized personnel and Records Intelligence staff</p></div>
+            <button class="btn btn-primary rounded-pill px-4 shadow-sm" type="button" id="create_new">
+                <i class="fa fa-plus me-2"></i> Add New Member</button></div>
+
+        <div class="glass-card border-0 shadow-sm overflow-hidden">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="borrower-tbl">
+                        <thead><tr class="bg-primary bg-opacity-10">
+                                <th class="text-center py-3"> #</th>
+                                <th class="py-3"> Date Added</th>
+                                <th class="py-3"> Officer ID</th>
+                                <th class="py-3"> Full Name</th>
+                                <th class="py-3"> Department</th>
+                                <th class="text-center py-3"> Status</th>
+                                <th class="text-center py-3"> Action</th></tr></thead>
+                        <tbody>{% for borrower in borrower %}
+                            <tr><td class="text-center"> {{ forloop.counter }}</td>
+                                <td class="text-muted small"> {{ borrower.date_added|date:"Y-m-d h:i A"}}</td>
+                                <td class="fw-bold text-primary"> {{ borrower.code}}</td>
+                                <td>{{ borrower.name }}</td>
+                                <td class="small text-muted"> {{ borrower.department.name|default:"Unassigned" }}</td>
+                                <td class="text-center">
+                                    {% if borrower.status == '1' %}
+                                    <span
+                                        class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 rounded-pill"> Active
+                                        Staff</span>
+                                    {% else %}
+                                    <span
+                                        class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-3 rounded-pill"> Inactive</span>
+                                    {% endif %}</td>
+                                <td class="text-center">
+                                    <div class="dropdown">
+                                        <button
+                                            class="btn btn-link btn-sm text-muted text-decoration-none dropdown-toggle"
+                                            type="button" id="abtn{{borrower.pk}}" data-bs-toggle="dropdown"
+                                            aria-expanded="false">
+                                            <i class="fas fa-ellipsis-v"></i></button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 glass-card"
+                                            aria-labelledby="abtn{{borrower.pk}}">
+                                            <li><a class="dropdown-item view-data" href="javascript:void(0)"
+                                                    data-url="{% url 'view-borrower-pk' borrower.pk %}"> <i
+                                                        class="fa fa-eye me-2 opacity-50"></i> View Profile</a></li>
+                                            <li><a class="dropdown-item edit-data" href="javascript:void(0)"
+                                                    data-url="{% url 'manage-borrower-pk' borrower.pk %}"> <i
+                                                        class="fa fa-edit me-2 text-primary opacity-50"></i> Update
+                                                    Details</a></li>
+                                            <li><hr class="dropdown-divider opacity-10"></li>
+                                            <li><a class="dropdown-item delete-data" href="javascript:void(0)"
+                                                    data-url="{% url 'delete-borrower' borrower.pk %}"> <i
+                                                        class="fa fa-trash me-2 text-danger opacity-50"></i> Remove
+                                                    Member</a></li></ul></div></td></tr>
+                            {% endfor %}</tbody></table></div></div></div></div></section>
+
+<style>.table-hover tbody tr:hover {
+        background-color: rgba(0, 123, 255, 0.02);
+    }
+
+    .dropdown-item:hover {
+        background-color: rgba(0, 123, 255, 0.05);
+    }
+
+    .badge {
+        font-weight: 500;
+        font-size: 0.75rem;
+    }</style>
+{% endblock pageContent %} {% block ScriptBlock %}
+<script>$(function () {
+        $('#create_new').click(function () {
+            uni_modal(" <i class='fa fa-plus'></i> Add New Borrower", "{% url 'manage-borrower' %}", "modal-lg")
+        })
+        $('.edit-data').click(function () {
+            uni_modal(" <i class='fa fa-edit'></i> Edit Borrower Details", $(this).attr('data-url'), "modal-lg")
+        })
+        $('.view-data').click(function () {
+            uni_modal(" <i class='fa fa-th-list'></i> Borrower Details", $(this).attr('data-url'))
+        })
+        $('.view_image').click(function () {
+            var img = $(this).attr('data-img-url')
+            $('#viewer_modal #img-viewer-field').attr('src', img)
+            $('#viewer_modal').modal('show')
+        })
+        $('.delete-data').click(function () {
+            _conf("Are you sure to delete this Borrower?", 'delete_borrower', ["'" + $(this).attr('data-url') + "'"])
+        })
+        $('#borrower-tbl').find('td, th').addClass('px-2 py-1 align-middle')
+        $('#borrower-tbl').DataTable({
+            columnDefs: [{
+                orderable: false,
+                targets: [3, 5]
+            }],
+            lengthMenu: [
+                [25, 50, 100, -1],
+                [25, 50, 100, "All"]
+            ]
+        })
+    })
+
+    function delete_borrower(url) {
+
+        var _this = $('#confirm_modal .modal-body')
+        $('.err-msg').remove();
+        var el = $(' <div>')
+        el.addClass("alert alert-danger err-msg")
+        el.hide()
+        start_loader()
+        $.ajax({
+            headers: {
+                "X-CSRFToken": "{{csrf_token}}"
+            },
+            url: url,
+            dataType: 'JSON',
+            error: err => {
+                console.log(err)
+                alert("an error occurred.")
+                end_loader()
+            },
+            success: function (resp) {
+                if (resp.status == 'success') {
+                    location.reload()
+                } else if (!!resp.msg) {
+                    el.html(resp.msg)
+                    _this.prepend(el)
+                    el.show()
+                } else {
+                    el.html("An error occurred")
+                    _this.prepend(el)
+                    el.show()
+                }
+                end_loader()
+            }
+
+        })
+    }</script>
+{% endblock ScriptBlock %}
+
+
+
+

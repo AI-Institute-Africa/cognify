@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block pageContent %}
+<div class="container-fluid py-5 px-4 animate-reveal">
+
+    {# ── BREADCRUMB ── #}
+    <nav class="mb-5">
+        <ol class="breadcrumb mb-0 small">
+            <li class="breadcrumb-item"><a href="{% url 'project-list' %}" class="text-accent text-decoration-none">Projects</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'project-detail' sprint.phase.project.pk %}" class="text-accent text-decoration-none">{{ sprint.phase.project.name }}</a></li>
+            <li class="breadcrumb-item text-muted">{{ sprint.phase.name }}</li>
+            <li class="breadcrumb-item active text-white">{{ sprint.name }}</li>
+        </ol>
+    </nav>
+
+    {# ── SPRINT HERO PANEL ── #}
+    <div class="glass-panel p-5 mb-5 overflow-hidden">
+        <div class="row align-items-center gy-4">
+            <div class="col-lg-8">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="status-pill status-live {% if sprint.status == 'Active' %}text-accent{% elif sprint.status == 'Done' %}text-success{% else %}text-muted{% endif %}" style="background: var(--glass-bg);">
+                        {{ sprint.status|upper }} SPRINT
+                    </span>
+                    <span class="status-pill text-muted" style="background: var(--glass-bg);">PHASE: {{ sprint.phase.name }}</span>
+                    {% if is_team_member_only %}
+                    <span class="status-pill text-info" style="background: rgba(99,179,237,0.1);"><i class="fas fa-eye me-1"></i>Observer Mode</span>
+                    {% endif %}
+                </div>
+                <h1 class="display-4 fw-bold mb-2">{{ sprint.name }}</h1>
+                <p class="lead text-muted mb-4">{{ sprint.goals|default:"Strategic Sprint Execution" }}</p>
+                <div class="d-flex gap-4">
+                    <div class="small fw-semibold text-muted"><i class="fas fa-calendar-alt text-accent me-2"></i> {{ sprint.start_date }} &rarr; {{ sprint.end_date }}</div>
+                </div>
+                {# ── PM SPRINT CONTROLS ── #}
+                {% if is_pm_or_above %}
+                <div class="d-flex gap-3 mt-4">
+                    <a href="{% url 'edit-sprint' sprint.phase.pk sprint.pk %}"
+                        class="btn glass-panel btn-sm rounded-pill px-3 text-white">
+                        <i class="fas fa-edit text-accent me-1"></i> Edit Sprint
+                    </a>
+                    {% if sprint.status == 'Active' %}
+                    <form method="post" action="{% url 'sprint-status' sprint.pk %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="status" value="Done">
+                        <button type="submit" class="btn btn-success btn-sm rounded-pill px-3 fw-bold">
+                            <i class="fas fa-flag-checkered me-1"></i> Close Sprint
+                        </button>
+                    </form>
+                    {% endif %}
+                    <a href="{% url 'create-task' sprint.phase.pk %}?sprint={{ sprint.pk }}"
+                        class="btn btn-primary btn-sm rounded-pill px-3 fw-bold">
+                        <i class="fas fa-plus me-1"></i> Add Task
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+            <div class="col-lg-4 text-center">
+                <div class="display-1 fw-bold text-accent mb-0">{{ sprint.progress_percentage }}%</div>
+                <div class="text-muted text-uppercase small fw-bold letter-spacing-1">Sprint Progress</div>
+                <div class="progress mt-3 mx-auto" style="height: 4px; width: 200px; background: var(--glass-border);">
+                    <div class="progress-bar bg-accent" style="width: {{ sprint.progress_percentage }}%;"></div>
+                </div>
+                <div class="extra-small text-muted mt-2">{{ sprint.completed_tasks }} of {{ sprint.total_tasks }} Tasks Done</div>
+            </div>
+        </div>
+    </div>
+
+    {# ── SPRINT HEALTH & INTELLIGENCE ── #}
+    <div class="row g-4 mb-5">
+        <div class="col-lg-12">
+            <div class="glass-panel p-4 border-start border-4 border-{% if sprint_ai.status == 'CRITICAL' %}danger{% elif sprint_ai.status == 'Warning' %}warning{% else %}success{% endif %}">
+                <div class="d-flex justify-content-between align-items-center mb-0">
+                    <div>
+                        <h5 class="fw-bold mb-1"><i class="fas fa-robot me-2 text-accent"></i> Sprint Intelligence Hub</h5>
+                        <p class="text-muted small mb-0">{{ sprint_ai.message }}</p>
+                    </div>
+                    <div class="d-flex gap-5">
+                        <div class="text-center">
+                            <div class="extra-small text-muted fw-bold text-uppercase">Remaining</div>
+                            <div class="h4 fw-bold mb-0 text-white">{{ sprint.remaining_tasks }}</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="extra-small text-muted fw-bold text-uppercase">Velocity</div>
+                            <div class="h4 fw-bold mb-0 text-white">{{ sprint.velocity }}<span class="small text-muted" style="font-size: 0.6rem;">/d</span></div>
+                        </div>
+                        <div class="text-center">
+                            <div class="extra-small text-muted fw-bold text-uppercase">Risk Prob.</div>
+                            <div class="h4 fw-bold mb-0 {% if sprint_ai.status == 'CRITICAL' %}text-danger{% elif sprint_ai.status == 'Warning' %}text-warning{% else %}text-success{% endif %}">{{ sprint_ai.probability }}</div>
+                        </div>
+                    </div>
+                </div>
+        </div>
+
+    <div class="row g-4 mb-5">
+        {# ── KANBAN BOARD ── #}
+        <div class="col-lg-8">
+            <div class="row g-3">
+                {% for col_status, col_label, col_color in task_columns %}
+                <div class="col-md-4 col-xl-2p4"> {# Custom 5-column layout if possible #}
+                    <div class="glass-panel p-3 h-100" style="background: hsla(0, 0%, 100%, 0.02);">
+                        <h6 class="fw-bold mb-3 text-uppercase small letter-spacing-1 text-center" style="color: {{ col_color }};">
+                            {{ col_label }}
+                        </h6>
+                        <div class="d-flex flex-column gap-2">
+                            {% for task in tasks %}{% if task.status == col_status %}
+                            <a href="{% url 'task-detail' task.pk %}" class="glass-panel p-2 text-decoration-none stats-card" style="border-radius: 12px; border: 1px solid hsla(0,0%,100%,0.05);">
+                                <div class="fw-bold text-white extra-small mb-2">{{ task.title|truncatechars:40 }}</div>
+                                    <div class="extra-small text-muted">
+                                        Assigned: {{ task.owner.username }} • Due: {{ task.due_date|date:"M d" }}, ({{ task.attachments.count }})
+                                    </div>
+                            </a>
+                            {% endif %}{% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {# ── SIDEBAR ── #}
+        <div class="col-lg-4">
+            {# Sprint Metadata #}
+            <div class="card border-0 shadow-sm rounded-4 mb-3">
+                <div class="card-body p-4">
+                    <h6 class="fw-bold mb-3 text-primary"><i class="fas fa-users me-2"></i> Sprint Team</h6>
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        {% for member in sprint.members.all %}
+                        <span class="badge bg-light text-dark border rounded-pill px-3 py-2 extra-small">
+                            <i class="fas fa-user-circle me-1 text-accent"></i> {{ member.username }}
+                        </span>
+                        {% empty %}
+                        <p class="extra-small text-muted italic">No team members assigned.</p>
+                        {% endfor %}
+                    </div>
+                    {% if is_pm_or_above %}
+                    <a href="{% url 'edit-sprint' sprint.phase.pk sprint.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill w-100">
+                        <i class="fas fa-user-plus me-1"></i> Manage Team
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# Audit Trail #}
+            <div class="card border-0 shadow-sm rounded-4 mb-3">
+                <div class="card-body p-4">
+                    <h6 class="fw-bold mb-3 text-primary"><i class="fas fa-history me-2"></i> Sprint Audit Trail</h6>
+                    <div class="timeline-audit small" style="max-height: 200px; overflow-y: auto;">
+                        {% for log in sprint.phase.project.logs.all|dictsortreversed:"timestamp"|slice:":15" %}
+                        <div class="mb-3 border-start ps-3 pb-1" style="border-width: 2px !important;">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="extra-small fw-bold text-dark">{{ log.user.username }}</span>
+                                <span class="extra-small text-muted">{{ log.timestamp|naturaltime }}</span>
+                            </div>
+                            <p class="extra-small text-muted mb-0">{{ log.message }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            {# Sprint Discussion #}
+            <div class="card border-0 shadow-sm rounded-4">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold mb-0 text-primary"><i class="fas fa-comments me-2"></i> Sprint Chat</h6>
+                        <button class="btn btn-xs btn-primary rounded-pill px-2 fw-bold extra-small" data-bs-toggle="collapse" data-bs-target="#newSprintChat">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="collapse mb-3" id="newSprintChat">
+                        <form action="{% url 'add-comment' %}" method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="obj_type" value="Sprint">
+                            <input type="hidden" name="obj_id" value="{{ sprint.id }}">
+                            <textarea name="content" class="form-control form-control-sm rounded-3 mb-2" rows="2" placeholder="Message..." required></textarea>
+                            <button type="submit" class="btn btn-primary btn-xs rounded-pill px-3 w-100">Send</button>
+                        </form>
+                    </div>
+
+                    <div class="sprint-chat-flow" style="max-height: 300px; overflow-y: auto;">
+                        {% for comment in sprint.comments.all %}
+                        {% if not comment.parent %}
+                        <div class="mb-3 p-2 rounded-3 bg-light border-0 shadow-sm">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="extra-small fw-bold text-dark">{{ comment.author.username }}</span>
+                                <span class="extra-small text-muted">{{ comment.created_at|naturaltime }}</span>
+                            </div>
+                            <div class="extra-small text-dark">{{ comment.content }}</div>
+                        </div>
+                        {% endif %}
+                        {% empty %}
+                        <div class="text-center py-3 text-muted extra-small italic">No messages.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+      </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .extra-small {
+        font-size: .72rem;
+    }
+</style>
+{% endblock pageContent %}

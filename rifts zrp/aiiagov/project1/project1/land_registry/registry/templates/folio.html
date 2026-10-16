@@ -1,0 +1,145 @@
+{% extends 'base.html' %} {% load static %} {% block pageContent %}
+<style>.al-logo {
+        height: 3em;
+        width: 3em;
+        object-fit: scale-down;
+        object-position: center center;
+    }</style>
+<section class="py-4">
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div><h3 class="fw-bold mb-0"> Folio Records</h3>
+                <p class="text-muted small mb-0"> Detailed folio management and file historical records</p></div>
+            <button class="btn btn-primary rounded-pill px-4 shadow-sm" type="button" id="create_new">
+                <i class="fa fa-plus me-2"></i> Add New Folio</button></div>
+
+        <div class="glass-card border-0 shadow-sm overflow-hidden">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="file-tbl">
+                        <thead><tr class="bg-primary bg-opacity-10">
+                                <th class="text-center py-3"> #</th>
+                                <th class="py-3"> Created Date</th>
+                                <th class="py-3"> File / Folio Reference</th>
+                                <th class="py-3"> Description</th>
+                                <th class="text-center py-3"> Action</th></tr></thead>
+                        <tbody>{% for fat in folio %}
+                            <tr><td class="text-center"> {{ forloop.counter }}</td>
+                                <td class="text-muted small"> {{ fat.date_created|date:"Y-m-d H:i" }}</td>
+                                <td><div class="lh-1">
+                                        <div class="fw-bold text-primary small mb-1"> {{ fat.filee }}</div>
+                                        <div class="text-muted extra-small"> {{ fat.title }}</div></div></td>
+                                <td><p class="m-0 small text-muted truncate-1" title="{{ fat.description|striptags }}">
+                                        {{ fat.description|striptags }}</p></td>
+                                <td class="text-center">
+                                    <div class="dropdown">
+                                        <button
+                                            class="btn btn-link btn-sm text-muted text-decoration-none dropdown-toggle"
+                                            type="button" id="abtn{{fat.pk}}" data-bs-toggle="dropdown"
+                                            aria-expanded="false">
+                                            <i class="fas fa-ellipsis-v"></i></button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 glass-card"
+                                            aria-labelledby="abtn{{fat.pk}}">
+                                            <li><a class="dropdown-item view-data" href="javascript:void(0)"
+                                                    data-url="{% url 'view-folio-pk' fat.pk %}"> <i
+                                                        class="fa fa-eye me-2 opacity-50"></i> View Folio</a></li>
+                                            <li><a class="dropdown-item edit-data" href="javascript:void(0)"
+                                                    data-url="{% url 'manage-folio-pk' fat.pk %}"> <i
+                                                        class="fa fa-edit me-2 text-primary opacity-50"></i> Edit
+                                                    Record</a></li>
+                                            <li><hr class="dropdown-divider opacity-10"></li>
+                                            <li><a class="dropdown-item delete-data" href="javascript:void(0)"
+                                                    data-url="{% url 'delete-folio' fat.pk %}"> <i
+                                                        class="fa fa-trash me-2 text-danger opacity-50"></i> Delete
+                                                    Record</a></li></ul></div></td></tr>
+                            {% endfor %}</tbody></table></div></div></div></div></section>
+
+<style>.extra-small {
+        font-size: 0.7rem;
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: rgba(0, 123, 255, 0.02);
+    }
+
+    .dropdown-item:hover {
+        background-color: rgba(0, 123, 255, 0.05);
+    }
+
+    .badge {
+        font-weight: 500;
+        font-size: 0.75rem;
+    }</style>
+{% endblock pageContent %} {% block ScriptBlock %}
+<script>$(function () {
+        $('#create_new').click(function () {
+            uni_modal(" <i class='fa fa-plus'></i> Add New Folio", "{% url 'manage-folio' %}")
+        })
+        $('.view-data').click(function () {
+            uni_modal(" <i class='fa fa-th-list'></i> Folio Details", $(this).attr('data-url'))
+        })
+        $('.edit-data').click(function () {
+            uni_modal(" <i class='fa fa-edit'></i> Edit Folio Details", $(this).attr('data-url'))
+        })
+        $('.view_image').click(function () {
+            var img = $(this).attr('data-img-url')
+            $('#viewer_modal #img-viewer-field').attr('src', img)
+            $('#viewer_modal').modal('show')
+        })
+        $('.delete-data').click(function () {
+            _conf("Are you sure to delete this File?", 'delete_folio', ["'" + $(this).attr('data-url') + "'"])
+        })
+        $('#file-tbl').find('td, th').addClass('px-2 py-1 align-middle')
+        $('#file-tbl').DataTable({
+            columnDefs: [{
+                orderable: false,
+                targets: [5]
+            }],
+            lengthMenu: [
+                [25, 50, 100, -1],
+                [25, 50, 100, "All"]
+            ]
+        })
+    })
+
+    function delete_sub_category(url) {
+
+        var _this = $('#confirm_modal .modal-body')
+        $('.err-msg').remove();
+        var el = $(' <div>')
+        el.addClass("alert alert-danger err-msg")
+        el.hide()
+        start_loader()
+        $.ajax({
+            headers: {
+                "X-CSRFToken": "{{csrf_token}}"
+            },
+            url: url,
+            dataType: 'JSON',
+            error: err => {
+                console.log(err)
+                alert("an error occurred.")
+                end_loader()
+            },
+            success: function (resp) {
+                if (resp.status == 'success') {
+                    location.reload()
+                } else if (!!resp.msg) {
+                    el.html(resp.msg)
+                    _this.prepend(el)
+                    el.show()
+                } else {
+                    el.html("An error occurred")
+                    _this.prepend(el)
+                    el.show()
+                }
+                end_loader()
+            }
+
+        })
+    }</script>
+{% endblock ScriptBlock %}
+
+
+
+

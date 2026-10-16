@@ -1,0 +1,376 @@
+{% load static %}
+<header><!-- Intro settings -->
+    <style>#intro {
+            /* Margin to fix overlapping fixed navbar */
+            margin-top: 58px;
+        }
+
+        @media (max-width: 991px) {
+            #intro {
+                /* Margin to fix overlapping fixed navbar */
+                margin-top: 45px;
+            }
+        }
+
+        #uni_modal .modal-sub-footer {
+            display: none;
+        }
+
+        /* Navbar */
+        .navbar {
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+
+        .navbar-brand {
+            font-size: 1.25rem;
+        }
+
+        .navbar-toggler {
+            font-size: 1.25rem;
+            padding: 0.5rem 0.75rem;
+        }
+
+        .navbar-nav .nav-link {
+            padding-right: 0.5rem;
+            padding-left: 0.5rem;
+        }
+
+        @media (max-width: 767px) {
+            .navbar-brand {
+                font-size: 1rem;
+            }
+
+            .navbar-toggler {
+                font-size: 1rem;
+                padding: 0.25rem 0.5rem;
+            }
+
+            .navbar-nav .nav-link {
+                padding-right: 0.25rem;
+                padding-left: 0.25rem;
+            }
+        }
+
+        @media (max-width: 575px) {
+            .navbar-brand {
+                font-size: 0.875rem;
+            }
+
+            .navbar-toggler {
+                font-size: 0.875rem;
+                padding: 0.125rem 0.375rem;
+            }
+
+            .navbar-nav .nav-link {
+                padding-right: 0.125rem;
+                padding-left: 0.125rem;
+            }
+        }
+
+        .text-gradient-nav {
+            background: linear-gradient(90deg, #0dcaf0, #0d6efd);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+        }
+    </style>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark glass-nav fixed-top">
+        <div class="container">
+            <!-- Navbar brand -->
+            <a class="navbar-brand d-flex align-items-center gap-2" href="{% url 'home-page' %}">
+                <img src="{% static 'assets/img/zrp_logo.png' %}?v=5.0" alt="ZRP Official Logo" style="height: 38px; width: 38px; border-radius: 50%; padding: 1px; object-fit: contain;">
+                <span><b class="text-white">RIFTS-X</b> <span style="color: #D4AF37; font-weight: 700; font-size: 0.85rem;">ZRP</span></span>
+            </a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="fas fa-bars"></span></button>
+            <div class="collapse navbar-collapse" id="navbar">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0" id="topNav">
+                    {% if request.user.is_authenticated %}
+                        <li class="nav-item mx-1">
+                            <a class="nav-link d-flex align-items-center" href="{% url 'home-page' %}">
+                                <i class="fas fa-home me-2"></i> Home</a></li>
+                            
+                            {% if request.user.security_profile.platform == 'RIFTS-X' %}
+                            <li class="nav-item mx-1">
+                                <a class="nav-link {% if page == 'digital_twin' %}active{% endif %} d-flex align-items-center"
+                                    href="{% url 'digital-twin' %}">
+                                    <i class="fa fa-cube me-2"></i> Digital Twin</a></li>
+                            {% endif %}
+
+                            <li class="nav-item dropdown mx-1">
+                                <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="intelDropdown"
+                                    role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-brain me-2"></i> Intelligence</a>
+                                <ul class="dropdown-menu dropdown-menu-dark glass-card mt-2 shadow-lg" aria-labelledby="intelDropdown">
+                                    {% if request.user.security_profile.platform == 'RIFTS-X' %}
+                                        {% if request.user.is_superuser %}
+                                        <li><a class="dropdown-item d-flex align-items-center text-info"
+                                                href="{% url 'intelligence-hub' %}">
+                                                <i class="fas fa-robot me-2"></i> Intelligence Hub</a></li>
+                                        {% endif %}
+                                        <li><a class="dropdown-item d-flex align-items-center" href="{% url 'knowledge-vault' %}">
+                                                <i class="fas fa-book-reader me-2"></i> Knowledge Vault</a></li>
+                                        <li><a class="dropdown-item d-flex align-items-center text-warning"
+                                                href="{% url 'ai-assistant' %}">
+                                                <i class="fas fa-magic me-2"></i> AI Query Assistant</a></li>
+                                    {% elif request.user.security_profile.platform == 'Governance' %}
+                                        <li><a class="dropdown-item d-flex align-items-center text-info"
+                                                href="{% url 'intelligence-hub' %}">
+                                                <i class="fas fa-robot me-2"></i> Intelligence Hub</a></li>
+                                        {% if request.user.is_superuser %}
+                                        <li><a class="dropdown-item d-flex align-items-center text-primary"
+                                                href="{% url 'project-portfolio' %}">
+                                                <i class="fas fa-chart-network me-2"></i> Project Portfolio</a></li>
+                                        <li><a class="dropdown-item d-flex align-items-center"
+                                                href="{% url 'executive-dashboard' %}">
+                                                <i class="fas fa-microchip me-2"></i> Ops Dashboard</a></li>
+                                        {% endif %}
+                                    {% endif %}
+                                </ul></li>
+
+                            <li class="nav-item dropdown mx-1">
+                                <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="operationsDropdown"
+                                    role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-tasks me-2"></i> Operations</a>
+                                <ul class="dropdown-menu dropdown-menu-dark glass-card mt-2"
+                                    aria-labelledby="operationsDropdown">
+                                    {% if request.user.security_profile.platform == 'RIFTS-X' %}
+                                    <li><a class="dropdown-item" href="{% url 'file_doc-page' %}"> <i
+                                                class="fas fa-folder me-2"></i> Files</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'borrow-page' %}"> <i
+                                                class="fas fa-exchange-alt me-2"></i> Transactions</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'recipient-dashboard' %}"> <i
+                                                class="fas fa-file-invoice me-2"></i> My Issued Files</a></li>
+                                    <li><a class="dropdown-item text-warning fw-bold" href="{% url 'meetings-dashboard' %}"> <i
+                                                class="fas fa-landmark me-2"></i> Minuting & Meetings</a></li>
+                                    <li><a class="dropdown-item text-success fw-bold" href="{% url 'interview-dashboard' %}"> <i
+                                                class="fas fa-clipboard-user me-2"></i> Interviews & Recruitment</a></li>
+                                    <li><a class="dropdown-item text-info fw-bold" href="{% url 'employee-self-service' %}"> <i
+                                                class="fas fa-id-card-clip me-2"></i> Employee Self-Service</a></li>
+                                    <li><a class="dropdown-item text-warning fw-bold" href="{% url 'out-of-office-dashboard' %}"> <i
+                                                class="fas fa-plane-departure me-2"></i> Who is Away Dashboard</a></li>
+                                    <li><a class="dropdown-item text-danger fw-bold" href="{% url 'travel-tsa-dashboard' %}"> <i
+                                                class="fas fa-plane-slant me-2"></i> Travel & TSA Management</a></li>
+                                    <li><a class="dropdown-item text-warning fw-bold" href="{% url 'electronic-approval-center' %}"> <i
+                                                class="fas fa-file-signature me-2"></i> Central Electronic Approvals</a></li>
+                                    <li><a class="dropdown-item text-info fw-bold" href="{% url 'attendance-dashboard' %}"> <i
+                                                class="fas fa-clock me-2"></i> Daily Attendance Portal</a></li>
+                                    <li><a class="dropdown-item text-danger fw-bold" href="{% url 'security-audit-center' %}"> <i
+                                                class="fas fa-shield-halved me-2"></i> Security & Audit Governance Center</a></li>
+                                    <li><a class="dropdown-item text-warning fw-bold" href="{% url 'notifications-center' %}"> <i
+                                                class="fas fa-bell me-2"></i> Notifications & Alerts Center</a></li>
+                                    <li><a class="dropdown-item text-success fw-bold" href="{% url 'ZRP-unified-platform' %}"> <i
+                                                class="fas fa-cubes-stacked me-2"></i> Unified Platform Architecture</a></li>
+                                    <li><a class="dropdown-item text-info fw-bold" href="{% url 'ZRP-institutional-library' %}"> <i
+                                                class="fas fa-book-bookmark me-2"></i> Institutional Documentation & Templates</a></li>
+                                    <li><hr class="dropdown-divider border-secondary opacity-25"></li>
+                                    <li><span class="dropdown-item-text extra-small text-warning fw-bold text-uppercase px-3">Analytics &amp; Reports</span></li>
+                                    <li><a class="dropdown-item fw-bold" href="{% url 'executive-analytics-dashboard' %}"> <i
+                                                class="fas fa-chart-line me-2 text-warning"></i> Executive Analytics Dashboard</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'hr-analytics-dashboard' %}"> <i
+                                                class="fas fa-users-gear me-2 text-success"></i> HR Analytics Dashboard</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'procurement-analytics-dashboard' %}"> <i
+                                                class="fas fa-cart-shopping me-2 text-info"></i> Procurement Analytics Dashboard</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'travel-analytics-dashboard' %}"> <i
+                                                class="fas fa-plane me-2 text-danger"></i> Training &amp; Travel Analytics</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'admin-operations-dashboard' %}"> <i
+                                                class="fas fa-boxes-packing me-2 text-secondary"></i> Admin &amp; Stores Dashboard</a></li>
+                                    <li><hr class="dropdown-divider border-secondary opacity-25"></li>
+                                    <li><span class="dropdown-item-text extra-small text-warning fw-bold text-uppercase px-3">Export Reports</span></li>
+                                    <li><a class="dropdown-item text-success" href="{% url 'export-reports' 'attendance' %}"> <i
+                                                class="fas fa-file-csv me-2"></i> Attendance Report (Excel/CSV)</a></li>
+                                    <li><a class="dropdown-item text-success" href="{% url 'export-reports' 'procurement' %}"> <i
+                                                class="fas fa-file-csv me-2"></i> Procurement Report (Excel/CSV)</a></li>
+                                    <li><a class="dropdown-item text-success" href="{% url 'export-reports' 'travel_tsa' %}"> <i
+                                                class="fas fa-file-csv me-2"></i> TSA Expenditure Report (Excel/CSV)</a></li>
+                                    <li><hr class="dropdown-divider border-secondary opacity-25"></li>
+                                    <li><a class="dropdown-item" href="{% url 'organization-page' %}"> <i
+                                                class="fas fa-network-wired me-2"></i> Federation</a></li>
+                                    <li><a class="dropdown-item text-info" href="{% url 'scanned-docs-list' %}"> <i
+                                                class="fas fa-print me-2"></i> Smart Ingestion</a></li>
+                                    <li><a class="dropdown-item text-warning" href="{% url 'cloud-dashboard' %}"> <i
+                                                class="fas fa-cloud me-2"></i> Institutional Cloud</a></li>
+                                    <li><a class="dropdown-item text-success" href="{% url 'approvals-list' %}"> <i
+                                                class="fas fa-check-shield me-2"></i> Action Approvals</a></li>
+                                    <li><a class="dropdown-item text-info" href="{% url 'mobile-capture' %}"> <i
+                                                class="fas fa-mobile-alt me-2"></i> Field Capture Mode</a></li>
+                                    {% endif %}
+                                    
+                                    {% if request.user.security_profile.platform == 'Governance' or request.user.is_superuser %}
+                                    <li><a class="dropdown-item text-primary" href="{% url 'project-list' %}"> <i
+                                                class="fas fa-project-diagram me-2"></i> Project Governance</a></li>
+                                    <li><a class="dropdown-item text-info fw-bold" href="{% url 'brd-list' %}"> <i
+                                                class="fas fa-file-signature me-2"></i> BRD Approvals</a></li>
+                                    <li><a class="dropdown-item text-success fw-bold" href="{% url 'hod-financial-dashboard' %}"> <i
+                                                class="fas fa-chart-line me-2"></i> Cost Recovery Dashboard</a></li>
+                                    {% endif %}
+                                </ul></li>
+
+                            {% if request.user.security_profile.platform == 'RIFTS-X' %}
+                            <li class="nav-item dropdown mx-1">
+                                <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="supplyDropdown"
+                                    role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-truck-loading me-2"></i> Supply Chain</a>
+                                <ul class="dropdown-menu dropdown-menu-dark glass-card mt-2" aria-labelledby="supplyDropdown">
+                                    <li class="dropdown-header small text-uppercase fw-bold text-muted"> Procurement</li>
+                                    <li><a class="dropdown-item" href="{% url 'tender-list' %}"> Tenders & Opportunities</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'contract-list' %}"> Active Contracts</a></li>
+                                    {% if request.user.is_superuser %}
+                                    <li><a class="dropdown-item fw-bold text-info" href="{% url 'manage-tender' %}"> <i
+                                                class="fas fa-plus-circle me-1"></i> Initiate Tender</a></li>
+                                    {% endif %}
+
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li class="dropdown-header small text-uppercase fw-bold text-muted"> Inventory</li>
+                                    <li><a class="dropdown-item" href="{% url 'asset-list' %}"> Asset Records Intelligence</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'asset-depreciation-report' %}"> Depreciation
+                                            Report</a></li>
+                                    {% if request.user.is_superuser %}
+                                    <li>{% url 'manage-asset' as asset_url %}
+                                        <button class="dropdown-item fw-bold text-info"
+                                            onclick="uni_modal('Register Asset', '{{ asset_url }}', 'modal-md')"> <i
+                                                class="fas fa-plus-circle me-1"></i> Register Asset</button></li>
+                                    {% endif %}</ul></li>
+
+                            <li class="nav-item dropdown mx-1">
+                                <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="staffDropdown"
+                                    role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-user-tie me-2"></i> Staff Services</a>
+                                <ul class="dropdown-menu dropdown-menu-dark glass-card mt-2" aria-labelledby="staffDropdown">
+                                    <li><a class="dropdown-item" href="{% url 'leave-list' %}"> My Leave Requests</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'supply-requisition-list' %}"> My Purchase Requisitions</a></li>
+                                    <li><a class="dropdown-item fw-bold text-info" href="{% url 'service-tickets' %}"> <i
+                                                class="fas fa-headset me-2"></i> Service Desk</a></li>
+                                    <li><a class="dropdown-item fw-bold text-warning" href="{% url 'notice-board' %}"> <i
+                                                class="fas fa-bullhorn me-2"></i> Official Notice Board</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'certificates' %}"> <i
+                                                class="fas fa-certificate me-2"></i> My Digital Certificates</a></li>
+                                    <li><a class="dropdown-item small text-muted" href="{% url 'verify-certificate' %}"> <i
+                                                class="fas fa-shield-alt me-2"></i> Verify Document</a></li></ul></li>
+                            {% endif %}
+
+                            {% if request.user.is_superuser or request.user.is_staff %}
+                            <li class="nav-item dropdown mx-1">
+                                <a class="nav-link dropdown-toggle d-flex align-items-center text-warning" href="#"
+                                    id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-cogs me-2"></i> System Admin</a>
+                                <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark glass-card mt-2"
+                                    aria-labelledby="adminDropdown">
+                                    {% if request.user.is_superuser %}
+                                    <li class="dropdown-header small text-uppercase fw-bold text-muted"> Governance</li>
+                                    <li><a class="dropdown-item" href="{% url 'expenditure-dashboard' %}"> Financial
+                                            Dashboard</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'budget-list' %}"> Budget Allocations</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'user-page' %}"> User Management</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    {% endif %}
+
+                                    <li class="dropdown-header small text-uppercase fw-bold text-muted"> Management</li>
+                                    <li><a class="dropdown-item" href="{% url 'leave-applications' %}"> Manage Leaves</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'supply-requisition-list' %}"> Manage Requisitions</a></li>
+
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li class="dropdown-header small text-uppercase fw-bold text-muted"> Records Intelligence Config</li>
+                                    <li><a class="dropdown-item" href="{% url 'category-page' %}"> Categories</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'sub_category-page' %}"> Sub Categories</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'department-page' %}"> Departments</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'folio-page' %}"> Folios</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'borrower-page' %}"> Records Intelligence Officers</a></li>
+                                    <li><a class="dropdown-item fw-bold text-info" href="{% url 'organization-page' %}"> <i
+                                                class="fas fa-link me-2"></i> Federated Orgs</a></li></ul></li>
+                            {% endif %}
+                    {% endif %}
+                </ul>
+
+                <ul class="navbar-nav ms-auto d-flex align-items-center">
+                    {% if user.id %}
+                    <li class="nav-item mx-2">
+                        <a class="nav-link position-relative p-0" href="{% url 'borrow-page' %}" id="notification-bell"
+                            title="Overdue Files">
+                            <i class="fas fa-bell fs-5"></i>
+                            <span id="overdue-count-badge"
+                                class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                                style="display: none; font-size: 0.6rem; padding: 0.25em 0.4em;">
+                                0</span></a></li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center p-0" href="#" id="userDropdown"
+                            role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <img src="https://ui-avatars.com/api/?name={{user.username}}&background=007bff&color=fff"
+                                id="user-avatar" alt="User" class="rounded-circle"></a>
+                        <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark glass-card mt-2"
+                            aria-labelledby="userDropdown">
+                            <li><div class="dropdown-item d-flex justify-content-between align-items-center">
+                                    <span>Theme</span>
+                                    <div class="form-check form-switch ms-2">
+                                        <input class="form-check-input" type="checkbox" id="themeToggle"></div></div></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{% url 'profile-page' %}"> <i
+                                        class="fas fa-user me-2"></i> Profile</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="{% url 'logout' %}"> <i
+                                        class="fas fa-sign-out-alt me-2"></i> Logout</a></li></ul></li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="btn btn-primary btn-sm rounded-pill px-4" href="{% url 'login-page' %}"> Login</a></li>
+                    {% endif %}</ul></div></div></nav>
+    <!-- Navbar -->
+
+
+    {% comment %} <div id="intro" class="pt-2 text-center bg-light"> {% endcomment %}
+
+        {% comment %}</div> {% endcomment %}</header>
+<script>
+    $(function () {
+        $('#topNav .nav-link').each(function () {
+            var current = '{{ request.get_full_path | urlencode }}'
+            if (current == $(this).attr('href')) {
+                $(this).parent().addClass('active')
+            }
+        })
+    })
+    $(function () {
+        $('#topNav .nav-link').each(function () {
+            var current = '{{ request.get_full_path | urlencode }}';
+            if (current == $(this).attr('href')) {
+                $(this).parent().addClass('active');
+            }
+        });
+
+        // Add event listener to the navbar toggler
+        $('.navbar-toggler').on('click', function () {
+            $('.navbar-collapse').toggleClass('show');
+        });
+
+        // Real-Time Notification Polling for @Mentions
+        let lastAlertCount = 0;
+        const mentionSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+
+        function pollNotifications() {
+            $.getJSON("{% url 'get-user-notifications' %}", function(data) {
+                const notifications = data.notifications || [];
+                const currentCount = notifications.length;
+                
+                if (currentCount > lastAlertCount) {
+                    mentionSound.play().catch(e => console.log("Auto-play blocked"));
+                }
+                
+                if (currentCount > 0) {
+                    $('#overdue-count-badge').text(currentCount).show();
+                    $('#notification-bell i').addClass('text-danger');
+                }
+                lastAlertCount = currentCount;
+            });
+        }
+
+        if ("{{ user.id }}") {
+            setInterval(pollNotifications, 15000); // Every 15s
+            pollNotifications();
+        }
+    });
+</script>
+</content>

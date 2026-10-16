@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block pageContent %}
+<style>.timeline {
+        position: relative;
+        padding: 20px 0;
+    }
+
+    .timeline::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #e9ecef;
+        left: 31px;
+    }
+
+    .timeline-item {
+        position: relative;
+        margin-bottom: 2rem;
+        padding-left: 3rem;
+    }
+
+    .timeline-marker {
+        position: absolute;
+        left: 0;
+        width: 64px;
+        text-align: center;
+    }
+
+    .timeline-marker img {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #fff;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }</style>
+
+<section class="py-4">
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div><a href="{% url 'service-tickets' %}" class="btn btn-link text-muted p-0 text-decoration-none mb-2">
+                    <i class="fa fa-arrow-left me-1"></i> Back to Service Desk</a>
+                <h3 class="fw-bold mb-0"> Ticket #{{ ticket.pk }}: {{ ticket.subject }}</h3>
+                <div class="d-flex align-items-center mt-2">
+                    <span
+                        class="badge {% if ticket.status == 'Open' %}bg-warning{% elif ticket.status == 'In Progress' %}bg-info{% elif ticket.status == 'Resolved' %}bg-success{% else %}bg-secondary{% endif %} rounded-pill px-3 me-2">
+                        {{ ticket.status }}</span>
+                    <span class="text-muted small"> Requested by <strong>{{ ticket.requester.username }}</strong> &bull;
+                        {{ ticket.date_created|date:"M d, Y H:i" }}</span></div></div>
+            <div>{% if request.user.is_superuser or request.user == ticket.requester %}
+                <button class="btn btn-outline-primary rounded-pill px-4 edit-data" type="button">
+                    <i class="fa fa-edit me-2"></i> Edit</button>
+                {% endif %}</div></div>
+
+        <div class="row g-4">
+            <div class="col-md-8">
+                <div class="glass-card p-4 border-0 shadow-sm mb-4">
+                    <h6 class="text-uppercase fw-bold text-muted small mb-3"> Request Description</h6>
+                    <div class="text-dark" style="white-space: pre-wrap;"> {{ ticket.description }}</div>
+                    <hr class="my-4 opacity-10">
+                    <div class="row">
+                        <div class="col-6">
+                            <small class="text-muted d-block"> Department</small>
+                            <span class="fw-bold"> {{ ticket.department.name }}</span></div>
+                        <div class="col-6">
+                            <small class="text-muted d-block"> Category</small>
+                            <span class="fw-bold"> {{ ticket.get_category_display }}</span></div></div></div>
+
+                <h5 class="fw-bold mb-4 mt-5"> <i class="fas fa-history me-2"></i> Activity & Resolution Timeline</h5>
+                <div class="timeline">
+                    <!-- Initial request -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker">
+                            <img src="https://ui-avatars.com/api/?name={{ ticket.requester.username }}&background=0d6efd&color=fff"
+                                class="rounded-circle" alt="User"></div>
+                        <div class="glass-card p-3 border-0 shadow-sm">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="fw-bold"> {{ ticket.requester.get_full_name|default:ticket.requester.username }}</span>
+                                <small class="text-muted"> {{ ticket.date_created|date:"M d, Y H:i" }}</small></div>
+                            <p class="mb-0 text-muted small"> Submitted the service request.</p></div></div>
+
+                    {% for update in updates %}
+                    <div class="timeline-item">
+                        <div class="timeline-marker">
+                            <img src="https://ui-avatars.com/api/?name={{ update.user.username }}&background={% if update.user == request.user %}28a745{% else %}6c757d{% endif %}&color=fff"
+                                class="rounded-circle" alt="User"></div>
+                        <div
+                            class="glass-card p-3 border-0 shadow-sm {% if update.new_status == 'Resolved' %}border-start border-4 border-success{% endif %}">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="fw-bold"> {{ update.user.get_full_name|default:update.user.username
+                                    }}</span>
+                                <small class="text-muted"> {{ update.date_created|date:"M d, Y H:i" }}</small></div>
+                            <div class="mb-2"> {{ update.comment }}</div>
+                            {% if update.new_status %}
+                            <div><span
+                                    class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 rounded-pill small"> Status
+                                    changed to: {{ update.new_status }}</span></div>
+                            {% endif %}</div></div>
+                    {% endfor %}</div>
+
+                <div class="glass-card p-4 border-0 shadow-sm mt-4">
+                    <h6 class="text-uppercase fw-bold text-muted small mb-3"> Add Update / Result</h6>
+                    <form action="" id="update-form">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            {{ update_form.comment }}</div>
+                        <div class="row align-items-center">
+                            <div class="col-md-6 mb-3 mb-md-0">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-0"> <i class="fas fa-tag"></i></span>
+                                    {{ update_form.new_status }}</div></div>
+                            <div class="col-md-6 text-end">
+                                <button type="submit" class="btn btn-primary rounded-pill px-4">
+                                    Post Update</button></div></div></form></div></div>
+
+            <div class="col-md-4">
+                <div class="glass-card p-4 border-0 shadow-sm">
+                    <h6 class="text-uppercase fw-bold text-muted small mb-3"> Ticket Metadata</h6>
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-3">
+                            <small class="text-muted d-block"> Priority</small>
+                            <span
+                                class="badge {% if ticket.priority == 'Urgent' or ticket.priority == 'High' %}bg-danger{% elif ticket.priority == 'Medium' %}bg-warning{% else %}bg-info{% endif %} rounded-pill px-3"> {{ ticket.priority }}</span></li>
+                        <li class="mb-3">
+                            <small class="text-muted d-block"> Target Department</small>
+                            <span class="fw-bold fs-6"> {{ ticket.department.name }}</span></li>
+                        <li class="mb-3">
+                            <small class="text-muted d-block"> Current Assignee</small>
+                            <span class="fw-bold"> {% if ticket.assigned_to %}{{ ticket.assigned_to.get_full_name|default:ticket.assigned_to.username }}{% else %} <span
+                                    class="text-muted fw-normal"> Unassigned</span> {% endif %}</span></li>
+                        <li><small class="text-muted d-block"> Last Activity</small>
+                            <span>{{ ticket.date_updated|timesince }} ago</span></li></ul></div></div></div></div></section>
+{% endblock pageContent %}
+
+{% block ScriptBlock %}
+<script>$(function () {
+        $('.edit-data').click(function () {
+            uni_modal(" <i class='fa fa-edit'></i> Edit Service Ticket", "{% url 'manage-ticket-pk' ticket.pk %}")
+        })
+
+        $('#update-form').submit(function (e) {
+            e.preventDefault();
+            start_loader();
+            $.ajax({
+                url: "{% url 'save-ticket-update' ticket.pk %}",
+                method: "POST",
+                data: $(this).serialize(),
+                error: err => {
+                    console.log(err)
+                    alert_toast("An error occurred", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (resp.status == 'success') {
+                        location.reload()
+                    } else {
+                        alert_toast(resp.msg || "An error occurred", 'error');
+                        end_loader();
+                    }
+                }
+            })
+        })
+    })</script>
+{% endblock ScriptBlock %}
+
+
+
+

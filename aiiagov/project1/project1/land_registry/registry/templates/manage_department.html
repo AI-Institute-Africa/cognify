@@ -1,0 +1,76 @@
+<div class="container-fluid px-0">
+    <div class="card border-0 shadow-sm"
+        style="border-radius: 20px; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px);">
+        <div class="card-body p-4">
+            <form action="{% url 'save-department' %}" id="department-form">
+                <input type="hidden" name="id" value="{{ department.id }}">
+                <div class="mb-4">
+                    <label for="name" class="form-label small fw-bold text-dark text-uppercase mb-2"
+                        style="letter-spacing: 0.5px;"> Institutional Department Name</label>
+                    <div class="input-group shadow-sm rounded-pill overflow-hidden">
+                        <span class="input-group-text border-0 bg-white ps-3 text-muted"> <i
+                                class="fas fa-building"></i></span>
+                        <input type="text" name="name" id="name" class="form-control border-0 bg-white py-2 px-3"
+                            value="{{ department.name }}" required placeholder="e.g. Records Intelligence Operations"
+                            style="font-size: 0.9rem;"></div></div>
+                <div class="mb-4">
+                    <label for="description" class="form-label small fw-bold text-dark text-uppercase mb-2"
+                        style="letter-spacing: 0.5px;"> Departmental Mandate</label>
+                    <textarea rows="3" name="description" id="description"
+                        class="form-control border-0 shadow-sm rounded-4 px-3 py-3" required
+                        placeholder="Define the core functions of this department..."
+                        style="font-size: 0.9rem; background: #fcfcfc;"> {{ department.description }}</textarea></div></form></div></div></div>
+
+<style>#department-form .form-control:focus {
+        box-shadow: none !important;
+        background-color: #fff !important;
+    }</style>
+<script>$(function () {
+        $('#department-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg")
+            el.hide()
+            if (_this[0].checkValidity() == false) {
+                _this[0].reportValidity();
+                return false;
+            }
+            start_loader();
+            $.ajax({
+                headers: {
+                    "X-CSRFToken": "{{csrf_token}}"
+                },
+                url: "{% url 'save-department' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.log(err)
+                    alert("An error occured", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.html(resp.msg)
+                    } else {
+                        el.html("An error occured", 'error');
+                    }
+                    _this.prepend(el)
+                    el.show('slow')
+                    end_loader();
+                }
+            })
+        })
+    })</script>
+
+
+
+

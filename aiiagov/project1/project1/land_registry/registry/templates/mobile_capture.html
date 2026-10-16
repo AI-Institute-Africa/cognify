@@ -1,0 +1,242 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid py-4" style="max-width: 600px;">
+    <!-- Mobile Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div><h4 class="fw-bold mb-0"> Field Capture</h4>
+            <p class="text-muted small"> Offline-ready document scanner</p></div>
+        <div id="sync-status-badge" class="badge bg-success rounded-pill px-3 py-2">
+            <i class="fas fa-check-circle me-1"></i> Online</div></div>
+
+    <!-- Scanner Preview Section -->
+    <div class="card border-0 shadow-lg overflow-hidden mb-4"
+        style="border-radius: 20px; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px);">
+        <div class="bg-dark position-relative" style="aspect-ratio: 3/4;">
+            <video id="scanner-video" class="w-100 h-100 object-fit-cover" autoplay playsinline></video>
+            <canvas id="scanner-canvas" class="d-none"></canvas>
+
+            <!-- Scanning Overlay -->
+            <div
+                class="position-absolute top-50 start-50 translate-middle w-75 h-50 border border-info border-2 opacity-50 scanner-frame"></div>
+
+            <!-- Controls -->
+            <div
+                class="position-absolute bottom-0 start-0 end-0 p-4 d-flex justify-content-around align-items-center bg-transparent">
+                <button id="switch-camera"
+                    class="btn btn-outline-light rounded-circle p-3 shadow-sm border-0 bg-dark-subtle">
+                    <i class="fas fa-sync"></i></button>
+                <button id="capture-btn" class="btn btn-primary rounded-circle shadow-lg"
+                    style="width: 70px; height: 70px; border: 4px solid white;">
+                    <i class="fas fa-camera fa-lg"></i></button>
+                <label for="upload-fallback"
+                    class="btn btn-outline-light rounded-circle p-3 shadow-sm border-0 bg-dark-subtle mb-0">
+                    <i class="fas fa-upload"></i>
+                    <input type="file" id="upload-fallback" accept="image/*" class="d-none"></label></div></div></div>
+
+    <!-- Metadata Form -->
+    <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 15px;">
+        <div id="capture-feedback" class="mb-3 d-none">
+            <img id="captured-preview" class="img-fluid rounded mb-3 shadow-sm" style="max-height: 150px;">
+            <div class="alert alert-info py-2 extra-small">
+                <i class="fas fa-qrcode me-2"></i> <span id="qr-result"> Waiting for QR scan...</span></div></div>
+
+        <div class="form-floating mb-3">
+            <input type="text" class="form-control border-0 shadow-none bg-light" id="ref-num"
+                placeholder="Reference Number" style="border-radius: 10px;">
+            <label for="ref-num"> File Reference Number</label></div>
+        <div class="form-floating mb-4">
+            <textarea class="form-control border-0 shadow-none bg-light" id="notes" placeholder="Notes"
+                style="border-radius: 10px; height: 80px;"></textarea>
+            <label for="notes"> Capture Notes (Metadata)</label></div>
+        <button id="save-local-btn" class="btn btn-dark w-100 py-3 fw-bold shadow-sm d-none"
+            style="border-radius: 12px;">
+            <i class="fas fa-save me-2"></i> Save to Outbox</button></div>
+
+    <!-- Outbox / Sync Queue -->
+    <div class="mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="fw-bold mb-0"> Local Outbox</h6>
+            <button id="sync-all-btn" class="btn btn-link btn-sm text-primary text-decoration-none fw-bold p-0">
+                Sync All <i class="fas fa-cloud-upload-alt ms-1"></i></button></div>
+        <div id="outbox-list">
+            <!-- Records will be injected here -->
+            <div class="text-center py-4 bg-light rounded text-muted extra-small">
+                No pending captures</div></div></div></div>
+
+<style>.scanner-frame {
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+    }
+
+    .extra-small {
+        font-size: 0.75rem;
+    }
+
+    .object-fit-cover {
+        object-fit: cover;
+    }
+
+    .bg-light {
+        background-color: #f8f9fa !important;
+    }
+
+    @keyframes pulse {
+        0% {
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        50% {
+            transform: translate(-50%, -50%) scale(1.05);
+        }
+
+        100% {
+            transform: translate(-50%, -50%) scale(1);
+        }
+    }
+
+    .scanner-frame {
+        animation: pulse 2s infinite ease-in-out;
+    }</style>
+
+<script nonce="{{ request.csp_nonce }}">
+    const outbox = []; // In a real app, load from LocalStorage
+    const video = document.getElementById('scanner-video');
+    const canvas = document.getElementById('scanner-canvas');
+    const captureBtn = document.getElementById('capture-btn');
+    const saveLocalBtn = document.getElementById('save-local-btn');
+    const outboxList = document.getElementById('outbox-list');
+
+    let stream;
+    let cameraMode = 'environment';
+
+    async function startCamera() {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: cameraMode }
+            });
+            video.srcObject = stream;
+        } catch (err) {
+            console.error("Camera failed", err);
+            alert("Please allow camera access for capture.");
+        }
+    }
+
+    startCamera();
+
+    document.getElementById('switch-camera').addEventListener('click', () => {
+        cameraMode = cameraMode === 'user' ? 'environment' : 'user';
+        startCamera();
+    });
+
+    captureBtn.addEventListener('click', () => {
+        const context = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0);
+
+        const dataUrl = canvas.toDataURL('image/jpeg');
+        document.getElementById('captured-preview').src = dataUrl;
+        document.getElementById('capture-feedback').classList.remove('d-none');
+        saveLocalBtn.classList.remove('d-none');
+
+        // Simple mock of QR scanning
+        // In real app, use a library like jsQR
+        setTimeout(() => {
+            const mockRef = "RIFTS-2026-X0" + (Math.floor(Math.random() * 900) + 100);
+            document.getElementById('qr-result').innerText = `Scanned: ${mockRef}`;
+            document.getElementById('ref-num').value = mockRef;
+        }, 800);
+    });
+
+    saveLocalBtn.addEventListener('click', () => {
+        const record = {
+            id: Date.now(),
+            local_id: crypto.randomUUID(),
+            ref_num: document.getElementById('ref-num').value,
+            notes: document.getElementById('notes').value,
+            image: document.getElementById('captured-preview').src,
+            status: 'Pending'
+        };
+
+        outbox.unshift(record);
+        renderOutbox();
+
+        // Reset form
+        document.getElementById('capture-feedback').classList.add('d-none');
+        saveLocalBtn.classList.add('d-none');
+        document.getElementById('ref-num').value = '';
+        document.getElementById('notes').value = '';
+    });
+
+    function renderOutbox() {
+        if (outbox.length === 0) {
+            outboxList.innerHTML = ' <div class="text-center py-4 bg-light rounded text-muted extra-small"> No pending captures</div> ';
+            return;
+        }
+
+        outboxList.innerHTML = outbox.map(r => `
+            <div class="card border-0 shadow-sm mb-2 overflow-hidden" style="border-radius: 12px;">
+                <div class="d-flex align-items-center p-2">
+                    <img src="${r.image}" style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover;" class="me-3">
+                    <div class="flex-grow-1">
+                        <div class="fw-bold extra-small"> ${r.ref_num}</div>
+                        <div class="text-muted" style="font-size: 0.65rem;"> ${r.notes || 'No notes'}</div></div>
+                    <div class="badge bg-${r.status === 'Pending' ? 'warning' : 'info'} extra-small me-2"> ${r.status}</div></div></div>
+        `).join('');
+    }
+
+    document.getElementById('sync-all-btn').addEventListener('click', async () => {
+        const btn = document.getElementById('sync-all-btn');
+        btn.innerHTML = ' <i class="fas fa-spinner fa-spin"></i> Syncing...';
+
+        for (const record of outbox) {
+            if (record.status !== 'Pending') continue;
+
+            // Convert dataURL to Blob
+            const response = await fetch(record.image);
+            const blob = await response.blob();
+
+            const formData = new FormData();
+            formData.append('local_id', record.local_id);
+            formData.append('ref_num', record.ref_num);
+            formData.append('notes', record.notes);
+            formData.append('attachment', blob, `capture_${record.id}.jpg`);
+
+            try {
+                const res = await fetch('/api/sync/upload/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+                });
+
+                if (res.ok) {
+                    record.status = 'Queued';
+                }
+            } catch (err) {
+                console.error("Sync failed for", record.local_id, err);
+            }
+        }
+
+        renderOutbox();
+        btn.innerHTML = 'Sync All <i class="fas fa-cloud-upload-alt ms-1"></i> ';
+
+        // Trigger server processing after all uploads
+        window.location.href = '{% url "trigger-sync" %}';
+    });
+
+    // Check online status
+    window.addEventListener('online', () => {
+        document.getElementById('sync-status-badge').className = 'badge bg-success rounded-pill px-3 py-2';
+        document.getElementById('sync-status-badge').innerHTML = ' <i class="fas fa-check-circle me-1"></i> Online';
+    });
+    window.addEventListener('offline', () => {
+        document.getElementById('sync-status-badge').className = 'badge bg-danger rounded-pill px-3 py-2';
+        document.getElementById('sync-status-badge').innerHTML = ' <i class="fas fa-plane me-1"></i> Offline Mode';
+    });</script>
+{% endblock %}
+
+
+
+

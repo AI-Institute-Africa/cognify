@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex align-items-center mb-3">
+        <a href="{% url 'knowledge-vault' %}" class="btn btn-sm btn-secondary rounded-circle shadow-sm me-3">
+            <i class="fas fa-arrow-left"></i></a>
+        <div class="d-flex align-items-center gap-2">
+            <span
+                class="badge rounded-pill extra-small px-3 
+                {% if entry.entry_type == 'Decision' %}bg-primary{% elif entry.entry_type == 'Policy' %}bg-success{% else %}bg-info{% endif %} bg-opacity-10 
+                {% if entry.entry_type == 'Decision' %}text-primary{% elif entry.entry_type == 'Policy' %}text-success{% else %}text-info{% endif %} border 
+                {% if entry.entry_type == 'Decision' %}border-primary{% elif entry.entry_type == 'Policy' %}border-success{% else %}border-info{% endif %} border-opacity-25">
+                {{ entry.get_entry_type_display }}</span>
+            <span class="badge bg-light text-dark rounded-pill extra-small border px-3"> v{{ entry.current_version
+                }}</span></div></div>
+    <div class="col-md-9">
+        <h2 class="fw-bold mb-1"> {{ entry.title }}</h2>
+        <p class="text-muted small">
+            Stored in <span class="fw-bold text-dark"> <i class="{{ entry.category.icon }} me-1"></i> {{ entry.category.name }}</span>
+            • Last updated {{ entry.last_updated|date:"F d, Y" }} by {{ entry.created_by.username }}</p></div>
+    <div class="col-md-3 d-flex justify-content-md-end align-items-start">
+        {% url 'manage-knowledge-pk' entry.pk as edit_url %}
+        <button class="btn btn-outline-primary rounded-pill px-4"
+            onclick="uni_modal('Edit Knowledge Entry', '{{ edit_url }}', 'modal-md')">
+            <i class="fas fa-edit me-2"></i> Edit Record</button></div></div>
+
+<div class="row g-4">
+    <!-- Main Content -->
+    <div class="col-md-8">
+        <div class="card border-0 shadow-sm rounded-4 mb-4 animate__animated animate__fadeIn">
+            <div class="card-body p-4 p-md-5">
+                <div class="knowledge-content text-dark mb-5" style="white-space: pre-line; line-height: 1.8;">
+                    {{ entry.content }}</div>
+
+                <div class="tags-section mt-4 pt-4 border-top">
+                    <h6 class="extra-small fw-bold text-muted text-uppercase mb-3"> Knowledge Tags</h6>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for tag in entry.tags.all %}
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary extra-small rounded-pill px-3 py-2 border border-secondary border-opacity-25"> #{{ tag.name }}</span>
+                        {% endfor %}</div></div></div></div>
+
+        <!-- Policy/Decision History -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4 animate__animated animate__fadeInUp">
+            <div class="card-body p-4">
+                <h6 class="fw-bold mb-4"> <i class="fas fa-history me-2 text-info"></i> Version History</h6>
+                <div class="timeline-vault">
+                    <div class="timeline-item border-start ps-4 pb-4 position-relative">
+                        <div class="timeline-dot bg-primary position-absolute rounded-circle"
+                            style="left:-6px; top:0; width:12px; height:12px; border:2px solid #fff;"></div>
+                        <div class="extra-small fw-bold"> Current Version (v{{ entry.current_version }})</div>
+                        <div class="extra-small text-muted mb-2"> {{ entry.last_updated|date:"M d, Y H:i" }}</div>
+                        <div class="small p-2 rounded-3 d-inline-block border border-primary border-opacity-25" style="background: var(--glass-bg);"> The active operational record.</div></div>
+                    {% for version in versions %}
+                    <div class="timeline-item border-start ps-4 pb-4 position-relative">
+                        <div class="timeline-dot bg-secondary position-absolute rounded-circle"
+                            style="left:-6px; top:0; width:12px; height:12px; border:2px solid #fff;"></div>
+                        <div class="extra-small fw-bold"> Version {{ version.version_num }}</div>
+                        <div class="extra-small text-muted mb-2"> {{ version.created_at|date:"M d, Y H:i" }} by {{ version.created_by.username }}</div>
+                        <div class="small p-2 border rounded-3 text-muted" style="font-style: italic;">
+                            {{ version.change_summary|default:"No change summary provided." }}</div></div>
+                    {% endfor %}</div></div></div></div>
+
+    <!-- Related & Info Sidebar -->
+    <div class="col-md-4">
+        <!-- Physical Trail -->
+        {% if entry.physical_file %}
+        <div class="card border-0 shadow-sm rounded-4 mb-4 bg-dark text-white animate__animated animate__fadeInRight">
+            <div class="card-body p-4">
+                <h6 class="fw-bold mb-3"> <i class="fas fa-folder-open me-2 text-warning"></i> Physical File Trail</h6>
+                <div class="small mb-3"> Linked to active physical file in Records Intelligence:</div>
+                <a href="{% url 'view-file' entry.physical_file.id %}"
+                    class="d-block p-3 bg-white bg-opacity-10 rounded-3 text-decoration-none text-white hover-lift">
+                    <div class="fw-bold"> {{ entry.physical_file.ref_num }}</div>
+                    <div class="extra-small opacity-75"> {{ entry.physical_file.title }}</div></a></div></div>
+        {% endif %}
+
+        <!-- Meeting Source -->
+        {% if entry.meeting %}
+        <div class="card border-0 shadow-sm rounded-4 mb-4 animate__animated animate__fadeInRight">
+            <div class="card-body p-4">
+                <h6 class="fw-bold mb-3"> <i class="fas fa-handshake me-2 text-primary"></i> Source Meeting</h6>
+                <a href="{% url 'view-meeting' entry.meeting.id %}"
+                    class="d-flex align-items-center text-decoration-none hover-shadow p-2 rounded-3 border" style="color: var(--text-color);">
+                    <div class="icon-circle bg-primary bg-opacity-10 text-primary me-3"> <i
+                            class="fas fa-users-viewfinder"></i></div>
+                    <div><div class="extra-small fw-bold"> {{ entry.meeting.title }}</div>
+                        <div class="extra-small text-muted"> {{ entry.meeting.meeting_date|date:"M d, Y" }}</div></div></a></div></div>
+        {% endif %}
+
+        <!-- Related Cases Heuristic -->
+        <div class="card border-0 shadow-sm rounded-4 animate__animated animate__fadeInRight animate__delay-1s">
+            <div class="card-body p-4">
+                <h6 class="fw-bold mb-3"> <i class="fas fa-lightbulb me-2 text-warning"></i> Related Past Cases</h6>
+                <p class="extra-small text-muted mb-3"> Historical records with shared context or tags.</p>
+                <div class="list-group list-group-flush list-group-no-border">
+                    {% for related in related_entries %}
+                    <a href="{% url 'view-knowledge' related.id %}"
+                        class="list-group-item list-group-item-action p-2 border-0 mb-2 rounded-3">
+                        <div class="extra-small fw-bold"> {{ related.title }}</div>
+                        <div class="extra-small text-muted"> {{ related.category.name }} • {{ related.last_updated|date:"M Y" }}</div></a>
+                    {% empty %}
+                    <div class="text-center py-3">
+                        <i class="fas fa-brain fa-2x mb-2 text-muted opacity-25"></i>
+                        <p class="extra-small text-muted"> No related cases found yet.</p></div>
+                    {% endfor %}</div></div></div></div></div>
+
+<style>.icon-circle {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .hover-shadow:hover {
+        background-color: #f8f9fa;
+        transform: translateX(5px);
+        transition: all 0.2s;
+    }</style>
+{% endblock pageContent %}
+
+
+
+

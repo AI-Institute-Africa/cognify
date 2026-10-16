@@ -1,0 +1,742 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block headerContent %}
+<style>
+/* ── Voice Recording Studio ── */
+.recorder-studio {
+    background: linear-gradient(135deg, #0d1b2a 0%, #1a2a4a 100%);
+    border-radius: 16px;
+    border: 1px solid rgba(13, 202, 240, 0.2);
+}
+#mic-btn {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    font-size: 1.6rem;
+    border: none;
+    background: linear-gradient(135deg, #0dcaf0, #0d6efd);
+    color: #fff;
+    box-shadow: 0 0 0 0 rgba(13, 202, 240, .5);
+    transition: transform .2s, box-shadow .2s;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+#mic-btn.recording {
+    background: linear-gradient(135deg, #dc3545, #c44);
+    animation: micPulse 1s infinite;
+}
+@keyframes micPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(220, 53, 69, .6); }
+    70%  { box-shadow: 0 0 0 16px rgba(220, 53, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+#live-status { font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
+#interim-text { color: rgba(255,255,255,.45); font-style: italic; min-height: 1.2em; font-size: .88rem; }
+#transcript-area {
+    min-height: 200px;
+    background: var(--glass-bg, rgba(255,255,255,.05));
+    border: 2px solid var(--glass-border, rgba(255,255,255,.12));
+    border-radius: 10px;
+    font-size: .92rem; line-height: 1.7; resize: vertical;
+    color: #fff;
+    transition: border-color .2s;
+}
+#transcript-area:focus { border-color: #0d6efd; outline: none; box-shadow: none; }
+.wave-bar {
+    display: inline-block; width: 3px; height: 5px;
+    background: #0dcaf0; border-radius: 2px; margin: 0 1px;
+    transition: height .12s ease;
+}
+.timer-badge { font-variant-numeric: tabular-nums; font-weight: 700; }
+</style>
+{% endblock headerContent %}
+
+{% block pageContent %}
+<div class="container-fluid py-3">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <div>
+            <h4 class="fw-bold mb-0 text-white"><i class="fas fa-file-pen text-warning me-2"></i>Digital Minute Taking Studio</h4>
+            <p class="text-muted small mb-0">{{ meeting.title }} &mdash; {{ meeting.meeting_date|date:"d M Y, H:i" }}</p>
+        </div>
+        <a href="{% url 'meetings-dashboard' %}" class="btn btn-outline-light rounded-pill px-4">
+            <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+        </a>
+    </div>
+
+    <!-- ── SECTION 1: Workflow Pipeline ── -->
+    <div class="glass-card p-3 mb-4 border border-success border-opacity-25">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <span class="text-uppercase extra-small fw-bold text-white ls-1"><i class="fas fa-diagram-project text-success me-2"></i>Minute Approval Workflow Pipeline</span>
+            <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 px-3 py-1 rounded-pill fw-bold">
+                Status: {{ meeting.approval_status }}
+            </span>
+        </div>
+        <div class="d-flex justify-content-between align-items-center text-center flex-wrap">
+            {% with s=meeting.approval_status %}
+            <div class="flex-fill py-1">
+                <div class="badge rounded-circle p-2 {% if s == 'Draft' %}bg-primary{% else %}bg-success{% endif %} mb-1"><i class="fas fa-edit"></i></div>
+                <div class="extra-small text-white fw-bold">1. Draft</div>
+            </div>
+            <i class="fas fa-chevron-right text-muted extra-small"></i>
+            <div class="flex-fill py-1">
+                <div class="badge rounded-circle p-2 {% if s == 'Secretary Review' %}bg-primary{% elif s in 'Chairperson Review,Approved,Distributed,Closed' %}bg-success{% else %}bg-secondary{% endif %} mb-1"><i class="fas fa-user-pen"></i></div>
+                <div class="extra-small text-white fw-bold">2. Secretary</div>
+            </div>
+            <i class="fas fa-chevron-right text-muted extra-small"></i>
+            <div class="flex-fill py-1">
+                <div class="badge rounded-circle p-2 {% if s == 'Chairperson Review' %}bg-primary{% elif s == 'Corrections Required' %}bg-warning text-dark{% elif s in 'Approved,Distributed,Closed' %}bg-success{% else %}bg-secondary{% endif %} mb-1"><i class="fas fa-user-check"></i></div>
+                <div class="extra-small text-white fw-bold">3. Chair Review</div>
+            </div>
+            <i class="fas fa-chevron-right text-muted extra-small"></i>
+            <div class="flex-fill py-1">
+                <div class="badge rounded-circle p-2 {% if s in 'Approved,Distributed,Closed' %}bg-success{% else %}bg-secondary{% endif %} mb-1"><i class="fas fa-check-double"></i></div>
+                <div class="extra-small text-white fw-bold">4. Approved</div>
+            </div>
+            <i class="fas fa-chevron-right text-muted extra-small"></i>
+            <div class="flex-fill py-1">
+                <div class="badge rounded-circle p-2 {% if s in 'Distributed,Closed' %}bg-primary{% else %}bg-secondary{% endif %} mb-1"><i class="fas fa-paper-plane"></i></div>
+                <div class="extra-small text-white fw-bold">5. Distributed</div>
+            </div>
+            {% endwith %}
+        </div>
+
+        <hr class="my-3 border-secondary">
+        <form action="{% url 'approve-minutes-workflow' meeting.pk %}" method="POST" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <div class="col-md-4">
+                <label class="extra-small text-muted fw-bold">Advance Workflow Stage</label>
+                <select name="target_status" class="form-select form-select-sm bg-dark text-white border-secondary" required>
+                    <option value="Draft" {% if meeting.approval_status == 'Draft' %}selected{% endif %}>1. Draft Minutes</option>
+                    <option value="Secretary Review" {% if meeting.approval_status == 'Secretary Review' %}selected{% endif %}>2. Submit for Secretary Review</option>
+                    <option value="Chairperson Review" {% if meeting.approval_status == 'Chairperson Review' %}selected{% endif %}>3. Submit for Chairperson Review</option>
+                    <option value="Corrections Required" {% if meeting.approval_status == 'Corrections Required' %}selected{% endif %}>3b. Request Corrections</option>
+                    <option value="Approved" {% if meeting.approval_status == 'Approved' %}selected{% endif %}>4. Approve Minutes</option>
+                    <option value="Distributed" {% if meeting.approval_status == 'Distributed' %}selected{% endif %}>5. Distribute Minutes &amp; Actions</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="extra-small text-muted fw-bold">Review Notes / Corrections</label>
+                <input type="text" name="rejection_notes" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Enter Chairperson feedback or correction details..." value="{{ meeting.rejection_notes|default:'' }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-success btn-sm w-100 rounded-pill fw-bold">
+                    <i class="fas fa-arrow-right me-1"></i>Update &amp; Notify
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="row g-4">
+        <!-- ── COLUMN LEFT: Voice Recording Studio + Minutes Text ── -->
+        <div class="col-lg-7">
+
+            <!-- Voice Recording Studio -->
+            <div class="recorder-studio p-3 mb-4">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h6 class="fw-bold text-white mb-0"><i class="fas fa-microphone-alt text-info me-2"></i>Voice Recording Studio</h6>
+                    <span class="badge bg-dark border border-info border-opacity-25 text-info extra-small">Speech-to-Text Engine</span>
+                </div>
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <button id="mic-btn" title="Click to start / stop recording">
+                        <i class="fas fa-microphone" id="mic-icon"></i>
+                    </button>
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <span id="live-status" class="text-info">Ready</span>
+                            <div id="wave" style="display:none;">
+                                {% for i in "12345678" %}<span class="wave-bar"></span>{% endfor %}
+                            </div>
+                            <span class="badge bg-danger rounded-pill timer-badge" id="timer-display" style="display:none; font-size:.8rem;">00:00</span>
+                        </div>
+                        <div id="interim-text">… speak and live transcript will appear here …</div>
+                        <div class="mt-2 d-flex gap-2 flex-wrap">
+                            <select id="lang-select" class="form-select form-select-sm bg-dark text-white border-secondary rounded-pill extra-small" style="max-width:210px;">
+                                <option value="sho-nglish" selected>🔀 Sho-Nglish (Shona + English)</option>
+                                <option value="sn-ZW">🇿🇼 ChiShona (Shona)</option>
+                                <option value="nd-ZW">🇿🇼 IsiNdebele (Ndebele)</option>
+                                <option value="en-ZW">🇿🇼 English (Zimbabwe)</option>
+                                <option value="zu-ZA">🇿🇦 IsiZulu</option>
+                                <option value="en-US">🇺🇸 English (US)</option>
+                            </select>
+                            <select id="speaker-select" class="form-select form-select-sm bg-dark text-white border-secondary rounded-pill extra-small" style="max-width:230px;">
+                                <option value="auto" selected>👤 Auto-Detect Speaker Voice</option>
+                                <option value="Chairperson">👔 Chairperson</option>
+                                <option value="Secretary">✍️ Secretary</option>
+                                <option value="Participant">👥 Participant / Member</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div id="no-support-alert" class="alert alert-warning rounded-3 d-none extra-small py-2 mb-0">
+                    <i class="fas fa-exclamation-triangle me-1"></i> Speech recognition requires <strong>Google Chrome</strong>. You can still type minutes manually.
+                </div>
+            </div>
+
+            <!-- Minutes Text Editor -->
+            <div class="glass-card p-4 mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold text-white mb-0"><i class="fas fa-paragraph text-success me-2"></i>Meeting Minutes &amp; Recorded Discussions</h6>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" id="clearBtn"><i class="fas fa-trash-alt me-1"></i>Clear</button>
+                        <button class="btn btn-sm btn-outline-info rounded-pill px-3" id="copyBtn"><i class="fas fa-copy me-1"></i>Copy</button>
+                    </div>
+                </div>
+                <form action="" method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="save_minutes">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Agenda Items</label>
+                        <div class="p-3 bg-dark bg-opacity-50 rounded border border-secondary text-white small">
+                            {{ meeting.agenda_text|linebreaks|default:"No formal agenda text specified." }}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label small fw-bold text-muted mb-0">Recorded Discussions &amp; Deliberations</label>
+                            <button type="button" class="btn btn-sm btn-outline-warning rounded-pill px-3 extra-small" id="formatMinuteConvoBtn" title="Clean repeated tags into natural dialogue">
+                                <i class="fas fa-wand-magic-sparkles me-1"></i> Format as Clean Dialogue
+                            </button>
+                        </div>
+                        <textarea id="transcript-area" name="discussions" class="form-control bg-dark text-white border-secondary" rows="9"
+                            placeholder="Record detailed discussions, deliberations and key points here. Use the voice recording studio above to auto-fill with speech-to-text.">{{ meeting.discussions|default:'' }}</textarea>
+                        <div class="d-flex justify-content-between align-items-center mt-1">
+                            <span class="extra-small text-muted"><span id="word-count">0</span> words</span>
+                            <span class="extra-small text-success" id="save-indicator" style="display:none;"><i class="fas fa-check-circle me-1"></i>Saved</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Apologies &amp; Attendance Summary</label>
+                        <textarea name="apologies_text" class="form-control bg-dark text-white border-secondary" rows="3"
+                            placeholder="List apologies or attendance notes...">{{ meeting.apologies_text|default:'' }}</textarea>
+                    </div>
+                    <div class="d-flex gap-2 justify-content-end flex-wrap">
+                        <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold">
+                            <i class="fas fa-save me-1"></i> Save Draft Minutes
+                        </button>
+                    </div>
+                </form>
+
+                <!-- AJAX Save + PDF Download -->
+                <div class="d-flex gap-2 justify-content-end mt-3 flex-wrap">
+                    <button class="btn btn-outline-success rounded-pill px-4" id="saveTextBtn">
+                        <i class="fas fa-floppy-disk me-1"></i> Quick Save (AJAX)
+                    </button>
+                    <form id="pdfForm" method="POST" action="{% url 'download-minutes-pdf' meeting.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="transcript" id="pdfTranscript">
+                        <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold" id="pdfBtn">
+                            <i class="fas fa-file-pdf me-1"></i> Download PDF Minutes
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── COLUMN RIGHT: Action Items ── -->
+        <div class="col-lg-5">
+            <div class="glass-card p-4 mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold text-white mb-0"><i class="fas fa-tasks text-warning me-2"></i>Action Items &amp; Officers</h6>
+                    <button class="btn btn-warning btn-sm rounded-pill px-3 fw-bold" data-bs-toggle="modal" data-bs-target="#createActionModal">
+                        <i class="fas fa-plus me-1"></i> Add Action
+                    </button>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% for item in action_items %}
+                    <div class="list-group-item bg-transparent text-white border-secondary px-0 py-3">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <div class="fw-bold small">{{ item.description }}</div>
+                            <span class="badge bg-{% if item.status == 'Completed' %}success{% elif item.status == 'Overdue' %}danger{% else %}warning{% endif %} rounded-pill extra-small">
+                                {{ item.status }}
+                            </span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center extra-small text-muted mt-2">
+                            <div><i class="fas fa-user text-success me-1"></i> {{ item.assigned_to.get_full_name|default:item.assigned_to.username }}</div>
+                            <div><i class="fas fa-clock text-warning me-1"></i> Due: {{ item.due_date }}</div>
+                        </div>
+                        <div class="progress mt-2" style="height: 5px;">
+                            <div class="progress-bar bg-success" style="width: {{ item.progress_percent|default:0 }}%;"></div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-5 text-muted extra-small">
+                        <i class="fas fa-clipboard-check fs-3 d-block mb-2 text-muted"></i>
+                        No action items yet. Click <strong>Add Action</strong> to assign tasks.
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Meeting Meta Info -->
+            <div class="glass-card p-3">
+                <h6 class="fw-bold text-white mb-3 extra-small text-uppercase"><i class="fas fa-circle-info text-info me-2"></i>Meeting Details</h6>
+                <div class="extra-small text-muted">
+                    <div class="mb-1"><i class="fas fa-user-tie me-2 text-success"></i><strong>Chairperson:</strong> {{ meeting.chairperson.get_full_name|default:meeting.chairperson.username|default:"Not assigned" }}</div>
+                    <div class="mb-1"><i class="fas fa-user-pen me-2 text-info"></i><strong>Secretary:</strong> {{ meeting.secretary.get_full_name|default:meeting.secretary.username|default:"Not assigned" }}</div>
+                    <div class="mb-1"><i class="fas fa-map-marker-alt me-2 text-warning"></i><strong>Venue/Link:</strong> {{ meeting.venue_or_link|default:"TBA" }}</div>
+                    <div class="mb-1"><i class="fas fa-users me-2 text-success"></i><strong>Participants:</strong> {{ meeting.participants.count }}</div>
+                    <div class="mb-1"><i class="fas fa-tag me-2 text-muted"></i><strong>Type:</strong> {{ meeting.get_meeting_type_display }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Action Item Modal -->
+<div class="modal fade" id="createActionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card text-white border border-success border-opacity-25">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-warning"><i class="fas fa-user-check me-2"></i>Assign Meeting Action Item</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="" method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_action_item">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Action Item Description</label>
+                        <textarea name="description" class="form-control bg-dark text-white border-secondary" rows="3"
+                            placeholder="Describe the specific action item or resolution task..." required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Responsible Officer</label>
+                        <select name="assigned_to" class="form-select bg-dark text-white border-secondary" required>
+                            <option value="">Select Responsible Officer...</option>
+                            {% for u in users %}
+                            <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }} ({{ u.email }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Due Date</label>
+                            <input type="date" name="due_date" class="form-control bg-dark text-white border-secondary" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Priority</label>
+                            <select name="priority" class="form-select bg-dark text-white border-secondary">
+                                <option value="Normal">Normal</option>
+                                <option value="High">High Priority</option>
+                                <option value="Urgent">Urgent / Critical</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold">
+                        <i class="fas fa-bell me-1"></i> Assign &amp; Notify Officer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block ScriptBlock %}
+<script>
+$(function () {
+    // ── Word Count ──
+    function updateWordCount() {
+        var text = $('#transcript-area').val().trim();
+        $('#word-count').text(text ? text.split(/\s+/).length : 0);
+    }
+    $('#transcript-area').on('input', updateWordCount);
+    updateWordCount();
+
+    // ── Clear / Copy ──
+    $('#clearBtn').click(function () {
+        if (confirm('Clear all transcript text?')) { $('#transcript-area').val('').trigger('input'); }
+    });
+    $('#copyBtn').click(function () {
+        navigator.clipboard.writeText($('#transcript-area').val())
+            .then(() => { if(typeof alert_toast !== 'undefined') alert_toast('Copied!','success'); else alert('Copied!'); })
+            .catch(() => { if(typeof alert_toast !== 'undefined') alert_toast('Copy failed.','error'); });
+    });
+
+    // ── PDF Form ──
+    $('#pdfForm').on('submit', function () {
+        $('#pdfTranscript').val($('#transcript-area').val());
+    });
+
+    // ── AJAX Quick Save ──
+    $('#saveTextBtn').click(function () {
+        $.ajax({
+            headers: { "X-CSRFToken": '{{ csrf_token }}' },
+            url: "{% url 'save-minutes-text' meeting.id %}",
+            method: "POST",
+            data: { transcript: $('#transcript-area').val() },
+            success: function (resp) {
+                if (resp.status === 'success') {
+                    $('#save-indicator').fadeIn().delay(2500).fadeOut();
+                    if(typeof alert_toast !== 'undefined') alert_toast('Minutes saved!', 'success');
+                }
+            }
+        });
+    });
+
+    // ── Pure JS PCM WAV Recorder for 100% Server Compatibility ──
+    // ── Pure JS PCM WAV Recorder with 3-Second Real-Time Server Streaming ──
+    var audioCtx = null, mediaStream = null, scriptProcessor = null, recordedSamples = [];
+    var realTimeStreamInterval = null;
+    var lastTranscribedIndex = 0;
+
+    function encodeWavBlob(samples, inputSampleRate) {
+        var targetSampleRate = 16000;
+        var resampled = [];
+        if (inputSampleRate && inputSampleRate !== targetSampleRate) {
+            var ratio = inputSampleRate / targetSampleRate;
+            var newLength = Math.floor(samples.length / ratio);
+            for (var i = 0; i < newLength; i++) {
+                var idx = Math.floor(i * ratio);
+                resampled.push(samples[idx]);
+            }
+        } else {
+            resampled = samples;
+        }
+
+        var buffer = new ArrayBuffer(44 + resampled.length * 2);
+        var view = new DataView(buffer);
+
+        function writeStr(offset, str) {
+            for (var k = 0; k < str.length; k++) view.setUint8(offset + k, str.charCodeAt(k));
+        }
+
+        writeStr(0, 'RIFF');
+        view.setUint32(4, 36 + resampled.length * 2, true);
+        writeStr(8, 'WAVE');
+        writeStr(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true); // PCM
+        view.setUint16(22, 1, true); // Mono
+        view.setUint32(24, targetSampleRate, true);
+        view.setUint32(28, targetSampleRate * 2, true);
+        view.setUint16(32, 2, true);
+        view.setUint16(34, 16, true);
+        writeStr(36, 'data');
+        view.setUint32(40, resampled.length * 2, true);
+
+        var offset = 44;
+        for (var j = 0; j < resampled.length; j++, offset += 2) {
+            var s = Math.max(-1, Math.min(1, resampled[j]));
+            view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        }
+        return new Blob([view], { type: 'audio/wav' });
+    }
+
+    var isTranscribing = false;
+
+    function sendAudioSliceForLiveTranscription() {
+        if (isTranscribing) return; // Prevent overlapping requests from piling up in queue
+        if (!audioCtx || recordedSamples.length === 0) return;
+        var sampleRate = audioCtx.sampleRate || 44100;
+        
+        // Take current slice of audio samples since last slice
+        var sliceSamples = recordedSamples.slice(lastTranscribedIndex);
+        if (sliceSamples.length < sampleRate * 1.5) return; // need at least ~1.5s
+
+        var currentSliceEnd = recordedSamples.length;
+        var wavBlob = encodeWavBlob(sliceSamples, sampleRate);
+
+        var formData = new FormData();
+        formData.append('audio', wavBlob, 'recording.wav');
+        formData.append('language', $('#lang-select').val() || 'sho-nglish');
+        formData.append('speaker', $('#speaker-select').val() || 'auto');
+        formData.append('previous_speaker', window.lastStreamingSpeaker || '');
+        
+        isTranscribing = true;
+        if (isRecording) {
+            $('#live-status').text('Transcribing…').removeClass('text-danger text-info').addClass('text-warning');
+        }
+
+        $.ajax({
+            headers: { "X-CSRFToken": '{{ csrf_token }}' },
+            url: "{% url 'transcribe-audio' %}",
+            type: "POST",
+            data: formData,
+            processData: false,
+            contentType: false,
+            timeout: 6000,
+            complete: function () {
+                isTranscribing = false;
+            },
+            success: function (resp) {
+                lastTranscribedIndex = currentSliceEnd;
+                if (resp.status === 'success' && (resp.raw_text || resp.text)) {
+                    var spoken = (resp.raw_text || resp.text).trim();
+                    if (!spoken) return;
+                    var currentVal = $('#transcript-area').val().trim();
+                    var speakerTag = resp.speaker || 'Speaker 1';
+                    var newVal = '';
+
+                    // Conversational Turn Merging:
+                    if (window.lastStreamingSpeaker === speakerTag && currentVal.length > 0) {
+                        newVal = currentVal + ' ' + spoken;
+                    } else {
+                        window.lastStreamingSpeaker = speakerTag;
+                        var prefix = currentVal.length > 0 ? '\n\n' : '';
+                        newVal = currentVal + prefix + '[' + speakerTag + ']: ' + spoken;
+                    }
+
+                    $('#transcript-area').val(newVal).trigger('input');
+                    $('#interim-text').text('⚡ Live: [' + speakerTag + ']: ' + spoken);
+                    if (isRecording) {
+                        $('#live-status').text('Recording (Live Transcribing…)').removeClass('text-warning').addClass('text-danger');
+                    }
+                } else if (resp.status === 'silence') {
+                    if (isRecording) {
+                        $('#live-status').text('Listening (Silence)').removeClass('text-warning text-info').addClass('text-danger');
+                    }
+                }
+            },
+            error: function () {
+                if (isRecording) {
+                    $('#live-status').text('Recording…').removeClass('text-warning').addClass('text-danger');
+                }
+            }
+        });
+    }
+
+    // Clean repeated tags into dialogue
+    $('#formatMinuteConvoBtn').click(function () {
+        var rawText = $('#transcript-area').val();
+        if (!rawText) return;
+        var regex = /\[(Speaker\s*\d+|[^\]]+)\]:\s*([^\[]+)/gi;
+        var match;
+        var flattened = [];
+        while ((match = regex.exec(rawText)) !== null) {
+            var spk = match[1].trim();
+            var txt = match[2].trim();
+            if (txt) flattened.push({ speaker: spk, text: txt });
+        }
+        if (flattened.length === 0) return;
+        var merged = [];
+        var curSpk = null;
+        var curWords = [];
+        flattened.forEach(function(item) {
+            if (curSpk === item.speaker) {
+                curWords.push(item.text);
+            } else {
+                if (curSpk && curWords.length > 0) {
+                    merged.push('[' + curSpk + ']: ' + curWords.join(' '));
+                }
+                curSpk = item.speaker;
+                curWords = [item.text];
+            }
+        });
+        if (curSpk && curWords.length > 0) {
+            merged.push('[' + curSpk + ']: ' + curWords.join(' '));
+        }
+        $('#transcript-area').val(merged.join('\n\n')).trigger('input');
+        if (typeof alert_toast !== 'undefined') alert_toast('Formatted into clean conversational dialogue!', 'success');
+    });
+
+    function startMediaRecorder() {
+        recordedSamples = [];
+        lastTranscribedIndex = 0;
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+            mediaStream = stream;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            var source = audioCtx.createMediaStreamSource(stream);
+            scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+            
+            scriptProcessor.onaudioprocess = function (e) {
+                var input = e.inputBuffer.getChannelData(0);
+                for (var i = 0; i < input.length; i++) {
+                    recordedSamples.push(input[i]);
+                }
+            };
+
+            source.connect(scriptProcessor);
+            scriptProcessor.connect(audioCtx.destination);
+
+            // Stream to server every 3.5 seconds with concurrency guard
+            clearInterval(realTimeStreamInterval);
+            realTimeStreamInterval = setInterval(sendAudioSliceForLiveTranscription, 3500);
+        }).catch(err => {
+            alert_toast('Microphone access error: ' + err.message, 'error');
+            $('#live-status').text('Mic Error').removeClass('text-info text-danger').addClass('text-warning');
+            stopTimer(); stopWave();
+            isRecording = false;
+        });
+    }
+
+    function stopMediaRecorderAndUpload() {
+        clearInterval(realTimeStreamInterval);
+        if (scriptProcessor && audioCtx) {
+            scriptProcessor.disconnect();
+            audioCtx.close();
+            
+            // Final check on remaining audio slice
+            sendAudioSliceForLiveTranscription();
+
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(t => t.stop());
+            }
+        }
+    }
+
+    // ── Speech Recognition ──
+    var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    var recognition = SpeechRecognition ? new SpeechRecognition() : null;
+    
+    function mapLangToBCP47(val) {
+        var map = {
+            'sho-nglish': 'sn-ZW',
+            'sn-ZW': 'sn-ZW',
+            'nd-ZW': 'nd-ZW',
+            'en-ZW': 'en-ZA',
+            'zu-ZA': 'zu-ZA',
+            'en-US': 'en-US'
+        };
+        return map[val] || val || 'sn-ZW';
+    }
+
+    if (recognition) {
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = mapLangToBCP47($('#lang-select').val());
+
+        $('#lang-select').on('change', function () {
+            if (recognition) {
+                recognition.lang = mapLangToBCP47($(this).val());
+                if (isRecording && useWebSpeech) {
+                    try { recognition.stop(); } catch(e){}
+                    setTimeout(() => { if (isRecording && useWebSpeech) try{ recognition.start(); }catch(e){} }, 300);
+                }
+            }
+        });
+    }
+
+    var isRecording = false;
+    var useWebSpeech = !!SpeechRecognition;
+    var timerInterval = null, seconds = 0;
+
+    function fmtTime(s) { return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
+    function startTimer() {
+        seconds = 0; $('#timer-display').text(fmtTime(0)).show();
+        timerInterval = setInterval(() => { seconds++; $('#timer-display').text(fmtTime(seconds)); }, 1000);
+    }
+    function stopTimer() { clearInterval(timerInterval); $('#timer-display').hide(); }
+
+    var waveInterval = null;
+    function startWave() {
+        $('#wave').show();
+        waveInterval = setInterval(() => {
+            $('#wave .wave-bar').each(function () { $(this).css('height', (5+Math.random()*22)+'px'); });
+        }, 110);
+    }
+    function stopWave() { clearInterval(waveInterval); $('#wave .wave-bar').css('height','5px'); $('#wave').hide(); }
+
+    $('#mic-btn').click(function () {
+        if (!isRecording) {
+            isRecording = true;
+            $(this).addClass('recording');
+            $('#mic-icon').removeClass('fa-microphone').addClass('fa-stop');
+            $('#live-status').text('Recording (Live Transcribing…)').removeClass('text-info text-success text-warning').addClass('text-danger');
+            $('#no-support-alert').addClass('d-none');
+            startTimer(); startWave();
+
+            if (recognition && useWebSpeech) {
+                try {
+                    recognition.lang = mapLangToBCP47($('#lang-select').val());
+                    recognition.start();
+                } catch (e) {
+                    // Fallback to server streaming if browser WebSpeech throws error
+                    startMediaRecorder();
+                }
+            } else {
+                startMediaRecorder();
+            }
+        } else {
+            isRecording = false;
+            $(this).removeClass('recording');
+            $('#mic-icon').removeClass('fa-stop').addClass('fa-microphone');
+            $('#live-status').text('Ready').removeClass('text-danger text-warning').addClass('text-info');
+            $('#interim-text').text('Live transcription stopped.');
+            stopTimer(); stopWave();
+
+            if (recognition) {
+                try { recognition.stop(); } catch(e){}
+            }
+            stopMediaRecorderAndUpload();
+        }
+    });
+
+    if (recognition) {
+        recognition.onresult = function (event) {
+            var interim = '';
+            for (var i = event.resultIndex; i < event.results.length; i++) {
+                if (event.results[i].isFinal) {
+                    var finalChunk = event.results[i][0].transcript.trim();
+                    if (finalChunk) {
+                        var currentVal = $('#transcript-area').val().trim();
+                        var selectedSpeaker = $('#speaker-select').val();
+                        var speakerTag = (selectedSpeaker && selectedSpeaker !== 'auto') ? selectedSpeaker : 'Speaker 1';
+                        
+                        var newVal = '';
+                        if (window.lastStreamingSpeaker === speakerTag && currentVal.length > 0) {
+                            newVal = currentVal + ' ' + finalChunk;
+                        } else {
+                            window.lastStreamingSpeaker = speakerTag;
+                            var prefix = currentVal.length > 0 ? '\n\n' : '';
+                            newVal = currentVal + prefix + '[' + speakerTag + ']: ' + finalChunk;
+                        }
+                        $('#transcript-area').val(newVal).trigger('input');
+                        $('#interim-text').text('⚡ Live: [' + speakerTag + ']: ' + finalChunk);
+                    }
+                } else {
+                    interim += event.results[i][0].transcript;
+                }
+            }
+            if (interim) {
+                $('#interim-text').text('🎙️ ' + interim);
+            }
+        };
+
+        recognition.onerror = function (event) {
+            if (event.error === 'no-speech') {
+                // Conversational pause — keep listening
+                return;
+            }
+            if (event.error === 'language-not-supported') {
+                // If sn-ZW is unsupported in this particular browser build, fallback to en-ZA
+                if (isRecording) {
+                    setTimeout(() => {
+                        try {
+                            recognition.lang = 'en-ZA';
+                            recognition.start();
+                        } catch(e){}
+                    }, 300);
+                }
+                return;
+            }
+            if (event.error === 'network') {
+                // Brief network blip — auto-reconnect
+                if (isRecording) {
+                    setTimeout(() => {
+                        try { recognition.start(); } catch(e){}
+                    }, 400);
+                }
+                return;
+            }
+        };
+
+        recognition.onend = function () {
+            // Auto-restart to maintain continuous session
+            if (isRecording) {
+                setTimeout(() => {
+                    if (isRecording) {
+                        try { recognition.start(); } catch(e){}
+                    }
+                }, 180);
+            }
+        };
+    }
+});
+</script>
+{% endblock ScriptBlock %}
+
+{% endblock pageContent %}

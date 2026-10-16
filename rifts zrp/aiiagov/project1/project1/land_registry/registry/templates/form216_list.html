@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+            <h3 class="fw-bold mb-1"><i class="fas fa-table-list text-warning me-2"></i>Z.R.P. FORM 216 (Stores Stock / Ledger Cards)</h3>
+            <div class="small text-muted">
+                Zimbabwe Republic Police &bull; Central Stores &bull; Bin Card / Perpetual Stock &amp; Inventory Ledger
+            </div>
+        </div>
+        <div>
+            <button class="btn btn-warning text-dark rounded-pill px-4 shadow-sm fw-bold"
+                onclick="uni_modal('Open New Form 216 Stock Card', '{% url 'manage-form216' %}', 'modal-lg')">
+                <i class="fas fa-plus-circle me-2"></i> Open New Stock Card
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Scope & Role Indicator Banner -->
+<div class="row mb-3">
+    <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+            {% if scope_info.is_chief_director %}
+            <span class="badge bg-dark border border-warning text-warning px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-crown me-1 text-warning"></i> Chief Director Command &bull; All Form 216 Stock Cards &amp; Verified Stock
+            </span>
+            {% elif scope_info.is_supt_ict %}
+            <span class="badge bg-primary px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-sitemap me-1"></i> Supt ICT &bull; Comprehensive System-Wide Stock Ledger
+            </span>
+            {% elif scope_info.scope == 'comms' %}
+            <span class="badge bg-warning text-dark px-3 py-2 rounded-pill shadow-sm fs-6 fw-bold">
+                <i class="fas fa-tower-broadcast me-1"></i> {{ scope_info.role }} &bull; Communications &amp; Radio Stock Cards
+            </span>
+            {% elif scope_info.scope == 'systems' %}
+            <span class="badge bg-info text-dark px-3 py-2 rounded-pill shadow-sm fs-6 fw-bold">
+                <i class="fas fa-laptop-code me-1"></i> {{ scope_info.role }} &bull; Systems &amp; IT Stock Cards
+            </span>
+            {% elif scope_info.scope == 'province' %}
+            <span class="badge bg-danger px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-map-location-dot me-1"></i> Provincial ICT Officer &bull; {{ scope_info.province|default:"Assigned Province" }} Stock Records
+            </span>
+            {% else %}
+            <span class="badge bg-secondary px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-shield-halved me-1"></i> General Police Operations &bull; Central Stores Bin Cards
+            </span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- KPI Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold">Total Stock Cards</div>
+            <div class="h3 fw-bold mb-0 text-dark">{{ total_cards|default:0 }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold">Current Stock on Hand</div>
+            <div class="h3 fw-bold mb-0 text-primary">{{ total_balance|intcomma }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold">Total Recorded Receipts</div>
+            <div class="h3 fw-bold mb-0 text-success">{{ total_receipts|intcomma }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold">Total Recorded Issues</div>
+            <div class="h3 fw-bold mb-0 text-danger">{{ total_issues|intcomma }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Cards Table -->
+<div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="form216-table">
+                <thead class="extra-small text-uppercase text-muted">
+                    <tr>
+                        <th>Code No.</th>
+                        <th>Article</th>
+                        <th>Unit</th>
+                        <th>Folio No.</th>
+                        <th>Location / Bin</th>
+                        <th>B/Fwd Date</th>
+                        <th class="text-center">Receipts</th>
+                        <th class="text-center">Issues</th>
+                        <th class="text-center">Current Balance</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="small">
+                    {% for c in cards %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'view-form216' c.pk %}" class="fw-bold text-dark text-decoration-none">
+                                <i class="fas fa-barcode text-secondary me-2"></i>{{ c.code_no }}
+                            </a>
+                        </td>
+                        <td>
+                            <div class="fw-semibold text-dark">{{ c.article }}</div>
+                            {% if c.linked_asset %}
+                            <div class="extra-small text-muted">Linked Asset: {{ c.linked_asset.name }}</div>
+                            {% endif %}
+                        </td>
+                        <td><span class="badge bg-light text-dark border px-2 py-1">{{ c.unit }}</span></td>
+                        <td><span class="fw-bold text-secondary">{{ c.folio_no }}</span></td>
+                        <td>{{ c.location_bin|default:"Central Stores" }}</td>
+                        <td>{{ c.bforward_date|date:"Y-m-d"|default:"-" }}</td>
+                        <td class="text-center fw-bold text-success">+{{ c.total_receipts|intcomma }}</td>
+                        <td class="text-center fw-bold text-danger">-{{ c.total_issues|intcomma }}</td>
+                        <td class="text-center">
+                            <span class="badge {% if c.current_balance > 0 %}bg-primary{% else %}bg-danger{% endif %} rounded-pill px-3 py-2 fs-6">
+                                {{ c.current_balance|intcomma }}
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'view-form216' c.pk %}" class="btn btn-outline-primary" title="View Stock Ledger">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url 'print-form216' c.pk %}" target="_blank" class="btn btn-outline-dark" title="Print Statutory Form 216">
+                                    <i class="fas fa-print"></i>
+                                </a>
+                                <button type="button" class="btn btn-outline-secondary" title="Edit Card Header"
+                                    onclick="uni_modal('Edit Form 216 Card', '{% url 'manage-form216-pk' c.pk %}', 'modal-lg')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center py-5 text-muted">
+                            <i class="fas fa-table-list fs-1 text-muted opacity-25 d-block mb-3"></i>
+                            <div class="fw-bold fs-6">No Form 216 Stock Cards Found</div>
+                            <div class="extra-small mb-3">Begin by opening an official Stores Stock / Ledger Card for each article or bin location.</div>
+                            <button class="btn btn-warning btn-sm text-dark fw-bold rounded-pill px-4"
+                                onclick="uni_modal('Open New Form 216 Stock Card', '{% url 'manage-form216' %}', 'modal-lg')">
+                                <i class="fas fa-plus me-1"></i> Open First Stock Card
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

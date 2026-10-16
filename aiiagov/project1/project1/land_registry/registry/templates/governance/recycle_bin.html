@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block pageContent %}
+<div class="container-fluid py-5 px-4 animate-reveal">
+    <div class="d-flex justify-content-between align-items-end mb-5">
+        <div>
+            <span class="status-pill status-live text-danger mb-2" style="background: rgba(239, 68, 68, 0.15);">System Recovery</span>
+            <h1 class="display-5 fw-bold mb-0">Project <b>Recycle Bin</b></h1>
+            <p class="text-muted lead mb-0">Deactivated strategic initiatives awaiting restoration or permanent deletion</p>
+        </div>
+        <div>
+            <a href="{% url 'project-list' %}" class="btn glass-panel text-white rounded-pill px-4">
+                <i class="fas fa-arrow-left me-2"></i> Back to Records Intelligence
+            </a>
+        </div>
+    </div>
+
+    {% if deleted_projects %}
+    <div class="row g-4">
+        {% for project in deleted_projects %}
+        <div class="col-lg-6">
+            <div class="glass-panel p-4 h-100 animate-reveal">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <div class="fw-bold fs-5 text-white">{{ project.name }}</div>
+                        <div class="extra-small text-muted">Deleted on: {{ project.deleted_at|naturaltime }}</div>
+                        <div class="extra-small text-muted">Department: {{ project.department.name }}</div>
+                    </div>
+                    <span class="status-pill text-muted" style="background: var(--glass-bg);">Archived</span>
+                </div>
+
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between extra-small mb-1 text-muted">
+                        <span>Restoration window progress</span>
+                        <span>{{ project.progress_percentage }}% completion at deletion</span>
+                    </div>
+                    <div class="progress" style="height: 6px; background: var(--glass-border); border-radius: 10px;">
+                        <div class="progress-bar bg-danger shadow-sm" style="width: {{ project.progress_percentage }}%;"></div>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <a href="{% url 'restore-project' project.pk %}" class="btn btn-success btn-sm rounded-pill px-4 fw-bold">
+                        <i class="fas fa-trash-restore me-2"></i> Restore Project
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="glass-panel p-5 text-center">
+        <div class="display-1 text-muted opacity-10 mb-4"><i class="fas fa-recycle"></i></div>
+        <h3 class="fw-bold text-white">Recycle Bin is Empty</h3>
+        <p class="text-muted">There are no projects currently marked for deletion.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock pageContent %}

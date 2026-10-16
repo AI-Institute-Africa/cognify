@@ -1,0 +1,10 @@
+--- Digital Twin Data Diagnostic ---
+Total Departments: 5
+Total Active Files: 5
+Files with Department assigned: 2
+Total Overdue Borrows (status='0', return_date < 2026-03-03): 1
+Total Active Borrows (status='0'): 2
+  - Borrow ID: 1, File: R20245TY - TAKUE, Return Date: 2026-02-25, Borrow Date: 2026-02-23
+  - Borrow ID: 12, File: R202022S - The Rise, Return Date: 2026-03-04, Borrow Date: 2026-03-03
+Recent Custody Logs (last 5m): 0
+Sample File: R20245TY, Dept: Records Management, Location: None

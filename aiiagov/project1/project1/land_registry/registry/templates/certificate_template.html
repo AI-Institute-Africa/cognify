@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block pageContent %}
+<section class="py-4">
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div><a href="{% url 'certificates' %}" class="btn btn-link text-muted p-0 text-decoration-none mb-2">
+                    <i class="fa fa-arrow-left me-1"></i> Back to certificates</a>
+                <h4 class="fw-bold mb-0"> Official Document Preview</h4></div>
+            <button class="btn btn-outline-dark rounded-pill px-4 shadow-sm" type="button" onclick="printCert()">
+                <i class="fa fa-print me-2"></i> Print Official Document</button></div>
+
+        <div id="certificate-print-area">
+            <div class="certificate-container shadow-lg bg-white p-5 position-relative mx-auto border border-5 border-double border-secondary overflow-hidden"
+                style="max-width: 850px; min-height: 1100px; font-family: 'Times New Roman', Times, serif;">
+                <!-- Watermark -->
+                <div class="position-absolute top-50 start-50 translate-middle opacity-10"
+                    style="z-index: 0; pointer-events: none;">
+                    <i class="fas fa-file-contract" style="font-size: 500px;"></i></div>
+
+                <div class="position-relative" style="z-index: 1;">
+                    <!-- Header -->
+                    <div class="text-center mb-5">
+                        <h1 class="fw-bold mb-1" style="letter-spacing: 2px;"> RIFTS-X STRATEGIC INTELLIGENCE PLATFORM</h1>
+                        <h6 class="text-uppercase text-muted border-bottom border-dark d-inline-block pb-1 mb-4">
+                            Official Institutional Record</h6>
+                        <br><i class="fas fa-balance-scale fs-1 text-dark mb-4"></i></div>
+
+                    <!-- Type -->
+                    <div class="text-center mb-5">
+                        <h2 class="text-uppercase fw-bold"
+                            style="color: #1a1a2e; text-decoration: underline; text-underline-offset: 8px;">
+                            {{ cert.get_certificate_type_display }}</h2></div>
+
+                    <!-- Body -->
+                    <div class="mb-5 px-4" style="font-size: 1.2rem; line-height: 1.8; text-align: justify;">
+                        <p class="mb-4"> This document serves as an official certification regarding the subject
+                            specified below.</p>
+
+                        <div class="mb-4">
+                            <span class="text-muted small fw-bold text-uppercase d-block mb-1"> Subject:</span>
+                            <span class="fs-4 fw-bold text-dark"> {{ cert.subject }}</span></div>
+
+                        <div class="mb-5">
+                            <span class="text-muted small fw-bold text-uppercase d-block mb-1"> Issued to:</span>
+                            <span class="fs-4 fw-bold text-dark"> {{ cert.recipient_name }}</span></div>
+
+                        <div class="document-content border-top border-bottom border-light py-4 mb-5">
+                            {{ cert.content|linebreaks }}</div>
+
+                        <p>Certified by the RIFTS-X Institutional Archive and issued under the authority of the afc bank
+                            Records Intelligence governing board.</p></div>
+
+                    <!-- Signature Area -->
+                    <div class="row mt-5 pt-5">
+                        <div class="col-6">
+                            <div class="text-center">
+                                <div class="border-bottom border-dark w-75 mx-auto mb-2" style="height: 40px;">
+                                    <span class="fst-italic opacity-50 small"> Digitally Signed</span></div>
+                                <span class="fw-bold d-block"> {{ cert.issuer.get_full_name|default:cert.issuer.username
+                                    }}</span>
+                                <small class="text-muted text-uppercase"> Issuing Officer</small></div></div>
+                        <div class="col-6">
+                            <div class="text-center">
+                                <div class="border-bottom border-dark w-75 mx-auto mb-2" style="height: 40px;">
+                                    <span class="fw-bold"> {{ cert.date_created|date:"d F Y" }}</span></div>
+                                <small class="text-muted text-uppercase"> Date of Issuance</small></div></div></div>
+
+                    <!-- Footer / Security -->
+                    <div class="mt-5 pt-5 border-top border-light">
+                        <div class="row align-items-center">
+                            <div class="col-8">
+                                <div class="bg-light p-3 rounded" style="border-left: 5px solid #1a1a2e;">
+                                    <small class="text-muted fw-bold text-uppercase d-block mb-1"> Security Verification
+                                        Code</small>
+                                    <code class="fs-5 fw-bold text-primary"> {{ cert.verification_code }}</code>
+                                    <div class="mt-1 small">
+                                        Scan or visit <strong>http://127.0.0.1:8000/certificate/verify/</strong> to
+                                        confirm authenticity.</div></div></div>
+                            <div class="col-4 text-end">
+                                <div class="d-inline-block p-2 border border-dark rounded">
+                                    <i class="fas fa-qrcode" style="font-size: 80px;"></i></div></div></div></div></div></div></div></div></section>
+
+<style>@media print {
+        body * {
+            visibility: hidden;
+        }
+
+        #certificate-print-area,
+        #certificate-print-area * {
+            visibility: visible;
+        }
+
+        #certificate-print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+        }
+
+        .btn,
+        .btn-link,
+        header,
+        nav,
+        .footer {
+            display: none !important;
+        }
+    }
+
+    .border-double {
+        border-style: double !important;
+    }</style>
+{% endblock pageContent %}
+
+{% block ScriptBlock %}
+<script>function printCert() {
+        window.print();
+    }</script>
+{% endblock ScriptBlock %}
+
+
+
+

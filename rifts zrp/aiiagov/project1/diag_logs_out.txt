@@ -1,0 +1,61 @@
+﻿--- Recent Custody Logs ---
+Time: 2026-03-03 12:31:16.493402+00:00, Action: FEDERATED_TRANSFER, File: TEST-FED-001
+  From Dept: NONE
+  To Dept: NONE
+  Reason: Federated Transfer to University of Zimbabwe (Records): gfhik
+  Acknowledged: False
+--------------------
+Time: 2026-03-03 12:14:26.178117+00:00, Action: TRANSFER, File: R202022S
+  From Dept: Legal Affairs
+  To Dept: Legal Affairs
+  Reason: tyuiop;
+  Acknowledged: False
+--------------------
+Time: 2026-03-03 12:14:25.765608+00:00, Action: TRANSFER, File: R202022S
+  From Dept: Legal Affairs
+  To Dept: Legal Affairs
+  Reason: tyuiop;
+  Acknowledged: False
+--------------------
+Time: 2026-03-03 12:14:25.183058+00:00, Action: TRANSFER, File: R202022S
+  From Dept: Legal Affairs
+  To Dept: Legal Affairs
+  Reason: tyuiop;
+  Acknowledged: False
+--------------------
+Time: 2026-03-03 12:14:24.428449+00:00, Action: TRANSFER, File: R202022S
+  From Dept: Legal Affairs
+  To Dept: Legal Affairs
+  Reason: tyuiop;
+  Acknowledged: False
+--------------------
+Time: 2026-03-03 12:14:22.570261+00:00, Action: TRANSFER, File: R202022S
+  From Dept: Legal Affairs
+  To Dept: Legal Affairs
+  Reason: tyuiop;
+  Acknowledged: False
+--------------------
+Time: 2026-03-03 12:13:25.296803+00:00, Action: FEDERATED_TRANSFER, File: TEST-FED-001
+  From Dept: NONE
+  To Dept: NONE
+  Reason: Federated Transfer to University of Zimbabwe (Legal Department): Inter-institutional review
+  Acknowledged: False
+--------------------
+Time: 2026-03-03 10:12:07.684035+00:00, Action: TRANSFER, File: R202022S
+  From Dept: Legal Affairs
+  To Dept: Legal Affairs
+  Reason: tyuiop;
+  Acknowledged: False
+--------------------
+Time: 2026-03-03 10:12:03.768009+00:00, Action: TRANSFER, File: R202022S
+  From Dept: Legal Affairs
+  To Dept: Legal Affairs
+  Reason: tyuiop;
+  Acknowledged: False
+--------------------
+Time: 2026-03-03 10:12:02.356940+00:00, Action: TRANSFER, File: R202022S
+  From Dept: Legal Affairs
+  To Dept: Legal Affairs
+  Reason: tyuiop;
+  Acknowledged: False
+--------------------

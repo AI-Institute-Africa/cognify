@@ -1,0 +1,315 @@
+{% extends 'base.html' %} {% load static %} {% block pageContent %}
+<section class="py-4">
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h3 class="fw-bold mb-0 text-white"><i class="fas fa-folder-tree text-warning me-2"></i> ZRP Electronic Records & Documents</h3>
+                <p class="text-muted small mb-0">Centralized document registry & classification hierarchy for Zimbabwe Republic Police</p>
+            </div>
+            <button class="btn btn-success rounded-pill px-4 shadow-sm fw-bold" style="background: #003EA6; border-color: #D4AF37;" type="button" id="create_new">
+                <i class="fa fa-plus me-2"></i> Upload / Add New File
+            </button>
+        </div>
+
+        <div class="glass-card p-3 mb-4 mt-3 border border-success border-opacity-25">
+            <form action="" method="GET" class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="extra-small fw-bold text-muted text-uppercase mb-1"> Search Reference / Title</label>
+                    <div class="input-group input-group-sm mb-0">
+                        <span class="input-group-text bg-transparent border-end-0 text-muted"> <i class="fas fa-search"></i></span>
+                        <input type="text" name="q" class="form-control bg-transparent border-start-0 text-white shadow-none"
+                            placeholder="HR-LEAVE-ANNUAL_LEAVE..." value="{{ request.GET.q|default:'' }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="extra-small fw-bold text-muted text-uppercase mb-1"> Classification Level</label>
+                    <select name="classification" class="form-select form-select-sm bg-dark text-white shadow-none border-secondary">
+                        <option value=""> All Classification Levels</option>
+                        <option value="Open Access" {% if request.GET.classification == 'Open Access' %}selected{% endif %}>Open Access</option>
+                        <option value="Departmental" {% if request.GET.classification == 'Departmental' %}selected{% endif %}>Departmental</option>
+                        <option value="Confidential" {% if request.GET.classification == 'Confidential' %}selected{% endif %}>Confidential</option>
+                        <option value="Restricted/Highly Confidential" {% if request.GET.classification == 'Restricted/Highly Confidential' %}selected{% endif %}>Restricted/Highly Confidential</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="extra-small fw-bold text-muted text-uppercase mb-1"> Department</label>
+                    <select name="department" class="form-select form-select-sm bg-dark text-white shadow-none border-secondary">
+                        <option value=""> All Departments</option>
+                        {% for d in departments %}
+                        <option value="{{ d.id }}" {% if request.GET.department|add:0 == d.id %}selected{% endif %}>
+                            {{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-success btn-sm rounded-pill px-3 flex-grow-1 fw-bold" style="background: #003EA6;"> Filter</button>
+                    <a href="{% url 'file_doc-page' %}" class="btn btn-outline-light btn-sm rounded-pill"> <i class="fas fa-undo"></i></a>
+                </div>
+            </form>
+        </div>
+
+        <div class="glass-card border-0 shadow-sm overflow-hidden">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="file_doc-tbl">
+                        <thead>
+                            <tr class="bg-success bg-opacity-10 text-white">
+                                <th class="text-center py-3"> #</th>
+                                <th class="py-3"> Date Added</th>
+                                <th class="py-3"> Hierarchy / SubCategory</th>
+                                <th class="py-3"> Classification</th>
+                                <th class="py-3"> Ref Num</th>
+                                <th class="py-3"> File Title</th>
+                                <th class="text-center py-3"> Status</th>
+                                <th class="text-center py-3"> Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>{% for file_doc in file_doc %}
+                            <tr>
+                                <td class="text-center"> {{ forloop.counter }}</td>
+                                <td class="text-muted small"> {{ file_doc.date_added|date:"Y-m-d h:i A"}}</td>
+                                <td>
+                                    <div class="lh-1">
+                                        <div class="fw-bold text-success small">{{ file_doc.sub_category.category.name }}</div>
+                                        <div class="text-muted extra-small">{{ file_doc.sub_category.name }}</div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if file_doc.classification_level == 'Open Access' %}
+                                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 rounded-pill extra-small"><i class="fas fa-globe me-1"></i> Open Access</span>
+                                    {% elif file_doc.classification_level == 'Confidential' %}
+                                        <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25 rounded-pill extra-small"><i class="fas fa-user-lock me-1"></i> Confidential</span>
+                                    {% elif file_doc.classification_level == 'Restricted/Highly Confidential' %}
+                                        <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25 rounded-pill extra-small"><i class="fas fa-shield-alt me-1"></i> Restricted</span>
+                                    {% else %}
+                                        <span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-25 rounded-pill extra-small"><i class="fas fa-building me-1"></i> Departmental</span>
+                                    {% endif %}
+                                </td>
+                                <td class="fw-bold text-white small"> {{ file_doc.ref_num}}</td>
+                                <td class="small text-white">
+                                    {{ file_doc.title }}
+                                    {% if file_doc.is_masked %}
+                                    <span class="badge bg-danger bg-opacity-10 text-danger ms-1 extra-small border border-danger border-opacity-25"> MASKED</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if file_doc.status == '1' %}
+                                    <span class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 px-2 rounded-pill"> Active</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary bg-opacity-20 text-secondary border border-secondary border-opacity-25 px-2 rounded-pill"> Archived</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center small">
+                                    <span class="text-muted"> {{ file_doc.f_status }}</span></td>
+                                <td class="text-center">
+                                    <div class="dropdown">
+                                        <button
+                                            class="btn btn-link btn-sm text-muted text-decoration-none dropdown-toggle"
+                                            type="button" id="abtn{{file_doc.pk}}" data-bs-toggle="dropdown"
+                                            aria-expanded="false">
+                                            <i class="fas fa-ellipsis-v"></i></button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 glass-card"
+                                            aria-labelledby="abtn{{file_doc.pk}}">
+                                            <li><a class="dropdown-item view-data" href="javascript:void(0)"
+                                                    data-url="{% url 'view-file_doc-pk' file_doc.pk %}"> <i
+                                                        class="fa fa-eye me-2 opacity-50"></i> View</a></li>
+                                            <li><a class="dropdown-item share-data" href="javascript:void(0)"
+                                                    data-url="{% url 'generate-secure-link' file_doc.pk %}"> <i
+                                                        class="fa fa-share-alt me-2 text-info opacity-50"></i> Secure
+                                                    Share</a></li>
+                                            <li><a class="dropdown-item digital-transfer" href="javascript:void(0)"
+                                                    data-url="{% url 'share-file-digital' file_doc.pk %}"> <i
+                                                        class="fa fa-paper-plane me-2 text-success opacity-50"></i>
+                                                    Digital Transfer</a></li>
+                                            <li><a class="dropdown-item edit-data" href="javascript:void(0)"
+                                                    data-url="{% url 'manage-file_doc-pk' file_doc.pk %}"> <i
+                                                        class="fa fa-edit me-2 text-primary opacity-50"></i> Update
+                                                    File</a></li>
+                                            <li><a class="dropdown-item" href="{% url 'file-timeline' file_doc.pk %}"> <i
+                                                        class="fa fa-history me-2 text-warning opacity-50"></i> View
+                                                    Timeline</a></li>
+                                            <li><a class="dropdown-item handover-file" href="javascript:void(0)"
+                                                    data-id="{{ file_doc.pk }}" data-ref="{{ file_doc.ref_num }}"> <i
+                                                        class="fa fa-hand-holding me-2 text-info opacity-50"></i>
+                                                    Handover (Internal)</a></li>
+                                            <li><a class="dropdown-item transfer-file" href="javascript:void(0)"
+                                                    data-id="{{ file_doc.pk }}" data-ref="{{ file_doc.ref_num }}"> <i
+                                                        class="fa fa-exchange-alt me-2 text-secondary opacity-50"></i>
+                                                    Transfer (Dept)</a></li>
+                                            <li><a class="dropdown-item" href="{% url 'file-digital-twin' file_doc.pk %}"> <i class="fa fa-cube me-2 text-primary"></i> Digital Twin & Workflow</a></li>
+                                            <li><a class="dropdown-item" href="javascript:void(0)" onclick="openMoveModal({{ file_doc.pk }}, '{{ file_doc.ref_num|escapejs }}')"> <i class="fa fa-arrows-up-down-left-right me-2 text-warning"></i> Move Category / SubCategory</a></li>
+                                            {% if file_doc.status == '1' %}
+                                            <li><a class="dropdown-item" href="{% url 'archive-document' file_doc.pk %}" onclick="return confirm('Archive this document?')"> <i class="fa fa-box-archive me-2 text-secondary"></i> Archive File</a></li>
+                                            {% else %}
+                                            <li><a class="dropdown-item" href="{% url 'restore-document' file_doc.pk %}" onclick="return confirm('Restore this document from archive?')"> <i class="fa fa-rotate-left me-2 text-success"></i> Restore File</a></li>
+                                            {% endif %}
+                                            <li><hr class="dropdown-divider opacity-10"></li>
+                                            <li><a class="dropdown-item delete-data" href="javascript:void(0)"
+                                                    data-url="{% url 'delete-file_doc' file_doc.pk %}"> <i
+                                                        class="fa fa-trash me-2 text-danger opacity-50"></i> Delete</a></li></ul></div></td></tr>
+                            {% endfor %}</tbody></table></div></div></div></div></section>
+
+<style>.extra-small {
+        font-size: 0.7rem;
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: rgba(0, 123, 255, 0.02);
+    }
+
+    .dropdown-item:hover {
+        background-color: rgba(0, 123, 255, 0.05);
+    }
+
+    .badge {
+        font-weight: 500;
+        font-size: 0.75rem;
+    }</style>
+{% endblock pageContent %} {% block ScriptBlock %}
+<script>$(function () {
+        $('#create_new').click(function () {
+            uni_modal(" <i class='fa fa-plus'></i> Add New File", "{% url 'manage-file_doc' %}", "modal-lg")
+        })
+        $('.edit-data').click(function () {
+            uni_modal(" <i class='fa fa-edit'></i> Edit File Details", $(this).attr('data-url'), "modal-lg")
+        })
+        $('.view-data').click(function () {
+            uni_modal(" <i class='fa fa-th-list'></i> File Details", $(this).attr('data-url'))
+        })
+        $('.view_image').click(function () {
+            var img = $(this).attr('data-img-url')
+            $('#viewer_modal #img-viewer-field').attr('src', img)
+            $('#viewer_modal').modal('show')
+        })
+        $('.delete-data').click(function () {
+            _conf("Are you sure to delete this File?", 'delete_file_doc', ["'" + $(this).attr('data-url') + "'"])
+        })
+        $('.digital-transfer').click(function () {
+            uni_modal(" <i class='fa fa-paper-plane'></i> Initiate Digital Transfer", $(this).attr('data-url'))
+        })
+        $('#file_doc-tbl').find('td, th').addClass('px-2 py-1 align-middle')
+        $('#file_doc-tbl').DataTable({
+            columnDefs: [{
+                orderable: false,
+                targets: [4]
+            }],
+            lengthMenu: [
+                [25, 50, 100, -1],
+                [25, 50, 100, "All"]
+            ]
+        })
+
+        $('.share-data').click(function () {
+            var url = $(this).attr('data-url');
+            start_loader();
+            $.ajax({
+                url: url,
+                dataType: 'json',
+                success: function (resp) {
+                    end_loader();
+                    if (resp.status == 'success') {
+                        // Display the link in a modal or alert (Antigravity design: seamless prompt)
+                        Swal.fire({
+                            title: 'Secure Link Generated',
+                            html: ` <div class="p-3 bg-light rounded-pill border mb-3 font-monospace" style="font-size:0.8rem; overflow:hidden; text-overflow:ellipsis;"> ${resp.url}</div>
+                                   <p class="small text-muted"> This link requires <b>Proof of Knowledge</b> and expires in 2 hours.</p> `,
+                            icon: 'success',
+                            confirmButtonText: ' <i class="fas fa-copy me-2"></i> Copy Link',
+                            preConfirm: () => {
+                                navigator.clipboard.writeText(resp.url);
+                                Swal.fire('Copied!', 'Link copied to clipboard.', 'success');
+                            }
+                        });
+                    }
+                },
+                error: () => {
+                    end_loader();
+                    alert("Failed to generate secure link.");
+                }
+            });
+        });
+
+        $('.handover-file').click(function () {
+            var id = $(this).attr('data-id');
+            var ref = $(this).attr('data-ref');
+            uni_modal(` <i class='fa fa-hand-holding'></i> Handover: ${ref}`, `{% url 'handover-modal' %}?id=${id}`)
+        });
+
+        $('.transfer-file').click(function () {
+            var id = $(this).attr('data-id');
+            var ref = $(this).attr('data-ref');
+            uni_modal(` <i class='fa fa-exchange-alt'></i> Department Transfer: ${ref}`, `{% url 'transfer-modal' %}?id=${id}`)
+        });
+
+        $('.federated-transfer').click(function () {
+            var id = $(this).attr('data-id');
+            var ref = $(this).attr('data-ref');
+            uni_modal(` <i class='fa fa-project-diagram'></i> Federated Transfer: ${ref}`, `{% url 'federated-transfer-modal' %}?id=${id}`)
+        });
+    })
+
+    function delete_file_doc(url) {
+        var _this = $('#confirm_modal .modal-body')
+        $('.err-msg').remove();
+        var el = $(' <div>')
+        el.addClass("alert alert-danger err-msg")
+        el.hide()
+        start_loader()
+        $.ajax({
+            headers: {
+                "X-CSRFToken": "{{csrf_token}}"
+            },
+            url: url,
+            dataType: 'JSON',
+            error: err => {
+                console.log(err)
+                alert("an error occurred.")
+                end_loader()
+            },
+            success: function (resp) {
+                if (resp.status == 'success') {
+                    location.reload()
+                } else if (!!resp.msg) {
+                    el.html(resp.msg)
+                    _this.prepend(el)
+                    el.show()
+                } else {
+                    el.html("An error occurred")
+                    _this.prepend(el)
+                    el.show()
+                }
+                end_loader()
+            }
+        })
+    }
+
+    function openMoveModal(fileId, fileRef) {
+        let optionsHtml = '';
+        {% for cat in categories %}
+            optionsHtml += '<optgroup label="{{ cat.name|escapejs }}">';
+            {% for sub in cat.subcategory_set.all %}
+                optionsHtml += '<option value="{{ sub.id }}">{{ sub.name|escapejs }}</option>';
+            {% endfor %}
+            optionsHtml += '</optgroup>';
+        {% endfor %}
+
+        const html = `
+            <form action="/files/${fileId}/move/" method="POST" id="moveDocForm">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Select Target ZRP Hierarchy Folder / SubCategory</label>
+                    <select name="target_sub_category" class="form-select text-white bg-dark border-secondary" required>
+                        ${optionsHtml}
+                    </select>
+                </div>
+                <div class="text-end">
+                    <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold">Execute Move</button>
+                </div>
+            </form>
+        `;
+        $('#uni_modal .modal-title').html('<i class="fas fa-arrows-up-down-left-right me-2"></i> Move File: ' + fileRef);
+        $('#uni_modal .modal-body').html(html);
+        $('#uni_modal').modal('show');
+    }
+</script>
+{% endblock ScriptBlock %}

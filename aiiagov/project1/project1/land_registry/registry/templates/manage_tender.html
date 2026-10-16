@@ -1,0 +1,91 @@
+<div class="container-fluid">
+    <form action="" id="tender-form">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{ tender.id|default:'' }}">
+
+        <div class="row g-3">
+            <div class="col-md-8">
+                <label for="title" class="control-label extra-small fw-bold text-uppercase text-muted mb-1"> Tender
+                    Title</label>
+                {{ form.title }}</div>
+            <div class="col-md-4">
+                <label for="ref_num" class="control-label extra-small fw-bold text-uppercase text-muted mb-1"> Reference
+                    #</label>
+                {{ form.ref_num }}</div>
+
+            <div class="col-12">
+                <label for="description" class="control-label extra-small fw-bold text-uppercase text-muted mb-1"> Scope
+                    of Work / Description</label>
+                {{ form.description }}</div>
+
+            <div class="col-md-4">
+                <label for="tender_type" class="control-label extra-small fw-bold text-uppercase text-muted mb-1"> Tender
+                    Type</label>
+                {{ form.tender_type }}</div>
+            <div class="col-md-4">
+                <label for="budget" class="control-label extra-small fw-bold text-uppercase text-muted mb-1"> Estimated
+                    Budget ($)</label>
+                {{ form.budget }}</div>
+            <div class="col-md-4">
+                <label for="closing_date"
+                    class="control-label extra-small fw-bold text-uppercase text-muted mb-1"> Closing Date & Time</label>
+                {{ form.closing_date }}</div>
+
+            <div class="col-md-6">
+                <label for="department" class="control-label extra-small fw-bold text-uppercase text-muted mb-1"> Issuing
+                    Department</label>
+                {{ form.department }}</div>
+            <div class="col-md-6">
+                <label for="status" class="control-label extra-small fw-bold text-uppercase text-muted mb-1"> Process
+                    Status</label>
+                {{ form.status }}</div></div></form></div>
+
+<script>$(function () {
+        $('#tender-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg")
+            el.hide()
+            start_loader()
+            $.ajax({
+                headers: {
+                    "X-CSRFToken": '{{ csrf_token }}'
+                },
+                url: "{% url 'save-tender' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.log(err)
+                    alert_toast("An error occured", 'error');
+                    end_loader()
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.text(resp.msg)
+                    } else {
+                        el.text("An error occured", 'error');
+                        end_loader()
+                    }
+                    _this.prepend(el)
+                    el.show('slow')
+                    $("html, body, .modal").animate({
+                        scrollTop: 0
+                    }, "fast");
+                    end_loader()
+                }
+            })
+        })
+    })</script>
+
+
+
+

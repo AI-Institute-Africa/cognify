@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+{% load static folder_perms %}
+{% block headerContent %}
+<style>
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .navbar, .sidebar, .btn, .no-print {
+    display: none !important;
+  }
+  .container-fluid {
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .printable-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+}
+.printable-sheet {
+  background: var(--secondary-color, #fff);
+  border: 1px solid var(--glass-border, rgba(0,0,0,0.1));
+  border-radius: 16px;
+  padding: 3rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+  max-width: 900px;
+  margin: 0 auto;
+}
+.seal-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--text-color, #333);
+  padding-bottom: 1.5rem;
+  margin-bottom: 2rem;
+}
+.sig-box {
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  background: rgba(255,255,255,0.02);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.sig-img {
+  max-height: 80px;
+  object-fit: contain;
+  margin: 1rem 0;
+  display: block;
+}
+.sig-placeholder {
+  height: 80px;
+  margin: 1rem 0;
+  border: 2px dashed rgba(0,0,0,0.1);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-size: 0.85rem;
+}
+.extra-small {
+  font-size: 0.75rem;
+}
+</style>
+{% endblock headerContent %}
+{% block pageContent %}
+<div class="container-fluid py-4">
+  <!-- Back and Print actions -->
+  <div class="d-flex align-items-center justify-content-between mb-4 no-print">
+    <div class="d-flex align-items-center gap-3">
+      <a href="{% url 'supply-requisition-view' req.pk %}" class="btn btn-outline-secondary rounded-pill px-3">
+        <i class="fas fa-arrow-left me-1"></i>Back
+      </a>
+      <div>
+        <h4 class="fw-bold mb-0">Signatories Sheet</h4>
+        <p class="text-muted small mb-0">Official compliance and authorization record for requisition {{ req.ref_number }}</p>
+      </div>
+    </div>
+    <button onclick="window.print()" class="btn btn-primary rounded-pill px-4 shadow-sm">
+      <i class="fas fa-print me-2"></i>Print Signatories Sheet
+    </button>
+  </div>
+
+  <div class="printable-sheet">
+    <!-- Document Header -->
+    <div class="seal-container">
+      <div>
+        <h3 class="fw-bold mb-0 text-uppercase">Purchase Requisition Signatories</h3>
+        <p class="text-muted small mb-0">Republic of Zimbabwe &bull; Land Registry &bull; RIFTS-X Governance</p>
+      </div>
+      <img src="https://www.zimplaza.co.zw/wp-content/uploads/zimbawecourtofarms1540028387.jpg" alt="Coat of Arms" style="height: 70px; object-fit: contain;">
+    </div>
+
+    <!-- Requisition Details Grid -->
+    <div class="mb-5">
+      <h6 class="fw-bold text-muted text-uppercase mb-3" style="font-size: 0.75rem; letter-spacing: 0.1em;">Requisition Metadata</h6>
+      <div class="row g-3 bg-light p-3 rounded-3 text-dark">
+        <div class="col-sm-6 col-md-3">
+          <span class="d-block text-muted small">Ref Number</span>
+          <span class="fw-bold">{{ req.ref_number }}</span>
+        </div>
+        <div class="col-sm-6 col-md-3">
+          <span class="d-block text-muted small">Department</span>
+          <span class="fw-semibold">{{ req.department.name|default:"—" }}</span>
+        </div>
+        <div class="col-sm-6 col-md-3">
+          <span class="d-block text-muted small">Requested By</span>
+                      <span class="fw-semibold">{{ req.requester|safe_name }}</span>
+        </div>
+        <div class="col-sm-6 col-md-3">
+          <span class="d-block text-muted small">Grand Total</span>
+          <span class="fw-bold text-primary">{{ req.grand_total|floatformat:2 }}</span>
+        </div>
+        <div class="col-12 mt-2">
+          <span class="d-block text-muted small">Purpose</span>
+          <span class="small">{{ req.purpose }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Signatories Listing -->
+    <h6 class="fw-bold text-muted text-uppercase mb-3" style="font-size: 0.75rem; letter-spacing: 0.1em;">Authorization & E-Signatures</h6>
+    <div class="row g-4">
+      
+      <!-- Requester Stage -->
+      <div class="col-md-3">
+        <div class="sig-box">
+          <div>
+            <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2 mb-2 extra-small">Stage 1: Requester</span>
+                          <h6 class="fw-bold mb-1">{{ req.requester|safe_name }}</h6>
+            <p class="text-muted extra-small mb-0">{{ req.requester.security_profile.get_role_display|default:"Requester" }}</p>
+          </div>
+          {% with s=req.requester_signatory %}
+          <div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}
+                <img src="{{ s.signature_data }}" class="sig-img" alt="Signature">
+              {% elif s.uploaded_signature %}
+                <img src="{{ s.uploaded_signature.url }}" class="sig-img" alt="Signature">
+              {% else %}
+                <div class="sig-placeholder text-success">Signed Digitally</div>
+              {% endif %}
+              <div class="text-success extra-small mt-2">
+                <i class="fas fa-check-circle me-1"></i>Signed on {{ s.date_signed|date:"d M Y" }}
+              </div>
+              <div class="extra-small text-muted mt-1">IP: {{ s.ip_address|default:"Unknown" }}</div>
+            {% else %}
+              <div class="sig-placeholder"><i class="fas fa-clock me-2"></i>Pending Signature</div>
+            {% endif %}
+          </div>
+          {% endwith %}
+        </div>
+      </div>
+
+      <!-- Supervisor Stage -->
+      <div class="col-md-3">
+        <div class="sig-box">
+          <div>
+            <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-2 mb-2 extra-small">Stage 2: Supervisor</span>
+                          <h6 class="fw-bold mb-1">{{ req.supervisor|safe_name }}</h6>
+            <p class="text-muted extra-small mb-0">{{ req.supervisor.security_profile.get_role_display|default:"Supervisor" }}</p>
+          </div>
+          {% with s=req.supervisor_signatory %}
+          <div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}
+                <img src="{{ s.signature_data }}" class="sig-img" alt="Signature">
+              {% elif s.uploaded_signature %}
+                <img src="{{ s.uploaded_signature.url }}" class="sig-img" alt="Signature">
+              {% else %}
+                <div class="sig-placeholder text-success">Signed Digitally</div>
+              {% endif %}
+              <div class="text-success extra-small mt-2">
+                <i class="fas fa-check-circle me-1"></i>Approved on {{ s.date_signed|date:"d M Y" }}
+              </div>
+              <div class="extra-small text-muted mt-1">IP: {{ s.ip_address|default:"Unknown" }}</div>
+              {% if s.comments %}
+                <div class="extra-small text-muted mt-2 font-italic">"{{ s.comments }}"</div>
+              {% endif %}
+            {% else %}
+              <div class="sig-placeholder"><i class="fas fa-clock me-2"></i>Pending Approval</div>
+            {% endif %}
+          </div>
+          {% endwith %}
+        </div>
+      </div>
+
+      <!-- Department Manager Stage -->
+      <div class="col-md-3">
+        <div class="sig-box">
+          <div>
+            <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-2 mb-2 extra-small">Stage 3: Department Manager</span>
+            <h6 class="fw-bold mb-1">{{ req.dept_manager|safe_name }}</h6>
+            <p class="text-muted extra-small mb-0">{{ req.dept_manager.security_profile.get_role_display|default:"Dept Manager" }}</p>
+          </div>
+          {% with s=req.dept_manager_signatory %}
+          <div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}
+                <img src="{{ s.signature_data }}" class="sig-img" alt="Signature">
+              {% elif s.uploaded_signature %}
+                <img src="{{ s.uploaded_signature.url }}" class="sig-img" alt="Signature">
+              {% else %}
+                <div class="sig-placeholder text-success">Signed Digitally</div>
+              {% endif %}
+              <div class="text-success extra-small mt-2">
+                <i class="fas fa-check-circle me-1"></i>Approved on {{ s.date_signed|date:"d M Y" }}
+              </div>
+              <div class="extra-small text-muted mt-1">IP: {{ s.ip_address|default:"Unknown" }}</div>
+              {% if s.comments %}
+                <div class="extra-small text-muted mt-2 font-italic">"{{ s.comments }}"</div>
+              {% endif %}
+            {% else %}
+              <div class="sig-placeholder"><i class="fas fa-clock me-2"></i>Pending Approval</div>
+            {% endif %}
+          </div>
+          {% endwith %}
+        </div>
+      </div>
+
+      <!-- Deputy Director Stage -->
+      <div class="col-md-3">
+        <div class="sig-box">
+          <div>
+            <span class="badge bg-info bg-opacity-10 text-info rounded-pill px-2 mb-2 extra-small">Stage 4: Deputy Director</span>
+            <h6 class="fw-bold mb-1">{{ req.deputy_director|safe_name }}</h6>
+            <p class="text-muted extra-small mb-0">{{ req.deputy_director.security_profile.get_role_display|default:"Deputy Director" }}</p>
+          </div>
+          {% with s=req.deputy_director_signatory %}
+          <div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}
+                <img src="{{ s.signature_data }}" class="sig-img" alt="Signature">
+              {% elif s.uploaded_signature %}
+                <img src="{{ s.uploaded_signature.url }}" class="sig-img" alt="Signature">
+              {% else %}
+                <div class="sig-placeholder text-success">Signed Digitally</div>
+              {% endif %}
+              <div class="text-success extra-small mt-2">
+                <i class="fas fa-check-circle me-1"></i>Approved on {{ s.date_signed|date:"d M Y" }}
+              </div>
+              <div class="extra-small text-muted mt-1">IP: {{ s.ip_address|default:"Unknown" }}</div>
+              {% if s.comments %}
+                <div class="extra-small text-muted mt-2 font-italic">"{{ s.comments }}"</div>
+              {% endif %}
+            {% else %}
+              <div class="sig-placeholder"><i class="fas fa-clock me-2"></i>Pending Approval</div>
+            {% endif %}
+          </div>
+          {% endwith %}
+        </div>
+      </div>
+
+      <!-- Purchasing Officer Stage -->
+      <div class="col-md-3">
+        <div class="sig-box">
+          <div>
+            <span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-2 mb-2 extra-small">Stage 5: Purchasing Officer</span>
+            <h6 class="fw-bold mb-1">{{ req.purchasing_officer|safe_name }}</h6>
+            <p class="text-muted extra-small mb-0">{{ req.purchasing_officer.security_profile.get_role_display|default:"Purchasing Officer" }}</p>
+          </div>
+          {% with s=req.purchasing_officer_signatory %}
+          <div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}
+                <img src="{{ s.signature_data }}" class="sig-img" alt="Signature">
+              {% elif s.uploaded_signature %}
+                <img src="{{ s.uploaded_signature.url }}" class="sig-img" alt="Signature">
+              {% else %}
+                <div class="sig-placeholder text-success">Signed Digitally</div>
+              {% endif %}
+              <div class="text-success extra-small mt-2">
+                <i class="fas fa-check-circle me-1"></i>Approved on {{ s.date_signed|date:"d M Y" }}
+              </div>
+              {% if s.purchase_order %}
+                <div class="extra-small text-primary mt-1 fw-bold">PO #: {{ s.purchase_order }}</div>
+              {% endif %}
+              {% if s.date_received %}
+                <div class="extra-small text-muted mt-1">Received: {{ s.date_received|date:"d M Y" }}</div>
+              {% endif %}
+              <div class="extra-small text-muted mt-1">IP: {{ s.ip_address|default:"Unknown" }}</div>
+              {% if s.comments %}
+                <div class="extra-small text-muted mt-2 font-italic">"{{ s.comments }}"</div>
+              {% endif %}
+            {% else %}
+              <div class="sig-placeholder"><i class="fas fa-clock me-2"></i>Pending Approval</div>
+            {% endif %}
+          </div>
+          {% endwith %}
+        </div>
+      </div>
+
+      <!-- Chief Director Stage -->
+      <div class="col-md-3">
+        <div class="sig-box">
+          <div>
+            <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-2 mb-2 extra-small">Stage 6: Chief Director</span>
+            <h6 class="fw-bold mb-1">{{ req.ceo|safe_name }}</h6>
+            <p class="text-muted extra-small mb-0">{{ req.ceo.security_profile.get_role_display|default:"Chief Director" }}</p>
+          </div>
+          {% with s=req.ceo_signatory %}
+          <div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}
+                <img src="{{ s.signature_data }}" class="sig-img" alt="Signature">
+              {% elif s.uploaded_signature %}
+                <img src="{{ s.uploaded_signature.url }}" class="sig-img" alt="Signature">
+              {% else %}
+                <div class="sig-placeholder text-success">Signed Digitally</div>
+              {% endif %}
+              <div class="text-success extra-small mt-2">
+                <i class="fas fa-check-circle me-1"></i>Approved on {{ s.date_signed|date:"d M Y" }}
+              </div>
+              <div class="extra-small text-muted mt-1">IP: {{ s.ip_address|default:"Unknown" }}</div>
+              {% if s.comments %}
+                <div class="extra-small text-muted mt-2 font-italic">"{{ s.comments }}"</div>
+              {% endif %}
+            {% else %}
+              <div class="sig-placeholder"><i class="fas fa-clock me-2"></i>Pending Approval</div>
+            {% endif %}
+          </div>
+          {% endwith %}
+        </div>
+      </div>
+
+      <!-- Finance Officer Stage -->
+      <div class="col-md-3">
+        <div class="sig-box">
+          <div>
+            <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2 mb-2 extra-small">Stage 7: Finance Officer</span>
+            <h6 class="fw-bold mb-1">{{ req.finance_officer|safe_name }}</h6>
+            <p class="text-muted extra-small mb-0">{{ req.finance_officer.security_profile.get_role_display|default:"Finance Officer" }}</p>
+          </div>
+          {% with s=req.finance_officer_signatory %}
+          <div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}
+                <img src="{{ s.signature_data }}" class="sig-img" alt="Signature">
+              {% elif s.uploaded_signature %}
+                <img src="{{ s.uploaded_signature.url }}" class="sig-img" alt="Signature">
+              {% else %}
+                <div class="sig-placeholder text-success">Signed Digitally</div>
+              {% endif %}
+              <div class="text-success extra-small mt-2">
+                <i class="fas fa-check-circle me-1"></i>Approved on {{ s.date_signed|date:"d M Y" }}
+              </div>
+              <div class="extra-small text-muted mt-1">IP: {{ s.ip_address|default:"Unknown" }}</div>
+              {% if s.comments %}
+                <div class="extra-small text-muted mt-2 font-italic">"{{ s.comments }}"</div>
+              {% endif %}
+            {% else %}
+              <div class="sig-placeholder"><i class="fas fa-clock me-2"></i>Pending Approval</div>
+            {% endif %}
+          </div>
+          {% endwith %}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Official Stamp & Verification footer -->
+    <div class="mt-5 pt-4 border-top border-1">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <span class="d-block extra-small text-muted">Verification ID: SECURE-SR-{{ req.pk }}-{{ req.date_requested|date:"U" }}</span>
+          <span class="d-block extra-small text-muted">Printed on: {{ today_date }}</span>
+        </div>
+        <div class="text-end">
+          <span class="badge bg-secondary rounded-3 px-3 py-2 no-print">RIFTS-X SECURE SIGNATURE SERVICE</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock pageContent %}

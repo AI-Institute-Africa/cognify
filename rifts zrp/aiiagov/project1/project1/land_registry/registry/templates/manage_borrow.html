@@ -1,0 +1,113 @@
+{% load static %}
+<div class="container-fluid">
+    <form action="" id="borrow-form">
+        <input type="hidden" name="id" value="{{ borrow.id }}">
+        <input type="hidden" name="code" value="generate_code">
+        <div class="row">
+            <div class="col-lg-6 col-md-6 col-sm-12">
+                <div class="mb-4">
+                    <label for="file_doc" class="form-label small fw-bold text-muted text-uppercase mb-2"> Records Intelligence
+                        File</label>
+                    <select id="file_doc" name="file_doc" class="form-select border-0 shadow-sm rounded-pill" required>
+                        {% if not borrow %}
+                        <option value="" selected disabled> Select File</option>
+                        {% endif %}
+                        {% for f in file_doc %}
+                        <option value="{{ f.id }}" {% if borrow.file_doc.id == f.id %}selected{% endif %} > {{ f }}</option>
+                        {% endfor %}</select></div></div>
+            <div class="col-lg-6 col-md-6 col-sm-12">
+                <div class="mb-4">
+                    <label for="borrower" class="form-label small fw-bold text-muted text-uppercase mb-2"> Borrower /
+                        Officer</label>
+                    <select id="borrower" name="borrower" class="form-select border-0 shadow-sm rounded-pill" required>
+                        {% if not borrow %}
+                        <option value="" selected disabled> Select Officer</option>
+                        {% endif %}
+                        {% for b in borrower %}
+                        <option value="{{ b.id }}" data-email="{{ b.email }}" {% if borrow.borrower.id == b.id %}selected{% endif %} > {{ b.code }} - {{ b.first_name }} {{ b.last_name }}</option>
+                        {% endfor %}</select></div></div>
+            <div class="col-lg-6 col-md-6 col-sm-12">
+                <div class="mb-4">
+                    <label for="borrowing_date" class="form-label small fw-bold text-muted text-uppercase mb-2"> Issue
+                        Date</label>
+                    <input type="date" id="borrowing_date" name="borrowing_date"
+                        class="form-control border-0 shadow-sm rounded-pill px-3"
+                        value="{% if borrow %}{{ borrow.borrowing_date|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}"
+                        required></div></div>
+            <div class="col-lg-6 col-md-6 col-sm-12">
+                <div class="mb-4">
+                    <label for="return_date" class="form-label small fw-bold text-muted text-uppercase mb-2"> Return Due
+                        Date</label>
+                    <input type="date" id="return_date" name="return_date"
+                        class="form-control border-0 shadow-sm rounded-pill px-3"
+                        value="{{ borrow.return_date|date:'Y-m-d' }}" min="{% now 'Y-m-d' %}" required></div></div>
+            <div class="col-lg-7 col-md-8 col-sm-12">
+                <div class="mb-4">
+                    <label for="folio_ref" class="form-label small fw-bold text-muted text-uppercase mb-2"> Folio ID /
+                        Reference</label>
+                    <input type="text" id="folio_ref" name="folio_ref"
+                        class="form-control border-0 shadow-sm rounded-pill px-3 font-monospace"
+                        placeholder="Enter Reference" value="{{ borrow.folio_ref }}" required></div></div>
+            <div class="col-lg-6 col-md-6 col-sm-12">
+                <div class="mb-4">
+                    <label for="cloud_folder_id" class="form-label small fw-bold text-muted text-uppercase mb-2"> Attach Cloud Folder</label>
+                    <select id="cloud_folder_id" name="cloud_folder_id" class="form-select border-0 shadow-sm rounded-pill px-3">
+                        <option value="" {% if not borrow.issued_folder %}selected{% endif %}>No folder attached</option>
+                        {% for folder in cloud_folders %}
+                        <option value="{{ folder.id }}" {% if borrow.issued_folder and borrow.issued_folder.id == folder.id %}selected{% endif %}>{{ folder.department.name }} / {{ folder.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text extra-small mt-1 text-muted">Optional: Include a cloud folder bundle with this issuance.</div>
+                </div>
+            </div>
+            <div class="col-lg-6 col-md-6 col-sm-12">
+                <div class="mb-4">
+                    <label class="form-label small fw-bold text-muted text-uppercase mb-2"> Folder Edit Permission</label>
+                    <div class="form-check form-check-inline text-white-50">
+                        <input class="form-check-input" type="radio" name="folder_permission" id="folder_permission_view" value="view" {% if borrow.folder_permission != 'edit' %}checked{% endif %}>
+                        <label class="form-check-label" for="folder_permission_view">View Only</label>
+                    </div>
+                    <div class="form-check form-check-inline text-white-50">
+                        <input class="form-check-input" type="radio" name="folder_permission" id="folder_permission_edit" value="edit" {% if borrow.folder_permission == 'edit' %}checked{% endif %}>
+                        <label class="form-check-label" for="folder_permission_edit">Edit Allowed</label>
+                    </div>
+                    <div class="form-text extra-small mt-1 text-muted">Set whether the recipient may edit documents inside the issued folder bundle.</div>
+                </div>
+            </div>
+        </div></form></div>
+<script>$(function () {
+        $('#uni_modal').on('shown.bs.modal', function () {
+            $('#borrower').select2({ placeholder: 'Please Select Borrower Here', width: '100%', dropdownParent: $('#uni_modal') });
+            $('#file_doc').select2({ placeholder: 'Please Select File Here', width: '100%', dropdownParent: $('#uni_modal') });
+        });
+        $('#borrow-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this);
+            $('.err-msg').remove();
+            var el = $(' <div>').addClass('alert alert-danger err-msg rounded-3 small p-2 mb-3').hide();
+            if (_this[0].checkValidity() == false) { _this[0].reportValidity(); return false; }
+            start_loader();
+            $.ajax({
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                url: "{% url 'save-borrow' %}",
+                data: new FormData($(this)[0]),
+                cache: false, contentType: false, processData: false,
+                method: 'POST', type: 'POST', dataType: 'json',
+                error: err => { console.error(err); alert('An error occurred'); end_loader(); },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.text(resp.msg);
+                    } else { el.text('An error occurred'); end_loader(); }
+                    _this.prepend(el); el.show('slow');
+                    $('html, body, .modal').scrollTop(0);
+                    end_loader();
+                }
+            });
+        });
+    });</script>
+
+
+
+

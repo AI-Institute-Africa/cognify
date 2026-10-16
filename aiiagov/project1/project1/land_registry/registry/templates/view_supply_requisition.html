@@ -1,0 +1,424 @@
+{% extends "base.html" %}
+{% load static folder_perms %}
+{% block headerContent %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+@keyframes urgentPulse{0%,100%{box-shadow:0 0 0 0 rgba(220,53,69,.4);}50%{box-shadow:0 0 0 8px rgba(220,53,69,0);}}
+</style>
+{% endblock headerContent %}
+{% block pageContent %}
+<div class="container-fluid py-4">
+  <!-- Breadcrumb & Actions -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-3">
+      <a href="{% url 'supply-requisition-list' %}" class="btn btn-outline-secondary rounded-pill px-3"><i class="fas fa-arrow-left me-1"></i>Back</a>
+      <div>
+        <h4 class="fw-bold mb-0">{{ req.ref_number }}</h4>
+        <div class="small text-muted">{{ req.date_requested|date:"d F Y, H:i" }}</div>
+      </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'supply-requisition-signatories' req.pk %}" class="btn btn-outline-secondary rounded-pill px-3"><i class="fas fa-pen-nib me-1"></i>Signatories</a>
+      <a href="{% url 'supply-requisition-pdf' req.pk %}" class="btn btn-outline-danger rounded-pill px-3" target="_blank"><i class="fas fa-file-pdf me-1"></i>PDF</a>
+      {% if req.is_urgent %}<span class="badge bg-danger px-3 py-2 rounded-pill fs-6" style="animation:urgentPulse 1.2s ease-in-out infinite;"><i class="bi bi-exclamation-triangle-fill me-1"></i>URGENT</span>{% endif %}
+      {% if req.status != 'Rejected' and req.status != 'Approved' %}
+        {# ─── Initiator Approve & Sign Button ─── #}
+        {% if can_sign_requester %}
+          <a href="{% url 'supply-requisition-sign' req.pk 'requester' %}" class="btn btn-warning rounded-pill px-4 shadow fw-bold">
+            <i class="fas fa-signature me-2"></i>Approve &amp; Sign (Initiator)
+          </a>
+        {% endif %}
+        {# ─── Stage-specific signing buttons (only for the assigned user) ─── #}
+        {% if can_sign_supervisor %}<a href="{% url 'supply-requisition-sign' req.pk 'supervisor' %}" class="btn btn-warning rounded-pill px-4 shadow-sm fw-bold"><i class="fas fa-signature me-2"></i>Approve &amp; Sign (Supervisor)</a>{% endif %}
+        {% if can_sign_dept %}<a href="{% url 'supply-requisition-sign' req.pk 'dept_manager' %}" class="btn btn-warning rounded-pill px-4 shadow-sm fw-bold"><i class="fas fa-signature me-2"></i>Approve &amp; Sign (Dept Manager)</a>{% endif %}
+        {% if can_sign_purchasing %}<a href="{% url 'supply-requisition-sign' req.pk 'purchasing_officer' %}" class="btn btn-primary rounded-pill px-4 shadow-sm fw-bold"><i class="fas fa-signature me-2"></i>Bid Analysis &amp; Sign (PO)</a>{% endif %}
+        {% if can_sign_requester_review %}<a href="{% url 'supply-requisition-sign' req.pk 'requester_review' %}" class="btn btn-info rounded-pill px-4 text-white shadow-sm fw-bold"><i class="fas fa-signature me-2"></i>Review &amp; Sign</a>{% endif %}
+        {% if can_sign_purchasing_review %}<a href="{% url 'supply-requisition-sign' req.pk 'purchasing_officer_review' %}" class="btn btn-primary rounded-pill px-4 shadow-sm fw-bold"><i class="fas fa-signature me-2"></i>Final Review &amp; Sign (PO)</a>{% endif %}
+        {% if can_sign_ceo %}<a href="{% url 'supply-requisition-sign' req.pk 'ceo' %}" class="btn btn-info rounded-pill px-4 text-white shadow-sm fw-bold"><i class="fas fa-signature me-2"></i>Approve &amp; Sign (Chief Director)</a>{% endif %}
+        {% if can_sign_finance %}<a href="{% url 'supply-requisition-sign' req.pk 'finance_officer' %}" class="btn btn-success rounded-pill px-4 shadow-sm fw-bold"><i class="fas fa-signature me-2"></i>Approve &amp; Sign (Finance)</a>{% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+
+  <!-- ─── Accountability Status Banner ─── -->
+  {% if req.status == 'Rejected' %}
+  <div class="card border-danger rounded-4 mb-4 shadow" style="border-width:2px!important;">
+    <div class="card-header bg-danger text-white d-flex align-items-center gap-2 py-3 rounded-top-4">
+      <i class="fas fa-ban fa-lg"></i>
+      <span class="fw-bold fs-6">REQUISITION REJECTED — CLOSED FOR AUDIT</span>
+      <span class="badge bg-white text-danger ms-auto rounded-pill px-3">No Further Action</span>
+    </div>
+    <div class="card-body py-3">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="small text-muted fw-semibold"><i class="fas fa-user-times me-1"></i>Rejected By</div>
+          <div class="fw-bold text-danger fs-6">
+            {% if req.rejected_by %}{{ req.rejected_by.get_full_name|default:req.rejected_by.username }}{% else %}—{% endif %}
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="small text-muted fw-semibold"><i class="fas fa-calendar-times me-1"></i>Rejected At</div>
+          <div class="fw-bold">{{ req.rejected_at|date:"d F Y, H:i"|default:"—" }}</div>
+        </div>
+        <div class="col-md-4">
+          <div class="small text-muted fw-semibold"><i class="fas fa-layer-group me-1"></i>Stage</div>
+          <div class="fw-bold text-capitalize">{{ req.rejected_stage|default:"—" }}</div>
+        </div>
+        <div class="col-12">
+          <div class="small text-muted fw-semibold mb-1"><i class="fas fa-comment-alt me-1"></i>Rejection Reason</div>
+          <div class="p-3 bg-danger bg-opacity-10 border border-danger border-opacity-25 rounded-3 text-danger fw-semibold">
+            {{ req.rejection_reason|default:"No reason provided." }}
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="alert alert-warning rounded-3 mb-0 d-flex align-items-center gap-2 py-2">
+            <i class="fas fa-info-circle"></i>
+            <span class="small">This requisition is <strong>permanently closed</strong> for audit. The initiator must submit a <strong>new requisition</strong> to proceed.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% elif req.status == 'Approved' %}
+  <div class="alert alert-success rounded-4 mb-4 d-flex align-items-center gap-3">
+    <i class="fas fa-check-circle fa-2x"></i>
+    <div>
+      <div class="fw-bold">Requisition Fully Approved</div>
+      <div class="small">Approved &amp; processed by <strong>{{ req.finance_officer.get_full_name|default:req.finance_officer.username }}</strong> (Finance Officer). All signatures collected.</div>
+    </div>
+  </div>
+  {% else %}
+  {% with a=req.approver_accountability_info %}
+  <div class="alert {% if a.status_type == 'pending' %}alert-info{% else %}alert-secondary{% endif %} rounded-4 mb-4 d-flex align-items-start gap-3 py-3">
+    <i class="fas fa-user-clock fa-lg mt-1 text-primary"></i>
+    <div>
+      <div class="fw-bold mb-1">{{ req.status }}</div>
+      <div class="small">
+        Currently pending action by: <strong class="text-primary">{{ a.officer_name }}</strong>
+        <span class="badge bg-primary bg-opacity-15 text-primary rounded-pill px-2 ms-1 small">{{ a.officer_role }}</span>
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+  {% endif %}
+
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <!-- Header Info -->
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-white border-0 py-3"><h6 class="fw-bold mb-0"><i class="fas fa-info-circle text-primary me-2"></i>Requisition Details</h6></div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6"><div class="small text-muted">Department</div><div class="fw-semibold">{{ req.department.name|default:"—" }}</div></div>
+            <div class="col-md-6"><div class="small text-muted">Budget Line</div><div class="fw-semibold">{{ req.budget_line|default:"—" }}</div></div>
+            <div class="col-12"><div class="small text-muted">Purpose</div><div class="fw-semibold">{{ req.purpose }}</div></div>
+            {% if req.uploaded_document %}<div class="col-12"><div class="small text-muted">Attached Document</div><a href="{{ req.uploaded_document.url }}" class="btn btn-sm btn-outline-primary rounded-pill mt-1" target="_blank"><i class="fas fa-file me-1"></i>Download Document</a></div>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Items Table -->
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-white border-0 py-3 d-flex align-items-center justify-content-between">
+          <h6 class="fw-bold mb-0"><i class="fas fa-list text-success me-2"></i>Requisition Items</h6>
+          <span class="badge bg-success bg-opacity-10 text-success rounded-pill">{{ items.count }} items</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="bg-light text-muted small text-uppercase">
+                <tr>
+                  <th class="ps-4">#</th>
+                  <th>Description</th>
+                  <th class="text-end">Qty</th>
+                  <th class="text-end">Unit Cost</th>
+                  <th class="text-end">Cost</th>
+                  <th class="text-end">Annual Budget</th>
+                  <th class="text-end">Curr. Balance</th>
+                  <th class="text-end pe-4">Budget Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in items %}
+                <tr>
+                  <td class="ps-4 text-muted">{{ item.order }}</td>
+                  <td>{{ item.description }}</td>
+                  <td class="text-end">{{ item.quantity }}</td>
+                  <td class="text-end">{{ item.unit_cost|floatformat:2 }}</td>
+                  <td class="text-end fw-semibold">{{ item.line_total|floatformat:2 }}</td>
+                  <td class="text-end">{{ item.annual_budget|floatformat:2 }}</td>
+                  <td class="text-end">{{ item.current_balance|floatformat:2 }}</td>
+                  <td class="text-end pe-4 fw-bold {% if item.budget_balance < 0 %}text-danger{% else %}text-success{% endif %}">{{ item.budget_balance|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot class="bg-light">
+                <tr><td colspan="4" class="ps-4 fw-bold">Grand Total</td><td class="text-end fw-bold text-primary">{{ req.grand_total|floatformat:2 }}</td><td colspan="3"></td></tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bid Analysis -->
+      {% if req.bid_analysis %}
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-white border-0 py-3"><h6 class="fw-bold mb-0"><i class="fas fa-gavel text-primary me-2"></i>Bid Analysis Notes</h6></div>
+        <div class="card-body">
+          <p class="mb-0 text-muted" style="white-space: pre-line;">{{ req.bid_analysis }}</p>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Suppliers -->
+      {% if quotations %}
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-white border-0 py-3"><h6 class="fw-bold mb-0"><i class="fas fa-store text-warning me-2"></i>Suppliers Contacted for Quotation</h6></div>
+        <div class="card-body">
+          <div class="row g-3">
+            {% for q in quotations %}
+            <div class="col-md-4">
+              <div class="border rounded-3 p-3 h-100 d-flex flex-column justify-content-between">
+                <div>
+                  <div class="badge bg-warning text-dark rounded-pill mb-2 small">Supplier {{ q.order }}</div>
+                  <div class="fw-bold">{{ q.supplier_name }}</div>
+                  {% if q.contact_person %}<div class="small text-muted"><i class="fas fa-user me-1"></i>{{ q.contact_person }}</div>{% endif %}
+                  {% if q.phone %}<div class="small text-muted"><i class="fas fa-phone me-1"></i>{{ q.phone }}</div>{% endif %}
+                  {% if q.email %}<div class="small text-muted"><i class="fas fa-envelope me-1"></i>{{ q.email }}</div>{% endif %}
+                  <div class="mt-2 fw-semibold text-primary">${{ q.quoted_amount|floatformat:2 }}</div>
+                  {% if q.notes %}<div class="extra-small text-muted mt-1">{{ q.notes }}</div>{% endif %}
+                </div>
+                {% if q.quotation_file %}
+                <div class="mt-3">
+                  <a href="{{ q.quotation_file.url }}" class="btn btn-sm btn-outline-secondary w-100 rounded-pill" target="_blank">
+                    <i class="fas fa-file-download me-1"></i>Download Quote
+                  </a>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Payment Details (Finance Officer output) -->
+      {% if req.status == 'Approved' or req.payment_status == 'Paid' %}
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-white border-0 py-3 d-flex align-items-center justify-content-between">
+          <h6 class="fw-bold mb-0"><i class="fas fa-money-check-alt text-success me-2"></i>Payment Details</h6>
+          <span class="badge {% if req.payment_status == 'Paid' %}bg-success{% else %}bg-warning text-dark{% endif %} rounded-pill px-3">{{ req.payment_status }}</span>
+        </div>
+        <div class="card-body">
+          {% if req.proof_of_payment %}
+          <div class="d-flex align-items-center justify-content-between">
+            <div>
+              <i class="fas fa-receipt text-success me-2"></i><strong>Proof of Payment Attached</strong>
+            </div>
+            <a href="{{ req.proof_of_payment.url }}" class="btn btn-sm btn-outline-success rounded-pill" target="_blank">
+              <i class="fas fa-file-download me-1"></i>Download Proof
+            </a>
+          </div>
+          {% else %}
+          <p class="mb-0 text-muted small"><i class="fas fa-info-circle me-1"></i>No proof of payment was uploaded.</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Right: Signature Status -->
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm rounded-4 position-sticky" style="top:80px;">
+        <div class="card-header bg-white border-0 py-3"><h6 class="fw-bold mb-0"><i class="fas fa-pen-nib text-primary me-2"></i>Signature Status</h6></div>
+        <div class="card-body p-0">
+          <!-- Stage 1: Requester -->
+          {% with s=req.requester_signatory %}
+          <div class="p-3 border-bottom">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <div class="rounded-circle d-flex align-items-center justify-content-center {% if s and s.is_signed %}bg-success{% else %}bg-warning{% endif %}" style="width:32px;height:32px;">
+                <i class="fas {% if s and s.is_signed %}fa-check{% else %}fa-pen{% endif %} text-white small"></i>
+              </div>
+              <div>
+                <div class="fw-semibold small">1. Requested By</div>
+                <div class="extra-small text-muted">{{ req.requester|safe_name }}</div>
+              </div>
+            </div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}<img src="{{ s.signature_data }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% elif s.uploaded_signature %}<img src="{{ s.uploaded_signature.url }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% endif %}
+              <div class="extra-small text-success"><i class="fas fa-check-circle me-1"></i>Signed on {{ s.date_signed|date:"d M Y, H:i" }}</div>
+              {% if s.comments %}<div class="extra-small text-muted mt-1"><i class="fas fa-comment me-1"></i>{{ s.comments }}</div>{% endif %}
+            {% else %}<div class="extra-small text-warning"><i class="fas fa-clock me-1"></i>Pending signature</div>{% endif %}
+          </div>
+          {% endwith %}
+
+          <!-- Stage 2: Supervisor -->
+          {% with s=req.supervisor_signatory %}
+          <div class="p-3 border-bottom">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <div class="rounded-circle d-flex align-items-center justify-content-center {% if s and s.is_signed %}bg-success{% else %}bg-secondary opacity-50{% endif %}" style="width:32px;height:32px;">
+                <i class="fas {% if s and s.is_signed %}fa-check{% else %}fa-user-tie{% endif %} text-white small"></i>
+              </div>
+              <div>
+                <div class="fw-semibold small">2. Supervisor Approval</div>
+                <div class="extra-small text-muted">{{ req.supervisor|safe_name }}</div>
+              </div>
+            </div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}<img src="{{ s.signature_data }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% elif s.uploaded_signature %}<img src="{{ s.uploaded_signature.url }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% endif %}
+              <div class="extra-small text-success"><i class="fas fa-check-circle me-1"></i>Signed on {{ s.date_signed|date:"d M Y, H:i" }}</div>
+              {% if s.comments %}<div class="extra-small text-muted mt-1"><i class="fas fa-comment me-1"></i>{{ s.comments }}</div>{% endif %}
+            {% else %}<div class="extra-small text-muted"><i class="fas fa-clock me-1"></i>{% if req.status == 'Pending Supervisor' %}Awaiting signature{% else %}Not yet reached{% endif %}</div>{% endif %}
+          </div>
+          {% endwith %}
+
+          <!-- Stage 3: Dept Manager -->
+          {% with s=req.dept_manager_signatory %}
+          <div class="p-3 border-bottom">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <div class="rounded-circle d-flex align-items-center justify-content-center {% if s and s.is_signed %}bg-success{% else %}bg-secondary opacity-50{% endif %}" style="width:32px;height:32px;">
+                <i class="fas {% if s and s.is_signed %}fa-check{% else %}fa-user-tie{% endif %} text-white small"></i>
+              </div>
+              <div>
+                <div class="fw-semibold small">3. Department Manager</div>
+                <div class="extra-small text-muted">{{ req.dept_manager|safe_name }}</div>
+              </div>
+            </div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}<img src="{{ s.signature_data }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% elif s.uploaded_signature %}<img src="{{ s.uploaded_signature.url }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% endif %}
+              <div class="extra-small text-success"><i class="fas fa-check-circle me-1"></i>Signed on {{ s.date_signed|date:"d M Y, H:i" }}</div>
+              {% if s.comments %}<div class="extra-small text-muted mt-1"><i class="fas fa-comment me-1"></i>{{ s.comments }}</div>{% endif %}
+            {% else %}<div class="extra-small text-muted"><i class="fas fa-clock me-1"></i>{% if req.status == 'Pending Dept' %}Awaiting signature{% else %}Not yet reached{% endif %}</div>{% endif %}
+          </div>
+          {% endwith %}
+
+          <!-- Stage 4: Deputy Director -->
+          {% with s=req.deputy_director_signatory %}
+          <div class="p-3 border-bottom">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <div class="rounded-circle d-flex align-items-center justify-content-center {% if s and s.is_signed %}bg-success{% else %}bg-secondary opacity-50{% endif %}" style="width:32px;height:32px;">
+                <i class="fas {% if s and s.is_signed %}fa-check{% else %}fa-user-shield{% endif %} text-white small"></i>
+              </div>
+              <div>
+                <div class="fw-semibold small">4. Deputy Director</div>
+                <div class="extra-small text-muted">{{ req.deputy_director|safe_name }}</div>
+              </div>
+            </div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}<img src="{{ s.signature_data }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% elif s.uploaded_signature %}<img src="{{ s.uploaded_signature.url }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% endif %}
+              <div class="extra-small text-success"><i class="fas fa-check-circle me-1"></i>Signed on {{ s.date_signed|date:"d M Y, H:i" }}</div>
+              {% if s.comments %}<div class="extra-small text-muted mt-1"><i class="fas fa-comment me-1"></i>{{ s.comments }}</div>{% endif %}
+            {% else %}<div class="extra-small text-muted"><i class="fas fa-clock me-1"></i>{% if req.status == 'Pending Deputy Director' %}Awaiting signature{% else %}Not yet reached{% endif %}</div>{% endif %}
+          </div>
+          {% endwith %}
+
+          <!-- Stage 5: Purchasing Officer (Bid Analysis) -->
+          {% with s=req.purchasing_officer_signatory %}
+          <div class="p-3 border-bottom">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <div class="rounded-circle d-flex align-items-center justify-content-center {% if s and s.is_signed %}bg-success{% else %}bg-secondary opacity-50{% endif %}" style="width:32px;height:32px;">
+                <i class="fas {% if s and s.is_signed %}fa-check{% else %}fa-shopping-cart{% endif %} text-white small"></i>
+              </div>
+              <div>
+                <div class="fw-semibold small">5. PO (Bid Analysis)</div>
+                <div class="extra-small text-muted">{{ req.purchasing_officer|safe_name }}</div>
+              </div>
+            </div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}<img src="{{ s.signature_data }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% elif s.uploaded_signature %}<img src="{{ s.uploaded_signature.url }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% endif %}
+              <div class="extra-small text-success"><i class="fas fa-check-circle me-1"></i>Signed on {{ s.date_signed|date:"d M Y, H:i" }}</div>
+              {% if s.purchase_order %}<div class="extra-small text-primary mt-1"><i class="fas fa-receipt me-1"></i>PO: {{ s.purchase_order }}</div>{% endif %}
+              {% if s.date_received %}<div class="extra-small text-muted mt-1"><i class="fas fa-calendar me-1"></i>Received: {{ s.date_received|date:"d M Y" }}</div>{% endif %}
+              {% if s.comments %}<div class="extra-small text-muted mt-1"><i class="fas fa-comment me-1"></i>{{ s.comments }}</div>{% endif %}
+            {% else %}<div class="extra-small text-muted"><i class="fas fa-clock me-1"></i>{% if req.status == 'Pending Purchasing' %}Awaiting signature{% else %}Not yet reached{% endif %}</div>{% endif %}
+          </div>
+          {% endwith %}
+
+          <!-- Stage 6: Requester Review & Sign -->
+          {% with s=req.requester_review_signatory %}
+          <div class="p-3 border-bottom">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <div class="rounded-circle d-flex align-items-center justify-content-center {% if s and s.is_signed %}bg-success{% else %}bg-secondary opacity-50{% endif %}" style="width:32px;height:32px;">
+                <i class="fas {% if s and s.is_signed %}fa-check{% else %}fa-pen{% endif %} text-white small"></i>
+              </div>
+              <div>
+                <div class="fw-semibold small">6. Requester Review</div>
+                <div class="extra-small text-muted">{{ req.requester|safe_name }}</div>
+              </div>
+            </div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}<img src="{{ s.signature_data }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% elif s.uploaded_signature %}<img src="{{ s.uploaded_signature.url }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% endif %}
+              <div class="extra-small text-success"><i class="fas fa-check-circle me-1"></i>Signed on {{ s.date_signed|date:"d M Y, H:i" }}</div>
+              {% if s.comments %}<div class="extra-small text-muted mt-1"><i class="fas fa-comment me-1"></i>{{ s.comments }}</div>{% endif %}
+            {% else %}<div class="extra-small text-muted"><i class="fas fa-clock me-1"></i>{% if req.status == 'Pending Requester Review' %}Awaiting signature{% else %}Not yet reached{% endif %}</div>{% endif %}
+          </div>
+          {% endwith %}
+
+          <!-- Stage 7: Purchasing Officer (Final Review) -->
+          {% with s=req.purchasing_officer_review_signatory %}
+          <div class="p-3 border-bottom">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <div class="rounded-circle d-flex align-items-center justify-content-center {% if s and s.is_signed %}bg-success{% else %}bg-secondary opacity-50{% endif %}" style="width:32px;height:32px;">
+                <i class="fas {% if s and s.is_signed %}fa-check{% else %}fa-shopping-cart{% endif %} text-white small"></i>
+              </div>
+              <div>
+                <div class="fw-semibold small">7. PO (Final Review)</div>
+                <div class="extra-small text-muted">{{ req.purchasing_officer|safe_name }}</div>
+              </div>
+            </div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}<img src="{{ s.signature_data }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% elif s.uploaded_signature %}<img src="{{ s.uploaded_signature.url }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% endif %}
+              <div class="extra-small text-success"><i class="fas fa-check-circle me-1"></i>Signed on {{ s.date_signed|date:"d M Y, H:i" }}</div>
+              {% if s.comments %}<div class="extra-small text-muted mt-1"><i class="fas fa-comment me-1"></i>{{ s.comments }}</div>{% endif %}
+            {% else %}<div class="extra-small text-muted"><i class="fas fa-clock me-1"></i>{% if req.status == 'Pending Purchasing Final' %}Awaiting signature{% else %}Not yet reached{% endif %}</div>{% endif %}
+          </div>
+          {% endwith %}
+
+          <!-- Stage 8: Chief Director Approval -->
+          {% with s=req.ceo_signatory %}
+          <div class="p-3 border-bottom">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <div class="rounded-circle d-flex align-items-center justify-content-center {% if s and s.is_signed %}bg-success{% else %}bg-secondary opacity-50{% endif %}" style="width:32px;height:32px;">
+                <i class="fas {% if s and s.is_signed %}fa-check{% else %}fa-user-tie{% endif %} text-white small"></i>
+              </div>
+              <div>
+                <div class="fw-semibold small">8. Chief Director Approval</div>
+                <div class="extra-small text-muted">{{ req.ceo|safe_name }}</div>
+              </div>
+            </div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}<img src="{{ s.signature_data }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% elif s.uploaded_signature %}<img src="{{ s.uploaded_signature.url }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% endif %}
+              <div class="extra-small text-success"><i class="fas fa-check-circle me-1"></i>Signed on {{ s.date_signed|date:"d M Y, H:i" }}</div>
+              {% if s.comments %}<div class="extra-small text-muted mt-1"><i class="fas fa-comment me-1"></i>{{ s.comments }}</div>{% endif %}
+            {% else %}<div class="extra-small text-muted"><i class="fas fa-clock me-1"></i>{% if req.status == 'Pending CEO' %}Awaiting signature{% else %}Not yet reached{% endif %}</div>{% endif %}
+          </div>
+          {% endwith %}
+
+          <!-- Stage 9: Finance Officer -->
+          {% with s=req.finance_officer_signatory %}
+          <div class="p-3">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <div class="rounded-circle d-flex align-items-center justify-content-center {% if s and s.is_signed %}bg-success{% else %}bg-secondary opacity-50{% endif %}" style="width:32px;height:32px;">
+                <i class="fas {% if s and s.is_signed %}fa-check{% else %}fa-file-invoice-dollar{% endif %} text-white small"></i>
+              </div>
+              <div>
+                <div class="fw-semibold small">9. Finance Officer</div>
+                <div class="extra-small text-muted">{{ req.finance_officer|safe_name }}</div>
+              </div>
+            </div>
+            {% if s and s.is_signed %}
+              {% if s.signature_data %}<img src="{{ s.signature_data }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% elif s.uploaded_signature %}<img src="{{ s.uploaded_signature.url }}" style="height:50px;object-fit:contain;border:1px solid #eee;border-radius:8px;" class="mb-1">{% endif %}
+              <div class="extra-small text-success"><i class="fas fa-check-circle me-1"></i>Signed on {{ s.date_signed|date:"d M Y, H:i" }}</div>
+              {% if s.comments %}<div class="extra-small text-muted mt-1"><i class="fas fa-comment me-1"></i>{{ s.comments }}</div>{% endif %}
+            {% else %}<div class="extra-small text-muted"><i class="fas fa-clock me-1"></i>{% if req.status == 'Pending Finance' %}Awaiting signature{% else %}Not yet reached{% endif %}</div>{% endif %}
+          </div>
+          {% endwith %}
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock pageContent %}

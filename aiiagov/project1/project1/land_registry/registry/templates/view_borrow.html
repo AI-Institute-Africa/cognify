@@ -1,0 +1,161 @@
+{% load static %} {% load humanize %}
+<style>#uni_modal .modal-footer {
+        display: none
+    }
+
+    #uni_modal .modal-sub-footer {
+        display: flex
+    }</style>
+<div class="container-fluid" id="e-details">
+    <!-- Officer Section -->
+    <div class="mb-4">
+        <div class="d-flex align-items-center mb-3">
+            <div class="bg-primary bg-opacity-10 p-2 rounded-circle me-3">
+                <i class="fas fa-user-tie text-primary"></i></div>
+            <h6 class="fw-bold mb-0"> Officer Information</h6></div>
+        <div class="glass-card bg-light bg-opacity-50 p-3 rounded-3">
+            <div class="row g-3">
+                <div class="col-6">
+                    <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> ID / Badge</label>
+                    <span class="fw-semibold"> {{ borrow.borrower.code }}</span></div>
+                <div class="col-6">
+                    <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Department</label>
+                    <span class="fw-semibold"> {{ borrow.borrower.department }}</span></div>
+                <div class="col-12">
+                    <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Full Name</label>
+                    <span class="fw-bold text-primary"> {{ borrow.borrower.name }}</span></div></div></div></div>
+
+    <!-- File Section -->
+    <div class="mb-4">
+        <div class="d-flex align-items-center mb-3">
+            <div class="bg-dark bg-opacity-10 p-2 rounded-circle me-3">
+                <i class="fas fa-folder-open text-dark"></i></div>
+            <h6 class="fw-bold mb-0"> Records Intelligence File Data</h6></div>
+        <div class="glass-card bg-light bg-opacity-50 p-3 rounded-3">
+            <div class="row g-3">
+                <div class="col-6">
+                    <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Ref Number</label>
+                    <span class="badge bg-dark px-2 rounded-pill small"> {{ borrow.file_doc.ref_num }}</span></div>
+                <div class="col-6">
+                    <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Classification</label>
+                    <span class="fw-semibold small text-truncate d-block"> {{ borrow.file_doc.sub_category.category
+                        }}</span></div>
+                <div class="col-12">
+                    <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Title / Label</label>
+                    <p class="mb-0 fw-bold small text-dark"> {{ borrow.file_doc.title }}</p></div></div></div></div>
+
+    <!-- Transaction Section -->
+    <div><div class="d-flex align-items-center mb-3">
+            <div class="bg-success bg-opacity-10 p-2 rounded-circle me-3">
+                <i class="fas fa-exchange-alt text-success"></i></div>
+            <h6 class="fw-bold mb-0"> Transaction Lifecycle</h6></div>
+        <div class="glass-card border border-success border-opacity-10 p-3 rounded-3">
+            <div class="row g-3">
+                <div class="col-6 border-end">
+                    <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Issued Date</label>
+                    <span class="fw-semibold small"> {{ borrow.borrowing_date|date:"F d, Y" }}</span></div>
+                <div class="col-6">
+                    <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Due Date</label>
+                    <span class="fw-bold text-danger small"> {{ borrow.return_date|date:"F d, Y" }}</span></div>
+                <div class="col-12 border-top pt-2 mt-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div><label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Folio
+                                Reference</label>
+                            <span class="font-monospace small"> {{ borrow.folio_ref }}</span></div>
+                        <div class="text-end">
+                            <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Current
+                                Status</label>
+                            {% if borrow.status == '0' %}
+                            <span
+                                class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-3 rounded-pill"> Issued</span>
+                            {% elif borrow.return_confirmed %}
+                            <span
+                                class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 rounded-pill"> Return Confirmed</span>
+                            {% else %}
+                            <span
+                                class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-3 rounded-pill"> Returned (Pending Confirmation)</span>
+                            {% endif %}</div></div></div></div></div></div>
+
+    <!-- Modifications Section -->
+    {% if borrow.modification_notes or borrow.modified_file or borrow.borrower_signature %}
+    <div class="mt-4">
+        <div class="d-flex align-items-center mb-3">
+            <div class="bg-info bg-opacity-10 p-2 rounded-circle me-3">
+                <i class="fas fa-file-signature text-info"></i></div>
+            <h6 class="fw-bold mb-0"> Borrower's Return & Modifications</h6></div>
+        <div class="glass-card border border-info border-opacity-10 p-3 rounded-3">
+            {% if borrow.modification_notes %}
+            <div class="mb-3">
+                <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Notes / Changes
+                    Reported</label>
+                <div class="bg-white p-2 rounded-2 small border border-light shadow-sm">
+                    {{ borrow.modification_notes }}</div></div>
+            {% endif %}
+            {% if borrow.modified_file %}
+            <div class="mb-3">
+                <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Modified File / Scan</label>
+                <a href="{{ borrow.modified_file.url }}" class="btn btn-sm btn-info text-white" download>
+                    <i class="fas fa-file-download me-1"></i> Download Modified Version</a></div>
+            {% endif %}
+            {% if borrow.borrower_signature %}
+            <div class="mb-3">
+                <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Borrower's Signature</label>
+                <div class="bg-white p-2 rounded border border-light" style="max-height: 150px; display: flex; align-items: center; justify-content: center;">
+                    <img src="{{ borrow.borrower_signature }}" alt="Borrower Signature" class="img-fluid rounded" style="max-height: 120px; object-fit: contain;">
+                </div>
+            </div>
+            {% endif %}
+        </div></div>
+    {% endif %}
+    
+    <!-- Issuer Confirmation Section -->
+    {% if borrow.status == '1' %}
+    <div class="mt-4">
+        <div class="d-flex align-items-center mb-3">
+            <div class="bg-success bg-opacity-10 p-2 rounded-circle me-3">
+                <i class="fas fa-stamp text-success"></i></div>
+            <h6 class="fw-bold mb-0"> Issuer Confirmation</h6></div>
+        <div class="glass-card border border-success border-opacity-10 p-3 rounded-3">
+            {% if borrow.return_confirmed %}
+            <div class="alert alert-success py-2 mb-3">
+                <i class="fas fa-check-circle me-2"></i>
+                <strong>Confirmed:</strong> {{ borrow.confirmed_at|date:"F d, Y \a\t H:i" }} by {{ borrow.confirmed_by.get_full_name|default:borrow.confirmed_by.username }}
+            </div>
+            {% if borrow.issuer_signature %}
+            <div class="mb-3">
+                <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Issuer's Signature</label>
+                <div class="bg-white p-2 rounded border border-light" style="max-height: 150px; display: flex; align-items: center; justify-content: center;">
+                    <img src="{{ borrow.issuer_signature }}" alt="Issuer Signature" class="img-fluid rounded" style="max-height: 120px; object-fit: contain;">
+                </div>
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="alert alert-warning py-2">
+                <i class="fas fa-clock me-2"></i>
+                <strong>Awaiting Issuer Confirmation:</strong> This return has been submitted and is pending acceptance by the Records Intelligence office.
+            </div>
+            {% if request.user.is_superuser or request.user == borrow.file_doc.last_handler %}
+            <div class="mt-3">
+                <a href="{% url 'confirm-borrow-return' borrow.id %}" class="btn btn-success btn-sm">
+                    <i class="fas fa-check-circle me-1"></i> Confirm Return</a>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div></div>
+    {% endif %}</div>
+
+<style>.extra-small {
+        font-size: 0.65rem;
+    }
+
+    #uni_modal .modal-footer {
+        display: none;
+    }
+
+    #uni_modal .modal-sub-footer {
+        display: flex;
+    }</style>
+
+
+
+

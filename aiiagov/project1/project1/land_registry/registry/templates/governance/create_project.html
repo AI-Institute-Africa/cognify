@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4" style="max-width: 800px;">
+    <div class="mb-4">
+        <h2 class="fw-bold mb-0"> Initialize Records Intelligence Project</h2>
+        <p class="text-muted"> Define the scope, timeline, and accountability phases.</p>
+    </div>
+
+    <form method="POST" action="{% url 'create-project' %}" class="card glass-panel border-0 shadow-lg p-4 p-md-5">
+        {% csrf_token %}
+        <div class="row g-4">
+            <div class="col-12">
+                <div class="form-floating mb-3">
+                    <input type="text" name="name" class="form-control" id="projectName"
+                        placeholder="e.g. Digitization of 1990 Folios" required>
+                    <label for="projectName"> Project Name</label>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="form-floating mb-3">
+                    <textarea name="description" class="form-control" id="projectDesc"
+                        placeholder="Description" style="height: 100px;"></textarea>
+                    <label for="projectDesc"> Executive Summary (Scope)</label>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="form-floating mb-3">
+                    <input type="date" name="start_date" class="form-control"
+                        id="startDate">
+                    <label for="startDate"> Start Date</label>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="form-floating mb-3">
+                    <input type="date" name="end_date" class="form-control" id="endDate">
+                    <label for="endDate"> Target Completion Date</label>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="form-floating mb-3">
+                    <input type="number" name="budget" class="form-control" id="budget"
+                        placeholder="0.00" step="0.01" min="0" value="0">
+                    <label for="budget"> Total Budget ($)</label>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <!-- Phases input -->
+                <div class="form-floating mb-3">
+                    <input type="text" name="phases" class="form-control" id="phases"
+                        placeholder="Sequenced Phases" value="Discovery, Planning, Execution, Verification, Closure">
+                    <label for="phases"> Sequenced Phases (Comma separated)</label>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="form-floating mb-3">
+                    <input type="url" name="external_link" class="form-control" id="projectLink"
+                        placeholder="https://">
+                    <label for="projectLink"><i class="fas fa-link me-2 text-primary"></i> External Link (Optional)</label>
+                    <div class="extra-small text-muted mt-1">If this project is a website, system or dashboard, provide the live link here.</div>
+                </div>
+            </div>
+
+            <div class="col-12 mt-4">
+                <div class="alert alert-info py-3 border-0 rounded-4 d-flex align-items-center mb-4">
+                    <i class="fas fa-info-circle me-3 fa-lg"></i>
+                    <div class="small">
+                        By initializing this project, you become its <strong>Executive Owner</strong>. Every transition
+                        between phases will require formal sign-off from the MD or HOD.</div>
+                </div>
+
+                <div class="d-flex flex-column flex-md-row gap-2">
+                    <button type="submit" class="btn btn-primary px-5 py-3 fw-bold rounded-pill shadow-sm">
+                        Initialize Governance Layer <i class="fas fa-rocket ms-2"></i></button>
+                    <a href="{% url 'project-list' %}" class="btn btn-outline-dark px-4 py-3 rounded-pill"> Cancel</a>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+
+
+{% endblock pageContent %}

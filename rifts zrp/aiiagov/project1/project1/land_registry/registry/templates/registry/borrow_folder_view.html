@@ -1,0 +1,240 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-4">
+                        <div>
+                            <h3 class="fw-bold">Issued Folder: {{ borrow.issued_folder.name }}</h3>
+                            <p class="text-muted mb-1">Permission: <strong>{{ permission_text }}</strong></p>
+                            <p class="small text-muted mb-0">Issued as part of file <strong>{{ borrow.file_doc.ref_num }}</strong></p>
+                        </div>
+                        <div class="text-end">
+                            {% if borrow.folder_zip %}
+                            <a href="{% url 'download-issued-folder' borrow.id %}" class="btn btn-primary">
+                                <i class="fas fa-file-archive me-1"></i> Download Folder ZIP
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Document</th>
+                                    <th>Issued By</th>
+                                    <th>Permission</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cloud_file in files %}
+                                <tr>
+                                    <td>{{ cloud_file.name }}</td>
+                                    <td>
+                                        {% if cloud_file.owner %}
+                                            {{ cloud_file.owner.get_full_name|default:cloud_file.owner.username }}
+                                        {% elif cloud_file.latest_version and cloud_file.latest_version.uploaded_by %}
+                                            {{ cloud_file.latest_version.uploaded_by.get_full_name|default:cloud_file.latest_version.uploaded_by.username }}
+                                        {% else %}
+                                            <span class="text-muted">Unknown</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if borrow.folder_permission == 'edit' %}
+                                        <span class="badge bg-success">Edit Allowed</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">View Only</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <a href="{{ cloud_file.latest_version.file_content.url }}" class="btn btn-outline-primary" download>
+                                                <i class="fas fa-download me-1"></i> Download
+                                            </a>
+                                            {% if borrow.folder_permission == 'edit' and not borrow.return_confirmed %}
+                                            <button class="btn btn-outline-info edit-btn" data-edit-url="{% url 'edit-issued-file' borrow.id cloud_file.id %}" data-file-name="{{ cloud_file.name }}">
+                                                <i class="fas fa-edit me-1"></i> Edit
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">No files found in this issued folder.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {% if not borrow.return_confirmed %}
+                    <div class="mt-4 alert alert-info py-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Ready to Return?</strong> Make your modifications, add your signature below, and click "Finalize Return" to send the file back.
+                    </div>
+
+                    <form id="returnForm" class="mt-4" action="{% url 'submit-modification' %}" method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <input type="hidden" name="id" value="{{ borrow.id }}">
+                        <input type="hidden" name="signature_data" id="signature_data_input">
+
+                        <div class="card border border-info mb-3">
+                            <div class="card-header bg-info bg-opacity-10">
+                                <h6 class="mb-0"><i class="fas fa-pen me-2"></i> Your Signature (Returning Officer)</h6>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="borrowerSignaturePad" width="600" height="180" class="border border-1 rounded" style="background:#fafafa; display:block; margin:0 auto; cursor: crosshair;"></canvas>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="clearSignaturePad">
+                                        <i class="fas fa-redo me-1"></i> Clear Signature
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label class="form-label fw-bold">Comments / Changes Made:</label>
+                            <textarea name="modification_notes" id="modification_notes" class="form-control" rows="3" placeholder="Describe any modifications or actions taken..."></textarea>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label class="form-label fw-bold">Replacement File (Optional)</label>
+                            <input type="file" name="modified_file" class="form-control" accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+                            <small class="form-text text-muted">Upload a new file if the original attachment is not available or if you need to submit an updated version.</small>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-success btn-lg" id="finalizeReturnBtn">
+                                <i class="fas fa-check-circle me-2"></i> Finalize & Return File
+                            </button>
+                            <a href="{% url 'recipient-dashboard' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-1"></i> Cancel & Go Back
+                            </a>
+                        </div>
+                    </form>
+                    {% else %}
+                    <div class="mt-4 alert alert-success py-3">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>Return Confirmed!</strong> This file return has been accepted and confirmed by the issuer.
+                    </div>
+                    <div class="mt-2">
+                        <a href="{% url 'recipient-dashboard' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Script Imports -->
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<script>
+    let borrowerSignaturePad;
+
+    $(function() {
+        // Initialize Signature Pad
+        const canvas = document.getElementById('borrowerSignaturePad');
+        if (canvas) {
+            if (typeof SignaturePad !== 'undefined') {
+                borrowerSignaturePad = new SignaturePad(canvas, {
+                    backgroundColor: 'rgba(255,255,255,1)',
+                    penColor: '#000033'
+                });
+            } else {
+                console.warn('SignaturePad library is not available. Signature capture will not work.');
+            }
+
+            document.getElementById('clearSignaturePad').addEventListener('click', () => {
+                if (borrowerSignaturePad) {
+                    borrowerSignaturePad.clear();
+                }
+            });
+        }
+
+        // Edit button handler
+        $(document).on('click', '.edit-btn', function() {
+            const editUrl = $(this).data('edit-url');
+            if (editUrl) {
+                window.location.href = editUrl;
+            } else {
+                alert('Edit redirect URL is not available. Please refresh the page and try again.');
+            }
+        });
+
+        // Finalize Return
+        $('#returnForm').on('submit', function(event) {
+            event.preventDefault();
+
+            if (!borrowerSignaturePad) {
+                alert('Unable to initialise the signature pad. Please refresh the page or try again.');
+                return;
+            }
+
+            if (borrowerSignaturePad.isEmpty()) {
+                alert('Please sign the document before submitting.');
+                return;
+            }
+
+            document.getElementById('signature_data_input').value = borrowerSignaturePad.toDataURL();
+            
+            const formData = new FormData(this);
+            const submitUrl = $(this).attr('action');
+            if (!submitUrl) {
+                alert('Unable to determine submission URL.');
+                return;
+            }
+
+            if (typeof start_loader === 'function') start_loader();
+
+            $.ajax({
+                url: submitUrl,
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                cache: false,
+                success: function(resp) {
+                    if (resp && resp.status === 'success') {
+                        if (typeof alert_toast === 'function') {
+                            alert_toast('File returned successfully. Awaiting issuer confirmation.', 'success');
+                        } else {
+                            alert('File returned successfully. Awaiting issuer confirmation.');
+                        }
+                        setTimeout(() => {
+                            window.location.href = "{% url 'recipient-dashboard' %}";
+                        }, 1500);
+                    } else {
+                        const message = resp?.msg || 'An error occurred while returning the file.';
+                        if (typeof alert_toast === 'function') {
+                            alert_toast(message, 'error');
+                        } else {
+                            alert(message);
+                        }
+                    }
+                },
+                error: function(xhr, status, error) {
+                    const message = xhr?.responseJSON?.msg || xhr?.responseText || 'An error occurred while returning the file.';
+                    if (typeof alert_toast === 'function') {
+                        alert_toast(message, 'error');
+                    } else {
+                        alert(message);
+                    }
+                },
+                complete: function() {
+                    if (typeof end_loader === 'function') end_loader();
+                }
+            });
+        });
+    });
+</script>
+
+{% endblock pageContent %}

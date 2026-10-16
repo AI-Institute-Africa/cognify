@@ -1,0 +1,516 @@
+{% extends "base.html" %}
+{% load static %}
+{% block headerContent %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+.sr-section-title{font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6c757d;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid rgba(102,126,234,.2);}
+.sr-card{background:var(--secondary-color,#fff);border:1px solid var(--glass-border,rgba(0,0,0,.1));border-radius:16px;padding:1.5rem;margin-bottom:1.5rem;}
+.sig-area{border:2px dashed rgba(102,126,234,.4);border-radius:12px;padding:1.5rem;text-align:center;min-height:120px;display:flex;align-items:center;justify-content:center;flex-direction:column;transition:border-color .2s;}
+.sig-area.has-sig{border-color:#28a745;border-style:solid;}
+.sig-preview{max-height:80px;object-fit:contain;border-radius:8px;}
+.required-star{color:#dc3545;}
+.highlight-signer{background:linear-gradient(135deg,rgba(102,126,234,.1),rgba(118,75,162,.1));border:1px solid rgba(102,126,234,.3);border-radius:16px;padding:1.5rem;}
+</style>
+{% endblock headerContent %}
+{% block pageContent %}
+<div class="container-fluid py-4">
+  <div class="d-flex align-items-center mb-4 gap-3">
+    <a href="{% url 'supply-requisition-view' req.pk %}" class="btn btn-outline-secondary rounded-pill px-3">
+      <i class="fas fa-arrow-left me-1"></i>Back to Requisition
+    </a>
+    <div>
+      <h4 class="fw-bold mb-1">Sign Purchase Requisition
+        {% if req.is_urgent %}<span class="badge bg-danger ms-2" style="animation:urgentPulse 1.2s ease-in-out infinite;"><i class="bi bi-exclamation-triangle-fill me-1"></i>URGENT</span>{% endif %}
+      </h4>
+      <p class="text-muted small mb-0">Review the requisition details below and apply your signature for: <strong>{{ stage_label }}</strong></p>
+    </div>
+  </div>
+  {% if req.rejection_reason %}
+  <div class="alert alert-warning border-warning rounded-3 mb-4"><i class="bi bi-exclamation-circle-fill me-2"></i><strong>Previously Rejected:</strong> {{ req.rejection_reason }}</div>
+  {% endif %}
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-3 mb-4" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="row g-4">
+    <!-- Requisition Overview -->
+    <div class="col-lg-8">
+      <div class="sr-card">
+        <div class="sr-section-title"><i class="fas fa-file-invoice me-2"></i>Requisition Summary</div>
+        <div class="row g-3 mb-4">
+          <div class="col-md-4">
+            <span class="small text-muted d-block">Reference Number</span>
+            <span class="fw-bold text-primary">{{ req.ref_number }}</span>
+          </div>
+          <div class="col-md-4">
+            <span class="small text-muted d-block">Department</span>
+            <span class="fw-semibold">{{ req.department.name|default:"—" }}</span>
+          </div>
+          <div class="col-md-4">
+            <span class="small text-muted d-block">Requested By</span>
+            <span class="fw-semibold">{{ req.requester.get_full_name|default:req.requester.username }}</span>
+          </div>
+          <div class="col-12">
+            <span class="small text-muted d-block">Purpose / Justification</span>
+            <span class="fw-semibold">{{ req.purpose }}</span>
+          </div>
+        </div>
+
+        <div class="sr-section-title"><i class="fas fa-list me-2"></i>Line Items
+          {% if is_purchasing %}<span class="badge bg-warning text-dark ms-2 fw-normal" style="font-size:.7rem;">Edit the financial fields below with actual supplier values</span>{% endif %}
+        </div>
+
+        {% if is_purchasing %}
+        <!-- PO Bid Analysis: editable item fields -->
+        <div class="table-responsive mb-4">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light text-muted small text-uppercase"><tr>
+              <th class="ps-3">#</th><th>Description</th><th class="text-end">Qty</th>
+              <th class="text-end">Unit Cost &#9998;</th>
+              <th class="text-end">Line Total</th>
+              <th class="text-end">Annual Budget &#9998;</th>
+              <th class="text-end">Current Bal. &#9998;</th>
+              <th class="text-end pe-3">Budget Bal.</th>
+            </tr></thead>
+            <tbody>
+            {% for item in items %}
+            <tr>
+              <td class="ps-3 text-muted">{{ item.order }}</td>
+              <td>{{ item.description }}</td>
+              <td class="text-end">{{ item.quantity }}</td>
+              <td><input type="number" step="0.01" name="item_unit_cost_{{ item.pk }}" class="form-control form-control-sm text-end unit-cost-input" data-qty="{{ item.quantity }}" data-item-pk="{{ item.pk }}" value="{{ item.unit_cost }}"></td>
+              <td class="text-end fw-semibold line-total-cell" id="lt_{{ item.pk }}">{{ item.line_total|floatformat:2 }}</td>
+              <td><input type="number" step="0.01" name="item_annual_budget_{{ item.pk }}" class="form-control form-control-sm text-end" value="{{ item.annual_budget }}"></td>
+              <td><input type="number" step="0.01" name="item_current_balance_{{ item.pk }}" class="form-control form-control-sm text-end current-bal-input" data-item-pk="{{ item.pk }}" value="{{ item.current_balance }}"></td>
+              <td class="text-end pe-3 fw-bold budget-bal-cell" id="bb_{{ item.pk }}">{{ item.budget_balance|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+            <tfoot class="bg-light"><tr><td colspan="4" class="ps-3 fw-bold">Grand Total</td><td class="text-end fw-bold text-primary" id="grandTotalCell">{{ req.grand_total|floatformat:2 }}</td><td colspan="3"></td></tr></tfoot>
+          </table>
+        </div>
+        {% else %}
+        <!-- Read-only item table -->
+        <div class="table-responsive mb-4">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light text-muted small text-uppercase"><tr>
+              <th class="ps-3">#</th><th>Description</th><th class="text-end">Qty</th>
+              <th class="text-end">Unit Cost</th><th class="text-end">Total</th>
+              <th class="text-end">Annual Budget</th><th class="text-end">Current Bal.</th><th class="text-end pe-3">Budget Bal.</th>
+            </tr></thead>
+            <tbody>{% for item in items %}<tr>
+              <td class="ps-3 text-muted">{{ item.order }}</td><td>{{ item.description }}</td>
+              <td class="text-end">{{ item.quantity }}</td><td class="text-end">{{ item.unit_cost|floatformat:2 }}</td>
+              <td class="text-end fw-semibold">{{ item.line_total|floatformat:2 }}</td>
+              <td class="text-end">{{ item.annual_budget|floatformat:2 }}</td><td class="text-end">{{ item.current_balance|floatformat:2 }}</td>
+              <td class="text-end pe-3 fw-bold">{{ item.budget_balance|floatformat:2 }}</td>
+            </tr>{% endfor %}</tbody>
+            <tfoot class="bg-light"><tr><td colspan="4" class="ps-3 fw-bold">Grand Total</td><td class="text-end fw-bold text-primary">{{ req.grand_total|floatformat:2 }}</td><td colspan="3"></td></tr></tfoot>
+          </table>
+        </div>
+        {% endif %}
+
+        {% if quotations %}
+        <div class="sr-section-title"><i class="fas fa-store me-2"></i>Supplier Quotations</div>
+        <div class="row g-3">
+          {% for q in quotations %}
+          <div class="col-md-4">
+            <div class="border rounded-3 p-3 {% if q.is_chosen %}bg-success bg-opacity-10 border-success{% endif %}">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill">Supplier {{ q.order }}</span>
+                {% if q.is_chosen %}<span class="badge bg-success rounded-pill"><i class="bi bi-check-circle-fill me-1"></i>Chosen</span>
+                {% else %}<span class="badge bg-danger bg-opacity-75 rounded-pill">Rejected</span>{% endif %}
+              </div>
+              <div class="fw-bold text-dark small">{{ q.supplier_name }}</div>
+              <div class="extra-small text-muted">{{ q.contact_person|default:"--" }}</div>
+              <div class="fw-bold text-primary mt-1">{{ q.quoted_amount|floatformat:2 }}</div>
+              {% if q.notes %}<div class="extra-small text-muted mt-1">{{ q.notes }}</div>{% endif %}
+              {% if q.quotation_file %}<a href="{{ q.quotation_file.url }}" target="_blank" class="btn btn-outline-secondary btn-sm rounded-pill mt-2 py-0" style="font-size:.7rem;"><i class="bi bi-paperclip me-1"></i>View Quote</a>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if req.bid_analysis %}
+        <div class="sr-card mt-3"><div class="sr-section-title"><i class="fas fa-chart-bar me-2"></i>Bid Analysis</div><p class="mb-0 small">{{ req.bid_analysis }}</p></div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Signing Panel -->
+    <div class="col-lg-4">
+      <form method="POST" enctype="multipart/form-data" action="{% url 'supply-requisition-sign' req.pk stage %}" id="signingForm">
+        {% csrf_token %}
+        <input type="hidden" name="action" id="formAction" value="approve">
+
+          <div class="highlight-signer mb-4">
+          <div class="sr-section-title"><i class="fas fa-signature me-2"></i>Sign as {{ stage_label }}</div>
+          
+          <div class="mb-3">
+            <span class="small text-muted d-block">Signatory Name</span>
+            <span class="fw-bold">{{ request.user.get_full_name|default:request.user.username }}</span>
+          </div>
+
+          <!-- Bid Analysis for Purchasing Officer -->
+          {% if is_purchasing %}
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Date Received <span class="required-star">*</span></label>
+            <input type="date" name="date_received" class="form-control rounded-3" value="{% now 'Y-m-d' %}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Purchase Order Reference</label>
+            <input type="text" name="purchase_order" class="form-control rounded-3" placeholder="e.g. PO-2026-0001">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Bid Analysis Notes <span class="required-star">*</span></label>
+            <textarea name="bid_analysis" class="form-control rounded-3" rows="4" placeholder="Summarise the bid comparison, recommended supplier and justification..." required></textarea>
+          </div>
+          {% endif %}
+
+          <!-- Finance Officer Payment -->
+          {% if is_finance %}
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Payment Status <span class="required-star">*</span></label>
+            <select name="payment_status" class="form-select rounded-3" id="paymentStatusSelect" required>
+              <option value="Pending" {% if req.payment_status == 'Pending' %}selected{% endif %}>Pending Payment</option>
+              <option value="Paid" {% if req.payment_status == 'Paid' %}selected{% endif %}>Paid</option>
+            </select>
+          </div>
+          <div class="mb-3" id="popUploadRow" style="display:none;">
+            <label class="form-label small fw-semibold">Proof of Payment <span class="required-star">*</span></label>
+            <input type="file" name="proof_of_payment" class="form-control rounded-3" accept="image/*,application/pdf" id="popInput">
+            {% if req.proof_of_payment %}
+            <div class="small text-success mt-1"><i class="bi bi-paperclip me-1"></i>Already uploaded: <a href="{{ req.proof_of_payment.url }}" target="_blank">View</a></div>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Review Comments <span class="text-muted">(Optional)</span></label>
+            <textarea name="comments" class="form-control rounded-3" rows="3" placeholder="Enter comments here..."></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Signature <span class="required-star">*</span></label>
+            <div class="sig-area mb-2" id="signerSigArea">
+              <i class="fas fa-signature fa-2x text-muted mb-2 opacity-50"></i>
+              <p class="small text-muted mb-0">No signature applied</p>
+            </div>
+            <input type="hidden" name="signature_data" id="signerSigData">
+          </div>
+
+          <div class="d-grid gap-2">
+            <button type="button" class="btn btn-outline-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#sigDrawModal">
+              <i class="bi bi-pencil-square me-2"></i>Draw Signature
+            </button>
+            {% if saved_signature %}
+            <button type="button" class="btn btn-outline-success rounded-pill" id="useSavedSigBtn">
+              <i class="bi bi-cloud-check me-2"></i>Use Saved Signature
+            </button>
+            {% endif %}
+            <div class="text-muted small text-center fw-semibold">— OR —</div>
+            <label class="btn btn-outline-secondary rounded-pill mb-0">
+              <i class="fas fa-upload me-2"></i>Upload Signature Image
+              <input type="file" name="sig_upload" accept="image/*" class="d-none" id="signerSigUpload">
+            </label>
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" name="save_to_profile" id="saveToProfile">
+              <label class="form-check-label small" for="saveToProfile">Save signature for future use</label>
+            </div>
+          </div>
+
+          <!-- Approve & Sign Only with T&C -->
+          <div class="mt-3 p-3 bg-light rounded-3 border">
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" id="tcCheckbox">
+              <label class="form-check-label small" for="tcCheckbox">
+                I agree that by clicking <strong>Approve &amp; Sign Only</strong>, all information will be validated as approved and I accept full responsibility for this approval.
+              </label>
+            </div>
+            <button type="button" id="approveAndSignBtn" class="btn btn-warning w-100 rounded-pill py-2 fw-bold" disabled>
+              <i class="bi bi-check2-square me-2"></i>Approve &amp; Sign Only
+            </button>
+          </div>
+
+          <button type="submit" class="btn btn-success w-100 rounded-pill mt-3 py-2 shadow fw-bold" id="confirmSignBtn">
+            <i class="fas fa-check-circle me-2"></i>Confirm &amp; Sign Requisition
+          </button>
+
+          {% if stage != 'requester' %}
+          <button type="button" class="btn btn-outline-danger w-100 rounded-pill mt-2 py-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#rejectModal">
+            <i class="bi bi-x-circle me-2"></i>Reject &amp; Send Back
+          </button>
+          {% endif %}
+        </div>
+        
+        {% if is_purchasing %}
+        <!-- Supplier Quotations Section - inside form, PO fills in with chosen selection -->
+        <div class="sr-card mt-4">
+          <div class="sr-section-title"><i class="fas fa-store me-2"></i>Suppliers &amp; Quotations <span class="text-muted fw-normal">(up to 5)</span></div>
+          <p class="small text-muted mb-3">Add each supplier. Use the radio button to select the <strong>chosen/approved</strong> supplier. Others will be marked as Rejected on the final document.</p>
+          <div id="supplierList"></div>
+          <button type="button" id="addSupplierBtn" class="btn btn-outline-primary btn-sm rounded-pill px-3 mt-1">
+            <i class="fas fa-plus me-1"></i>Add Supplier
+          </button>
+          <p class="extra-small text-muted mt-2 mb-0">* At least 1 supplier required. Maximum 5 suppliers.</p>
+        </div>
+        {% endif %}
+
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Draw Signature Modal -->
+<div class="modal fade" id="sigDrawModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold">Draw Your Signature</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4 text-center">
+        <div class="border rounded bg-white mx-auto overflow-hidden shadow-inner mb-3" style="touch-action:none;">
+          <canvas id="sigPad" width="400" height="180" style="cursor:crosshair;background:#fafafa;"></canvas>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" id="clearSigPad">
+          <i class="fas fa-eraser me-1"></i>Clear
+        </button>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary rounded-pill px-4 shadow" id="saveSigBtn">
+          <i class="fas fa-check me-1"></i>Save &amp; Use
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Rejection Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header bg-danger text-white border-0">
+        <h5 class="modal-title fw-bold"><i class="bi bi-x-circle me-2"></i>Reject &amp; Send Back</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <p class="text-muted small mb-3">Provide a reason for rejection. The previous stage actor will be notified immediately by email and the requisition will route back to them.</p>
+        <label class="form-label fw-semibold small">Rejection Reason <span class="text-danger">*</span></label>
+        <textarea id="rejectionReasonInput" class="form-control rounded-3" rows="4" placeholder="Describe the issue or missing information..."></textarea>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger rounded-pill px-4 fw-bold shadow" id="confirmRejectBtn">
+          <i class="bi bi-send me-2"></i>Submit Rejection
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<script>
+let signaturePad;
+
+document.addEventListener('DOMContentLoaded', function(){
+  const canvas = document.getElementById('sigPad');
+  if(canvas){
+    signaturePad = new SignaturePad(canvas, { backgroundColor:'rgba(255,255,255,0)', penColor:'#000033' });
+    document.getElementById('clearSigPad').addEventListener('click', ()=> signaturePad.clear());
+    document.getElementById('saveSigBtn').addEventListener('click', function(){
+      if(signaturePad.isEmpty()){ alert('Please draw a signature first.'); return; }
+      applySignature(signaturePad.toDataURL());
+      bootstrap.Modal.getInstance(document.getElementById('sigDrawModal')).hide();
+    });
+  }
+
+  {% if saved_signature %}
+  document.getElementById('useSavedSigBtn').addEventListener('click', function(){
+    applySignature("{{ saved_signature|safe }}");
+  });
+  {% endif %}
+
+  document.getElementById('signerSigUpload').addEventListener('change', function(e){
+    if(e.target.files[0]){
+      const reader = new FileReader();
+      reader.onload = ev => applySignature(ev.target.result, true);
+      reader.readAsDataURL(e.target.files[0]);
+    }
+  });
+
+  // Payment status toggle
+  const payStatus = document.getElementById('paymentStatusSelect');
+  const popRow = document.getElementById('popUploadRow');
+  if(payStatus && popRow){
+    function togglePop(){ popRow.style.display = payStatus.value === 'Paid' ? '' : 'none'; }
+    payStatus.addEventListener('change', togglePop);
+    togglePop();
+  }
+
+  // Dynamic supplier addition
+  const addBtn = document.getElementById('addSupplierBtn');
+  const supplierList = document.getElementById('supplierList');
+  if(addBtn && supplierList){
+    addSupplierEntry(0);
+    addBtn.addEventListener('click', function(){
+      const current = supplierList.querySelectorAll('.supplier-entry').length;
+      if(current >= 5){ alert('Maximum 5 suppliers allowed.'); return; }
+      addSupplierEntry(current);
+      if(current + 1 >= 5) addBtn.disabled = true;
+    });
+  }
+
+  // T&C checkbox and Approve & Sign Only
+  const tcBox = document.getElementById('tcCheckbox');
+  const asBtn = document.getElementById('approveAndSignBtn');
+  if(tcBox && asBtn){
+    tcBox.addEventListener('change', function(){ asBtn.disabled = !this.checked; });
+    asBtn.addEventListener('click', function(){
+      if(!tcBox.checked){ alert('Please agree to the terms first.'); return; }
+      const cv = document.createElement('canvas'); cv.width=340; cv.height=90;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle='#fff'; ctx.fillRect(0,0,340,90);
+      ctx.strokeStyle='#1a6fc4'; ctx.lineWidth=2; ctx.strokeRect(3,3,334,84);
+      const isRequester = ("{{ stage }}" === "requester" || "{{ stage }}" === "requester_review");
+      if (isRequester) {
+        ctx.fillStyle='#1a6fc4'; ctx.font='bold 11px Arial'; ctx.fillText('Requested By — Your Electronic Signature',12,24);
+        ctx.fillStyle='#333'; ctx.font='11px Arial'; ctx.fillText('{{ request.user.get_full_name|default:request.user.username }}',12,44);
+        ctx.fillStyle='#555'; ctx.font='10px Arial'; ctx.fillText('{{ request.user.username }} • {% now "d F Y" %}',12,60);
+      } else {
+        ctx.fillStyle='#1a6fc4'; ctx.font='bold 13px Arial'; ctx.fillText('APPROVED & SIGNED',12,24);
+        ctx.fillStyle='#333'; ctx.font='11px Arial'; ctx.fillText('{{ request.user.get_full_name|default:request.user.username }}',12,44);
+        ctx.fillStyle='#555'; ctx.font='10px Arial'; ctx.fillText('{{ stage_label }}',12,60);
+        ctx.fillText(new Date().toLocaleString(),12,76);
+      }
+      applySignature(cv.toDataURL());
+      document.getElementById('confirmSignBtn').click();
+    });
+  }
+
+  // Rejection Modal submit
+  const confirmRejectBtn = document.getElementById('confirmRejectBtn');
+  if(confirmRejectBtn){
+    confirmRejectBtn.addEventListener('click', function(){
+      const reason = document.getElementById('rejectionReasonInput').value.trim();
+      if(!reason){ alert('Please provide a rejection reason.'); return; }
+      let ri = document.getElementById('rejectionReasonHidden');
+      if(!ri){
+        ri = document.createElement('input'); ri.type='hidden';
+        ri.id='rejectionReasonHidden'; ri.name='rejection_reason';
+        document.getElementById('signingForm').appendChild(ri);
+      }
+      ri.value = reason;
+      document.getElementById('formAction').value = 'reject';
+      bootstrap.Modal.getInstance(document.getElementById('rejectModal')).hide();
+      document.getElementById('signingForm').submit();
+    });
+  }
+
+  // PO: live line-total and budget-balance recalculation
+  document.querySelectorAll('.unit-cost-input').forEach(function(input){
+    input.addEventListener('input', function(){
+      const pk = this.dataset.itemPk;
+      const qty = parseFloat(this.dataset.qty) || 0;
+      const cost = parseFloat(this.value) || 0;
+      const lt = qty * cost;
+      const ltCell = document.getElementById('lt_' + pk);
+      if(ltCell) ltCell.textContent = lt.toFixed(2);
+      recalcGrandTotal();
+      recalcBudgetBalance(pk);
+    });
+  });
+  document.querySelectorAll('.current-bal-input').forEach(function(input){
+    input.addEventListener('input', function(){ recalcBudgetBalance(this.dataset.itemPk); });
+  });
+});
+
+function recalcBudgetBalance(pk){
+  const ltCell = document.getElementById('lt_' + pk);
+  const cbInput = document.querySelector('.current-bal-input[data-item-pk="' + pk + '"]');
+  const bbCell = document.getElementById('bb_' + pk);
+  if(ltCell && cbInput && bbCell){
+    const lt = parseFloat(ltCell.textContent) || 0;
+    const cb = parseFloat(cbInput.value) || 0;
+    const bb = cb - lt;
+    bbCell.textContent = bb.toFixed(2);
+    bbCell.style.color = bb < 0 ? '#dc3545' : '#198754';
+  }
+}
+
+function recalcGrandTotal(){
+  let total = 0;
+  document.querySelectorAll('.line-total-cell').forEach(cell => { total += parseFloat(cell.textContent) || 0; });
+  const gtCell = document.getElementById('grandTotalCell');
+  if(gtCell) gtCell.textContent = total.toFixed(2);
+}
+
+function addSupplierEntry(idx){
+  const num = idx + 1;
+  const div = document.createElement('div');
+  div.className = 'supplier-entry border rounded-3 p-3 mb-3 position-relative';
+  div.style.background = idx % 2 === 0 ? 'rgba(13,110,253,.04)' : 'rgba(25,135,84,.04)';
+  div.innerHTML = `
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div class="d-flex align-items-center gap-2">
+        <input class="form-check-input" type="radio" name="chosen_supplier" value="${idx}" id="chosen_${idx}" ${idx===0?'checked':''} required>
+        <label class="fw-bold small text-primary mb-0" for="chosen_${idx}">Supplier ${num} <span class="badge bg-success ms-1" style="font-size:.65rem;">Mark as chosen</span></label>
+      </div>
+      ${idx > 0 ? '<button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-2 py-0 remove-supplier"><i class="fas fa-times"></i></button>' : ''}
+    </div>
+    <div class="row g-2">
+      <div class="col-md-6"><input type="text" name="supplier_name[]" class="form-control rounded-3 form-control-sm" placeholder="Supplier Name *" required></div>
+      <div class="col-md-6"><input type="text" name="supplier_contact[]" class="form-control rounded-3 form-control-sm" placeholder="Contact Person"></div>
+      <div class="col-md-4"><input type="text" name="supplier_phone[]" class="form-control rounded-3 form-control-sm" placeholder="Phone"></div>
+      <div class="col-md-4"><input type="email" name="supplier_email[]" class="form-control rounded-3 form-control-sm" placeholder="Email"></div>
+      <div class="col-md-4"><input type="number" step="0.01" name="supplier_amount[]" class="form-control rounded-3 form-control-sm" placeholder="Quoted Amount"></div>
+      <div class="col-md-8"><input type="text" name="supplier_notes[]" class="form-control rounded-3 form-control-sm" placeholder="Notes (optional)"></div>
+      <div class="col-md-4">
+        <label class="btn btn-outline-secondary btn-sm w-100 rounded-3 mb-0" id="fileLabel_${idx}">
+          <i class="fas fa-paperclip me-1"></i><span>Attach Quotation</span>
+          <input type="file" name="supplier_file_${idx}" accept="image/*,application/pdf" class="d-none" onchange="updateFileLabel(this, 'fileLabel_${idx}')">
+        </label>
+      </div>
+    </div>`;
+  const supplierList = document.getElementById('supplierList');
+  supplierList.appendChild(div);
+  div.querySelector('.remove-supplier') && div.querySelector('.remove-supplier').addEventListener('click', function(){
+    div.remove();
+    document.getElementById('addSupplierBtn').disabled = false;
+    renumberSuppliers();
+  });
+}
+
+function renumberSuppliers(){
+  document.querySelectorAll('.supplier-entry').forEach((el, i) => {
+    const label = el.querySelector('.fw-bold.small');
+    if(label) label.innerHTML = 'Supplier ' + (i + 1) + ' <span class="badge bg-success ms-1" style="font-size:.65rem;">Mark as chosen</span>';
+    const radio = el.querySelector('input[type="radio"]');
+    if(radio){ radio.value = i; radio.id = 'chosen_' + i; }
+    const rl = el.querySelector('label[for]');
+    if(rl) rl.setAttribute('for', 'chosen_' + i);
+  });
+}
+
+function updateFileLabel(input, labelId){
+  const label = document.getElementById(labelId);
+  if(label && input.files[0]){
+    label.querySelector('span').textContent = input.files[0].name.substring(0,20)+'...';
+  }
+}
+
+function applySignature(dataUrl, fromFile=false){
+  const area = document.getElementById('signerSigArea');
+  area.innerHTML = `<img src="${dataUrl}" class="sig-preview">`;
+  area.classList.add('has-sig');
+  if(!fromFile) document.getElementById('signerSigData').value = dataUrl;
+}
+</script>
+{% endblock pageContent %}

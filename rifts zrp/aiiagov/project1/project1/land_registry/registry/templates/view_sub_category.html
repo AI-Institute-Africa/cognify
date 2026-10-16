@@ -1,0 +1,54 @@
+{% load static %} {% load humanize %}
+<style>#uni_modal .modal-footer {
+        display: none
+    }
+
+    #uni_modal .modal-sub-footer {
+        display: flex
+    }</style>
+<div class="container-fluid" id="e-details">
+    <div class="d-flex align-items-center mb-4">
+        <div class="bg-primary bg-opacity-10 p-3 rounded-3 me-3">
+            <i class="fas fa-tag text-primary h4 mb-0"></i></div>
+        <div><h5 class="fw-bold mb-0 text-dark"> Sub-Category Details</h5>
+            <p class="text-muted small mb-0"> Secondary classification management</p></div></div>
+
+    <div class="glass-card bg-light bg-opacity-50 p-4 rounded-3">
+        <div class="mb-4">
+            <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Parent Category</label>
+            <div class="d-flex align-items-center">
+                <i class="fas fa-folder text-muted me-2 small"></i>
+                <span class="fw-bold text-dark"> {{ sub_category.category }}</span></div></div>
+
+        <div class="mb-4">
+            <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Sub-Category Name</label>
+            <span class="fw-bold text-primary h6 mb-0"> {{ sub_category.name }}</span></div>
+
+        <div class="mb-4">
+            <label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Description</label>
+            <p class="text-muted small mb-0 lh-base"> {{ sub_category.description|default:"No description provided." }}</p></div>
+
+        <div><label class="text-muted extra-small fw-bold text-uppercase d-block mb-1"> Current Status</label>
+            {% if sub_category.status == '1' %}
+            <span
+                class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-4 rounded-pill"> Active</span>
+            {% else %}
+            <span
+                class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-4 rounded-pill"> Inactive</span>
+            {% endif %}</div></div></div>
+
+<style>.extra-small {
+        font-size: 0.65rem;
+    }
+
+    #uni_modal .modal-footer {
+        display: none;
+    }
+
+    #uni_modal .modal-sub-footer {
+        display: flex;
+    }</style>
+
+
+
+

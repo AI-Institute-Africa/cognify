@@ -1,0 +1,315 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block pageContent %}
+<div class="container-fluid pb-5">
+    <!-- Executive Header -->
+    <div class="row mb-5 align-items-end">
+        <div class="col-md-8">
+            <h1 class="display-5 fw-bold mb-2">Executive Strategic Dashboard</h1>
+            <p class="text-muted lead mb-0">Institutional Project Governance & Portfolio Intelligence</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <a href="{% url 'manage-users' %}" class="btn btn-outline-warning rounded-pill px-4 mb-2">
+                <i class="fas fa-users-cog me-2"></i>User Governance Panel
+            </a>
+            <div class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill border border-primary border-opacity-25">
+                <i class="fas fa-shield-alt me-2"></i> Ministerial Access Level: Board Member
+            </div>
+            <div class="text-muted small mt-2"><i class="far fa-clock me-1"></i> Late Updated: {% now "H:i" %}</div>
+        </div>
+    </div>
+
+    <!-- Tier 1: Strategic DNA (Key Metrics) -->
+    <div class="row g-4 mb-5">
+        <div class="col-xl-3 col-md-6">
+            <div class="glass-panel p-4 h-100 border-0 shadow-lg position-relative overflow-hidden">
+                <div class="position-absolute top-0 end-0 p-3 opacity-10">
+                    <i class="fas fa-project-diagram display-1"></i>
+                </div>
+                <p class="text-muted small fw-bold text-uppercase mb-1">Portfolio Size</p>
+                <h2 class="display-6 fw-bold mb-0">{{ stats.total }}</h2>
+                <div class="mt-2 extra-small text-success">
+                    <i class="fas fa-arrow-up me-1"></i> Active: {{ stats.active }}
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="glass-panel p-4 h-100 border-0 shadow-lg position-relative overflow-hidden">
+                <div class="position-absolute top-0 end-0 p-3 opacity-10">
+                    <i class="fas fa-check-circle display-1"></i>
+                </div>
+                <p class="text-muted small fw-bold text-uppercase mb-1">Execution Velocity</p>
+                <h2 class="display-6 fw-bold mb-0">{{ stats.completion_rate }}</h2>
+                <div class="mt-2 extra-small text-info">
+                    <i class="fas fa-bolt me-1"></i> Agility: {{ stats.agility }}
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="glass-panel p-4 h-100 border-0 shadow-lg position-relative overflow-hidden">
+                <div class="position-absolute top-0 end-0 p-3 opacity-10">
+                    <i class="fas fa-gavel display-1"></i>
+                </div>
+                <p class="text-muted small fw-bold text-uppercase mb-1">Governance Score</p>
+                <h2 class="display-6 fw-bold text-warning mb-0">{{ stats.score }}/10</h2>
+                <div class="mt-2 extra-small text-warning">
+                    <i class="fas fa-hourglass-half me-1"></i> Decision Latency: {{ stats.avg_latency }}
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="glass-panel p-4 h-100 border-0 shadow-lg border-start border-4 {% if stats.delayed > 0 %}border-danger{% else %}border-success{% endif %}">
+                <p class="text-muted small fw-bold text-uppercase mb-1">Critical Risks</p>
+                <h2 class="display-6 fw-bold mb-0">{{ stats.delayed }}</h2>
+                <div class="mt-2 extra-small text-danger">
+                    <i class="fas fa-exclamation-triangle me-1"></i> SLA Breaches: {{ stats.sla_breaches }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tier 2: Strategic Charts & Approvals -->
+    <div class="row g-4 mb-5">
+        <div class="col-lg-8">
+            <!-- Strategic Approval Queue -->
+            <div class="glass-panel p-4 mb-4 border-start border-4 border-indigo" style="border-color: #6610f2 !important;">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold mb-0 text-indigo" style="color: #6610f2 !important;"><i class="fas fa-crown me-2"></i> Strategic Approval Queue</th>
+                    <span class="badge rounded-pill" style="background: rgba(102, 16, 242, 0.1); color: #6610f2;">{{ pending_approvals|length }} Awaiting Final Verdict</span>
+                </div>
+                <div class="list-group list-group-flush bg-transparent">
+                    {% for phase in pending_approvals %}
+                    <div class="list-group-item bg-transparent border-bottom border-opacity-10 px-0 py-3" style="border-color: var(--glass-border) !important;">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <h6 class="fw-bold mb-1">{{ phase.project.name }}</h6>
+                                <p class="extra-small text-muted mb-0">Stage: <strong>{{ phase.name }}</strong> • Pending your strategic approval</p>
+                            </div>
+                            <div class="col-auto">
+                                <a href="{% url 'project-detail' phase.project.id %}" class="btn btn-sm rounded-pill px-4 fw-bold" style="background: #6610f2; color: #fff !important;">Grant Approval</a>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-4 text-muted extra-small">
+                        <i class="fas fa-check-circle text-success me-2"></i> All strategic gates are cleared.
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="glass-panel p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold mb-0">Departmental Transformation Progress</h5>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-primary rounded-pill px-3" type="button">All Units</button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr class="text-muted extra-small text-uppercase">
+                                <th>Department Name</th>
+                                <th>Portfolio</th>
+                                <th>Weighted Progress</th>
+                                <th class="text-end">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for dept in stats.dept_data %}
+                            <tr>
+                                <td class="fw-bold">{{ dept.name }}</td>
+                                <td>{{ dept.count }} Projects</td>
+                                <td>
+                                    <div class="progress bg-secondary bg-opacity-10 rounded-pill" style="height: 6px; width: 120px;">
+                                        <div class="progress-bar bg-primary rounded-pill" style="width: {{ dept.progress }}%"></div>
+                                    </div>
+                                    <span class="extra-small text-muted">{{ dept.progress }}%</span>
+                                </td>
+                                <td class="text-end">
+                                    {% if dept.progress > 70 %}
+                                    <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3">Elite</span>
+                                    {% elif dept.progress > 40 %}
+                                    <span class="badge bg-info bg-opacity-10 text-info rounded-pill px-3">Scaling</span>
+                                    {% else %}
+                                    <span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-3">Growth</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center text-muted py-4">No departmental data available yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="glass-panel p-4 h-100">
+                <h5 class="fw-bold mb-4">Strategic Risk Heatmap</h5>
+                <div class="risk-grid">
+                    {% for p_label, colors in stats.risk_heatmap.items %}
+                    <div class="d-flex mb-3 align-items-center">
+                        <div class="me-3 small text-muted" style="width: 60px;">{{ p_label }}</div>
+                        <div class="d-flex flex-grow-1" style="height: 24px;">
+                            <div class="bg-danger rounded-start" style="width: {{ colors.Red }}%; opacity: 0.8;" title="Red: {{ colors.Red }}"></div>
+                            <div class="bg-warning" style="width: {{ colors.Yellow }}%; opacity: 0.8;" title="Yellow: {{ colors.Yellow }}"></div>
+                            <div class="bg-success rounded-end" style="width: {{ colors.Green }}%; opacity: 0.8;" title="Green: {{ colors.Green }}"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-4 p-3 rounded-3 bg-secondary bg-opacity-5 border" style="border-color: var(--glass-border) !important;">
+                    <p class="extra-small text-muted mb-0"><i class="fas fa-info-circle me-1"></i> Heatmap visualization based on normalized task priority vs. deadline proximity.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tier 3: Strategic Benefits -->
+    <div class="glass-panel p-4 mb-5 border-start border-4 border-success">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h5 class="fw-bold mb-0 text-success"><i class="fas fa-hand-holding-usd me-2"></i> Strategic Institutional Benefits</h5>
+                <p class="extra-small text-muted mb-0">Projected Value Creation & Cost Optimization Results</p>
+            </div>
+            <div class="d-flex gap-3">
+                <div class="text-end">
+                    <div class="extra-small text-muted fw-bold">ANNUAL PROJECTED SAVINGS</div>
+                    <div class="h4 fw-bold mb-0 text-success">USD {{ total_annual_benefits|floatformat:2|intcomma }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="row g-4">
+            <div class="col-lg-12">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="extra-small text-muted text-uppercase">
+                            <tr>
+                                <th>Benefit Description</th>
+                                <th>Department</th>
+                                <th class="text-end">Monthly Realization</th>
+                                <th class="text-end">Annual Projection</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for benefit in benefits_data %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold">{{ benefit.revenue_line }}</div>
+                                    <div class="extra-small text-muted">Recorded by {{ benefit.hod.username }}</div>
+                                </td>
+                                <td><span class="badge bg-light text-dark rounded-pill">{{ benefit.department.name }}</span></td>
+                                <td class="text-end fw-bold text-success">{{ benefit.monthly_savings|floatformat:2|intcomma }}</td>
+                                <td class="text-end fw-bold text-primary">{{ benefit.annual_projection|floatformat:2|intcomma }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center py-4 text-muted extra-small">No strategic benefits recorded yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {# Benefit Doughnut Chart #}
+            <div class="col-lg-6 mt-4">
+                <div class="glass-panel p-4">
+                    <h6 class="fw-bold mb-3 extra-small text-uppercase text-muted"><i class="fas fa-chart-pie me-2 text-success"></i>Benefit by Department (Annual USD)</h6>
+                    <div style="height: 260px;">
+                        <canvas id="mdBenefitChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tier 4: Active Portfolio -->
+    <div class="glass-panel p-4">
+        <h5 class="fw-bold mb-4">Institutional Portfolio View</h5>
+        <div class="row g-4">
+            {% for project in projects %}
+            <div class="col-md-6 col-lg-4">
+                <div class="p-3 rounded-4 border h-100 hover-border-primary transition-all" style="border-color: var(--glass-border) !important;">
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="badge bg-{{ project.risk_indicator.color }} bg-opacity-10 text-{{ project.risk_indicator.color }} rounded-pill px-3">
+                            {{ project.risk_indicator.level }}
+                        </span>
+                        <div class="extra-small text-muted">{{ project.owner.username }}</div>
+                    </div>
+                    <h6 class="fw-bold mb-1">{{ project.name }}</h6>
+                    <p class="extra-small text-muted mb-3">{{ project.department.name }}</p>
+                    
+                    <div class="d-flex justify-content-between extra-small mb-1">
+                        <span class="text-muted">Impact Velocity</span>
+                        <span class="fw-bold">{{ project.progress_percentage }}%</span>
+                    </div>
+                    <div class="progress bg-secondary bg-opacity-10 rounded-pill mb-3" style="height: 5px;">
+                        <div class="progress-bar bg-primary rounded-pill progress-bar-animated progress-bar-striped" style="width: {{ project.progress_percentage }}%"></div>
+                    </div>
+                    
+                    <a href="{% url 'project-detail' project.pk %}" class="btn btn-sm btn-outline-primary w-100 rounded-pill">Analyze Deeply</a>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center py-5">
+                <i class="fas fa-project-diagram display-1 text-muted opacity-25 mb-4"></i>
+                <h5 class="text-muted">No active projects found in the master Records Intelligence.</h5>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .hover-border-primary:hover {
+        border-color: rgba(0, 123, 255, 0.5) !important;
+        transform: translateY(-5px);
+    }
+    .hover-scale:hover {
+        transform: scale(1.02);
+    }
+    .transition-all {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .extra-small {
+        font-size: 0.75rem;
+    }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const canvas = document.getElementById('mdBenefitChart');
+    if (!canvas) return;
+    new Chart(canvas.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: {{ benefit_dept_labels|safe }},
+            datasets: [{
+                data: {{ benefit_dept_data|safe }},
+                backgroundColor: ['#4f46e5','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'],
+                borderWidth: 0,
+                hoverOffset: 20
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { font: { size: 10, weight: 'bold' }, padding: 15, usePointStyle: true } },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': USD ' + new Intl.NumberFormat().format(context.parsed);
+                        }
+                    }
+                }
+            },
+            cutout: '65%'
+        }
+    });
+});
+</script>
+{% endblock pageContent %}

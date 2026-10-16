@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-success bg-opacity-10 py-3">
+                    <h5 class="mb-0 text-body fw-bold"><i class="fas fa-check-circle me-2"></i> Confirm Returned File</h5>
+                    <p class="small text-muted mb-0">Review borrower's modifications and confirm return acceptance</p>
+                </div>
+                <div class="card-body p-4">
+                    <!-- File & Borrower Info -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6 class="fw-bold mb-3 text-body"><i class="fas fa-file me-2"></i> File Information</h6>
+                            <div class="info-card p-3 rounded">
+                                <div class="info-row">
+                                    <p class="info-key mb-0">Reference</p>
+                                    <p class="info-value mb-0">{{ file_doc.ref_num }}</p>
+                                </div>
+                                <div class="info-row mt-2">
+                                    <p class="info-key mb-0">Title</p>
+                                    <p class="info-value mb-0">{{ file_doc.title }}</p>
+                                </div>
+                                <div class="info-row mt-2">
+                                    <p class="info-key mb-0">Category</p>
+                                    <p class="info-value mb-0">{{ file_doc.sub_category.category }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="fw-bold mb-3 text-body"><i class="fas fa-user me-2"></i> Borrower Information</h6>
+                            <div class="info-card p-3 rounded">
+                                <div class="info-row">
+                                    <p class="info-key mb-0">Name</p>
+                                    <p class="info-value mb-0">{{ borrow.borrower.name }}</p>
+                                </div>
+                                <div class="info-row mt-2">
+                                    <p class="info-key mb-0">Code</p>
+                                    <p class="info-value mb-0">{{ borrow.borrower.code }}</p>
+                                </div>
+                                <div class="info-row mt-2">
+                                    <p class="info-key mb-0">Email</p>
+                                    <p class="info-value mb-0">{{ borrow.borrower.email }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr />
+
+                    <!-- Return Details -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6 class="fw-bold mb-3 text-body"><i class="fas fa-calendar me-2"></i> Transaction Dates</h6>
+                            <div class="info-card p-3 rounded">
+                                <div class="info-row">
+                                    <p class="info-key mb-0">Issued</p>
+                                    <p class="info-value mb-0">{{ borrow.borrowing_date|date:"d-M-Y" }}</p>
+                                </div>
+                                <div class="info-row mt-2">
+                                    <p class="info-key mb-0">Due Date</p>
+                                    <p class="info-value mb-0">{{ borrow.return_date|date:"d-M-Y" }}</p>
+                                </div>
+                                <div class="info-row mt-2">
+                                    <p class="info-key mb-0">Returned</p>
+                                    <p class="info-value mb-0">{{ borrow.date_created|date:"d-M-Y H:i" }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="fw-bold mb-3 text-body"><i class="fas fa-pencil-alt me-2"></i> Modification Notes</h6>
+                            <div class="info-card p-3 rounded border border-info">
+                                <div class="info-value">{{ borrow.modification_notes|linebreaks|default:"<em class='text-muted'>No notes provided</em>" }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Borrower Signature -->
+                    {% if borrow.borrower_signature %}
+                    <div class="mb-4">
+                        <h6 class="fw-bold mb-3 text-body"><i class="fas fa-signature me-2"></i> Borrower's Signature (Return Confirmation)</h6>
+                        <div class="card border border-success p-3">
+                            <img src="{{ borrow.borrower_signature }}" alt="Borrower Signature" class="img-fluid rounded signature-preview" />
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Modified File -->
+                    {% if borrow.modified_file %}
+                    <div class="mb-4">
+                        <h6 class="fw-bold mb-3 text-body"><i class="fas fa-file-upload me-2"></i> Returned Modified File</h6>
+                        <div class="alert alert-info py-2 text-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <p class="mb-0"><strong>{{ borrow.modified_file.name }}</strong></p>
+                                    <small class="text-muted">Modified version provided by borrower</small>
+                                </div>
+                                <div>
+                                    <a href="{{ borrow.modified_file.url }}" download class="btn btn-sm btn-outline-light">Download</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <hr />
+
+                    <!-- Issuer Confirmation -->
+                    <form method="POST" class="mt-4" id="confirmForm">
+                        {% csrf_token %}
+
+                        <div class="card border border-success mb-4">
+                            <div class="card-header bg-success bg-opacity-10">
+                                <h6 class="mb-0 text-body fw-bold"><i class="fas fa-pen me-2"></i> Your Signature (Issuer Confirmation)</h6>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="issuerSignaturePad" width="600" height="180" class="border border-1 rounded w-100 signature-canvas" ></canvas>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="clearIssuerSignature">
+                                        <i class="fas fa-redo me-1"></i> Clear Signature
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label class="form-label fw-bold text-body">Issuer Comments (Optional):</label>
+                            <textarea name="issuer_comments" class="form-control" rows="3" placeholder="Add any notes regarding this return confirmation..."></textarea>
+                        </div>
+
+                        <input type="hidden" name="issuer_signature" id="issuer_signature_input">
+
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="button" class="btn btn-success btn-lg" id="confirmReturnBtn">
+                                <i class="fas fa-check-circle me-2"></i> Accept & Confirm Return
+                            </button>
+                            <a href="{% url 'view-borrow-pk' borrow.id %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times-circle me-1"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Signature Pad Script -->
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<script>
+    let issuerSignaturePad;
+
+    $(function() {
+        // Initialize Issuer Signature Pad
+        const canvas = document.getElementById('issuerSignaturePad');
+        if (canvas) {
+            issuerSignaturePad = new SignaturePad(canvas, {
+                backgroundColor: 'rgba(255,255,255,1)',
+                penColor: '#00aa44'
+            });
+
+            document.getElementById('clearIssuerSignature').addEventListener('click', () => {
+                issuerSignaturePad.clear();
+            });
+        }
+
+        // Confirm Return Button
+        $('#confirmReturnBtn').click(function() {
+            if (!issuerSignaturePad || issuerSignaturePad.isEmpty()) {
+                alert('Please sign to confirm the return.');
+                return;
+            }
+
+            document.getElementById('issuer_signature_input').value = issuerSignaturePad.toDataURL();
+            
+            start_loader();
+            $('#confirmForm').submit();
+        });
+    });
+</script>
+
+{% endblock pageContent %}

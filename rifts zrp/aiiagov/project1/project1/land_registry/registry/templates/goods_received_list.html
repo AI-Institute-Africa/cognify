@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+            <h3 class="fw-bold mb-1"><i class="fas fa-dolly text-success me-2"></i>GOODS RECEIVED REGISTER / LEDGER</h3>
+            <div class="small text-muted">
+                Zimbabwe Republic Police &bull; Central Stores &bull; Inward Equipment &amp; Supplier Intake Register
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="{% url 'print-goods-received' %}" target="_blank" class="btn btn-dark rounded-pill px-3 shadow-sm">
+                <i class="fas fa-print me-1 text-warning"></i> Print Ledger Sheet
+            </a>
+            <button class="btn btn-success rounded-pill px-4 shadow-sm fw-bold"
+                onclick="uni_modal('Record Goods Received Entry', '{% url 'manage-goods-received' %}', 'modal-lg')">
+                <i class="fas fa-plus-circle me-2"></i> Record Goods Received
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Scope & Role Indicator Banner -->
+<div class="row mb-3">
+    <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+            {% if scope_info.is_chief_director %}
+            <span class="badge bg-dark border border-warning text-warning px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-crown me-1 text-warning"></i> Chief Director Command &bull; All Goods Received Consignments System-Wide
+            </span>
+            {% elif scope_info.is_supt_ict %}
+            <span class="badge bg-primary px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-sitemap me-1"></i> Supt ICT &bull; Comprehensive Intake Ledger
+            </span>
+            {% elif scope_info.scope == 'comms' %}
+            <span class="badge bg-warning text-dark px-3 py-2 rounded-pill shadow-sm fs-6 fw-bold">
+                <i class="fas fa-tower-broadcast me-1"></i> {{ scope_info.role }} &bull; Communications &amp; Radio Consignments Only
+            </span>
+            {% elif scope_info.scope == 'systems' %}
+            <span class="badge bg-info text-dark px-3 py-2 rounded-pill shadow-sm fs-6 fw-bold">
+                <i class="fas fa-laptop-code me-1"></i> {{ scope_info.role }} &bull; Systems &amp; IT Consignments Only
+            </span>
+            {% elif scope_info.scope == 'province' %}
+            <span class="badge bg-danger px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-map-location-dot me-1"></i> Provincial ICT Officer &bull; {{ scope_info.province|default:"Assigned Province" }} Intakes
+            </span>
+            {% else %}
+            <span class="badge bg-secondary px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-shield-halved me-1"></i> General Police Operations &bull; Central Stores Inward Ledger
+            </span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- KPI Metrics -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light border-start border-4 border-primary">
+            <div class="extra-small text-muted text-uppercase fw-bold">Total Inward Entries</div>
+            <div class="h3 fw-bold mb-0 text-dark">{{ total_entries|default:0 }}</div>
+            <div class="extra-small text-muted">Recorded deliveries in register</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light border-start border-4 border-success">
+            <div class="extra-small text-muted text-uppercase fw-bold">Total Quantity Received</div>
+            <div class="h3 fw-bold mb-0 text-success">{{ total_qty|intcomma }}</div>
+            <div class="extra-small text-muted">Units delivered into store</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light border-start border-4 border-warning">
+            <div class="extra-small text-muted text-uppercase fw-bold">Active Suppliers / Companies</div>
+            <div class="h3 fw-bold mb-0 text-warning">{{ companies_count|default:0 }}</div>
+            <div class="extra-small text-muted">Delivering vendors &amp; contractors</div>
+        </div>
+    </div>
+</div>
+
+<!-- Search & Ledger Table -->
+<div class="card border-0 shadow-sm rounded-4">
+    <div class="card-header bg-white border-0 pt-4 px-4 pb-2">
+        <form method="GET" action="{% url 'goods-received-list' %}" class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0 rounded-pill-start ps-3"><i class="fas fa-search text-muted"></i></span>
+                    <input type="text" name="q" value="{{ q }}" class="form-control bg-light border-start-0 rounded-pill-end"
+                        placeholder="Search Company, Goods, P.O No., Receiver, Bin...">
+                </div>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary rounded-pill px-4">Search</button>
+                {% if q %}
+                <a href="{% url 'goods-received-list' %}" class="btn btn-outline-secondary rounded-pill px-3">Clear</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+    <div class="card-body p-4">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle">
+                <thead class="table-dark extra-small text-uppercase">
+                    <tr class="text-center align-middle">
+                        <th style="width: 70px;">ENTRY</th>
+                        <th style="width: 95px;">DATE</th>
+                        <th>GOODS RECEIVED</th>
+                        <th>COMPANY</th>
+                        <th style="width: 65px;">QTY</th>
+                        <th style="width: 100px;">ASSET TALLY</th>
+                        <th style="width: 65px;">BAL</th>
+                        <th>P. O No.</th>
+                        <th>BIN No</th>
+                        <th>RECEIVER</th>
+                        <th>CHECKER</th>
+                        <th>CROSS REF</th>
+                        <th>REMARKS</th>
+                        <th style="width: 90px;">ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody class="small">
+                    {% for e in entries %}
+                    <tr>
+                        <td class="text-center fw-bold">{{ e.entry_no|default:e.id }}</td>
+                        <td class="text-center text-nowrap">{{ e.date|date:"d/m/y" }}</td>
+                        <td class="fw-semibold text-dark">{{ e.goods_received }}</td>
+                        <td><span class="badge bg-light text-dark border">{{ e.company }}</span></td>
+                        <td class="text-center fw-bold text-success">+{{ e.qty|intcomma }}</td>
+                        <td class="text-center">
+                            {% if e.is_fully_registered %}
+                            <span class="badge bg-success rounded-pill px-2" title="Fully accounted in Asset Register">
+                                <i class="fas fa-check-circle me-1"></i> {{ e.registered_assets_qty }}/{{ e.qty }}
+                            </span>
+                            {% elif e.registered_assets_qty > 0 %}
+                            <span class="badge bg-warning text-dark rounded-pill px-2" title="{{ e.remaining_unregistered_qty }} units pending registration">
+                                <i class="fas fa-clock me-1"></i> {{ e.registered_assets_qty }}/{{ e.qty }}
+                            </span>
+                            {% else %}
+                            <span class="badge bg-secondary rounded-pill px-2" title="No assets registered yet">
+                                0/{{ e.qty }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center fw-bold text-primary">{{ e.bal|intcomma }}</td>
+                        <td class="text-nowrap font-monospace">{{ e.po_no }}</td>
+                        <td class="text-nowrap">{{ e.bin_no|default:"-" }}</td>
+                        <td class="text-nowrap fw-bold">{{ e.receiver }}</td>
+                        <td class="text-nowrap fw-bold">{{ e.checker }}</td>
+                        <td class="text-nowrap font-monospace text-muted">{{ e.cross_ref|default:"-" }}</td>
+                        <td class="text-muted extra-small">
+                            {{ e.remarks|default:"-" }}
+                            {% if e.delivery_note_scan %}
+                            <a href="{{ e.delivery_note_scan.url }}" target="_blank" class="badge bg-secondary text-white d-inline-block mt-1">
+                                <i class="fas fa-file-pdf me-1"></i> Delivery Doc
+                            </a>
+                            {% endif %}
+                        </td>
+                        <td class="text-end text-nowrap">
+                            <button type="button" class="btn btn-sm btn-outline-primary" title="Edit Entry"
+                                onclick="uni_modal('Edit Goods Received Entry', '{% url 'manage-goods-received-pk' e.pk %}', 'modal-lg')">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <a href="{% url 'delete-goods-received' e.pk %}" class="btn btn-sm btn-outline-danger"
+                                onclick="return confirm('Are you sure you want to delete Goods Received entry #{{ e.entry_no|default:e.id }}?')"
+                                title="Delete Entry">
+                                <i class="fas fa-trash-alt"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="13" class="text-center py-5 text-muted">
+                            <i class="fas fa-dolly fs-1 text-muted opacity-25 d-block mb-3"></i>
+                            <div class="fw-bold fs-6">No Goods Received Entries Recorded Yet</div>
+                            <div class="extra-small mb-3">Record deliveries from suppliers, cross-referenced with Purchase Orders and Bin locations.</div>
+                            <button class="btn btn-success btn-sm rounded-pill px-4 fw-bold"
+                                onclick="uni_modal('Record Goods Received Entry', '{% url 'manage-goods-received' %}', 'modal-lg')">
+                                <i class="fas fa-plus me-1"></i> Record First Inward Delivery
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

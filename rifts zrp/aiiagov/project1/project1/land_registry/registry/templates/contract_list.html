@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <div><h3 class="fw-bold text-gradient mb-1"> Contract Management</h3>
+            <p class="text-muted small mb-0"> Monitor active contracts, milestones, and physical file trails</p></div>
+        <div class="d-flex gap-2">
+            <span class="badge bg-warning text-dark rounded-pill py-2 px-3 shadow-sm d-flex align-items-center">
+                <i class="fas fa-exclamation-triangle me-2"></i> 3 Alerts</span></div></div></div>
+
+<div class="card border-0 shadow-lg rounded-4 overflow-hidden animate__animated animate__fadeInUp">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="contract-table">
+                <thead class="bg-light bg-opacity-75">
+                    <tr><th class="ps-4 py-3 text-secondary extra-small text-uppercase fw-bold" colspan="2"> Contract Details & Reference</th>
+                        <th class="py-3 text-secondary extra-small text-uppercase fw-bold"> Duration</th>
+                        <th class="py-3 text-secondary extra-small text-uppercase fw-bold"> Physical File</th>
+                        <th class="py-3 text-secondary extra-small text-uppercase fw-bold"> Status</th>
+                        <th class="py-3 text-secondary extra-small text-uppercase fw-bold text-center"> Health</th>
+                        <th class="pe-4 py-3 text-secondary extra-small text-uppercase fw-bold text-end"> Actions</th></tr></thead>
+                <tbody>{% for contract in contracts %}
+                        <td colspan="2"><div class="fw-bold text-dark mb-0"> {{ contract.title }}, {{ contract.awarded_bid.tender.tender_type }}</div>
+                            <div class="text-muted extra-small"> Awarded to: {{ contract.awarded_bid.bidder_name }} &middot; ${{ contract.amount|intcomma }}, {{ contract.contract_ref }}, {{ contract.awarded_bid.tender.department.name }}</div></td>
+                        <td><div class="small fw-semibold"> {{ contract.start_date|date:"M Y" }} &rarr; {{ contract.end_date|date:"M Y" }}</div>
+                            {% if contract.end_date < now.date %} <span
+                                class="extra-small text-danger fw-bold text-uppercase"> Expired</span>
+                                {% endif %}</td>
+                        <td>{% if contract.physical_file %}
+                            <a href="{% url 'view-file_doc-pk' contract.physical_file.pk %}"
+                                class="small text-decoration-none text-primary">
+                                <i class="fas fa-file-pdf me-1"></i> {{ contract.physical_file.ref_num }}</a>
+                            {% else %}
+                            <span class="text-muted extra-small italic"> Not linked yet</span>
+                            {% endif %}</td>
+                        <td>{% if contract.status == 'Active' %}
+                            <span class="badge bg-success rounded-pill extra-small px-3 py-2"> Active</span>
+                            {% elif contract.status == 'Expired' %}
+                            <span class="badge bg-danger rounded-pill extra-small px-3 py-2"> Expired</span>
+                            {% elif contract.status == 'Completed' %}
+                            <span class="badge bg-info text-dark rounded-pill extra-small px-3 py-2"> Completed</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark rounded-pill extra-small px-3 py-2 border"> {{ contract.status }}</span>
+                            {% endif %}</td>
+                        <td class="text-center">
+                            <i
+                                class="fas fa-heartbeat {% if contract.milestones.count > 0 %}text-success{% else %}text-muted opacity-50{% endif %}"></i></td>
+                        <td class="pe-4 text-end">
+                            <a href="{% url 'view-contract-pk' contract.pk %}"
+                                class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm">
+                                Manage</a></td></tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="text-center py-5">
+                            <div class="text-muted opacity-50 mb-3"> <i class="fas fa-file-contract fa-3x"></i></div>
+                            <p class="text-muted mb-0"> No active contracts yet.</p></td></tr>
+                    {% endfor %}</tbody></table></div></div></div>
+{% endblock pageContent %}
+
+{% block ScriptBlock %}
+<script>$(function () {
+        $('#contract-table').DataTable({
+            order: [[0, 'desc']]
+        });
+    });</script>
+{% endblock ScriptBlock %}
+
+
+
+

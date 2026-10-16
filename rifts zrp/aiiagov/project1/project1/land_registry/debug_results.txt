@@ -1,0 +1,31 @@
+USERS:
+USER: Takue | ROLE: MD | SUPER: True
+USER: emma | ROLE: Project Management Team | SUPER: False
+USER: chacks | ROLE: Project Leader | SUPER: False
+USER: commander | ROLE: Project Management Team | SUPER: False
+USER: lieutenant | ROLE: HODs | SUPER: False
+USER: chaka | ROLE: Team Member | SUPER: False
+USER: mavis | ROLE: Board of Executives | SUPER: False
+USER: confluence | ROLE: Project Management Team | SUPER: False
+USER: kuwenyi | ROLE: Project Management Team | SUPER: False
+USER: sam | ROLE: Project Management Team | SUPER: False
+USER: emmanuel | ROLE: HODs | SUPER: False
+USER: patie | ROLE: HODs | SUPER: False
+USER: moses | ROLE: HODs | SUPER: False
+USER: malon | ROLE: HODs | SUPER: False
+USER: mark | ROLE: Board of Executives | SUPER: False
+USER: pretty | ROLE: Board of Executives | SUPER: False
+USER: kuwe | ROLE: Board of Executives | SUPER: False
+USER: teekay | ROLE: Board of Executives | SUPER: False
+
+PHASES:
+PHASE: Document Managment System - Discovery | STATUS: Active | PM: chacks
+PHASE: Document Managment System - Planning | STATUS: Pending | PM: chacks
+PHASE: Document Managment System - Execution | STATUS: Pending | PM: chacks
+PHASE: Document Managment System - Verification | STATUS: Pending | PM: chacks
+PHASE: Document Managment System - Closure | STATUS: Pending | PM: chacks
+PHASE: Document Managment System - Discovery | STATUS: Active | PM: chacks
+PHASE: Document Managment System - Planning | STATUS: Pending | PM: chacks
+PHASE: Document Managment System - Execution | STATUS: Pending | PM: chacks
+PHASE: Document Managment System - Verification | STATUS: Pending | PM: chacks
+PHASE: Document Managment System - Closure | STATUS: Pending | PM: chacks

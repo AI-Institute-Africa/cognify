@@ -1,0 +1,432 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+{% load customfilter %}
+
+{% block headerContent %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block pageContent %}
+<div class="py-3 px-2 px-md-3">
+
+  <!-- ════════════════════════════════════════════════════════════════
+       1. DEPARTMENT CORPORATE HERO HEADER
+       ════════════════════════════════════════════════════════════════ -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="glass-card p-4 p-md-5 position-relative overflow-hidden shadow-lg"
+           style="background: linear-gradient(135deg, rgba(6, 13, 31, 0.95), rgba(0, 62, 166, 0.4), rgba(212, 175, 55, 0.2)); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 18px;">
+        
+        <div class="d-flex flex-column flex-md-row align-items-center align-items-md-start justify-content-between gap-4">
+          <div class="d-flex align-items-center gap-3 text-center text-md-start">
+            <img src="{% static 'assets/img/zrp_logo.png' %}?v=5.0" alt="ZRP Logo"
+                 style="width: 85px; height: 85px; border-radius: 50%; padding: 2px; object-fit: contain; box-shadow: 0 0 25px rgba(212, 175, 55, 0.4);" class="flex-shrink-0">
+            <div>
+              <div class="d-flex align-items-center justify-content-center justify-content-md-start gap-2 flex-wrap mb-1">
+                <span class="badge bg-warning text-dark font-weight-bold px-2 py-1" style="font-size: 0.7rem; letter-spacing: 0.05em; background-color: #F0CE5E !important;">
+                  <i class="fas fa-building me-1"></i> {{ dept_name|default:"General Registry" }}
+                </span>
+                <span class="badge bg-success text-white font-weight-bold px-2 py-1" style="font-size: 0.7rem;">
+                  <i class="fas fa-user-shield me-1"></i> {{ user_role|default:"Officer" }}
+                </span>
+              </div>
+              <h2 class="display-6 fw-bold text-white mb-1">
+                Welcome, {{ request.user.get_full_name|default:request.user.username }}
+              </h2>
+              <p class="text-white-50 small mb-0">
+                Zimbabwe Republic Police &bull; Integrated Management System &bull; <span class="text-warning fw-bold">{{ dept_name }} Departmental Hub</span>
+              </p>
+            </div>
+          </div>
+
+          <!-- Quick Actions Hub -->
+          <div class="d-flex flex-wrap align-items-center gap-2 justify-content-center">
+            <a href="{% url 'supply-requisition-list' %}" class="btn btn-warning btn-sm rounded-pill px-3 py-2 fw-bold text-dark shadow-sm">
+              <i class="fas fa-plus-circle me-1"></i> Requisition
+            </a>
+            <a href="{% url 'leave-list' %}" class="btn btn-success btn-sm rounded-pill px-3 py-2 fw-bold shadow-sm">
+              <i class="fas fa-calendar-plus me-1"></i> Apply Leave
+            </a>
+            <a href="{% url 'file_doc-page' %}" class="btn btn-outline-light btn-sm rounded-pill px-3 py-2 fw-bold">
+              <i class="fas fa-folder-open me-1"></i> Files Vault
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       2. DEPARTMENTAL KPI METRIC CARDS
+       ════════════════════════════════════════════════════════════════ -->
+  <div class="row g-3 mb-4">
+    <!-- Card 1: Requisitions -->
+    <div class="col-6 col-lg-3">
+      <div class="glass-card p-3 p-md-4 h-100 border-start border-4 border-warning shadow-sm position-relative overflow-hidden">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-white-50 extra-small fw-bold text-uppercase">Dept Requisitions</span>
+          <div class="p-2 rounded-3 bg-warning bg-opacity-25 text-warning">
+            <i class="fas fa-cart-flatbed fs-5"></i>
+          </div>
+        </div>
+        <h3 class="fw-bold text-white mb-1">{{ dept_requisition_count|default:0|intcomma }}</h3>
+        <div class="d-flex align-items-center gap-2 mt-2">
+          <span class="badge bg-danger text-white extra-small" style="font-size:0.65rem;">{{ dept_pending_req_count|default:0 }} Pending</span>
+          <span class="badge bg-success text-white extra-small" style="font-size:0.65rem;">{{ dept_approved_req_count|default:0 }} Approved</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 2: Budget Allocation -->
+    <div class="col-6 col-lg-3">
+      <div class="glass-card p-3 p-md-4 h-100 border-start border-4 border-success shadow-sm position-relative overflow-hidden">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-white-50 extra-small fw-bold text-uppercase">Budget Remaining</span>
+          <div class="p-2 rounded-3 bg-success bg-opacity-25 text-success">
+            <i class="fas fa-wallet fs-5"></i>
+          </div>
+        </div>
+        <h3 class="fw-bold text-success mb-1">${{ dept_budget_remaining|default:0|floatformat:2|intcomma }}</h3>
+        <div class="progress mt-2" style="height: 6px; background: rgba(255,255,255,0.1);">
+          <div class="progress-bar bg-success" role="progressbar" style="width: {{ dept_budget_utilization }}%;" aria-valuenow="{{ dept_budget_utilization }}" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mt-1 text-white-50" style="font-size: 0.65rem;">
+          <span>Allocated: ${{ dept_budget_total|default:0|floatformat:0|intcomma }}</span>
+          <span class="text-warning fw-bold">{{ dept_budget_utilization }}% Spent</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 3: Staff & Leave Status -->
+    <div class="col-6 col-lg-3">
+      <div class="glass-card p-3 p-md-4 h-100 border-start border-4 border-info shadow-sm position-relative overflow-hidden">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-white-50 extra-small fw-bold text-uppercase">Department Leaves</span>
+          <div class="p-2 rounded-3 bg-info bg-opacity-25 text-info">
+            <i class="fas fa-user-clock fs-5"></i>
+          </div>
+        </div>
+        <h3 class="fw-bold text-info mb-1">{{ dept_leave_count|default:0 }}</h3>
+        <div class="d-flex align-items-center gap-2 mt-2">
+          <span class="badge bg-warning text-dark extra-small" style="font-size:0.65rem;">{{ dept_leave_pending|default:0 }} Awaiting Review</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 4: Document Registry -->
+    <div class="col-6 col-lg-3">
+      <div class="glass-card p-3 p-md-4 h-100 border-start border-4 border-primary shadow-sm position-relative overflow-hidden">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-white-50 extra-small fw-bold text-uppercase">Records & Files</span>
+          <div class="p-2 rounded-3 bg-primary bg-opacity-25 text-primary">
+            <i class="fas fa-folder-open fs-5"></i>
+          </div>
+        </div>
+        <h3 class="fw-bold text-primary mb-1">{{ files|default:0|intcomma }}</h3>
+        <div class="d-flex align-items-center gap-2 mt-2">
+          <span class="badge bg-info text-white extra-small" style="font-size:0.65rem;">{{ issued|default:0 }} Files Issued</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       3. INTERACTIVE CHARTS & VISUAL ANALYTICS SECTION
+       ════════════════════════════════════════════════════════════════ -->
+  <div class="row g-4 mb-4">
+    <!-- Chart 1: Department Operations Breakdown -->
+    <div class="col-lg-6">
+      <div class="glass-card p-4 h-100 shadow-sm">
+        <div class="d-flex align-items-center justify-content-between mb-3 border-bottom border-white border-opacity-10 pb-2">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-chart-column text-warning fs-5"></i>
+            <h5 class="fw-bold text-white mb-0" style="font-size: 0.95rem;">
+              {{ dept_name }} Workflow Operations
+            </h5>
+          </div>
+          <span class="badge bg-dark border border-secondary text-warning extra-small">Live Metrics</span>
+        </div>
+        <div style="height: 260px; position: relative;">
+          <canvas id="deptOperationsChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart 2: Department Budget Utilization -->
+    <div class="col-lg-6">
+      <div class="glass-card p-4 h-100 shadow-sm">
+        <div class="d-flex align-items-center justify-content-between mb-3 border-bottom border-white border-opacity-10 pb-2">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-chart-pie text-success fs-5"></i>
+            <h5 class="fw-bold text-white mb-0" style="font-size: 0.95rem;">
+              Budget & Expenditure Breakdown ($)
+            </h5>
+          </div>
+          <span class="badge bg-dark border border-secondary text-success extra-small">Fiscal 2026</span>
+        </div>
+        <div style="height: 260px; position: relative;">
+          <canvas id="deptBudgetChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart 3: Departmental Comparison Across Commission -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="glass-card p-4 shadow-sm">
+        <div class="d-flex align-items-center justify-content-between mb-3 border-bottom border-white border-opacity-10 pb-2">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-chart-line text-info fs-5"></i>
+            <h5 class="fw-bold text-white mb-0" style="font-size: 0.95rem;">
+              Zimbabwe Republic Police &bull; Departmental Activity Comparison
+            </h5>
+          </div>
+          <span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-25 extra-small">All Departments</span>
+        </div>
+        <div style="height: 240px; position: relative;">
+          <canvas id="allDeptsChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       4. RECENT DEPARTMENTAL WORKFLOW TABLES
+       ════════════════════════════════════════════════════════════════ -->
+  <div class="row g-4 mb-4">
+    <!-- Recent Requisitions -->
+    <div class="col-lg-7">
+      <div class="glass-card p-4 h-100 shadow-sm">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-list-check text-warning"></i>
+            <h5 class="fw-bold text-white mb-0" style="font-size:0.9rem;">Recent Department Requisitions</h5>
+          </div>
+          <a href="{% url 'supply-requisition-list' %}" class="btn btn-xs btn-outline-warning rounded-pill px-3" style="font-size: 0.7rem;">View All</a>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-dark table-hover align-middle mb-0" style="font-size:0.8rem;">
+            <thead>
+              <tr class="text-white-50 border-bottom border-secondary">
+                <th>Ref Number</th>
+                <th>Requester</th>
+                <th>Purpose</th>
+                <th>Status</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for req in dept_recent_requisitions %}
+              <tr>
+                <td class="fw-bold text-warning">{{ req.ref_number }}</td>
+                <td class="text-white">{{ req.requester.get_full_name|default:req.requester.username }}</td>
+                <td class="text-white-50">{{ req.purpose|truncatechars:25 }}</td>
+                <td>
+                  {% if 'Approved' in req.status %}
+                    <span class="badge bg-success py-1 px-2">{{ req.status }}</span>
+                  {% elif 'Pending' in req.status %}
+                    <span class="badge bg-warning text-dark py-1 px-2">{{ req.status }}</span>
+                  {% else %}
+                    <span class="badge bg-secondary py-1 px-2">{{ req.status }}</span>
+                  {% endif %}
+                </td>
+                <td class="text-white-50 extra-small">{{ req.date_requested|date:"M d, Y" }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="text-center text-muted py-3 italic">No requisitions recorded for this department yet.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Department Leaves & Shortcuts -->
+    <div class="col-lg-5">
+      <div class="glass-card p-4 h-100 shadow-sm">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-plane-departure text-success"></i>
+            <h5 class="fw-bold text-white mb-0" style="font-size:0.9rem;">Department Staff Away</h5>
+          </div>
+          <a href="{% url 'out-of-office-dashboard' %}" class="btn btn-xs btn-outline-success rounded-pill px-3" style="font-size: 0.7rem;">Who is Away</a>
+        </div>
+
+        <div class="list-group list-group-flush bg-transparent mb-3">
+          {% for l in dept_recent_leaves %}
+          <div class="list-group-item bg-transparent border-bottom border-white border-opacity-10 px-0 py-2 d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+              <img src="https://ui-avatars.com/api/?name={{ l.user.username }}&background=1b5e20&color=fff" width="28" height="28" class="rounded-circle">
+              <div>
+                <div class="fw-bold text-white extra-small">{{ l.user.get_full_name|default:l.user.username }}</div>
+                <div class="text-muted" style="font-size:0.68rem;">{{ l.leave_type }} ({{ l.start_date }} - {{ l.end_date }})</div>
+              </div>
+            </div>
+            <span class="badge {% if l.status == 'Approved' %}bg-success{% else %}bg-warning text-dark{% endif %} py-1 px-2" style="font-size: 0.65rem;">{{ l.status }}</span>
+          </div>
+          {% empty %}
+          <div class="text-center text-muted py-3 small italic">No active leave applications for department staff.</div>
+          {% endfor %}
+        </div>
+
+        <!-- Department Shortcuts Grid -->
+        <h6 class="fw-bold text-warning extra-small text-uppercase mb-2" style="letter-spacing:0.05em;">Quick Department Shortcuts</h6>
+        <div class="row g-2">
+          <div class="col-6">
+            <a href="{% url 'employee-self-service' %}" class="btn btn-dark btn-sm w-100 border border-white border-opacity-10 text-start d-flex align-items-center gap-2 py-2">
+              <i class="fas fa-id-card-clip text-info"></i>
+              <span class="extra-small text-white">Self-Service</span>
+            </a>
+          </div>
+          <div class="col-6">
+            <a href="{% url 'electronic-approval-center' %}" class="btn btn-dark btn-sm w-100 border border-white border-opacity-10 text-start d-flex align-items-center gap-2 py-2">
+              <i class="fas fa-file-signature text-warning"></i>
+              <span class="extra-small text-white">Approvals</span>
+            </a>
+          </div>
+          <div class="col-6">
+            <a href="{% url 'notice-board' %}" class="btn btn-dark btn-sm w-100 border border-white border-opacity-10 text-start d-flex align-items-center gap-2 py-2">
+              <i class="fas fa-bullhorn text-success"></i>
+              <span class="extra-small text-white">Notice Board</span>
+            </a>
+          </div>
+          <div class="col-6">
+            <a href="{% url 'service-tickets' %}" class="btn btn-dark btn-sm w-100 border border-white border-opacity-10 text-start d-flex align-items-center gap-2 py-2">
+              <i class="fas fa-headset text-danger"></i>
+              <span class="extra-small text-white">Service Desk</span>
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     5. CHART.JS INITIALIZATION SCRIPTS
+     ════════════════════════════════════════════════════════════════ -->
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.font.family = 'Inter, sans-serif';
+
+    // 1. Department Operations Chart (Bar Chart)
+    const ctxOps = document.getElementById('deptOperationsChart').getContext('2d');
+    new Chart(ctxOps, {
+        type: 'bar',
+        data: {
+            labels: {{ chart_status_labels|safe }},
+            datasets: [{
+                label: 'Requisition Workflows',
+                data: {{ chart_status_data|safe }},
+                backgroundColor: [
+                    'rgba(245, 158, 11, 0.85)',
+                    'rgba(16, 185, 129, 0.85)',
+                    'rgba(59, 130, 246, 0.85)',
+                    'rgba(168, 85, 247, 0.85)'
+                ],
+                borderColor: [
+                    '#f59e0b',
+                    '#10b981',
+                    '#3b82f6',
+                    '#a855f7'
+                ],
+                borderWidth: 1.5,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { precision: 0 }
+                },
+                x: {
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+
+    // 2. Department Budget Chart (Doughnut Chart)
+    const ctxBudget = document.getElementById('deptBudgetChart').getContext('2d');
+    new Chart(ctxBudget, {
+        type: 'doughnut',
+        data: {
+            labels: {{ chart_budget_labels|safe }},
+            datasets: [{
+                data: {{ chart_budget_data|safe }},
+                backgroundColor: [
+                    'rgba(239, 68, 68, 0.85)',
+                    'rgba(16, 185, 129, 0.85)'
+                ],
+                borderColor: [
+                    '#ef4444',
+                    '#10b981'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { color: '#ffffff', padding: 15, font: { size: 12 } }
+                }
+            },
+            cutout: '65%'
+        }
+    });
+
+    // 3. All Departments Comparison Chart (Horizontal Bar Chart)
+    const ctxAllDepts = document.getElementById('allDeptsChart').getContext('2d');
+    new Chart(ctxAllDepts, {
+        type: 'bar',
+        data: {
+            labels: {{ chart_dept_names|safe }},
+            datasets: [{
+                label: 'Total Requisitions Volume',
+                data: {{ chart_dept_counts|safe }},
+                backgroundColor: 'rgba(255, 125, 39, 0.75)',
+                borderColor: '#F0CE5E',
+                borderWidth: 1.5,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { precision: 0 }
+                },
+                y: {
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

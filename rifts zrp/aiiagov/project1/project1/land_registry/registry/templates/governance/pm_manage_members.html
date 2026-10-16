@@ -1,0 +1,114 @@
+{% extends 'base.html' %}{% load static %}{% block pageContent %}
+<div class="container-fluid py-5" style="background: #f8f9fa;">
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="d-flex align-items-center justify-content-between bg-white p-4 rounded-4 shadow-sm border-0 animate-fade-in">
+                <div>
+                    <h2 class="fw-bold text-dark mb-1"><i class="fas fa-users-cog text-primary me-2"></i> Team Personnel Governance</h2>
+                    <p class="text-muted mb-0 small"> Review and authorize registration requests for Team Members in your department.</p>
+                </div>
+                <div class="text-end">
+                    <span class="badge bg-primary rounded-pill px-3 py-2 shadow-sm">{{pending_members|length}} Pending Requests</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="glass-card border-0 shadow-sm rounded-4 overflow-hidden animate-slide-up bg-white">
+                <div class="card-header bg-white py-3 border-bottom-0">
+                    <h5 class="fw-bold mb-0 small text-uppercase tracking-wider text-muted"> Pending Authorization Queue</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light text-muted small">
+                                <tr>
+                                    <th class="ps-4">Full Name</th>
+                                    <th>Username</th>
+                                    <th>Email Status</th>
+                                    <th>Requested Role</th>
+                                    <th>Date Joined</th>
+                                    <th class="text-end pe-4">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if pending_members %}
+                                    {% for member in pending_members %}
+                                    <tr class="transition-all hover-bg-light">
+                                        <td class="ps-4">
+                                            <div class="d-flex align-items-center">
+                                                <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                                    <i class="fas fa-user small"></i>
+                                                </div>
+                                                <div>
+                                                    <div class="fw-bold text-dark">{{member.user.first_name}} {{member.user.last_name}}</div>
+                                                    <div class="extra-small text-muted">{{member.user.email}}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="small font-monospace text-muted">{{member.user.username}}</td>
+                                        <td>
+                                            {% if member.is_email_verified %}
+                                                <span class="badge bg-success-subtle text-success rounded-pill px-3 small border-0">
+                                                    <i class="fas fa-check-circle me-1"></i> Verified
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-warning-subtle text-warning rounded-pill px-3 small border-0">
+                                                    <i class="fas fa-clock me-1"></i> Awaiting Verification
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td><span class="text-dark small">{{member.role_requested}}</span></td>
+                                        <td><span class="text-muted extra-small">{{member.user.date_joined|date:"M d, Y"}}</span></td>
+                                        <td class="text-end pe-4">
+                                            <div class="btn-group shadow-sm rounded-pill overflow-hidden">
+                                                <form action="{% url 'pm-member-action' %}" method="POST" class="d-inline">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="user_id" value="{{member.user.id}}">
+                                                    <input type="hidden" name="action" value="approve">
+                                                    <button type="submit" class="btn btn-white btn-sm px-3 text-success border-end border-light transition-all hover-bg-success-subtle" title="Approve">
+                                                        <i class="fas fa-check"></i> Approve
+                                                    </button>
+                                                </form>
+                                                <form action="{% url 'pm-member-action' %}" method="POST" class="d-inline">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="user_id" value="{{member.user.id}}">
+                                                    <input type="hidden" name="action" value="reject">
+                                                    <button type="submit" class="btn btn-white btn-sm px-3 text-danger transition-all hover-bg-danger-subtle" onclick="return confirm('Are you sure you want to reject and deactivate this user?')" title="Reject">
+                                                        <i class="fas fa-times"></i> Reject
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="6" class="text-center py-5">
+                                            <div class="text-muted opacity-50 mb-3"><i class="fas fa-user-shield fa-3x"></i></div>
+                                            <p class="text-muted fw-bold"> No pending authorizations found</p>
+                                            <p class="text-muted small"> All Team Member registrations for your department are currently cleared.</p>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .animate-fade-in { animation: fadeIn 0.8s ease-out; }
+    .animate-slide-up { animation: slideUp 0.6s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .hover-bg-light:hover { background-color: #fcfcfc; }
+    .hover-bg-success-subtle:hover { background-color: #d1e7dd !important; color: #0f5132 !important; }
+    .hover-bg-danger-subtle:hover { background-color: #f8d7da !important; color: #842029 !important; }
+</style>
+{% endblock pageContent %}

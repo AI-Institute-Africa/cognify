@@ -1,0 +1,192 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-route text-warning me-2"></i> Requisition Movement & Procurement Tracker</h3>
+            <p class="text-muted small mb-0">Requisition Reference: <strong class="text-warning font-monospace">{{ req.ref_number }}</strong> | Requestor: {{ req.requester.get_full_name|default:req.requester.username }} ({{ req.department.name }})</p>
+        </div>
+        <a href="{% url 'supply-requisition-view' req.pk %}" class="btn btn-outline-light rounded-pill px-4">
+            <i class="fas fa-file-invoice me-1"></i> View Requisition Document
+        </a>
+    </div>
+
+    <!-- ZRP Delegated Authority & Status Banner -->
+    <div class="glass-card p-4 mb-4 border-top border-4 border-warning">
+        <div class="row align-items-center">
+            <div class="col-md-4 border-end border-secondary border-opacity-25">
+                <span class="extra-small text-muted text-uppercase fw-bold">ZRP Delegated Authority Level</span>
+                <div class="mt-1">
+                    <span class="badge bg-warning text-dark fs-6 fw-bold px-3 py-2 rounded-pill">
+                        <i class="fas fa-shield-cat me-1"></i> {{ req.delegated_authority_level|default:"Officer Level (<= $500)" }}
+                    </span>
+                </div>
+            </div>
+            <div class="col-md-4 border-end border-secondary border-opacity-25 text-center">
+                <span class="extra-small text-muted text-uppercase fw-bold">Grand Estimated Cost</span>
+                <h2 class="fw-bold text-success mb-0 mt-1">${{ req.grand_total|floatformat:2 }}</h2>
+            </div>
+            <div class="col-md-4 text-end">
+                <span class="extra-small text-muted text-uppercase fw-bold">Current Procurement Status</span>
+                <div class="mt-1">
+                    <span class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 px-3 py-2 rounded-pill fw-bold">
+                        {{ req.status }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 10-Stage Visual Movement Pipeline Bar -->
+    <div class="glass-card p-4 mb-4">
+        <h5 class="fw-bold text-white mb-3"><i class="fas fa-diagram-project text-info me-2"></i> Digitised Procurement Lifecycle Movement</h5>
+        <div class="row g-2 text-center extra-small">
+            <div class="col">
+                <div class="p-2 rounded-3 bg-success bg-opacity-25 text-success border border-success border-opacity-25 fw-bold">
+                    1. Requisition
+                </div>
+            </div>
+            <div class="col">
+                <div class="p-2 rounded-3 {% if req.status != 'Pending Requester' and req.status != 'Draft' %}bg-success bg-opacity-25 text-success border border-success border-opacity-25{% else %}bg-dark text-muted{% endif %} fw-bold">
+                    2. Supervisor
+                </div>
+            </div>
+            <div class="col">
+                <div class="p-2 rounded-3 {% if req.status in 'Pending Purchasing,Pending Requester Review,Pending Purchasing Final,Pending CEO,Pending Finance,Approved' %}bg-success bg-opacity-25 text-success border border-success border-opacity-25{% else %}bg-dark text-muted{% endif %} fw-bold">
+                    3. Procurement
+                </div>
+            </div>
+            <div class="col">
+                <div class="p-2 rounded-3 {% if req.status in 'Pending Purchasing Final,Pending CEO,Pending Finance,Approved' %}bg-success bg-opacity-25 text-success border border-success border-opacity-25{% else %}bg-dark text-muted{% endif %} fw-bold">
+                    4. Budget Verified
+                </div>
+            </div>
+            <div class="col">
+                <div class="p-2 rounded-3 {% if req.status in 'Pending CEO,Pending Finance,Approved' %}bg-success bg-opacity-25 text-success border border-success border-opacity-25{% else %}bg-dark text-muted{% endif %} fw-bold">
+                    5. Approval
+                </div>
+            </div>
+            <div class="col">
+                <div class="p-2 rounded-3 {% if req.status in 'Pending Finance,Approved' %}bg-success bg-opacity-25 text-success border border-success border-opacity-25{% else %}bg-dark text-muted{% endif %} fw-bold">
+                    6. Action
+                </div>
+            </div>
+            <div class="col">
+                <div class="p-2 rounded-3 {% if req.quotations.count > 0 %}bg-success bg-opacity-25 text-success border border-success border-opacity-25{% else %}bg-dark text-muted{% endif %} fw-bold">
+                    7. Quotations
+                </div>
+            </div>
+            <div class="col">
+                <div class="p-2 rounded-3 {% if req.purchase_order_number %}bg-success bg-opacity-25 text-success border border-success border-opacity-25{% else %}bg-dark text-muted{% endif %} fw-bold">
+                    8. Purchase Order
+                </div>
+            </div>
+            <div class="col">
+                <div class="p-2 rounded-3 {% if req.delivery_status != 'Pending' %}bg-success bg-opacity-25 text-success border border-success border-opacity-25{% else %}bg-dark text-muted{% endif %} fw-bold">
+                    9. Delivery
+                </div>
+            </div>
+            <div class="col">
+                <div class="p-2 rounded-3 {% if req.payment_status == 'Paid' %}bg-success text-dark{% else %}bg-dark text-muted{% endif %} fw-bold">
+                    10. Payment
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Purchase Order & Delivery Management Studio -->
+        <div class="col-lg-6">
+            <div class="glass-card p-4 mb-4">
+                <h5 class="fw-bold text-white mb-3"><i class="fas fa-file-signature text-warning me-2"></i> Purchase Order Management Studio</h5>
+                
+                {% if req.purchase_order_number %}
+                <div class="alert alert-success bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-3 mb-3">
+                    <i class="fas fa-check-circle me-2"></i> Purchase Order <strong>{{ req.purchase_order_number }}</strong> issued on {{ req.po_issued_date|date:"d M Y, H:i" }}.
+                    {% if req.po_document %}
+                    <a href="{{ req.po_document.url }}" target="_blank" class="text-success ms-2 text-decoration-underline"><i class="fas fa-download me-1"></i> Download PO PDF</a>
+                    {% endif %}
+                </div>
+                {% else %}
+                <form action="{% url 'issue-purchase-order' req.pk %}" method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-white">Purchase Order Number (PO Ref)</label>
+                        <input type="text" name="purchase_order_number" class="form-control bg-dark text-white border-secondary" placeholder="e.g. PO-ZRP-2026-0891" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-white">Required Delivery Date</label>
+                        <input type="date" name="required_date" class="form-control bg-dark text-white border-secondary">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-white">Upload Purchase Order PDF</label>
+                        <input type="file" name="po_document" class="form-control bg-dark text-white border-secondary">
+                    </div>
+                    <button type="submit" class="btn btn-warning rounded-pill w-100 fw-bold">
+                        <i class="fas fa-file-invoice me-1"></i> Issue Official Purchase Order
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+
+            <!-- Delivery Verification Studio -->
+            <div class="glass-card p-4">
+                <h5 class="fw-bold text-white mb-3"><i class="fas fa-truck-ramp-box text-info me-2"></i> Goods Delivery & Verification Status</h5>
+                
+                <form action="{% url 'update-delivery-status' req.pk %}" method="POST">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-white">Current Delivery Status</label>
+                        <select name="delivery_status" class="form-select bg-dark text-white border-secondary">
+                            <option value="Pending" {% if req.delivery_status == 'Pending' %}selected{% endif %}>Pending Delivery</option>
+                            <option value="Partial Delivery" {% if req.delivery_status == 'Partial Delivery' %}selected{% endif %}>Partial Delivery Received</option>
+                            <option value="Full Delivery Received" {% if req.delivery_status == 'Full Delivery Received' %}selected{% endif %}>Full Delivery Received</option>
+                            <option value="Verified" {% if req.delivery_status == 'Verified' %}selected{% endif %}>Verified & Inspected</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-white">Actual Delivery Date</label>
+                        <input type="date" name="delivery_date" class="form-control bg-dark text-white border-secondary" value="{{ req.delivery_date|date:'Y-m-d' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-white">Stores Inspection & Delivery Remarks</label>
+                        <textarea name="delivery_notes" class="form-control bg-dark text-white border-secondary" rows="3" placeholder="Condition of goods, quantity verified, invoice numbers...">{{ req.delivery_notes|default:'' }}</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-info rounded-pill w-100 fw-bold">
+                        <i class="fas fa-truck-check me-1"></i> Update Delivery & Inspection Status
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Movement History Audit Trail -->
+        <div class="col-lg-6">
+            <div class="glass-card p-4 h-100">
+                <h5 class="fw-bold text-white mb-3"><i class="fas fa-clock-rotate-left text-success me-2"></i> Real-time Requisition Movement History</h5>
+                
+                <div class="activity-feed">
+                    {% for m in movements %}
+                    <div class="p-3 mb-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong class="text-warning small"><i class="fas fa-circle-right me-1"></i> {{ m.from_stage }} &rarr; {{ m.to_stage }}</strong>
+                            <span class="extra-small text-muted">{{ m.timestamp|date:"d M Y, H:i" }}</span>
+                        </div>
+                        <div class="extra-small text-white mb-1"><i class="fas fa-user-gear me-1"></i> Acting User: {{ m.user.get_full_name|default:m.user.username }}</div>
+                        {% if m.comments %}
+                        <div class="extra-small text-muted italic">{{ m.comments }}</div>
+                        {% endif %}
+                    </div>
+                    {% empty %}
+                    <div class="p-3 rounded-3 bg-dark text-center text-muted small">
+                        Requisition initiated. Stage movements will log here in real-time.
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock pageContent %}

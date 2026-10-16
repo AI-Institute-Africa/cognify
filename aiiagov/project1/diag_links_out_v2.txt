@@ -1,0 +1,15 @@
+﻿--- Borrower-Department Mapping ---
+Borrower: 62-3378997x34 - Takudzwa Kuwenyi, Dept: NONE
+Borrower: 62-3378997L34 - Takudzwa Kuwenyi, Dept: NONE
+Borrower: 65-86736635L65 - Patience Mupikeni, Dept: NONE
+
+--- Department File Counts (Direct) ---
+Dept: Records Management, Direct File Count: 1
+Dept: Legal Affairs, Direct File Count: 1
+Dept: Survey & Mapping, Direct File Count: 0
+Dept: Valuation, Direct File Count: 0
+Dept: Customer Service, Direct File Count: 0
+
+--- Active Borrows ---
+Borrower: 62-3378997x34, File: R20245TY, Borrower Dept: NONE
+Borrower: 62-3378997L34, File: R202022S, Borrower Dept: NONE

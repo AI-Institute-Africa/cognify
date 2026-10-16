@@ -1,0 +1,143 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ tmpl.title }} — ZRP Preview</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f4f4; color: #111; }
+
+    .page-wrap { max-width: 900px; margin: 30px auto; background: #fff; border: 1px solid #ddd;
+                 box-shadow: 0 4px 20px rgba(0,0,0,0.12); border-radius: 4px; overflow: hidden; }
+
+    /* ZRP Letterhead */
+    .letterhead { background: #003EA6; color: #fff; padding: 22px 32px; display: flex; align-items: center; gap: 18px; }
+    .letterhead img { height: 72px; }
+    .letterhead-text h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.04em; }
+    .letterhead-text p  { margin: 4px 0 0; font-size: 12px; opacity: 0.82; }
+    .gold-bar { height: 5px; background: linear-gradient(90deg, #D4AF37, #f0d060, #D4AF37); }
+
+    /* Template metadata strip */
+    .meta-strip { background: #f9f9f9; border-bottom: 1px solid #e0e0e0; padding: 12px 32px;
+                  display: flex; gap: 24px; flex-wrap: wrap; font-size: 12px; color: #444; }
+    .meta-strip strong { color: #003EA6; }
+
+    /* Body content */
+    .body-content { padding: 32px 40px; min-height: 500px; }
+    .body-content table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+    .body-content td, .body-content th { border: 1px solid #bbb; padding: 8px 12px; }
+    .body-content th { background: #003EA6; color: #fff; font-weight: 700; }
+    .body-content hr { border: none; border-top: 2px solid #D4AF37; margin: 18px 0; }
+    .body-content h1 { color: #003EA6; font-size: 22px; }
+    .body-content h2 { color: #002070; font-size: 18px; }
+
+    /* Footer */
+    .footer { background: #f0f0f0; border-top: 1px solid #ddd; padding: 12px 32px;
+              font-size: 11px; color: #888; display: flex; justify-content: space-between; }
+
+    /* Print actions bar */
+    .print-bar { background: #0d1b3e; padding: 12px 32px; display: flex; gap: 12px; align-items: center; }
+    .print-bar a, .print-bar button { border: none; cursor: pointer; border-radius: 20px; padding: 7px 20px;
+                                       font-size: 13px; font-weight: 600; text-decoration: none; }
+    .btn-print  { background: #D4AF37; color: #0d1b3e; }
+    .btn-edit   { background: #003EA6; color: #fff; }
+    .btn-close2 { background: transparent; border: 1px solid #666 !important; color: #ccc; }
+
+    @media print {
+      .print-bar { display: none; }
+      body { background: #fff; }
+      .page-wrap { box-shadow: none; border: none; margin: 0; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Action bar (hidden on print) -->
+<div class="print-bar">
+  <button class="btn-print" onclick="window.print()"><i>🖨</i> Print / Save PDF</button>
+  {% if tmpl.pk %}
+    <a class="btn-edit" href="{% url 'template-edit' tmpl.pk %}">✏ Edit Template</a>
+  {% endif %}
+  <button class="btn-close2" onclick="window.close()">✕ Close</button>
+</div>
+
+<div class="page-wrap">
+
+  <!-- Letterhead -->
+  <div class="letterhead">
+    <img src="{% static 'images/zrp_crest.png' %}" alt="ZRP Crest">
+    <div class="letterhead-text">
+      <h1>ZIMBABWE REPUBLIC POLICE</h1>
+      <p>Commissioner General's Office — Official Document Template</p>
+    </div>
+  </div>
+  <div class="gold-bar"></div>
+
+  <!-- Meta strip -->
+  <div class="meta-strip">
+    <span><strong>Template:</strong> {{ tmpl.title }}</span>
+    <span><strong>Category:</strong> {{ tmpl.category }}</span>
+    <span><strong>Version:</strong> v{{ tmpl.version }}</span>
+    <span><strong>Description:</strong> {{ tmpl.description|default:"—" }}</span>
+    <span><strong>Last Updated:</strong> {{ tmpl.updated_at|date:"d M Y" }}</span>
+  </div>
+
+  <!-- Body — rendered WYSIWYG HTML -->
+  <div class="body-content">
+    {% if tmpl.template_body %}
+      {{ tmpl.template_body|safe }}
+    {% else %}
+      <p style="color:#aaa;font-style:italic;text-align:center;margin-top:60px;">
+        No body content yet. Click "Edit Template" to design this template.
+      </p>
+    {% endif %}
+
+    {% if tmpl.requires_approvals and approvers and 'zrp-signatories-section' not in tmpl.template_body %}
+    <div class="zrp-signatories-section" style="margin-top:36px; border-top:2px solid #D4AF37; padding-top:14px; page-break-inside:avoid;">
+      <h3 style="color:#003EA6; font-size:15px; text-transform:uppercase; margin-bottom:12px; letter-spacing:0.5px;">
+        Institutional Authorizations &amp; Signatories Matrix
+      </h3>
+      <table style="width:100%; border-collapse:collapse; margin-top:8px; font-size:12px;">
+        <thead>
+          <tr style="background:#003EA6; color:#fff;">
+            <th style="padding:8px 10px; border:1px solid #002070; text-align:left; width:25%;">Approval Stage</th>
+            <th style="padding:8px 10px; border:1px solid #002070; text-align:left; width:35%;">Designated Officer</th>
+            <th style="padding:8px 10px; border:1px solid #002070; text-align:left; width:40%;">Signature &amp; Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in approvers %}
+          <tr>
+            <td style="padding:10px; border:1px solid #ccc; font-weight:bold; color:#002070;">
+              Stage {{ forloop.counter }}: {{ a.role|default:"Authorized Approver" }}
+            </td>
+            <td style="padding:10px; border:1px solid #ccc;">
+              <div style="font-weight:600; color:#111;">{{ a.name|default:"Officer in Charge" }}</div>
+              <div style="font-size:11px; color:#666;">Designation / Station</div>
+            </td>
+            <td style="padding:10px; border:1px solid #ccc;">
+              <div style="border-bottom:1px dashed #777; height:24px; margin-bottom:4px;"></div>
+              <div style="font-size:10px; color:#666; display:flex; justify-content:space-between;">
+                <span>Signature: ________________</span>
+                <span>Date: ____/____/20__</span>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>ZRP Official Document — Ref: {{ tmpl.category }} v{{ tmpl.version }}</span>
+    <span>Generated {% now "d M Y, H:i" %}</span>
+  </div>
+
+</div>
+</body>
+</html>

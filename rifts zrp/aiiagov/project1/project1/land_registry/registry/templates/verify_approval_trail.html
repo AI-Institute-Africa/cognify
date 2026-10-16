@@ -1,0 +1,110 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-shield-check text-success me-2"></i> ZRP Electronic Approval Trail Audit & Verification</h3>
+            <p class="text-muted small mb-0">Transaction Reference: <strong class="text-warning font-monospace">{{ ref_number }}</strong> ({{ entity_type }})</p>
+        </div>
+        <a href="{% url 'electronic-approval-center' %}" class="btn btn-outline-light rounded-pill px-4">
+            <i class="fas fa-arrow-left me-1"></i> Approval Center
+        </a>
+    </div>
+
+    <!-- Trail Pipeline Timeline Header -->
+    <div class="glass-card p-4 mb-4 border-top border-4 border-success">
+        <h5 class="fw-bold text-white mb-3"><i class="fas fa-route text-warning me-2"></i> Mandatory Approval Workflow Audit Trail</h5>
+        <div class="row g-2 text-center extra-small">
+            <div class="col">
+                <div class="p-2 rounded-3 bg-success bg-opacity-25 text-success border border-success border-opacity-25 fw-bold">
+                    <i class="fas fa-paper-plane me-1"></i> Submitted by
+                </div>
+            </div>
+            <div class="col">
+                <div class="p-2 rounded-3 bg-success bg-opacity-25 text-success border border-success border-opacity-25 fw-bold">
+                    <i class="fas fa-eye me-1"></i> Reviewed by
+                </div>
+            </div>
+            <div class="col">
+                <div class="p-2 rounded-3 bg-success bg-opacity-25 text-success border border-success border-opacity-25 fw-bold">
+                    <i class="fas fa-thumbs-up me-1"></i> Recommended by
+                </div>
+            </div>
+            <div class="col">
+                <div class="p-2 rounded-3 bg-success bg-opacity-25 text-success border border-success border-opacity-25 fw-bold">
+                    <i class="fas fa-file-circle-check me-1"></i> Approved by
+                </div>
+            </div>
+            <div class="col">
+                <div class="p-2 rounded-3 bg-success bg-opacity-25 text-success border border-success border-opacity-25 fw-bold">
+                    <i class="fas fa-clock me-1"></i> Date/Time
+                </div>
+            </div>
+            <div class="col">
+                <div class="p-2 rounded-3 bg-success text-dark fw-bold">
+                    <i class="fas fa-stamp me-1"></i> Status
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Verified Audit Records -->
+    <div class="row g-4">
+        {% for item in verified_trail %}
+        <div class="col-md-12">
+            <div class="glass-card p-4 border border-secondary border-opacity-25">
+                <div class="row align-items-center">
+                    <div class="col-md-3 border-end border-secondary border-opacity-25">
+                        <span class="badge bg-warning text-dark fw-bold rounded-pill px-3 py-1 mb-2">{{ item.record.stage }}</span>
+                        <h6 class="fw-bold text-white mb-0">{{ item.record.user.get_full_name|default:item.record.user.username }}</h6>
+                        <div class="extra-small text-muted">{{ item.record.user_role|default:"Authorized Signatory" }}</div>
+                        <div class="extra-small text-muted font-monospace mt-1"><i class="fas fa-clock me-1"></i> {{ item.record.timestamp|date:"d M Y, H:i:s" }}</div>
+                    </div>
+                    <div class="col-md-3 text-center border-end border-secondary border-opacity-25">
+                        {% if item.record.signature_data %}
+                        <div class="bg-white p-2 rounded-3 d-inline-block border">
+                            <img src="{{ item.record.signature_data }}" alt="Digital Signature" style="max-height: 50px; max-width: 180px;">
+                        </div>
+                        <div class="extra-small text-muted mt-1"><i class="fas fa-pen-nib me-1"></i> Digital Signature Stamp</div>
+                        {% else %}
+                        <span class="badge bg-secondary rounded-pill px-3 py-1">Token Approved</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="extra-small text-muted text-uppercase fw-bold">Cryptographic Verification Integrity</span>
+                            {% if item.is_valid %}
+                            <span class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 px-3 py-1 rounded-pill fw-bold">
+                                <i class="fas fa-shield-check me-1"></i> VERIFIED AUTHENTIC & UNTAMPERED
+                            </span>
+                            {% else %}
+                            <span class="badge bg-danger text-white px-3 py-1 rounded-pill fw-bold">
+                                <i class="fas fa-triangle-exclamation me-1"></i> HASH MISMATCH DETECTED
+                            </span>
+                            {% endif %}
+                        </div>
+                        <div class="bg-dark p-2 rounded-3 font-monospace extra-small text-success text-break border border-secondary border-opacity-25">
+                            SHA-256: {{ item.record.verification_hash }}
+                        </div>
+                        <div class="d-flex justify-content-between extra-small text-muted mt-2">
+                            <span><i class="fas fa-network-wired me-1"></i> IP Address: {{ item.record.ip_address|default:"127.0.0.1" }}</span>
+                            {% if item.record.comments %}
+                            <span class="italic">Remarks: {{ item.record.comments }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-md-12 text-center py-5 glass-card text-muted">
+            <i class="fas fa-folder-open fs-2 d-block mb-2"></i>
+            No electronic approval trail records logged yet for this transaction reference.
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock pageContent %}

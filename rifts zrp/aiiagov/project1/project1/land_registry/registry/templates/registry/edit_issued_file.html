@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-info bg-opacity-10 py-3">
+                    <h5 class="mb-0"><i class="fas fa-edit me-2"></i> Edit Issued File: {{ cloud_file.name }}</h5>
+                    <p class="small text-muted mb-0">File from: <strong>{{ borrow.file_doc.ref_num }}</strong></p>
+                </div>
+                <div class="card-body p-4">
+                    <!-- File Preview -->
+                    <div class="mb-4">
+                        <h6 class="fw-bold mb-3">File Preview</h6>
+                        <div class="card border border-light bg-light p-4 text-center">
+                            <i class="fas fa-file-pdf fa-4x text-muted mb-3"></i>
+                            <p class="text-muted mb-2">{{ cloud_file.name }}</p>
+                            <p class="small text-muted mb-3">Latest version: v{{ latest_version.version_number }}</p>
+                            <a href="{{ latest_version.file_content.url }}" class="btn btn-sm btn-primary" target="_blank">
+                                <i class="fas fa-external-link-alt me-1"></i> Open in New Tab
+                            </a>
+                            <a href="{{ latest_version.file_content.url }}" class="btn btn-sm btn-outline-primary ms-2" download>
+                                <i class="fas fa-download me-1"></i> Download
+                            </a>
+                        </div>
+                    </div>
+
+                    {% if is_docx_editable %}
+                    <div class="mb-4">
+                        <h6 class="fw-bold mb-3">In-Browser Editing (OnlyOffice)</h6>
+                        <div class="card border border-light bg-white p-0" style="min-height: 600px;">
+                            <div id="placeholder" style="width: 100%; height: 600px; display: flex; align-items: center; justify-content: center; background: #f5f5f5;">
+                                <p class="text-muted">Loading document editor...</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="mb-4">
+                        <div class="alert alert-info">
+                            In-browser editing is only available for Word documents (.docx) at this time. Use the upload option below to submit your edited file.
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <hr />
+
+                    <!-- Edit Notes Form -->
+                    <form id="editForm" class="mt-4">
+                        {% csrf_token %}
+                        <input type="hidden" name="borrow_id" value="{{ borrow.id }}">
+                        <input type="hidden" name="file_id" value="{{ cloud_file.id }}">
+                        
+                        <div class="form-group mb-3">
+                            <label class="form-label fw-bold">Notes (Optional):</label>
+                            <textarea name="edit_notes" id="edit_notes" class="form-control" rows="2" placeholder="Add any notes about your edits..."></textarea>
+                        </div>
+
+                        <div class="d-grid gap-2 mt-4">
+                            <p class="small text-muted"><strong>Note:</strong> OnlyOffice saves your changes automatically. Click the button below when done editing.</p>
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-check me-2"></i> Done Editing
+                            </button>
+                            <a href="{% url 'borrow-folder-view' borrow.id %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-1"></i> Back to Folder
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/onlyoffice-embeddable-document-editor/web-apps-dist-embed/ds/onlyoffice.ds.wasm-worker.js"></script>
+<script>
+    // OnlyOffice Document Editor initialization
+    const docConfig = {};
+    
+    // Load document config from server
+    async function loadDocumentConfig() {
+        try {
+            const response = await fetch('{% url "get-onlyoffice-config" borrow.id cloud_file.id %}');
+            if (!response.ok) throw new Error('Failed to load document config');
+            
+            const config = await response.json();
+            if (config.error) throw new Error(config.error);
+            
+            // Initialize OnlyOffice editor
+            const documentEditor = new DocsAPI.DocEditor('placeholder', config);
+            window.documentEditor = documentEditor;
+        } catch (error) {
+            console.error('Error loading document config:', error);
+            document.getElementById('placeholder').innerHTML = '<p class="text-danger">Error loading editor: ' + error.message + '</p>';
+        }
+    }
+    
+    // Wait for DocsAPI to load, then initialize
+    function waitForDocsAPI() {
+        if (typeof DocsAPI !== 'undefined' && DocsAPI.DocEditor) {
+            loadDocumentConfig();
+        } else {
+            setTimeout(waitForDocsAPI, 500);
+        }
+    }
+    
+    // Start waiting for DocsAPI
+    $(function() {
+        waitForDocsAPI();
+        
+        // Update form submission
+        $('#editForm').submit(function(e) {
+            e.preventDefault();
+            
+            // OnlyOffice handles saves automatically via callback
+            // Just show save notes and redirect
+            const notes = document.getElementById('edit_notes').value;
+            
+            alert_toast('Document saved automatically by OnlyOffice.', 'success');
+            setTimeout(() => {
+                window.location.href = "{% url 'borrow-folder-view' borrow.id %}";
+            }, 1000);
+        });
+    });
+</script>
+
+<!-- Load OnlyOffice API -->
+<script src="https://127.0.0.1:8080/web-apps/apps/api/documents/api.js"></script>
+
+{% endblock pageContent %}

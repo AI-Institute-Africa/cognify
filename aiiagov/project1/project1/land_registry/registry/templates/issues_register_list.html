@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+            <h3 class="fw-bold mb-1"><i class="fas fa-truck-ramp-box text-danger me-2"></i>ISSUES REGISTER</h3>
+            <div class="small text-muted">
+                Zimbabwe Republic Police &bull; Central Stores &bull; Equipment Issue &amp; Dispatch Register
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="{% url 'print-issues-register' %}" target="_blank" class="btn btn-dark rounded-pill px-3 shadow-sm">
+                <i class="fas fa-print me-1 text-warning"></i> Print Register Sheet
+            </a>
+            <button class="btn btn-danger rounded-pill px-4 shadow-sm fw-bold"
+                onclick="uni_modal('Record New Issue Entry', '{% url 'manage-issues-register' %}', 'modal-lg')">
+                <i class="fas fa-plus-circle me-2"></i> Record New Issue
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Scope & Role Indicator Banner -->
+<div class="row mb-3">
+    <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+            {% if scope_info.is_chief_director %}
+            <span class="badge bg-dark border border-warning text-warning px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-crown me-1 text-warning"></i> Chief Director Command &bull; All Equipment Dispatches &amp; Issues System-Wide
+            </span>
+            {% elif scope_info.is_supt_ict %}
+            <span class="badge bg-primary px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-sitemap me-1"></i> Supt ICT &bull; Comprehensive Issues &amp; Dispatch Register
+            </span>
+            {% elif scope_info.scope == 'comms' %}
+            <span class="badge bg-warning text-dark px-3 py-2 rounded-pill shadow-sm fs-6 fw-bold">
+                <i class="fas fa-tower-broadcast me-1"></i> {{ scope_info.role }} &bull; Communications &amp; Radio Dispatches Only
+            </span>
+            {% elif scope_info.scope == 'systems' %}
+            <span class="badge bg-info text-dark px-3 py-2 rounded-pill shadow-sm fs-6 fw-bold">
+                <i class="fas fa-laptop-code me-1"></i> {{ scope_info.role }} &bull; Systems &amp; IT Dispatches Only
+            </span>
+            {% elif scope_info.scope == 'province' %}
+            <span class="badge bg-danger px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-map-location-dot me-1"></i> Provincial ICT Officer &bull; Issues to {{ scope_info.province|default:"Assigned Province" }}
+            </span>
+            {% else %}
+            <span class="badge bg-secondary px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-shield-halved me-1"></i> General Police Operations &bull; Central Stores Issues Register
+            </span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- KPI Metrics -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light border-start border-4 border-primary">
+            <div class="extra-small text-muted text-uppercase fw-bold">Total Issue Transactions</div>
+            <div class="h3 fw-bold mb-0 text-dark">{{ total_entries|default:0 }}</div>
+            <div class="extra-small text-muted">Dispatches logged in register</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light border-start border-4 border-danger">
+            <div class="extra-small text-muted text-uppercase fw-bold">Total Quantity Dispatched</div>
+            <div class="h3 fw-bold mb-0 text-danger">-{{ total_qty|intcomma }}</div>
+            <div class="extra-small text-muted">Articles issued out to stations</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light border-start border-4 border-success">
+            <div class="extra-small text-muted text-uppercase fw-bold">Requesting Stations / Units</div>
+            <div class="h3 fw-bold mb-0 text-success">{{ stations_count|default:0 }}</div>
+            <div class="extra-small text-muted">Beneficiary police establishments</div>
+        </div>
+    </div>
+</div>
+
+<!-- Search & Ledger Table -->
+<div class="card border-0 shadow-sm rounded-4">
+    <div class="card-header bg-white border-0 pt-4 px-4 pb-2">
+        <form method="GET" action="{% url 'issues-register-list' %}" class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0 rounded-pill-start ps-3"><i class="fas fa-search text-muted"></i></span>
+                    <input type="text" name="q" value="{{ q }}" class="form-control bg-light border-start-0 rounded-pill-end"
+                        placeholder="Search Item, Station, Station Ref, Receiver, Issuer...">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select name="urgency" class="form-select rounded-pill" onchange="this.form.submit()">
+                    <option value="">-- All Urgencies (SLA) --</option>
+                    <option value="Immediate" {% if urgency_filter == 'Immediate' %}selected{% endif %}>⚡ Immediate (Now)</option>
+                    <option value="Urgent" {% if urgency_filter == 'Urgent' %}selected{% endif %}>⚠️ Urgent (48 Hours)</option>
+                    <option value="Normal" {% if urgency_filter == 'Normal' %}selected{% endif %}>🕒 Normal (7 Days)</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary rounded-pill px-4">Filter</button>
+                {% if q or urgency_filter %}
+                <a href="{% url 'issues-register-list' %}" class="btn btn-outline-secondary rounded-pill px-3">Clear</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+    <div class="card-body p-4">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle">
+                <thead class="table-dark extra-small text-uppercase">
+                    <tr class="text-center align-middle">
+                        <th style="width: 75px;">ENTRY</th>
+                        <th style="width: 85px;">DATE</th>
+                        <th style="width: 110px;">URGENCY / SLA</th>
+                        <th>ITEM DESCRIPTION</th>
+                        <th style="width: 60px;">QTY</th>
+                        <th>REQUESTING STATION</th>
+                        <th>STATIONREF</th>
+                        <th style="width: 95px;">DATE REQUESTED</th>
+                        <th>CLASS</th>
+                        <th>ISSUER.</th>
+                        <th>No, RANK, NAME &amp; SIGNATURE OF RECIVER</th>
+                        <th style="width: 140px;">ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody class="small">
+                    {% for e in entries %}
+                    <tr>
+                        <td class="text-center fw-bold font-monospace">{{ e.entry_no|default:e.id }}</td>
+                        <td class="text-center text-nowrap">{{ e.date|date:"d/m/y" }}</td>
+                        <td class="text-center">
+                            {% if e.urgency == 'Immediate' %}
+                            <span class="badge bg-danger text-white rounded-pill px-2 py-1 extra-small">
+                                <i class="fas fa-bolt me-1"></i>Immediate
+                            </span>
+                            {% elif e.urgency == 'Urgent' %}
+                            <span class="badge bg-warning text-dark rounded-pill px-2 py-1 extra-small">
+                                <i class="fas fa-clock me-1"></i>Urgent (48h)
+                            </span>
+                            {% else %}
+                            <span class="badge bg-info text-dark rounded-pill px-2 py-1 extra-small">
+                                <i class="fas fa-calendar-alt me-1"></i>Normal (7d)
+                            </span>
+                            {% endif %}
+                            {% if e.target_date %}
+                            <div class="extra-small text-muted mt-1" title="Target completion date">Due: {{ e.target_date|date:"d/m/y" }}</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="fw-semibold text-dark">{{ e.item_description }}</div>
+                            {% if e.linked_asset %}
+                            <div class="extra-small text-muted">
+                                <span class="badge bg-light text-secondary border px-1"><i class="fas fa-box me-1"></i>{{ e.linked_asset.asset_code }}</span>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="text-center fw-bold text-danger">-{{ e.qty|intcomma }}</td>
+                        <td><span class="badge bg-light text-primary border"><i class="fas fa-map-marker-alt me-1"></i>{{ e.requesting_station }}</span></td>
+                        <td class="text-nowrap font-monospace">{{ e.station_ref|default:"-" }}</td>
+                        <td class="text-center text-nowrap text-muted">{{ e.date_requested|date:"d/m/y" }}</td>
+                        <td class="text-center"><span class="badge bg-secondary">{{ e.item_class|default:"General" }}</span></td>
+                        <td class="text-nowrap fw-bold">{{ e.issuer }}</td>
+                        <td class="fw-bold text-dark">
+                            {{ e.receiver_details }}
+                            {% if e.receiver_signature_image %}
+                            <div class="mt-1">
+                                <a href="{{ e.receiver_signature_image.url }}" target="_blank" class="badge bg-info text-dark">
+                                    <i class="fas fa-signature me-1"></i> Signature
+                                </a>
+                            </div>
+                            {% endif %}
+                            {% if e.voucher_scan %}
+                            <div class="mt-1">
+                                <a href="{{ e.voucher_scan.url }}" target="_blank" class="badge bg-secondary text-white">
+                                    <i class="fas fa-file-pdf me-1"></i> Signed Voucher
+                                </a>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="text-end text-nowrap">
+                            {% if e.linked_form27_voucher %}
+                            <a href="{% url 'print-form27' e.linked_form27_voucher.pk %}" target="_blank" class="btn btn-sm btn-outline-warning text-dark me-1" title="Print Form 27 Delivery Note">
+                                <i class="fas fa-print text-danger"></i> Form 27
+                            </a>
+                            {% endif %}
+                            <button type="button" class="btn btn-sm btn-outline-primary" title="Edit Entry"
+                                onclick="uni_modal('Edit Issues Register Entry', '{% url 'manage-issues-register-pk' e.pk %}', 'modal-lg')">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <a href="{% url 'delete-issues-register' e.pk %}" class="btn btn-sm btn-outline-danger"
+                                onclick="return confirm('Are you sure you want to delete Issue entry #{{ e.entry_no|default:e.id }}?')"
+                                title="Delete Entry">
+                                <i class="fas fa-trash-alt"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="11" class="text-center py-5 text-muted">
+                            <i class="fas fa-truck-ramp-box fs-1 text-muted opacity-25 d-block mb-3"></i>
+                            <div class="fw-bold fs-6">No Issues Recorded in Register</div>
+                            <div class="extra-small mb-3">Record stores dispatches with requesting station references and receiving officer signoffs.</div>
+                            <button class="btn btn-danger btn-sm rounded-pill px-4 fw-bold"
+                                onclick="uni_modal('Record New Issue Entry', '{% url 'manage-issues-register' %}', 'modal-lg')">
+                                <i class="fas fa-plus me-1"></i> Record First Issue
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

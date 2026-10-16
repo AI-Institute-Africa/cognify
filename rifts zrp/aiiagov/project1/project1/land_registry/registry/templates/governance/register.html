@@ -1,0 +1,163 @@
+{% extends 'base.html' %}{% load static %}{% block pageContent %}
+<div class="container-fluid d-flex flex-column min-vh-100 justify-content-center align-items-center py-5" style="background: radial-gradient(circle at top right, #1a1a2e, #16213e);">
+    <div class="col-lg-5 col-md-7 col-sm-12">
+        <!-- Logo & Title Area -->
+        <div class="text-center mb-5 animate-fade-in">
+            <div class="bg-info bg-opacity-10 d-inline-flex align-items-center justify-content-center rounded-circle mb-3 shadow-lg"
+                style="width: 80px; height: 80px; border: 1px solid rgba(0, 255, 255, 0.2); backdrop-filter: blur(10px);">
+                <i class="fas fa-shield-alt text-info display-5"></i></div>
+            <h1 class="fw-bold text-white mb-1 h3"> Governance Intelligence Hub</h1>
+            <p class="text-info opacity-75 small"> Strategic Registration Portal</p></div>
+
+        <!-- Registration Card -->
+        <div class="glass-card border-0 shadow-lg overflow-hidden animate-slide-up" 
+             style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); backdrop-filter: blur(20px); border-radius: 24px;">
+            <div class="card-body p-4 p-md-5">
+                <div class="mb-4">
+                    <h4 class="fw-bold text-white h5"> Initiate Credentials</h4>
+                    <p class="text-info opacity-50 small"> Secure data entry required for organizational oversight</p></div>
+
+                <form id="register-governance" action="" method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="platform" value="Governance">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="first_name" class="form-label small fw-bold text-info opacity-75"> First Name</label>
+                            <input type="text" class="form-control hover-glow bg-dark bg-opacity-25 border-secondary border-opacity-25 text-white rounded-pill px-3" name="first_name"
+                                id="first_name" placeholder="John" required></div>
+                        <div class="col-md-6 mb-3">
+                            <label for="last_name" class="form-label small fw-bold text-info opacity-75"> Last Name</label>
+                            <input type="text" class="form-control hover-glow bg-dark bg-opacity-25 border-secondary border-opacity-25 text-white rounded-pill px-3" name="last_name"
+                                id="last_name" placeholder="Doe" required></div></div>
+
+                    <div class="form-group mb-3">
+                        <label for="email" class="form-label small fw-bold text-info opacity-75"> Institutional Email</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-dark bg-opacity-25 border-secondary border-opacity-25 text-info small px-3">
+                                <i class="fas fa-envelope-open-text"></i></span>
+                            <input type="email" class="form-control hover-glow bg-dark bg-opacity-25 border-secondary border-opacity-25 text-white border-start-0 ps-0"
+                                placeholder="gov@organization.com" name="email" id="email" required></div></div>
+
+                    <div class="form-group mb-3">
+                        <label for="username" class="form-label small fw-bold text-info opacity-75"> Security Handle</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-dark bg-opacity-25 border-secondary border-opacity-25 text-info small px-3">
+                                <i class="fas fa-fingerprint"></i></span>
+                            <input type="text" class="form-control hover-glow bg-dark bg-opacity-25 border-secondary border-opacity-25 text-white border-start-0 ps-0 font-monospace"
+                                placeholder="commander_01" name="username" id="username" required></div></div>
+
+                    <div class="form-group mb-3">
+                        <label for="department" class="form-label small fw-bold text-info opacity-75"> Department</label>
+                        <select class="form-select hover-glow bg-dark bg-opacity-25 border-secondary border-opacity-25 text-white rounded-pill px-3" name="department" id="department" required>
+                            <option value="" disabled selected class="bg-dark text-white">Select Department</option>
+                            {% for dept in departments %}
+                            <option value="{{ dept.id }}" class="bg-dark text-white">{{ dept.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label for="requested_role" class="form-label small fw-bold text-info opacity-75"> Operational Designation</label>
+                        <select class="form-select hover-glow bg-dark bg-opacity-25 border-secondary border-opacity-25 text-white rounded-pill px-3" name="requested_role" id="requested_role" required>
+                            <option value="Board of Executives" class="bg-dark text-white">Executive Committee</option>
+                            <option value="HODs" class="bg-dark text-white">Head of Departments</option>
+                            <option value="Project Management Team" class="bg-dark text-white">Project Management Team</option>
+                            <option value="Project Leader" class="bg-dark text-white">Project Leader</option>
+                            <option value="Team Member" class="bg-dark text-white" selected>Team Member</option>
+                        </select>
+                        <small class="text-info opacity-50 extra-small mt-1 d-block">All roles require verification and authentication clearance.</small>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="password1" class="form-label small fw-bold text-info opacity-75"> Cryptic Key</label>
+                            <input type="password" class="form-control hover-glow bg-dark bg-opacity-25 border-secondary border-opacity-25 text-white rounded-pill px-3"
+                                name="password1" id="password1" placeholder="••••••••" required></div>
+                        <div class="col-md-6 mb-4">
+                            <label for="password2" class="form-label small fw-bold text-info opacity-75"> Confirm Key</label>
+                            <input type="password" class="form-control hover-glow bg-dark bg-opacity-25 border-secondary border-opacity-25 text-white rounded-pill px-3"
+                                name="password2" id="password2" placeholder="••••••••" required></div></div>
+
+                    <button class="btn btn-info w-100 py-3 rounded-pill shadow-lg mt-2 transition-all hover-scale fw-bold text-uppercase tracking-wider">
+                        Initiate Registration</button>
+
+                    <div class="mt-4 text-center">
+                        <p class="text-info opacity-50 extra-small mb-0"> Already authorized? <a href="{% url 'login-page' %}"
+                                class="text-info fw-bold text-decoration-none"> Access Console</a></p></div></form></div></div></div></div>
+
+<style>
+    .animate-fade-in { animation: fadeIn 1s ease-out; }
+    .animate-slide-up { animation: slideUp 0.8s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+
+    .hover-glow:focus {
+        border-color: #0dcaf0 !important;
+        box-shadow: 0 0 15px rgba(13, 202, 240, 0.2);
+        background: rgba(13, 202, 240, 0.05) !important;
+    }
+
+    .hover-scale:hover {
+        transform: scale(1.02);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    }
+    
+    .tracking-wider { letter-spacing: 0.1rem; }
+    
+    .form-control::placeholder { color: rgba(255,255,255,0.2) !important; }
+    
+    .form-select option { background: #16213e !important; color: white !important; }
+</style>
+{% endblock pageContent %}
+
+{% block ScriptBlock %}
+<script>
+$(function () {
+    $('#register-governance').submit(function (e) {
+        e.preventDefault();
+        var _this = $(this)
+        $('.err-msg').remove();
+        var el = $('<div>')
+        el.addClass("alert alert-danger err-msg rounded-3 small p-2 mb-3 border-0 bg-danger bg-opacity-25 text-white")
+        el.hide()
+        if (_this[0].checkValidity() == false) {
+            _this[0].reportValidity();
+            return false;
+        }
+        start_loader();
+        $.ajax({
+            headers: { "X-CSRFToken": '{{csrf_token}}' },
+            url: "{% url 'save-governance-register' %}",
+            data: new FormData($(this)[0]),
+            cache: false,
+            contentType: false,
+            processData: false,
+            method: 'POST',
+            type: 'POST',
+            dataType: 'json',
+            error: err => {
+                console.error(err)
+                alert("A critical system error occurred during registration.");
+                end_loader();
+            },
+            success: function (resp) {
+                if (typeof resp == 'object' && resp.status == 'success') {
+                    // Redirect or show verify message
+                    location.href = "{% url 'login-page' %}"
+                } else if (resp.status == 'failed' && !!resp.msg) {
+                    el.html("<i class='fas fa-exclamation-triangle me-2'></i>" + resp.msg)
+                } else {
+                    el.text("Security protocol failed. Please re-check credentials.");
+                    end_loader();
+                    console.error(resp)
+                }
+                _this.prepend(el)
+                el.show('slow')
+                $("html, body, .modal").scrollTop(0);
+                end_loader()
+            }
+        })
+    })
+})
+</script>
+{% endblock ScriptBlock %}

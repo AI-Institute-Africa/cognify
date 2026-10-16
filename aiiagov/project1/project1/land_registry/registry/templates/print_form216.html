@@ -1,0 +1,213 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Z.R.P. FORM 216 - {{ card.article }} (Code: {{ card.code_no }})</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace, 'Times New Roman';
+            color: #000;
+            background: #f4f6f9;
+            font-size: 11.5px;
+            line-height: 1.3;
+        }
+        .page {
+            width: 297mm;
+            min-height: 210mm;
+            padding: 10mm 14mm;
+            margin: 15px auto;
+            background: #fff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            position: relative;
+            box-sizing: border-box;
+        }
+        @media print {
+            body {
+                background: #fff;
+                margin: 0;
+                padding: 0;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .page {
+                box-shadow: none;
+                margin: 0;
+                width: 100%;
+                min-height: 100vh;
+                padding: 6mm 10mm;
+            }
+            @page {
+                size: A4 landscape;
+                margin: 6mm;
+            }
+        }
+        .dotted-line {
+            border-bottom: 1px dotted #000;
+            display: inline-block;
+            padding: 0 4px;
+            font-weight: bold;
+        }
+        table.form216-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 12px;
+        }
+        table.form216-table th, table.form216-table td {
+            border: 1.2px solid #000;
+            padding: 4px 6px;
+            vertical-align: middle;
+            font-size: 11px;
+        }
+        table.form216-table th {
+            text-align: center;
+            font-size: 11px;
+            text-transform: uppercase;
+            font-weight: bold;
+            background-color: #f8f8f8;
+        }
+        .divider-col {
+            border-right: 2.5px solid #000 !important;
+        }
+        .empty-row td {
+            height: 22px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Action Bar (hidden on print) -->
+    <div class="no-print py-2 bg-dark text-white text-center shadow-sm sticky-top">
+        <div class="container-fluid d-flex justify-content-between align-items-center">
+            <div>
+                <span class="fw-bold"><i class="fas fa-table-list text-warning me-1"></i> Statutory Z.R.P. FORM 216</span>
+                <span class="badge bg-secondary ms-2">Code: {{ card.code_no }}</span>
+                <span class="badge bg-light text-dark ms-1">Folio: {{ card.folio_no }}</span>
+                <span class="badge bg-success ms-1">Stock on Hand: {{ card.current_balance }}</span>
+            </div>
+            <div>
+                <a href="{% url 'view-form216' card.pk %}" class="btn btn-sm btn-outline-light me-2 rounded-pill px-3">
+                    <i class="fas fa-arrow-left me-1"></i> Back to Ledger
+                </a>
+                <button onclick="window.print()" class="btn btn-sm btn-warning text-dark fw-bold rounded-pill px-4 shadow-sm">
+                    <i class="fas fa-print me-1"></i> Print Form 216 (Ctrl + P)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Official Printable Form 216 Stock Card Stock -->
+    <div class="page">
+        <!-- Official Statutory Header matching physical card verbatim -->
+        <div class="d-flex justify-content-between align-items-baseline mb-2">
+            <div style="font-size: 16px; font-weight: bold; letter-spacing: 2px;">
+                Z.R.P.
+            </div>
+            <div style="font-size: 16px; font-weight: bold; letter-spacing: 2px;">
+                FORM 216.
+            </div>
+        </div>
+
+        <!-- Statutory Metadata Row -->
+        <div class="d-flex justify-content-between align-items-baseline flex-wrap gap-2 mb-2 pb-1 border-bottom border-dark border-1">
+            <div style="flex: 1.2;">
+                <strong>Code No.</strong>
+                <span class="dotted-line" style="min-width: 140px;">{{ card.code_no }}</span>
+            </div>
+            <div style="flex: 2;">
+                <strong>Article</strong>
+                <span class="dotted-line" style="min-width: 260px;">{{ card.article }}</span>
+            </div>
+            <div style="flex: 0.8;">
+                <strong>Unit</strong>
+                <span class="dotted-line" style="min-width: 70px;">{{ card.unit }}</span>
+            </div>
+            <div style="flex: 1;">
+                <strong>Folio No.</strong>
+                <span class="dotted-line" style="min-width: 110px;">{{ card.folio_no }}</span>
+            </div>
+        </div>
+
+        <!-- Dual Column Form 216 Ledger Table -->
+        <table class="form216-table">
+            <thead>
+                <tr>
+                    <!-- Left Side (Columns 1 to 6) -->
+                    <th style="width: 7.5%;">Date</th>
+                    <th style="width: 9.5%;">Voucher No.</th>
+                    <th style="width: 16%;">From /To</th>
+                    <th style="width: 5.5%;">Receipts</th>
+                    <th style="width: 5.5%;">Issues</th>
+                    <th style="width: 6%;" class="divider-col">Balance</th>
+
+                    <!-- Right Side (Columns 7 to 12) -->
+                    <th style="width: 7.5%;">Date</th>
+                    <th style="width: 9.5%;">Voucher No.</th>
+                    <th style="width: 16%;">From /To</th>
+                    <th style="width: 5.5%;">Receipts</th>
+                    <th style="width: 5.5%;">Issues</th>
+                    <th style="width: 6%;">Balance</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- First Ruled Row: B/Forward on both sides as per physical card template -->
+                <tr style="background-color: #fafafa;">
+                    <td class="text-center">{{ card.bforward_date|date:"d/m/Y"|default:"" }}</td>
+                    <td class="text-center"></td>
+                    <td class="fw-bold">B/Forward</td>
+                    <td class="text-center"></td>
+                    <td class="text-center"></td>
+                    <td class="text-center fw-bold divider-col">{{ card.initial_bforward_balance }}</td>
+
+                    <td class="text-center"></td>
+                    <td class="text-center"></td>
+                    <td class="fw-bold">B/Forward</td>
+                    <td class="text-center"></td>
+                    <td class="text-center"></td>
+                    <td class="text-center fw-bold"></td>
+                </tr>
+
+                <!-- Paired Ruled Rows -->
+                {% for left, right in paired_rows %}
+                <tr class="{% if not left and not right %}empty-row{% endif %}">
+                    <!-- Left Column Set -->
+                    <td class="text-center">{% if left %}{{ left.date|date:"d/m/Y" }}{% endif %}</td>
+                    <td class="text-center">{% if left %}{{ left.voucher_no|default:"" }}{% endif %}</td>
+                    <td>{% if left %}{{ left.from_to }}{% endif %}</td>
+                    <td class="text-center fw-bold">{% if left and left.receipts %}{{ left.receipts }}{% endif %}</td>
+                    <td class="text-center fw-bold">{% if left and left.issues %}{{ left.issues }}{% endif %}</td>
+                    <td class="text-center fw-bold divider-col">{% if left %}{{ left.balance }}{% endif %}</td>
+
+                    <!-- Right Column Set -->
+                    <td class="text-center">{% if right %}{{ right.date|date:"d/m/Y" }}{% endif %}</td>
+                    <td class="text-center">{% if right %}{{ right.voucher_no|default:"" }}{% endif %}</td>
+                    <td>{% if right %}{{ right.from_to }}{% endif %}</td>
+                    <td class="text-center fw-bold">{% if right and right.receipts %}{{ right.receipts }}{% endif %}</td>
+                    <td class="text-center fw-bold">{% if right and right.issues %}{{ right.issues }}{% endif %}</td>
+                    <td class="text-center fw-bold">{% if right %}{{ right.balance }}{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Footer Information -->
+        <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top border-dark border-1" style="font-size: 10px; color: #444;">
+            <div>
+                ZRP Central Stores &bull; Bin Card System &bull; Location: <strong>{{ card.location_bin|default:"Main Warehouse" }}</strong>
+            </div>
+            <div>
+                Current Verified Balance: <strong style="font-size: 12px; color: #000;">{{ card.current_balance }} {{ card.unit }}</strong>
+            </div>
+            <div>
+                Printed: {{ print_date|date:"d/m/Y H:i" }}
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,160 @@
+{% load humanize %}
+<div class="container-fluid">
+    <form action="{% url 'save-goods-received' %}" id="goods-received-form" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{ entry.id|default:'' }}">
+
+        <div class="alert alert-success d-flex align-items-center mb-3 rounded-3" role="alert">
+            <i class="fas fa-dolly fs-3 me-3 text-success"></i>
+            <div>
+                <strong>GOODS RECEIVED REGISTER</strong>
+                <div class="extra-small text-muted">ZRP Central Stores &bull; Inward verification of supplier consignment</div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1">
+                    <i class="fas fa-hashtag text-success me-1"></i> ENTRY No. (Auto-Generated)
+                </label>
+                <div class="input-group">
+                    <span class="input-group-text bg-success text-white rounded-pill-start border-success fw-bold">
+                        <i class="fas fa-lock-open fa-xs me-1"></i>
+                    </span>
+                    <div class="form-control rounded-pill-end bg-light fw-bold font-monospace text-success border-success" style="display:flex;align-items:center;padding-left:1rem;">
+                        {{ suggested_entry_no|default:"Auto" }}
+                    </div>
+                </div>
+                <input type="hidden" name="entry_no" value="{% if entry %}{{ entry.entry_no }}{% endif %}">
+                <div class="extra-small text-muted">System-assigned sequential number (e.g. 01/2026)</div>
+            </div>
+            <div class="col-md-4">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> DATE *</label>
+                {{ form.date }}
+            </div>
+            <div class="col-md-4">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> COMPANY (Supplier) *</label>
+                {{ form.company }}
+                <div class="extra-small text-muted">e.g. C&amp;T COMPUTERS</div>
+            </div>
+
+            <div class="col-12">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> GOODS RECEIVED (Description) *</label>
+                {{ form.goods_received }}
+                <div class="extra-small text-muted">e.g. 200 Core i7 Laptops, 50 VHF Mobile Radios</div>
+            </div>
+
+            <div class="col-md-3">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold text-success mb-1"> QTY *</label>
+                {{ form.qty }}
+            </div>
+            <div class="col-md-3">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold text-primary mb-1"> BAL (Balance)</label>
+                {{ form.bal }}
+            </div>
+            <div class="col-md-3">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> P. O No. *</label>
+                {{ form.po_no }}
+                <div class="extra-small text-muted">e.g. ZRP01/23</div>
+            </div>
+            <div class="col-md-3">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> BIN No</label>
+                {{ form.bin_no }}
+                <div class="extra-small text-muted">e.g. Rack A-02 / Shelf 3</div>
+            </div>
+
+            <div class="col-md-4">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1">
+                    <i class="fas fa-user-check text-primary me-1"></i> RECEIVER (Type Name / Force No) *
+                </label>
+                {{ form.receiver }}
+                <div class="extra-small text-muted">Type receiving officer name/rank/force no (e.g. 044122E SGT MUKAMBA)</div>
+                <div class="d-none">{{ form.receiver_user }}</div>
+            </div>
+            <div class="col-md-4">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1">
+                    <i class="fas fa-user-shield text-success me-1"></i> CHECKER (Type Name / Force No) *
+                </label>
+                {{ form.checker }}
+                <div class="extra-small text-muted">Type checking officer name/rank/force no (e.g. CST KADIKI)</div>
+                <div class="d-none">{{ form.checker_user }}</div>
+            </div>
+            <div class="col-md-4">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> DEPARTMENT</label>
+                {{ form.department }}
+            </div>
+
+            <div class="col-md-12">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Delivery Note / Supporting Document Scan</label>
+                {{ form.delivery_note_scan }}
+                <div class="extra-small text-muted mt-1">
+                    <i class="fas fa-cloud-upload-alt text-success me-1"></i>
+                    Uploaded files are automatically archived in the Institutional Cloud under <strong>Goods Received Scans</strong>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> REMARKS</label>
+                {{ form.remarks }}
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+$(function () {
+    function syncReceiverChecker() {
+        var recText = $('#id_gr_receiver_user option:selected').text();
+        if (recText && $('#id_gr_receiver_user').val()) {
+            $('[name="receiver"]').val(recText.split('(')[0].trim());
+        }
+        var chkText = $('#id_gr_checker_user option:selected').text();
+        if (chkText && $('#id_gr_checker_user').val()) {
+            $('[name="checker"]').val(chkText.split('(')[0].trim());
+        }
+    }
+    $('#id_gr_receiver_user, #id_gr_checker_user').on('change', syncReceiverChecker);
+    syncReceiverChecker();
+
+    $('#goods-received-form').submit(function (e) {
+        e.preventDefault();
+        var _this = $(this);
+        $('.err-msg').remove();
+        var el = $('<div>').addClass("alert alert-danger err-msg").hide();
+        if (_this[0].checkValidity() == false) {
+            _this[0].reportValidity();
+            return false;
+        }
+        start_loader();
+        $.ajax({
+            url: _this.attr('action'),
+            data: new FormData(_this[0]),
+            cache: false,
+            contentType: false,
+            processData: false,
+            method: 'POST',
+            type: 'POST',
+            dataType: 'json',
+            error: function (err) {
+                console.log(err);
+                alert_toast("An error occurred", 'error');
+                end_loader();
+            },
+            success: function (resp) {
+                if (typeof resp == 'object' && resp.status == 'success') {
+                    location.reload();
+                } else if (resp.status == 'failed' && !!resp.msg) {
+                    el.text(resp.msg);
+                    _this.prepend(el);
+                    el.show('slow');
+                    $("html, body, .modal").animate({ scrollTop: 0 }, "fast");
+                    end_loader();
+                } else {
+                    alert_toast("An error occurred", 'error');
+                    end_loader();
+                }
+            }
+        });
+    });
+});
+</script>

@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block pageContent %}
+<div class="row mb-4 animate__animated animate__fadeInDown">
+    <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+            <h3 class="fw-bold mb-1"><i class="fas fa-file-invoice text-primary me-2"></i>Z.R.P. FORM 27 (Requisition / Issue Vouchers)</h3>
+            <div class="small text-muted">
+                Z.R.POLICE I.C.T &bull; Central Radio Stores &bull; Statutory equipment requisition and dispatch ledger
+            </div>
+        </div>
+        <div>
+            <button class="btn btn-primary rounded-pill px-4 shadow-sm fw-bold"
+                onclick="uni_modal('Issue New Form 27 Voucher', '{% url 'manage-form27' %}', 'modal-lg')">
+                <i class="fas fa-plus-circle me-2"></i> Issue New Form 27
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Scope & Role Indicator Banner -->
+<div class="row mb-3">
+    <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+            {% if scope_info.is_chief_director %}
+            <span class="badge bg-dark border border-warning text-warning px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-crown me-1 text-warning"></i> Chief Director Command &bull; All Form 27 Vouchers Across System
+            </span>
+            {% elif scope_info.is_supt_ict %}
+            <span class="badge bg-primary px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-sitemap me-1"></i> Supt ICT &bull; Comprehensive System-Wide Issue Vouchers
+            </span>
+            {% elif scope_info.scope == 'comms' %}
+            <span class="badge bg-warning text-dark px-3 py-2 rounded-pill shadow-sm fs-6 fw-bold">
+                <i class="fas fa-tower-broadcast me-1"></i> {{ scope_info.role }} &bull; Communications &amp; Radio Vouchers Only
+            </span>
+            {% elif scope_info.scope == 'systems' %}
+            <span class="badge bg-info text-dark px-3 py-2 rounded-pill shadow-sm fs-6 fw-bold">
+                <i class="fas fa-laptop-code me-1"></i> {{ scope_info.role }} &bull; Systems &amp; IT Vouchers Only
+            </span>
+            {% elif scope_info.scope == 'province' %}
+            <span class="badge bg-danger px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-map-location-dot me-1"></i> Provincial ICT Officer &bull; Vouchers for {{ scope_info.province|default:"Assigned Province" }}
+            </span>
+            {% else %}
+            <span class="badge bg-secondary px-3 py-2 rounded-pill shadow-sm fs-6">
+                <i class="fas fa-shield-halved me-1"></i> General Police Operations &bull; Central Radio Stores
+            </span>
+            {% endif %}
+        </div>
+        {% if scope_info.can_sign_electronic %}
+        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2 rounded-pill extra-small fw-bold">
+            <i class="fas fa-check-double me-1"></i> Authorized to Sign Form 27 Electronically
+        </span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold">Total Vouchers</div>
+            <div class="h3 fw-bold mb-0 text-dark">{{ total_count|default:0 }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold">Issued at Stores</div>
+            <div class="h3 fw-bold mb-0 text-warning">{{ issued_count|default:0 }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold">Dispatched / In Transit</div>
+            <div class="h3 fw-bold mb-0 text-primary">{{ dispatched_count|default:0 }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-light">
+            <div class="extra-small text-muted text-uppercase fw-bold">Electronically Confirmed</div>
+            <div class="h3 fw-bold mb-0 text-success">{{ electronic_signed_count|default:0 }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Vouchers Table -->
+<div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="extra-small text-uppercase text-muted">
+                    <tr>
+                        <th>Voucher No.</th>
+                        <th>Issue Date</th>
+                        <th>Issued By</th>
+                        <th>Destination Station</th>
+                        <th>Items Count</th>
+                        <th>Checker</th>
+                        <th class="text-center">Status / Signoff</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="small">
+                    {% for v in vouchers %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'view-form27' v.pk %}" class="fw-bold text-dark text-decoration-none">
+                                <i class="fas fa-file-invoice text-primary me-2"></i>NO. {{ v.voucher_no }}
+                            </a>
+                            {% if v.electronic_signature_confirmed %}
+                            <div>
+                                <span class="badge bg-success bg-opacity-10 text-success extra-small" title="Electronically confirmed by {{ v.electronic_signed_name }}">
+                                    <i class="fas fa-shield-check me-1"></i>E-Signed: {{ v.electronic_signed_role }}
+                                </span>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>{{ v.date|date:"Y-m-d" }}</td>
+                        <td>
+                            <div class="fw-semibold">{{ v.issued_by }}</div>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-primary border rounded-pill px-2">
+                                <i class="fas fa-map-marker-alt me-1"></i>{{ v.station }}
+                            </span>
+                        </td>
+                        <td>{{ v.total_items_count }} items</td>
+                        <td>{{ v.checker }}</td>
+                        <td class="text-center">
+                            <span class="badge bg-{% if v.status == 'Received' %}success{% elif v.status == 'Dispatched' %}primary{% else %}warning text-dark{% endif %} rounded-pill px-3 py-2">
+                                {{ v.status }}
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group">
+                                <a href="{% url 'view-form27' v.pk %}" class="btn btn-sm btn-outline-primary" title="View Voucher">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url 'print-form27' v.pk %}" target="_blank" class="btn btn-sm btn-outline-dark" title="Print Form 27">
+                                    <i class="fas fa-print"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="fas fa-file-invoice fa-3x mb-3 opacity-25"></i>
+                            <div>No Form 27 vouchers found.</div>
+                            <button class="btn btn-sm btn-primary rounded-pill px-3 mt-2" onclick="uni_modal('Issue New Form 27 Voucher', '{% url 'manage-form27' %}', 'modal-lg')">
+                                <i class="fas fa-plus me-1"></i> Issue First Form 27 (e.g. Voucher 85/26)
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock pageContent %}\n

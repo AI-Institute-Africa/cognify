@@ -1,0 +1,180 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-calculator text-warning me-2"></i> Digital Interview Scorecard Studio</h3>
+            <p class="text-muted small mb-0">Candidate: <strong class="text-white">{{ candidate.full_name }}</strong> | Position: {{ exercise.position_title }} (Grade: {{ exercise.grade_level }})</p>
+        </div>
+        <a href="{% url 'interview-reports' exercise.pk %}" class="btn btn-outline-light rounded-pill px-4">
+            <i class="fas fa-arrow-left me-1"></i> Back to Exercise Reports
+        </a>
+    </div>
+
+    <!-- Candidate Vetting & Police Clearance Banner -->
+    <div class="glass-card p-3 mb-4 border border-success border-opacity-25 d-flex justify-content-between align-items-center">
+        <div>
+            <span class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 me-2"><i class="fas fa-user-shield me-1"></i> Police Clearance & Vetting</span>
+            <strong class="text-white small">Status: {{ candidate.vetting_status }}</strong>
+            {% if candidate.police_clearance_ref %}
+            <span class="text-muted extra-small ms-2">(Ref: {{ candidate.police_clearance_ref }})</span>
+            {% endif %}
+        </div>
+        <div>
+            {% if assessment and assessment.is_locked %}
+            <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25 px-3 py-2 rounded-pill fw-bold"><i class="fas fa-lock me-1"></i> SCORECARD LOCKED & SUBMITTED</span>
+            {% else %}
+            <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25 px-3 py-2 rounded-pill fw-bold"><i class="fas fa-pen-to-square me-1"></i> EDITABLE / OPEN SCORECARD</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <form action="" method="POST" id="scorecardForm">
+        {% csrf_token %}
+        <div class="row g-4">
+            <!-- Left Column: 7 Weighted Evaluation Criteria -->
+            <div class="col-lg-8">
+                <div class="glass-card p-4">
+                    <h5 class="fw-bold text-white mb-3"><i class="fas fa-sliders text-success me-2"></i> Weighted Assessment Criteria (Max Total: 100 Points)</h5>
+
+                    {% if assessment and assessment.is_locked %}
+                    <div class="alert alert-danger bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-3 small mb-4">
+                        <i class="fas fa-lock me-2"></i> This scorecard has been submitted and locked. Under ZRP Recruitment Policy, submitted scores cannot be altered.
+                    </div>
+                    {% endif %}
+
+                    <!-- 1. Academic Qualifications (Max 10) -->
+                    <div class="mb-4 pb-3 border-bottom border-secondary border-opacity-25">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-bold text-white mb-0">1. Academic & Professional Qualifications (Max 10 Pts)</label>
+                            <span class="badge bg-success bg-opacity-25 text-success fw-bold" id="val_academic">{{ assessment.academic_qualifications_score|default:0 }}/10</span>
+                        </div>
+                        <input type="range" name="academic_qualifications_score" class="form-range" min="0" max="10" value="{{ assessment.academic_qualifications_score|default:0 }}" oninput="calcTotal()" {% if assessment and assessment.is_locked %}disabled{% endif %}>
+                        <div class="extra-small text-muted">Evaluates relevance of degrees, diplomas, and professional certifications to the position.</div>
+                    </div>
+
+                    <!-- 2. Relevant Experience (Max 15) -->
+                    <div class="mb-4 pb-3 border-bottom border-secondary border-opacity-25">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-bold text-white mb-0">2. Relevant Industry & Operational Experience (Max 15 Pts)</label>
+                            <span class="badge bg-success bg-opacity-25 text-success fw-bold" id="val_experience">{{ assessment.relevant_experience_score|default:0 }}/15</span>
+                        </div>
+                        <input type="range" name="relevant_experience_score" class="form-range" min="0" max="15" value="{{ assessment.relevant_experience_score|default:0 }}" oninput="calcTotal()" {% if assessment and assessment.is_locked %}disabled{% endif %}>
+                        <div class="extra-small text-muted">Evaluates years of active media/regulatory sector experience and track record.</div>
+                    </div>
+
+                    <!-- 3. Technical Knowledge (Max 25) -->
+                    <div class="mb-4 pb-3 border-bottom border-secondary border-opacity-25">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-bold text-white mb-0">3. Technical & Domain Knowledge (Max 25 Pts)</label>
+                            <span class="badge bg-success bg-opacity-25 text-success fw-bold" id="val_technical">{{ assessment.technical_knowledge_score|default:0 }}/25</span>
+                        </div>
+                        <input type="range" name="technical_knowledge_score" class="form-range" min="0" max="25" value="{{ assessment.technical_knowledge_score|default:0 }}" oninput="calcTotal()" {% if assessment and assessment.is_locked %}disabled{% endif %}>
+                        <div class="extra-small text-muted">Depth of technical knowledge regarding broadcasting laws, media accreditation, and regulation.</div>
+                    </div>
+
+                    <!-- 4. Core Competencies (Max 15) -->
+                    <div class="mb-4 pb-3 border-bottom border-secondary border-opacity-25">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-bold text-white mb-0">4. Core Job Competencies & Skills (Max 15 Pts)</label>
+                            <span class="badge bg-success bg-opacity-25 text-success fw-bold" id="val_competencies">{{ assessment.competencies_score|default:0 }}/15</span>
+                        </div>
+                        <input type="range" name="competencies_score" class="form-range" min="0" max="15" value="{{ assessment.competencies_score|default:0 }}" oninput="calcTotal()" {% if assessment and assessment.is_locked %}disabled{% endif %}>
+                        <div class="extra-small text-muted">Specific technical competencies required for execution of duties.</div>
+                    </div>
+
+                    <!-- 5. Communication Skills (Max 10) -->
+                    <div class="mb-4 pb-3 border-bottom border-secondary border-opacity-25">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-bold text-white mb-0">5. Communication & Articulation Skills (Max 10 Pts)</label>
+                            <span class="badge bg-success bg-opacity-25 text-success fw-bold" id="val_communication">{{ assessment.communication_skills_score|default:0 }}/10</span>
+                        </div>
+                        <input type="range" name="communication_skills_score" class="form-range" min="0" max="10" value="{{ assessment.communication_skills_score|default:0 }}" oninput="calcTotal()" {% if assessment and assessment.is_locked %}disabled{% endif %}>
+                        <div class="extra-small text-muted">Clarity of expression, presentation, and interpersonal skills.</div>
+                    </div>
+
+                    <!-- 6. Problem-Solving Ability (Max 10) -->
+                    <div class="mb-4 pb-3 border-bottom border-secondary border-opacity-25">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-bold text-white mb-0">6. Problem-Solving & Analytical Ability (Max 10 Pts)</label>
+                            <span class="badge bg-success bg-opacity-25 text-success fw-bold" id="val_problem">{{ assessment.problem_solving_score|default:0 }}/10</span>
+                        </div>
+                        <input type="range" name="problem_solving_score" class="form-range" min="0" max="10" value="{{ assessment.problem_solving_score|default:0 }}" oninput="calcTotal()" {% if assessment and assessment.is_locked %}disabled{% endif %}>
+                        <div class="extra-small text-muted">Case study analysis, critical thinking, and crisis management ability.</div>
+                    </div>
+
+                    <!-- 7. Leadership / Management (Max 15) -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-bold text-white mb-0">7. Leadership & Management Competencies (Max 15 Pts)</label>
+                            <span class="badge bg-success bg-opacity-25 text-success fw-bold" id="val_leadership">{{ assessment.leadership_management_score|default:0 }}/15</span>
+                        </div>
+                        <input type="range" name="leadership_management_score" class="form-range" min="0" max="15" value="{{ assessment.leadership_management_score|default:0 }}" oninput="calcTotal()" {% if assessment and assessment.is_locked %}disabled{% endif %}>
+                        <div class="extra-small text-muted">Strategic leadership, team management, and organizational stewardship.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Total Score, Panelist Notes & Lock Submission -->
+            <div class="col-lg-4">
+                <div class="glass-card p-4 text-center border-top border-4 border-warning mb-4">
+                    <span class="text-uppercase extra-small fw-bold text-muted">Automated Total Score</span>
+                    <h1 class="display-3 fw-bold text-warning mb-0" id="totalDisplay">{{ assessment.total_score|default:0 }}</h1>
+                    <span class="extra-small text-muted">Out of 100 Points</span>
+                </div>
+
+                <div class="glass-card p-4">
+                    <h6 class="fw-bold text-white mb-3"><i class="fas fa-comment-dots text-info me-2"></i> Panel Recommendation</h6>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Final Assessment Recommendation</label>
+                        <select name="recommendation" class="form-select bg-dark text-white border-secondary" {% if assessment and assessment.is_locked %}disabled{% endif %}>
+                            <option value="Strongly Recommend" {% if assessment.recommendation == 'Strongly Recommend' %}selected{% endif %}>Strongly Recommend for Appointment</option>
+                            <option value="Recommend" {% if assessment.recommendation == 'Recommend' or not assessment %}selected{% endif %}>Recommend for Appointment</option>
+                            <option value="Reserve Candidate" {% if assessment.recommendation == 'Reserve Candidate' %}selected{% endif %}>Reserve / Standby Candidate</option>
+                            <option value="Do Not Recommend" {% if assessment.recommendation == 'Do Not Recommend' %}selected{% endif %}>Do Not Recommend</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Detailed Panelist Remarks</label>
+                        <textarea name="comments" class="form-control bg-dark text-white border-secondary" rows="5" placeholder="Provide qualitative justification and interview observations..." {% if assessment and assessment.is_locked %}readonly{% endif %}>{{ assessment.comments|default:'' }}</textarea>
+                    </div>
+
+                    {% if not assessment or not assessment.is_locked %}
+                    <button type="submit" class="btn btn-success btn-lg w-100 rounded-pill fw-bold mt-2" style="background: #003EA6;" onclick="return confirm('Submit and lock this scorecard? Submitted scorecards cannot be altered.')">
+                        <i class="fas fa-lock me-2"></i> Submit & Lock Scorecard
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+function calcTotal() {
+    const a = parseInt(document.querySelector('[name="academic_qualifications_score"]').value) || 0;
+    const b = parseInt(document.querySelector('[name="relevant_experience_score"]').value) || 0;
+    const c = parseInt(document.querySelector('[name="technical_knowledge_score"]').value) || 0;
+    const d = parseInt(document.querySelector('[name="competencies_score"]').value) || 0;
+    const e = parseInt(document.querySelector('[name="communication_skills_score"]').value) || 0;
+    const f = parseInt(document.querySelector('[name="problem_solving_score"]').value) || 0;
+    const g = parseInt(document.querySelector('[name="leadership_management_score"]').value) || 0;
+
+    document.getElementById('val_academic').innerText = a + '/10';
+    document.getElementById('val_experience').innerText = b + '/15';
+    document.getElementById('val_technical').innerText = c + '/25';
+    document.getElementById('val_competencies').innerText = d + '/15';
+    document.getElementById('val_communication').innerText = e + '/10';
+    document.getElementById('val_problem').innerText = f + '/10';
+    document.getElementById('val_leadership').innerText = g + '/15';
+
+    const tot = a + b + c + d + e + f + g;
+    document.getElementById('totalDisplay').innerText = tot;
+}
+</script>
+{% endblock pageContent %}

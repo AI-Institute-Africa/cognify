@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+                <div class="card-header bg-danger text-white p-4">
+                    <h5 class="fw-bold mb-0"> Report Physical Displacement</h5></div>
+                <div class="card-body p-4 text-center">
+                    <div class="bg-danger bg-opacity-10 p-4 rounded-circle d-inline-block mb-4 text-danger">
+                        <i class="fas fa-ghost h1 mb-0"></i></div>
+                    <h5 class="fw-bold"> Marking {{ file_doc.ref_num }} as LOST</h5>
+                    <p class="text-muted small px-lg-5">
+                        This action will flag the physical asset as missing. The **Digital Twin** will remain fully
+                        active for audit and intelligence purposes.</p>
+
+                    <form method="POST" class="mt-4 text-start">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted"> Mandatory Reason / Notes</label>
+                            <textarea name="reason" class="form-control rounded-3" rows="3" required
+                                placeholder="Describe when and where it was last seen..."></textarea></div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-danger btn-lg rounded-pill fw-bold shadow-sm"> Confirm
+                                Loss</button>
+                            <a href="{% url 'file-digital-twin' file_doc.pk %}"
+                                class="btn btn-light btn-sm rounded-pill"> Cancel and Return</a></div></form></div></div></div></div></div>
+{% endblock %}
+
+
+
+

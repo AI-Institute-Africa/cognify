@@ -1,0 +1,177 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block pageContent %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-white"><i class="fas fa-file-invoice-dollar text-warning me-2"></i> ZRP Travel & TSA Acquittal Studio</h3>
+            <p class="text-muted small mb-0">Requisition: <strong class="text-warning font-monospace">{{ travel.ref_number }}</strong> | Title: {{ travel.title }} ({{ travel.travel_category }})</p>
+        </div>
+        <a href="{% url 'travel-tsa-dashboard' %}" class="btn btn-outline-light rounded-pill px-4">
+            <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+        </a>
+    </div>
+
+    <!-- Workflow Progress & Status Banner -->
+    <div class="glass-card p-3 mb-4 border border-danger border-opacity-25">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-uppercase extra-small fw-bold text-white ls-1"><i class="fas fa-diagram-project text-danger me-2"></i> 10-Stage Travel Lifecycle Workflow</span>
+            <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25 px-3 py-1 rounded-pill fw-bold">
+                Current Stage: {{ travel.workflow_stage }}
+            </span>
+        </div>
+
+        <!-- Workflow Actions Form -->
+        <form action="{% url 'advance-travel-workflow' travel.pk %}" method="POST" enctype="multipart/form-data" class="row g-2 align-items-center">
+            {% csrf_token %}
+            <div class="col-md-4">
+                <label class="extra-small text-muted fw-bold">Supervisor Recommendation</label>
+                <div class="input-group input-group-sm">
+                    <select name="supervisor_recommendation" class="form-select bg-dark text-white border-secondary">
+                        <option value="Recommended" {% if travel.supervisor_recommendation == 'Recommended' %}selected{% endif %}>Recommended</option>
+                        <option value="Not Recommended" {% if travel.supervisor_recommendation == 'Not Recommended' %}selected{% endif %}>Not Recommended</option>
+                    </select>
+                    <button type="submit" name="action" value="supervisor_recommend" class="btn btn-warning fw-bold">Submit Rec</button>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="extra-small text-muted fw-bold">Finance Verification</label>
+                <div class="input-group input-group-sm">
+                    <select name="finance_verification" class="form-select bg-dark text-white border-secondary">
+                        <option value="Verified" {% if travel.finance_verification == 'Verified' %}selected{% endif %}>Verified & Budget Blocked</option>
+                        <option value="Insufficient" {% if travel.finance_verification == 'Insufficient' %}selected{% endif %}>Insufficient Funds</option>
+                    </select>
+                    <button type="submit" name="action" value="finance_verify" class="btn btn-info fw-bold">Submit Verification</button>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="extra-small text-muted fw-bold">Executive Delegated Authority Approval</label>
+                <div class="input-group input-group-sm">
+                    <select name="approval_status" class="form-select bg-dark text-white border-secondary">
+                        <option value="Approved" {% if travel.approval_status == 'Approved' %}selected{% endif %}>Approve Travel & TSA</option>
+                        <option value="Rejected" {% if travel.approval_status == 'Rejected' %}selected{% endif %}>Reject Request</option>
+                    </select>
+                    <button type="submit" name="action" value="executive_approve" class="btn btn-success fw-bold" style="background: #003EA6;">Save Approval</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Approved TSA Funds vs Actual Acquittal Form -->
+    <div class="row g-4 mb-4">
+        <!-- Left: Acquittal Submission Form -->
+        <div class="col-lg-8">
+            <div class="glass-card p-4">
+                <h5 class="fw-bold text-white mb-3"><i class="fas fa-receipt text-success me-2"></i> Submit Actual Expenditure & Acquittal Receipts</h5>
+                
+                <form action="{% url 'submit-travel-acquittal' travel.pk %}" method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-white">Actual Subsistence Spent ($)</label>
+                            <input type="number" step="0.01" name="actual_subsistence_spent" id="ac_sub" class="form-control bg-dark text-white border-secondary" value="{{ acquittal.actual_subsistence_spent|default:travel.total_tsa_calculated }}" oninput="calcAcquittal()" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-white">Actual Accommodation Spent ($)</label>
+                            <input type="number" step="0.01" name="actual_accommodation_spent" id="ac_acc" class="form-control bg-dark text-white border-secondary" value="{{ acquittal.actual_accommodation_spent|default:0 }}" oninput="calcAcquittal()" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-white">Actual Transport / Fuel Spent ($)</label>
+                            <input type="number" step="0.01" name="actual_transport_spent" id="ac_trans" class="form-control bg-dark text-white border-secondary" value="{{ acquittal.actual_transport_spent|default:0 }}" oninput="calcAcquittal()" required>
+                        </div>
+
+                        <!-- Summary of Travel / Training Outcomes -->
+                        <div class="col-md-12">
+                            <label class="form-label small fw-bold text-white">Training / Travel Report Summary & Key Achievements</label>
+                            <textarea name="acquittal_report_summary" class="form-control bg-dark text-white border-secondary" rows="4" placeholder="Provide qualitative summary of workshop outcomes, key meetings held, or training certificates acquired..." required>{{ acquittal.acquittal_report_summary|default:'' }}</textarea>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label class="form-label small fw-bold text-white">Upload Scanned Receipts & Proof of Expenditure (PDF / Images)</label>
+                            <input type="file" name="receipts_attachment" class="form-control bg-dark text-white border-secondary">
+                            {% if acquittal and acquittal.receipts_attachment %}
+                            <div class="mt-2">
+                                <a href="{{ acquittal.receipts_attachment.url }}" target="_blank" class="text-success small"><i class="fas fa-file-pdf me-1"></i> View Current Uploaded Receipts</a>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-12 mt-3">
+                            <button type="submit" class="btn btn-success btn-lg w-100 rounded-pill fw-bold" style="background: #003EA6;">
+                                <i class="fas fa-check-double me-2"></i> Submit & Clear Travel Acquittal
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Right: Financial Reconciliation Card -->
+        <div class="col-lg-4">
+            <div class="glass-card p-4 text-center border-top border-4 border-warning mb-4">
+                <span class="text-uppercase extra-small fw-bold text-muted">Approved TSA Advanced</span>
+                <h2 class="fw-bold text-warning mb-0 mt-1">${{ travel.total_tsa_calculated|floatformat:2 }}</h2>
+                <div class="extra-small text-muted mt-1">{{ travel.num_days }} Days / {{ travel.num_nights }} Nights</div>
+            </div>
+
+            <div class="glass-card p-4 text-center border-top border-4 border-info mb-4">
+                <span class="text-uppercase extra-small fw-bold text-muted">Total Actual Spent</span>
+                <h2 class="fw-bold text-info mb-0 mt-1" id="dispActualSpent">${{ acquittal.total_actual_spent|default:0|floatformat:2 }}</h2>
+            </div>
+
+            <div class="glass-card p-4 text-center border-top border-4 border-success">
+                <span class="text-uppercase extra-small fw-bold text-muted">Surplus (Refund to ZRP) / Deficit (Claim)</span>
+                <h3 class="fw-bold text-success mb-0 mt-1" id="dispSurplus">${{ acquittal.surplus_or_deficit|default:0|floatformat:2 }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Travel Audit Log History -->
+    <div class="glass-card p-4">
+        <h5 class="fw-bold text-white mb-3"><i class="fas fa-history text-secondary me-2"></i> Travel & TSA Audit Trail History</h5>
+        <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+            <table class="table table-sm extra-small text-white">
+                <thead>
+                    <tr class="bg-dark text-uppercase">
+                        <th>Timestamp</th>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in travel.audit_history.all %}
+                    <tr>
+                        <td class="text-muted">{{ log.timestamp|date:"d M Y, H:i:s" }}</td>
+                        <td class="fw-bold text-info">{{ log.user.username|default:"System" }}</td>
+                        <td><span class="badge bg-secondary rounded-pill">{{ log.action }}</span></td>
+                        <td>{{ log.details }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">No travel audit events recorded yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function calcAcquittal() {
+    const adv = {{ travel.total_tsa_calculated|default:0 }};
+    const s = parseFloat(document.getElementById('ac_sub').value) || 0;
+    const a = parseFloat(document.getElementById('ac_acc').value) || 0;
+    const t = parseFloat(document.getElementById('ac_trans').value) || 0;
+    
+    const tot = s + a + t;
+    const sur = adv - tot;
+    
+    document.getElementById('dispActualSpent').innerText = '$' + tot.toFixed(2);
+    document.getElementById('dispSurplus').innerText = '$' + sur.toFixed(2);
+}
+</script>
+{% endblock pageContent %}

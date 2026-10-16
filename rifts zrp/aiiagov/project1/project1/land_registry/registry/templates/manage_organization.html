@@ -1,0 +1,64 @@
+<div class="container-fluid">
+    <form action="" id="organization-form">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{ org.pk }}">
+        <div class="form-group mb-3">
+            <label for="name" class="control-label"> Organization Name</label>
+            <input type="text" name="name" id="name" class="form-control rounded-0" value="{{ org.name }}" required></div>
+        <div class="form-group mb-3">
+            <label for="code" class="control-label"> Identifier Code</label>
+            <input type="text" name="code" id="code" class="form-control rounded-0" value="{{ org.code }}" required>
+            <small class="text-muted"> Unique code like 'MIN_LANDS' or 'UNI_ZIM'</small></div>
+        <div class="form-group mb-3">
+            <label for="api_endpoint" class="control-label"> Federation API Endpoint (Optional)</label>
+            <input type="url" name="api_endpoint" id="api_endpoint" class="form-control rounded-0"
+                value="{{ org.api_endpoint }}"></div></form></div>
+<script>$(function () {
+        $('#organization-form').submit(function (e) {
+            e.preventDefault();
+            var _this = $(this)
+            $('.err-msg').remove();
+            var el = $(' <div>')
+            el.addClass("alert alert-danger err-msg")
+            el.hide()
+            if (_this[0].checkValidity() == false) {
+                _this[0].reportValidity();
+                return false;
+            }
+            start_loader();
+            $.ajax({
+                url: "{% url 'save-organization' %}",
+                data: new FormData($(this)[0]),
+                cache: false,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                type: 'POST',
+                dataType: 'json',
+                error: err => {
+                    console.log(err)
+                    alert_toast("An error occured", 'error');
+                    end_loader();
+                },
+                success: function (resp) {
+                    if (typeof resp == 'object' && resp.status == 'success') {
+                        location.reload()
+                    } else if (resp.status == 'failed' && !!resp.msg) {
+                        el.text(resp.msg)
+                    } else {
+                        el.text("An error occured", 'error');
+                        end_loader();
+                        console.err(resp)
+                    }
+                    _this.prepend(el)
+                    el.show('slow')
+                    $("html, body, .modal").scrollTop(0);
+                    end_loader();
+                }
+            })
+        })
+    })</script>
+
+
+
+

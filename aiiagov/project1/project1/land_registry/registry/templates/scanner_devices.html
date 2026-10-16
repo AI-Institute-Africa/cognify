@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block pageContent %}
+<section class="py-4">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div><h3 class="fw-bold mb-0"> Managed Scanners</h3>
+                <p class="text-muted small mb-0"> Authorized hardware for direct server ingestion</p></div>
+            <button class="btn btn-primary rounded-pill px-4 shadow-sm" type="button" id="add_device">
+                <i class="fa fa-plus me-2"></i> Register Scanner</button></div>
+
+        <div class="glass-card border-0 shadow-sm overflow-hidden">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead><tr class="bg-primary bg-opacity-10">
+                                <th class="py-3 ps-4"> Scanner Name</th>
+                                <th class="py-3"> Location</th>
+                                <th class="py-3"> API Key / Token</th>
+                                <th class="py-3"> Status</th>
+                                <th class="py-3 pe-4 text-end"> Action</th></tr></thead>
+                        <tbody>{% for d in devices %}
+                            <tr><td class="ps-4">
+                                    <div class="fw-bold text-primary"> {{ d.name }}</div>
+                                    <div class="text-muted extra-small"> Added: {{ d.date_added|date:"M d, Y" }}</div></td>
+                                <td>{{ d.location|default:"Unknown" }}</td>
+                                <td><code class="bg-light p-1 rounded small"> {{ d.api_key }}</code>
+                                    <button class="btn btn-sm text-muted copy-key" data-key="{{ d.api_key }}">
+                                        <i class="fas fa-copy"></i></button></td>
+                                <td>{% if d.is_active %}
+                                    <span
+                                        class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 rounded-pill"> Active</span>
+                                    {% else %}
+                                    <span
+                                        class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 rounded-pill"> Inactive</span>
+                                    {% endif %}</td>
+                                <td class="pe-4 text-end">
+                                    <button class="btn btn-link btn-sm text-primary edit-device" data-id="{{ d.id }}"
+                                        data-name="{{ d.name }}" data-location="{{ d.location }}">
+                                        <i class="fa fa-edit"></i></button>
+                                    <button class="btn btn-link btn-sm text-danger delete-device" data-id="{{ d.id }}">
+                                        <i class="fa fa-trash"></i></button></td></tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-center py-5 text-muted">
+                                    <i class="fas fa-print fa-3x mb-3 opacity-25"></i>
+                                    <p>No scanners registered yet.</p></td></tr>
+                            {% endfor %}</tbody></table></div></div></div></div></section>
+
+<!-- Device Modal -->
+<div class="modal fade" id="deviceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card border-0">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="modalTitle"> Register New Scanner</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <form id="deviceForm">
+                    <input type="hidden" name="id" id="device_id">
+                    <div class="mb-3">
+                        <label class="extra-small fw-bold text-muted text-uppercase mb-1"> Scanner Name</label>
+                        <input type="text" name="name" id="device_name" class="form-control shadow-none"
+                            placeholder="e.g. Floor 2 HP Enterprise" required></div>
+                    <div class="mb-3">
+                        <label class="extra-small fw-bold text-muted text-uppercase mb-1"> Location / Office</label>
+                        <input type="text" name="location" id="device_location" class="form-control shadow-none"
+                            placeholder="e.g. Records Intelligence Office A"></div></form></div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal"> Cancel</button>
+                <button type="button" class="btn btn-primary rounded-pill px-4" id="saveDeviceBtn"> Save Device</button></div></div></div></div>
+
+<style>.extra-small {
+        font-size: 0.7rem;
+    }
+
+    .glass-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }</style>
+{% endblock pageContent %}
+
+{% block ScriptBlock %}
+<script>$(function () {
+        $('#add_device').click(function () {
+            $('#device_id').val('');
+            $('#device_name').val('');
+            $('#device_location').val('');
+            $('#modalTitle').text('Register New Scanner');
+            $('#deviceModal').modal('show');
+        });
+
+        $('.edit-device').click(function () {
+            $('#device_id').val($(this).attr('data-id'));
+            $('#device_name').val($(this).attr('data-name'));
+            $('#device_location').val($(this).attr('data-location'));
+            $('#modalTitle').text('Edit Scanner Details');
+            $('#deviceModal').modal('show');
+        });
+
+        $('#saveDeviceBtn').click(function () {
+            var data = $('#deviceForm').serialize();
+            start_loader();
+            $.post("{% url 'save-scanner-device' %}", data, function (resp) {
+                end_loader();
+                if (resp.status == 'success') {
+                    location.reload();
+                } else {
+                    alert(resp.msg);
+                }
+            });
+        });
+
+        $('.delete-device').click(function () {
+            var id = $(this).attr('data-id');
+            if (confirm("Are you sure to remove this scanner?")) {
+                start_loader();
+                $.get("{% url 'delete-scanner-device' 0 %}".replace('0', id), function (resp) {
+                    end_loader();
+                    if (resp.status == 'success') {
+                        location.reload();
+                    }
+                });
+            }
+        });
+
+        $('.copy-key').click(function () {
+            var key = $(this).attr('data-key');
+            navigator.clipboard.writeText(key);
+            Swal.fire({
+                title: 'Copied!',
+                text: 'API Token copied to clipboard.',
+                icon: 'success',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        });
+    });</script>
+{% endblock ScriptBlock %}
+
+
+
+

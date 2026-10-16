@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block pageContent %}
+<section class="py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6 text-center mb-5">
+                <i class="fas fa-shield-alt text-primary fs-1 mb-3"></i>
+                <h2 class="fw-bold"> Document Verification Center</h2>
+                <p class="text-muted"> Enter the 16-character verification code found at the bottom of the document to
+                    confirm its authenticity.</p></div></div>
+
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="glass-card p-4 border-0 shadow-lg text-center mb-5">
+                    <form action="{% url 'verify-certificate' %}" method="GET">
+                        <div class="input-group input-group-lg mb-4">
+                            <input type="text" name="code" class="form-control text-center fw-bold text-primary"
+                                placeholder="Enter Verification Code" value="{{ request.GET.code|default:'' }}"
+                                maxlength="16" required>
+                            <button class="btn btn-primary px-4" type="submit">
+                                <i class="fas fa-search me-2"></i> Verify</button></div></form>
+
+                    {% if searched %}
+                    {% if cert %}
+                    <div class="alert alert-success border-0 py-4 shadow-sm animate__animated animate__pulse">
+                        <i class="fas fa-check-circle fs-2 mb-2 d-block"></i>
+                        <h4 class="fw-bold"> AUTHENTIC DOCUMENT</h4>
+                        <hr class="opacity-10">
+                        <div class="text-start px-3">
+                            <p class="mb-1"> <small class="text-muted text-uppercase fw-bold"> Type:</small> {{ cert.get_certificate_type_display }}</p>
+                            <p class="mb-1"> <small class="text-muted text-uppercase fw-bold"> Recipient:</small> {{ cert.recipient_name }}</p>
+                            <p class="mb-1"> <small class="text-muted text-uppercase fw-bold"> Subject:</small> {{ cert.subject }}</p>
+                            <p class="mb-0"> <small class="text-muted text-uppercase fw-bold"> Date Issued:</small> {{ cert.date_created|date:"M d, Y" }}</p></div>
+                        <div class="mt-4">
+                            <a href="{% url 'view-certificate' cert.pk %}"
+                                class="btn btn-outline-success btn-sm rounded-pill px-4">
+                                <i class="fas fa-file-alt me-1"></i> View Full Record</a></div></div>
+                    {% else %}
+                    <div class="alert alert-danger border-0 py-4 shadow-sm animate__animated animate__shakeX">
+                        <i class="fas fa-times-circle fs-2 mb-2 d-block"></i>
+                        <h4 class="fw-bold"> VERIFICATION FAILED</h4>
+                        <p class="mb-0"> The code you entered does not match any official institutional record. Please
+                            ensure you have copied the code correctly.</p></div>
+                    {% endif %}
+                    {% endif %}</div>
+
+                <div class="text-center text-muted">
+                    <p class="small"> The Digital Signature Verification Engine uses military-grade hashing to ensure
+                        zero-tamper integrity of official RIFTS-X documents.</p></div></div></div></div></section>
+{% endblock pageContent %}
+
+
+
+

@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load customfilter %}
+{% block pageContent %}
+<section class="py-4">
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div><h3 class="fw-bold mb-0"> Internal Service Desk</h3>
+                <p class="text-muted small mb-0"> Submit and track inter-department technical, HR, and maintenance
+                    requests</p></div>
+            <button class="btn btn-primary rounded-pill px-4 shadow-sm" type="button" id="create_new">
+                <i class="fa fa-plus me-2"></i> New Service Request</button></div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-md-3">
+                <div class="glass-card p-3 border-0 shadow-sm text-center card-hover cursor-pointer filter-status active"
+                    data-status="all">
+                    <h2 class="fw-bold text-primary mb-0"> {{ tickets|length }}</h2>
+                    <small class="text-muted text-uppercase fw-bold"> Total Tickets</small></div></div>
+            <div class="col-md-3">
+                <div class="glass-card p-3 border-0 shadow-sm text-center card-hover cursor-pointer filter-status"
+                    data-status="Open">
+                    <h2 class="fw-bold text-warning mb-0"> {{ tickets|filter_status_count:"Open" }}</h2>
+                    <small class="text-muted text-uppercase fw-bold"> Pending/Open</small></div></div>
+            <div class="col-md-3">
+                <div class="glass-card p-3 border-0 shadow-sm text-center card-hover cursor-pointer filter-status"
+                    data-status="In Progress">
+                    <h2 class="fw-bold text-info mb-0"> {{ tickets|filter_status_count:"In Progress" }}</h2>
+                    <small class="text-muted text-uppercase fw-bold"> In Progress</small></div></div>
+            <div class="col-md-3">
+                <div class="glass-card p-3 border-0 shadow-sm text-center card-hover cursor-pointer filter-status"
+                    data-status="Resolved">
+                    <h2 class="fw-bold text-success mb-0"> {{ tickets|filter_status_count:"Resolved" }}</h2>
+                    <small class="text-muted text-uppercase fw-bold"> Resolved</small></div></div></div>
+
+        <div class="glass-card border-0 shadow-sm overflow-hidden">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="ticket-tbl">
+                        <thead><tr class="bg-primary bg-opacity-10">
+                                <th class="text-center py-3"> #</th>
+                                <th class="py-3"> Created</th>
+                                <th class="py-3"> Category</th>
+                                <th class="py-3"> Subject</th>
+                                <th class="py-3"> To Dept</th>
+                                <th class="py-3"> Priority</th>
+                                <th class="py-3"> Status</th>
+                                <th class="text-center py-3"> Action</th></tr></thead>
+                        <tbody>{% for ticket in tickets %}
+                            <tr class="ticket-row" data-status="{{ ticket.status }}">
+                                <td class="text-center align-middle"> {{ forloop.counter }}</td>
+                                <td class="align-middle small"> {{ ticket.date_created|date:"M d, Y H:i" }}</td>
+                                <td class="align-middle">
+                                    <span
+                                        class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 rounded-pill"> {{ ticket.get_category_display }}</span></td>
+                                <td class="align-middle fw-bold"> {{ ticket.subject }}</td>
+                                <td class="align-middle"> {{ ticket.department.name }}</td>
+                                <td class="align-middle">
+                                    <span
+                                        class="badge {% if ticket.priority == 'Urgent' or ticket.priority == 'High' %}bg-danger{% elif ticket.priority == 'Medium' %}bg-warning{% else %}bg-info{% endif %} bg-opacity-10 text-{% if ticket.priority == 'Urgent' or ticket.priority == 'High' %}danger{% elif ticket.priority == 'Medium' %}warning{% else %}info{% endif %} border border-{% if ticket.priority == 'Urgent' or ticket.priority == 'High' %}danger{% elif ticket.priority == 'Medium' %}warning{% else %}info{% endif %} border-opacity-25 rounded-pill">
+                                        {{ ticket.priority }}</span></td>
+                                <td class="align-middle">
+                                    <span
+                                        class="badge {% if ticket.status == 'Open' %}bg-warning{% elif ticket.status == 'In Progress' %}bg-info{% elif ticket.status == 'Resolved' %}bg-success{% else %}bg-secondary{% endif %} rounded-pill px-3">
+                                        {{ ticket.status }}</span></td>
+                                <td class="text-center align-middle">
+                                    <a class="btn btn-sm btn-outline-primary rounded-pill me-1"
+                                        href="{% url 'view-ticket' ticket.pk %}">
+                                        <i class="fa fa-eye"></i></a>
+                                    {% if ticket.requester == request.user or request.user.is_superuser %}
+                                    <button class="btn btn-sm btn-outline-danger rounded-pill delete-data"
+                                        data-id="{{ ticket.pk }}">
+                                        <i class="fa fa-trash"></i></button>
+                                    {% endif %}</td></tr>
+                            {% empty %}
+                            <tr><td colspan="8" class="text-center py-5 text-muted"> No service tickets recorded yet.</td></tr>
+                            {% endfor %}</tbody></table></div></div></div></div></section>
+
+<style>.filter-status.active {
+        background: var(--bs-primary) !important;
+        border: 1px solid var(--bs-primary) !important;
+    }
+
+    .filter-status.active h2,
+    .filter-status.active small {
+        color: white !important;
+    }</style>
+{% endblock pageContent %}
+
+{% block ScriptBlock %}
+<script>$(function () {
+        $('#create_new').click(function () {
+            uni_modal(" <i class='fa fa-plus'></i> Submit New Service Request", "{% url 'manage-ticket' %}")
+        })
+
+        $('.delete-data').click(function () {
+            var _id = $(this).attr('data-id');
+            _conf("Are you sure to delete this service ticket?", "delete_ticket", [_id])
+        })
+
+        $('#ticket-tbl').DataTable({
+            "pageLength": 25,
+            "order": [[1, "desc"]]
+        })
+
+        $('.filter-status').click(function () {
+            var status = $(this).attr('data-status');
+            $('.filter-status').removeClass('active');
+            $(this).addClass('active');
+
+            if (status == 'all') {
+                $('.ticket-row').show();
+            } else {
+                $('.ticket-row').hide();
+                $('.ticket-row[data-status="' + status + '"]').show();
+            }
+        })
+    })
+
+    function delete_ticket($id) {
+        start_loader();
+        $.ajax({
+            headers: {
+                "X-CSRFToken": '{{csrf_token}}'
+            },
+            url: "{% url 'delete-ticket' 0 %}".replace('0', $id),
+            method: "POST",
+            dataType: "json",
+            error: err => {
+                console.log(err)
+                alert_toast("An error occured.", 'error');
+                end_loader();
+            },
+            success: function (resp) {
+                if (typeof resp == 'object' && resp.status == 'success') {
+                    location.reload();
+                } else {
+                    alert_toast("An error occured.", 'error');
+                    end_loader();
+                }
+            }
+        })
+    }</script>
+{% endblock ScriptBlock %}
+
+
+
+

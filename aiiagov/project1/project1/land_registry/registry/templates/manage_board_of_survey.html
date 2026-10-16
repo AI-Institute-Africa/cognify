@@ -1,0 +1,125 @@
+{% load humanize %}
+<div class="container-fluid">
+    <form action="{% url 'save-board-of-survey' %}" id="bos-form">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{ survey.id|default:'' }}">
+
+        <div class="alert alert-primary d-flex align-items-center mb-3 rounded-3" role="alert">
+            <i class="fas fa-balance-scale fs-4 me-3"></i>
+            <div>
+                <strong>Form 60260-6 (G.P&amp;S.34586-S.)</strong>: Board of Survey Proceedings
+                <div class="extra-small text-muted">Convene formal proceedings to examine unserviceable, condemned or damaged articles.</div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Report Reference *</label>
+                {{ form.report_ref }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Proceedings Date *</label>
+                {{ form.proceedings_date }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Held At (Station / Location) *</label>
+                {{ form.held_at }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Department / Branch *</label>
+                {{ form.department }}
+            </div>
+        </div>
+
+        <div class="card border-0 bg-light p-2 mb-3 rounded-3">
+            <span class="small fw-bold text-dark"><i class="fas fa-users me-1"></i> Members of Board of Survey (Signatories)</span>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Member 1 Name *</label>
+                {{ form.member_1_name }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Member 1 Rank / Title</label>
+                {{ form.member_1_rank }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Member 2 Name *</label>
+                {{ form.member_2_name }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Member 2 Rank / Title</label>
+                {{ form.member_2_rank }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Member 3 Name</label>
+                {{ form.member_3_name }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Member 3 Rank / Title</label>
+                {{ form.member_3_rank }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Member 4 Name</label>
+                {{ form.member_4_name }}
+            </div>
+            <div class="col-md-6">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> Member 4 Rank / Title</label>
+                {{ form.member_4_rank }}
+            </div>
+        </div>
+
+        <div class="row g-3 mb-2">
+            <div class="col-12">
+                <label class="control-label extra-small text-muted text-uppercase fw-bold mb-1"> General Remarks / Convening Authority Note</label>
+                {{ form.general_remarks }}
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+$(function () {
+    $('#bos-form').submit(function (e) {
+        e.preventDefault();
+        var _this = $(this);
+        $('.err-msg').remove();
+        var el = $('<div>').addClass("alert alert-danger err-msg").hide();
+        if (_this[0].checkValidity() == false) {
+            _this[0].reportValidity();
+            return false;
+        }
+        start_loader();
+        $.ajax({
+            url: "{% url 'save-board-of-survey' %}",
+            data: $(this).serialize(),
+            method: 'POST',
+            type: 'POST',
+            dataType: 'json',
+            error: function (err) {
+                console.log(err);
+                alert_toast("An error occurred", 'error');
+                end_loader();
+            },
+            success: function (resp) {
+                if (typeof resp == 'object' && resp.status == 'success') {
+                    if (resp.redirect_url) {
+                        location.href = resp.redirect_url;
+                    } else {
+                        location.reload();
+                    }
+                } else if (resp.status == 'failed' && !!resp.msg) {
+                    el.text(resp.msg);
+                    _this.prepend(el);
+                    el.show('slow');
+                    end_loader();
+                } else {
+                    alert_toast("An error occurred", 'error');
+                    end_loader();
+                }
+            }
+        });
+    });
+});
+</script>\n

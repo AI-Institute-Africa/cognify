@@ -1,0 +1,217 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block pageContent %}
+<div class="container-fluid pb-5">
+    {% if error_msg %}
+    <div class="alert alert-danger glass-panel border-0 shadow-lg p-5 text-center animate-slide-up">
+        <i class="fas fa-exclamation-shield display-1 text-danger mb-4 opacity-50"></i>
+        <h3 class="fw-bold">Access Restricted</h3>
+        <p class="text-muted lead">{{ error_msg }}</p>
+        <a href="{% url 'profile-page' %}" class="btn btn-primary rounded-pill px-5 mt-3">Link My Account</a>
+    </div>
+    {% else %}
+    <!-- Institutional Governance Header -->
+    <div class="row mb-5 align-items-center">
+        <div class="col-md-8">
+            <h1 class="display-6 fw-bold mb-2">Institutional Governance Hub</h1>
+            <p class="text-muted mb-0">Cross-Departmental Portfolio Oversight & Resource Efficiency Control</p>
+        </div>
+        <div class="col-md-4 text-md-end d-flex justify-content-end gap-2">
+            <a href="{% url 'benefit-list' %}" class="btn btn-outline-success rounded-pill px-4 border-opacity-25" style="border-width: 2px;">
+                <i class="fas fa-chart-line me-2"></i> Strategic Benefits
+            </a>
+            <span class="badge bg-primary bg-opacity-10 text-primary px-4 py-2 rounded-pill border border-primary border-opacity-25">
+                <i class="fas fa-shield-alt me-2"></i> Authorized: {{ user_role }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Metrics Grid -->
+    <div class="row g-4 mb-5">
+        <div class="col-xl-3 col-md-6">
+            <div class="glass-panel p-4 h-100">
+                <p class="text-muted extra-small fw-bold text-uppercase mb-1">Global Active Projects</p>
+                <div class="d-flex align-items-end">
+                    <h2 class="display-6 fw-bold mb-0">{{ active_projects }}</h2>
+                    <span class="ms-2 text-muted small pb-1">of {{ total_projects }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="glass-panel p-4 h-100 border-start border-4 border-success shadow-success">
+                <p class="text-muted extra-small fw-bold text-uppercase mb-1 text-success">Total Cost Recovery</p>
+                <h2 class="display-6 fw-bold mb-0">USD {{ total_recovered|floatformat:0|intcomma }}</h2>
+                <div class="mt-2">
+                    <a href="{% url 'hod-financial-dashboard' %}" class="extra-small text-info text-decoration-none">
+                        View Detailed Analytics <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="glass-panel p-4 h-100">
+                <p class="text-muted extra-small fw-bold text-uppercase mb-1">Institutional Talent</p>
+                <div class="d-flex gap-4">
+                    <div>
+                        <h4 class="fw-bold mb-0">{{ pm_count }}</h4>
+                        <span class="extra-small text-muted">PMs</span>
+                    </div>
+                    <div>
+                        <h4 class="fw-bold mb-0">{{ member_count }}</h4>
+                        <span class="extra-small text-muted">TMs</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="glass-panel p-4 h-100 border-start border-4 {% if overdue_tasks_count > 0 %}border-danger{% else %}border-success{% endif %}">
+                <p class="text-muted extra-small fw-bold text-uppercase mb-1">Global Bottlenecks</p>
+                <h2 class="display-6 fw-bold mb-0">{{ overdue_tasks_count }}</h2>
+                <p class="extra-small text-muted mt-1 mb-0">Delayed Sprint Tasks</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-5">
+        <!-- Approvals Queue -->
+        <div class="col-12">
+            <div class="glass-panel p-4 border-start border-4 border-info">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold mb-0 text-info"><i class="fas fa-user-shield me-2"></i> Strategic Approvals Queue</h5>
+                    <span class="badge bg-info bg-opacity-25 text-info rounded-pill px-3">{{ pending_approvals.count }} Awaiting Verification</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr class="extra-small text-muted text-uppercase">
+                                <th>Phase / Project</th>
+                                <th>Department</th>
+                                <th>Submitted By</th>
+                                <th>Wait Time</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for phase in pending_approvals %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold">{{ phase.name }}</div>
+                                    <div class="extra-small text-muted text-truncate" style="max-width: 200px;">Project: {{ phase.project.name }}</div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light bg-opacity-10 text-muted rounded-pill extra-small">
+                                        {{ phase.project.department.name|default:"General" }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="small">{{ phase.project.owner.username }}</div>
+                                    <div class="extra-small text-muted">Project Lead</div>
+                                </td>
+                                <td>
+                                    <span class="text-warning extra-small">
+                                        <i class="fas fa-clock me-1"></i> {{ phase.submitted_at|naturaltime }}
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <a href="{% url 'project-detail' phase.project.pk %}" class="btn btn-info btn-sm rounded-pill px-3 fw-bold extra-small" style="color: #fff !important;">
+                                        Verify Phase
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-5">
+                                    <div class="opacity-25 mb-2"><i class="fas fa-check-circle display-4"></i></div>
+                                    <p class="text-muted mb-0 small">Clear Skies: No phases currently awaiting gate verification.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Project List -->
+        <div class="col-lg-8">
+            <div class="glass-panel p-4">
+                <h5 class="fw-bold mb-4">Institutional Portfolio Status</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr class="extra-small text-muted text-uppercase">
+                                <th>Project Name</th>
+                                <th>Dept / Manager</th>
+                                <th>Progress</th>
+                                <th class="text-end">Risk</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in projects %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold text-body">{{ p.name }}</div>
+                                    <div class="extra-small text-muted text-truncate" style="max-width: 200px;">Updated {{ p.updated_at|naturaltime }}</div>
+                                </td>
+                                <td>
+                                    <div class="extra-small text-info fw-bold">{{ p.department.name|default:"General" }}</div>
+                                    <div class="small text-muted">{{ p.owner.username }}</div>
+                                </td>
+                                <td>
+                                    <div class="progress bg-white bg-opacity-10 rounded-pill" style="height: 6px; width: 100px;">
+                                        <div class="progress-bar bg-primary" style="width: {{ p.progress_percentage }}%"></div>
+                                    </div>
+                                    <span class="extra-small text-muted">{{ p.progress_percentage }}%</span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="badge bg-{{ p.risk_indicator.color }} bg-opacity-10 text-{{ p.risk_indicator.color }} rounded-pill px-3">
+                                        {{ p.risk_indicator.level }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center py-4 text-muted">No institutional projects registered.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Team Stats -->
+        <div class="col-lg-4">
+            <div class="glass-panel p-4">
+                <h5 class="fw-bold mb-4">Resource Distribution</h5>
+                <div class="mb-4">
+                    <p class="text-muted extra-small fw-bold text-uppercase mb-2">Institutional Roles</p>
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="small">Project Leaders</span>
+                        <span class="badge bg-primary rounded-pill">{{ pm_count }}</span>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="small">Team Members</span>
+                        <span class="badge bg-info rounded-pill">{{ member_count }}</span>
+                    </div>
+                </div>
+                
+                <hr class="opacity-10">
+
+                <div class="text-center py-3">
+                    <p class="text-muted extra-small mb-3">Efficiency Metrics</p>
+                    <div class="display-6 fw-bold">{{ avg_progress }}%</div>
+                    <p class="extra-small text-muted">Avg Institutional Progress</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .extra-small {
+        font-size: 0.75rem;
+    }
+</style>
+{% endblock pageContent %}

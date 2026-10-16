@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block pageContent %}
+<div class="container-fluid py-4" style="max-width:700px;">
+    <nav class="mb-4">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="{% url 'project-list' %}"
+                    class="text-decoration-none text-primary">Projects</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'project-detail' phase.project.pk %}"
+                    class="text-decoration-none text-primary">{{ phase.project.name }}</a></li>
+            <li class="breadcrumb-item active">{% if sprint %}Edit{% else %}New{% endif %} Sprint</li>
+        </ol>
+    </nav>
+
+    <div class="card border-0 shadow rounded-4">
+        <div class="card-body p-4">
+            <h5 class="fw-bold mb-4">
+                <i class="fas fa-bolt me-2 text-primary"></i>
+                {% if sprint %}Edit Sprint: {{ sprint.name }}{% else %}Create Sprint in {{ phase.name }}{% endif %}
+            </h5>
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Sprint Name</label>
+                    <input type="text" name="name" class="form-control rounded-pill"
+                        value="{{ sprint.name|default:'' }}" placeholder="e.g. Sprint 1 – Core Features" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Sprint Goals</label>
+                    <textarea name="goals" rows="3" class="form-control rounded-3"
+                        placeholder="What should this sprint achieve?">{{ sprint.goals|default:'' }}</textarea>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Start Date</label>
+                        <input type="date" name="start_date" class="form-control rounded-pill"
+                            value="{{ sprint.start_date|date:'Y-m-d'|default:'' }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">End Date</label>
+                        <input type="date" name="end_date" class="form-control rounded-pill"
+                            value="{{ sprint.end_date|date:'Y-m-d'|default:'' }}" required>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label fw-semibold">Team Members</label>
+                    <div class="row g-2">
+                        {% for u in users %}
+                        <div class="col-6 col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="members" id="u{{ u.pk }}"
+                                    value="{{ u.pk }}" {% if sprint and u in sprint.members.all %}checked{% endif %}>
+                                <label class="form-check-label small" for="u{{ u.pk }}">{{ u.username }}</label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary rounded-pill px-4">
+                        <i class="fas fa-save me-1"></i> {% if sprint %}Update Sprint{% else %}Create Sprint{% endif %}
+                    </button>
+                    <a href="{% url 'project-detail' phase.project.pk %}"
+                        class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock pageContent %}
