@@ -930,7 +930,7 @@ export default function HomePage() {
                   type="file"
                   ref={fileInputRef}
                   className="hidden"
-                  accept="image/*,audio/*,video/*"
+                  accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xlsx,.xls"
                   onChange={handleFileUpload}
                 />
                 <Button 
