@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import DashboardLayout from '../components/DashboardLayout';
+import { DashboardLayout } from '../components/DashboardLayout';
 import {
   MessageSquare, Send, Radio, CheckCircle, AlertCircle,
   RefreshCw, Clock, Users, Shield, Loader, FileText, Activity
