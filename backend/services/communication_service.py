@@ -146,6 +146,40 @@ class TwilioSMSProvider(SMSProvider):
             return {"success": False, "error": str(e)}
 
 
+class BaileysWhatsAppProvider(WhatsAppProvider):
+    slug = "baileys_whatsapp"
+    def __init__(self):
+        self.service_url = os.environ.get("WHATSAPP_SERVICE_URL", "http://localhost:3001")
+
+    async def send_whatsapp(self, to_phone: str, message: str) -> dict:
+        clean_phone = to_phone.strip().replace(" ", "").replace("-", "")
+        if clean_phone.startswith("+"):
+            clean_phone = clean_phone[1:]
+        if clean_phone.startswith("0") and len(clean_phone) == 10:
+            clean_phone = "263" + clean_phone[1:]
+
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=12.0) as client:
+                resp = await client.post(
+                    f"{self.service_url.rstrip('/')}/send",
+                    json={"to": clean_phone, "message": message}
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    logger.info(f"[Baileys WhatsApp] Dispatched message to {clean_phone}")
+                    return {"success": True, "provider": "baileys", "provider_id": data.get("to")}
+                else:
+                    logger.warning(f"[Baileys WhatsApp Error] ({resp.status_code}): {resp.text}")
+        except Exception as e:
+            logger.warning(f"[Baileys WhatsApp Exception]: {e}")
+
+        # Fallback to direct wa.me link
+        encoded_msg = message.replace(" ", "%20").replace("\n", "%0A")
+        wa_link = f"https://wa.me/{clean_phone}?text={encoded_msg}"
+        return {"success": False, "provider": "baileys_fallback", "link": wa_link}
+
+
 class TwilioWhatsAppProvider(WhatsAppProvider):
     slug = "twilio_whatsapp"
     def __init__(self):
@@ -233,7 +267,12 @@ class NotificationService:
         else:
             self.sms_provider: SMSProvider = SMSPoPProvider()
 
-        self.wa_provider: WhatsAppProvider = TwilioWhatsAppProvider()
+        if os.environ.get("WHATSAPP_SERVICE_URL") or os.environ.get("WHATSAPP_ENABLED"):
+            self.wa_provider: WhatsAppProvider = BaileysWhatsAppProvider()
+        elif os.environ.get("TWILIO_WHATSAPP_NUMBER"):
+            self.wa_provider: WhatsAppProvider = TwilioWhatsAppProvider()
+        else:
+            self.wa_provider: WhatsAppProvider = BaileysWhatsAppProvider()
         self.email_provider: EmailProvider = ResendEmailProvider()
 
     def format_template(self, event: str, **kwargs) -> str:
