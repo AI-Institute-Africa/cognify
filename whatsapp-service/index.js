@@ -275,6 +275,17 @@ async function connectWhatsApp(usePairingCode = false, phoneNumber = null) {
         const delay = 1500 + Math.random() * 1500;
         await new Promise(r => setTimeout(r, delay));
 
+        // If intent is ENROLL, bundle direct account creation & OTP in one message directly to the sender JID
+        const intent = detectIntent(text);
+        if (intent === 'enroll' && sock && connectionState === 'connected') {
+          try {
+            await generateAndSendEnrollment(from, text, msg.pushName);
+          } catch (e) {
+            logger.error(e, 'Failed generateAndSendEnrollment');
+          }
+          continue;
+        }
+
         const replyData = generateReply(text, from);
         if (replyData && sock && connectionState === 'connected') {
           try {
@@ -283,22 +294,6 @@ async function connectWhatsApp(usePairingCode = false, phoneNumber = null) {
               mentions: replyData.mentions || []
             });
             logMessage('outbound', 'bot', from, replyData.text);
-
-            // If intent is ENROLL, automatically trigger direct account creation & OTP dispatch
-            const intent = detectIntent(text);
-            if (intent === 'enroll') {
-              const cleanPhone = from.replace(/@.*$/, '').replace(/\D/g, '');
-              const senderPushName = msg.pushName || null;
-              try {
-                logger.info({ cleanPhone }, 'Triggering direct WhatsApp account creation and OTP...');
-                await axios.post(`${COGNIFY_BACKEND}/api/whatsapp/direct-enroll`, {
-                  phone_number: cleanPhone,
-                  name: senderPushName
-                });
-              } catch (apiErr) {
-                logger.error(apiErr.response?.data || apiErr.message, 'Failed calling direct-enroll API');
-              }
-            }
           } catch (e) {
             logger.error(e, 'Failed to send reply');
           }
@@ -312,6 +307,88 @@ async function connectWhatsApp(usePairingCode = false, phoneNumber = null) {
 }
 
 // ─── REST API ────────────────────────────────────────────────────────────────
+// Export sock getter for internal helper
+function getSock() { return sock; }
+function getConnectionState() { return connectionState; }
+
+// Helper to bundle and directly send OTP
+async function generateAndSendEnrollment(fromJid, text, pushName) {
+  if (!sock || connectionState !== 'connected') return;
+  const lang = detectLanguage(text);
+
+  try {
+    // 1. Call backend to get real OTP code and create/find account
+    const cleanPhone = fromJid.replace(/@.*$/, '').replace(/\D/g, '');
+    const res = await axios.post(`${COGNIFY_BACKEND}/api/whatsapp/direct-enroll`, {
+      phone_number: cleanPhone,
+      name: pushName || null
+    });
+
+    const { code, is_new_user, phone } = res.data;
+    const userPhone = fromJid.split('@')[0];
+    const mentionTag = `@${userPhone}`;
+
+    // 2. Build one comprehensive message with instructions + the actual 6-digit OTP code
+    let finalMessage = '';
+    if (lang === 'sn') {
+      finalMessage = `🎓 *Kunyoresa Pakarepo paCognify* emi ${mentionTag}\n\n` +
+        `🎉 *Account yenyu yagadzirwa ipapo!*\n\n` +
+        `🔐 *Code Yenyu yeOTP*: *${code}*\n\n` +
+        `1️⃣ *Zvinhu zvekupinda nazvo*:\n` +
+        `• Nhamba: *${userPhone}*\n` +
+        `• Code yeOTP: *${code}*\n\n` +
+        `2️⃣ *Kupinda muPortal*:\n` +
+        `• Vhura: http://localhost:3000/login\n` +
+        `• Sarudza *Phone (OTP)*\n` +
+        `• Isa nhamba yako ne code: *${code}*\n\n` +
+        `3️⃣ *Profile Yako*:\n` +
+        `• Kana wangopinda, zadzisa zita nezvidzidzo pasi pe *Settings*!\n\n` +
+        `🚀 _Tanga kudzidza ne AI Mentor pakarepo!_`;
+    } else if (lang === 'nd') {
+      finalMessage = `🎓 *Ukubhalisa Ngokushesha kuCognify* kwakho ${mentionTag}\n\n` +
+        `🎉 *I-akhawunti yakho isidaliwe ngqo!*\n\n` +
+        `🔐 *Ikhodi Yakho ye-OTP*: *${code}*\n\n` +
+        `1️⃣ *Imininingwane Yokungena*:\n` +
+        `• Inombolo: *${userPhone}*\n` +
+        `• Ikhodi ye-OTP: *${code}*\n\n` +
+        `2️⃣ *Ukungena ku-Portal*:\n` +
+        `• Vakashela: http://localhost:3000/login\n` +
+        `• Khetha *Phone (OTP)*\n` +
+        `• Faka inombolo yakho nekhodi: *${code}*\n\n` +
+        `3️⃣ *Qedela I-Profile*:\n` +
+        `• Uma ungena, qedela igama nezifundo ku *Settings*!\n\n` +
+        `🚀 _Qala ukufunda ne-AI Mentor ngokushesha!_`;
+    } else {
+      finalMessage = `🎓 *Cognify Instant WhatsApp Enrollment* for ${mentionTag}\n\n` +
+        `🎉 *Your Cognify account has been created!*\n\n` +
+        `🔐 *Your Secure Login OTP*: *${code}*\n\n` +
+        `1️⃣ *Your Login Credentials*:\n` +
+        `• Mobile Number: *${userPhone}*\n` +
+        `• 6-Digit OTP Code: *${code}*\n\n` +
+        `2️⃣ *One-Click Direct Login*:\n` +
+        `• Go to: http://localhost:3000/login\n` +
+        `• Select *Login with Phone (OTP)*\n` +
+        `• Enter your number: *${userPhone}* and Code: *${code}*\n\n` +
+        `3️⃣ *Complete Your Profile*:\n` +
+        `• Head to *Settings / Profile* after login to customize your tracks & goals.\n\n` +
+        `🚀 _Your courses and AI Mentor are waiting for you!_`;
+    }
+
+    await sock.sendMessage(fromJid, {
+      text: finalMessage,
+      mentions: [fromJid]
+    });
+    logMessage('outbound', 'bot', fromJid, finalMessage);
+    logger.info({ fromJid, code }, 'Bundled enrollment reply with real OTP sent successfully');
+  } catch (err) {
+    logger.error(err, 'Failed in generateAndSendEnrollment');
+    // Fallback: send standard response
+    const replyData = generateReply(text, fromJid);
+    if (replyData) {
+      await sock.sendMessage(fromJid, { text: replyData.text, mentions: replyData.mentions || [] });
+    }
+  }
+}
 app.get('/status', (req, res) => {
   res.json({
     status: connectionState,
@@ -354,9 +431,14 @@ app.post('/send', async (req, res) => {
     return res.status(503).json({ error: 'WhatsApp not connected' });
   }
   try {
-    let jid = to.replace(/\D/g, '');
-    if (jid.startsWith('0') && jid.length === 10) jid = '263' + jid.slice(1);
-    if (!jid.includes('@')) jid = jid + '@s.whatsapp.net';
+    let jid = to.trim();
+    if (jid.endsWith('@lid') || jid.endsWith('@g.us')) {
+      // Keep exact LID or group JID
+    } else {
+      let cleanDigits = jid.replace(/\D/g, '');
+      if (cleanDigits.startsWith('0') && cleanDigits.length === 10) cleanDigits = '263' + cleanDigits.slice(1);
+      jid = cleanDigits + '@s.whatsapp.net';
+    }
 
     const delay = 1500 + Math.random() * 1500;
     await new Promise(r => setTimeout(r, delay));
