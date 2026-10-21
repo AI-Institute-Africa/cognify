@@ -44,9 +44,134 @@ class WhatsAppEnrollRequest(BaseModel):
     name: Optional[str] = None
 
 
+class WhatsAppTTSRequest(BaseModel):
+    text: str
+    lang: Optional[str] = "en"
+
+
+class WhatsAppTranscribeRequest(BaseModel):
+    audio_base64: str
+    lang: Optional[str] = "en"
+
+
+def normalize_spoken_digits(text: str) -> str:
+    """Converts spoken numbers and phone digits into clean numeric format."""
+    import re
+    word_to_digit = {
+        "zero": "0", "one": "1", "two": "2", "three": "3", "four": "4",
+        "five": "5", "six": "6", "seven": "7", "eight": "8", "nine": "9",
+        "o": "0", "oh": "0", "plus": "+"
+    }
+    tokens = text.lower().split()
+    converted = []
+    for t in tokens:
+        clean_t = re.sub(r"[^a-z0-9+]", "", t)
+        if clean_t in word_to_digit:
+            converted.append(word_to_digit[clean_t])
+        else:
+            converted.append(t)
+    res = " ".join(converted)
+    res = re.sub(r"(?<=\d)\s+(?=\d)", "", res)
+    res = re.sub(r"\+\s+", "+", res)
+    return res
+
+
 def make_whatsapp_admin_router(db):
     router = APIRouter(prefix="/whatsapp", tags=["WhatsApp Admin"])
     svc = WhatsAppService(db)
+
+    # ── WhatsApp Audio Transcription (STT) ──────────────────────────────────
+    @router.post("/transcribe-audio")
+    async def whatsapp_transcribe_audio(req: WhatsAppTranscribeRequest):
+        """Transcribes incoming WhatsApp voice notes/audio to text using speech recognition."""
+        try:
+            import imageio_ffmpeg
+            import subprocess
+            import speech_recognition as sr
+            import tempfile
+            import base64
+            import os
+
+            ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+            raw_bytes = base64.b64decode(req.audio_base64)
+
+            with tempfile.TemporaryDirectory() as td:
+                in_file = os.path.join(td, "input.audio")
+                wav_file = os.path.join(td, "output.wav")
+                with open(in_file, "wb") as f:
+                    f.write(raw_bytes)
+
+                # Convert to 16kHz mono WAV for SpeechRecognition
+                subprocess.run(
+                    [ffmpeg, "-y", "-i", in_file, "-ar", "16000", "-ac", "1", wav_file],
+                    capture_output=True,
+                    check=True
+                )
+
+                recognizer = sr.Recognizer()
+                with sr.AudioFile(wav_file) as source:
+                    audio_data = recognizer.record(source)
+                    text = ""
+                    for dialect in [req.lang or "en-US", "en-GB", "en"]:
+                        try:
+                            text = recognizer.recognize_google(audio_data, language=dialect)
+                            if text:
+                                break
+                        except Exception:
+                            continue
+
+                if not text:
+                    return {"ok": False, "text": "", "error": "Could not understand audio"}
+
+                normalized = normalize_spoken_digits(text)
+                return {"ok": True, "raw_text": text, "text": normalized}
+        except Exception as e:
+            logger.error(f"WhatsApp audio transcription failed: {e}")
+            return {"ok": False, "error": str(e), "text": ""}
+
+    # ── WhatsApp Voice Note Generator (TTS) ─────────────────────────────────
+    @router.post("/generate-voice")
+    async def whatsapp_generate_voice(req: WhatsAppTTSRequest):
+        """Generates a WhatsApp-compatible Opus OGG voice note from text."""
+        try:
+            from gtts import gTTS
+            import imageio_ffmpeg
+            import subprocess
+            import tempfile
+            import base64
+            import os
+
+            ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+            tts_lang = req.lang if req.lang in ["en", "sn", "nd"] else "en"
+            try:
+                tts = gTTS(text=req.text, lang=tts_lang, tld="co.uk")
+            except Exception:
+                tts = gTTS(text=req.text, lang="en", tld="co.uk")
+
+            with tempfile.TemporaryDirectory() as td:
+                mp3_path = os.path.join(td, "voice.mp3")
+                ogg_path = os.path.join(td, "voice.ogg")
+                tts.save(mp3_path)
+
+                # Convert to WhatsApp-native Opus OGG format
+                subprocess.run(
+                    [ffmpeg, "-y", "-i", mp3_path, "-c:a", "libopus", "-b:a", "32k", "-vn", ogg_path],
+                    capture_output=True,
+                    check=True
+                )
+
+                with open(ogg_path, "rb") as f:
+                    ogg_bytes = f.read()
+
+                b64_audio = base64.b64encode(ogg_bytes).decode("ascii")
+                return {
+                    "ok": True,
+                    "audio_base64": b64_audio,
+                    "mimetype": "audio/ogg; codecs=opus"
+                }
+        except Exception as e:
+            logger.error(f"WhatsApp voice generation failed: {e}")
+            return {"ok": False, "error": str(e)}
 
     # ── WhatsApp Instant Account Creation & OTP ─────────────────────────────
     @router.post("/direct-enroll")
