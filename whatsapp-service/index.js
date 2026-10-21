@@ -54,9 +54,11 @@ function detectLanguage(text) {
 }
 
 function detectIntent(text) {
-  const lower = text.toLowerCase();
+  const lower = text.trim().toLowerCase();
+  // Exact or prominent enroll trigger
+  if (/^(enroll|enrol|register|join|kunyoresa|bhalisa)\b/i.test(lower) || /\b(enroll|enrol)\b/i.test(lower)) return 'enroll';
   if (/\b(fee|tuition|cost|price|payment|dollar|usd|pay|amount|charge)\b/.test(lower)) return 'pricing';
-  if (/\b(course|program|diploma|certificate|module|study|learn|enroll|register)\b/.test(lower)) return 'programs';
+  if (/\b(course|program|diploma|certificate|module|study|learn)\b/.test(lower)) return 'programs';
   if (/\b(status|reference|application|applied|approved|rejected|pending)\b/.test(lower)) return 'application_status';
   if (/\b(receipt|proof|paid|payment proof|uploaded)\b/.test(lower)) return 'payment_proof';
   if (/\b(help|support|contact|office|call|email|assist)\b/.test(lower)) return 'support';
@@ -66,35 +68,96 @@ function detectIntent(text) {
 
 const RESPONSES = {
   en: {
-    greeting: `👋 Hello! Welcome to *Cognify* — Africa's AI-powered learning platform.\n\nI can help you with:\n📚 *Course & Program info*\n💰 *Fees & Payment*\n📋 *Application status*\n🎓 *Enrollment & Registration*\n\nHow can I assist you today?`,
-    pricing: `💰 *Cognify Course Fees*\n\n• Individual Courses: from $10/month\n• Professional Certificates: from $25/month\n• Corporate Training Packages: Custom pricing\n• Organization Plans: Contact us for bulk pricing\n\n✅ All plans include AI mentor, quizzes & certificates.\n\nTo enroll, visit our platform or reply with *ENROLL* for next steps.`,
-    programs: `📚 *Cognify Learning Programs*\n\n🎓 *Professional Certificates*\n• AI & Machine Learning\n• Data Science & Analytics\n• Cybersecurity Fundamentals\n• Cloud Computing\n\n💼 *Corporate Training*\n• Custom corporate upskilling\n• Team learning dashboards\n• Progress tracking & reporting\n\n🌍 Available in English, Shona & Ndebele.\n\nReply *ENROLL* to get started or visit our platform.`,
-    application_status: `📋 *Application Status*\n\nTo check your application status, please provide your *reference number* (e.g. CGN-2026-XXXX).\n\nAlternatively, log into your Cognify account at our platform and check your dashboard.`,
-    payment_proof: `✅ *Payment Submission*\n\nTo submit your payment proof:\n1. Log into your Cognify account\n2. Go to *Fees & Payments*\n3. Upload your receipt/proof of payment\n\nPayments are verified within 24 hours. For urgent queries, contact our admin office.`,
-    support: `📞 *Cognify Support*\n\n🌐 Platform: Visit our website\n📧 Email: support@cognify.com\n⏰ Support hours: Mon–Fri, 8:00–17:00 (Harare)\n\nOur team will respond within 2 business hours.`,
-    general: `🤖 Thank you for reaching out to *Cognify*!\n\nI can help with:\n• 📚 Courses & Programs\n• 💰 Fees & Payments\n• 📋 Application Status\n• 🎓 Enrollment\n\nPlease describe what you need or type one of the keywords above.`
+    greeting: `👋 Hello @{USER}! Welcome to *Cognify* — Africa's AI-powered learning platform.\n\nI can help you with:\n📚 *Course & Program info*\n💰 *Fees & Payment*\n📋 *Application status*\n🎓 *Enrollment & Registration*\n\nHow can I assist you today?`,
+    enroll: `🎓 *Cognify Enrollment Steps* for @{USER}
+
+Welcome aboard! Follow these official steps to complete your registration:
+
+1️⃣ *Create Your Account*:
+• Visit: http://localhost:3000/register
+• Choose *Phone (OTP)* or *Email* registration.
+• You will receive a verification code directly on your WhatsApp or SMS.
+
+2️⃣ *Select Your Program / Diploma*:
+• Browse courses: AI & Machine Learning, Data Science, Cloud Computing & Cybersecurity.
+• Choose between Self-Paced or Instructor-Led cohorts.
+
+3️⃣ *Complete Tuition & Fee Verification*:
+• Flexible payment methods: EcoCash, InnBucks, Card, or Bank Transfer.
+• Submit proof of payment on your dashboard for fast-track 24h approval.
+
+4️⃣ *Access Your Learning Dashboard*:
+• Start interactive lessons, work with your AI mentor, and take practice quizzes immediately!
+
+📌 *Need Help?* Reply with *SUPPORT* or speak directly with an admissions officer at support@cognify.com.`,
+    pricing: `💰 *Cognify Course Fees* for @{USER}\n\n• Individual Courses: from $10/month\n• Professional Certificates: from $25/month\n• Corporate Training Packages: Custom pricing\n• Organization Plans: Contact us for bulk pricing\n\n✅ All plans include AI mentor, quizzes & certificates.\n\nTo enroll, reply with *ENROLL* for instant step-by-step guidance.`,
+    programs: `📚 *Cognify Learning Programs* for @{USER}\n\n🎓 *Professional Certificates*\n• AI & Machine Learning\n• Data Science & Analytics\n• Cybersecurity Fundamentals\n• Cloud Computing\n\n💼 *Corporate Training*\n• Custom corporate upskilling\n• Team learning dashboards\n• Progress tracking & reporting\n\n🌍 Available in English, Shona & Ndebele.\n\nReply *ENROLL* to get the registration steps!`,
+    application_status: `📋 *Application Status* for @{USER}\n\nTo check your application status, please provide your *reference number* (e.g. CGN-2026-XXXX).\n\nAlternatively, log into your Cognify account at our platform and check your dashboard.`,
+    payment_proof: `✅ *Payment Submission* for @{USER}\n\nTo submit your payment proof:\n1. Log into your Cognify account\n2. Go to *Fees & Payments*\n3. Upload your receipt/proof of payment\n\nPayments are verified within 24 hours. For urgent queries, contact our admin office.`,
+    support: `📞 *Cognify Support* for @{USER}\n\n🌐 Platform: Visit our website\n📧 Email: support@cognify.com\n⏰ Support hours: Mon–Fri, 8:00–17:00 (Harare)\n\nOur team will respond within 2 business hours.`,
+    general: `🤖 Hello @{USER}! Thank you for reaching out to *Cognify*!\n\nI can help with:\n• 📚 Courses & Programs\n• 🎓 Enrollment Steps (Reply *ENROLL*)\n• 💰 Fees & Payments\n• 📋 Application Status\n\nPlease describe what you need or reply with one of the keywords above.`
   },
   sn: {
-    greeting: `👋 Mhoro! Makadii ku *Cognify* — nzvimbo yekudzidza neAI muAfrica.\n\nNdinogona kukubatsira ne:\n📚 *Zvemakosi*\n💰 *Mubhadharo*\n📋 *Mamiriro ekunyorera*\n\nNdingakubatsirei nhasi?`,
-    pricing: `💰 *Mitengo yeCognify*\n\n• Makosi: kutanga pa $10/mwedzi\n• Zvitupa: kutanga pa $25/mwedzi\n• Zvemakambani: Mitengo inotauriranwa\n\n✅ Zvese zvine AI mentor nezvitupa zvinotaridza kupasa.\n\nPindura *ENROLL* kana shanyira nzvimbo yedu.`,
-    programs: `📚 *Zvirongwa zvedu zveDzidzo*\n\n🎓 *Zvitupa Zvepamusoro*\n• AI & Machine Learning\n• Data Science\n• Cybersecurity\n• Cloud Computing\n\n💼 *Dzidziso dzeMakambani*\n• Upskilling yevashandi\n• Team dashboards\n\nPindura *ENROLL* kuti utange.`,
-    application_status: `📋 *Kutarisa Application*\n\nNdokumbira unyore *reference number* yako (semuenzaniso: CGN-2026-XXXX) kana kupinda pane dashboard rako paCognify.`,
-    payment_proof: `✅ *Payment Proof*\n\nIsa umbowo hwekubhadhara pa portal pasi pe *Fees & Payments*. Verification inoitwa mukati memaawa 24.`,
-    support: `📞 *Rubatsiro*\n\n📧 Email: support@cognify.com\n⏰ Muvhuro-Chishanu 8:00-17:00 Harare time.`,
-    general: `🤖 Mazvita nekutaura neCognify! Nyorai muchidimbu zvamunoda kubatsirwa nazvo.`
+    greeting: `👋 Mhoro @{USER}! Makadii ku *Cognify* — nzvimbo yekudzidza neAI muAfrica.\n\nNdinogona kukubatsira ne:\n📚 *Zvemakosi*\n💰 *Mubhadharo*\n📋 *Mamiriro ekunyorera*\n\nNdingakubatsirei nhasi?`,
+    enroll: `🎓 *Matanho Ekunyoresa paCognify* emi @{USER}
+
+Gamuchirwai! Tevedzerai matanho aya kuti mupedze kunyoresa:
+
+1️⃣ *Vhura Account Yenyu*:
+• Shanyirai: http://localhost:3000/register
+• Sarudzai *Phone (OTP)* kana *Email*.
+• Muchawana code yekusimbisa paWhatsApp kana SMS.
+
+2️⃣ *Sarudza Kosi Yaunoda*:
+• AI & Machine Learning, Data Science, Cybersecurity kana Cloud Computing.
+
+3️⃣ *Bhadhara Mari yeChikoro*:
+• Shandisa EcoCash, InnBucks, Card kana Bank Transfer.
+• Isa receipt pa portal kuti vatarise mukati memaawa 24.
+
+4️⃣ *Tanga Kudzidza*:
+• Pinda mudashboard rako utange kudzidza ne AI Mentor pakarepo!
+
+📌 Taura *SUPPORT* kana uchida rubatsiro rwakadzama.`,
+    pricing: `💰 *Mitengo yeCognify* ye @{USER}\n\n• Makosi: kutanga pa $10/mwedzi\n• Zvitupa: kutanga pa $25/mwedzi\n• Zvemakambani: Mitengo inotauriranwa\n\n✅ Zvese zvine AI mentor nezvitupa zvinotaridza kupasa.\n\nPindura *ENROLL* kuti uwane matanho ekunyoresa.`,
+    programs: `📚 *Zvirongwa zvedu zveDzidzo* zve @{USER}\n\n🎓 *Zvitupa Zvepamusoro*\n• AI & Machine Learning\n• Data Science\n• Cybersecurity\n• Cloud Computing\n\n💼 *Dzidziso dzeMakambani*\n• Upskilling yevashandi\n• Team dashboards\n\nPindura *ENROLL* kuti utange.`,
+    application_status: `📋 *Kutarisa Application* ya @{USER}\n\nNdokumbira unyore *reference number* yako (semuenzaniso: CGN-2026-XXXX) kana kupinda pane dashboard rako paCognify.`,
+    payment_proof: `✅ *Payment Proof* ye @{USER}\n\nIsa umbowo hwekubhadhara pa portal pasi pe *Fees & Payments*. Verification inoitwa mukati memaawa 24.`,
+    support: `📞 *Rubatsiro* rwe @{USER}\n\n📧 Email: support@cognify.com\n⏰ Muvhuro-Chishanu 8:00-17:00 Harare time.`,
+    general: `🤖 Mazvita nekutaura neCognify @{USER}! Nyorai *ENROLL* kana muchida kunyoresa makosi.`
   },
   nd: {
-    greeting: `👋 Sawubona! Wamukelekile ku *Cognify* — inkundla yokufunda ye-AI e-Afrika.\n\nNgingakusiza nge:\n📚 *Izifundo nezinhlelo*\n💰 *Izimali zokufunda*\n📋 *Isimo sesicelo*\n\nNgingakusiza ngani namuhla?`,
-    pricing: `💰 *Izindleko zeCognify*\n\n• Izifundo: kusukela ku-$10 ngenyanga\n• Izitifiketi: kusukela ku-$25 ngenyanga\n• Amabhizinisi: Amanani akhethekile\n\nPhendula ngokuthi *ENROLL* ukuze uqale.`,
-    programs: `📚 *Izinhlelo zeCognify*\n\n🎓 *Izitifiketi Zobuchwepheshe*\n• AI & Machine Learning\n• Data Science\n• Cybersecurity\n• Cloud Computing\n\nPhendula *ENROLL* ukuze uqalise.`,
-    application_status: `📋 *Isimo Sesicelo*\n\nSicela unikeze *i-reference number* yakho ukuze sihlolisise isimo sesicelo sakho.`,
-    payment_proof: `✅ *Ubufakazi Bokukhokha*\n\nFaka irisidi lakho ku *Fees & Payments* ku portal. Kuqinisekiswa kungakapheli amahora angama-24.`,
-    support: `📞 *Ukusekelwa*\n\n📧 Email: support@cognify.com\n⏰ NgoMvulo-Lwesihlanu 8:00-17:00 Harare time.`,
-    general: `🤖 Siyabonga ngokuxhumana neCognify! Bhala ngokugcwele ukuthi ungathanda ukusizwa ngani.`
+    greeting: `👋 Sawubona @{USER}! Wamukelekile ku *Cognify* — inkundla yokufunda ye-AI e-Afrika.\n\nNgingakusiza nge:\n📚 *Izifundo nezinhlelo*\n💰 *Izimali zokufunda*\n📋 *Isimo sesicelo*\n\nNgingakusiza ngani namuhla?`,
+    enroll: `🎓 *Izinyathelo Zokubhalisa kuCognify* zakho @{USER}
+
+Wamukelekile! Landela lezi zinyathelo ezilandelayo ukuze uqedele ukubhalisa:
+
+1️⃣ *Vula I-akhawunti Yakho*:
+• Vakashela: http://localhost:3000/register
+• Khetha *Phone (OTP)* noma *Email*.
+• Uzothola ikhodi yokungena ku-WhatsApp noma SMS.
+
+2️⃣ *Khetha Isifundo Sakho*:
+• AI & Machine Learning, Data Science, Cybersecurity noma Cloud Computing.
+
+3️⃣ *Khokha Imali Yesifundo*:
+• Khokha nge-EcoCash, InnBucks, Card noma Bank Transfer.
+• Layisha irisidi lakho ku-portal.
+
+4️⃣ *Qala Ukufunda*:
+• Ngena ku-dashboard yakho uqale ukufunda ne-AI Mentor ngokushesha!
+
+📌 Phendula ngokuthi *SUPPORT* uma udinga usizo.`,
+    pricing: `💰 *Izindleko zeCognify* zakho @{USER}\n\n• Izifundo: kusukela ku-$10 ngenyanga\n• Izitifiketi: kusukela ku-$25 ngenyanga\n• Amabhizinisi: Amanani akhethekile\n\nPhendula ngokuthi *ENROLL* ukuze uthole izinyathelo zokubhalisa.`,
+    programs: `📚 *Izinhlelo zeCognify* zakho @{USER}\n\n🎓 *Izitifiketi Zobuchwepheshe*\n• AI & Machine Learning\n• Data Science\n• Cybersecurity\n• Cloud Computing\n\nPhendula *ENROLL* ukuze uqalise.`,
+    application_status: `📋 *Isimo Sesicelo* sakho @{USER}\n\nSicela unikeze *i-reference number* yakho ukuze sihlolisise isimo sesicelo sakho.`,
+    payment_proof: `✅ *Ubufakazi Bokukhokha* bakho @{USER}\n\nFaka irisidi lakho ku *Fees & Payments* ku portal. Kuqinisekiswa kungakapheli amahora angama-24.`,
+    support: `📞 *Ukusekelwa* kwakho @{USER}\n\n📧 Email: support@cognify.com\n⏰ NgoMvulo-Lwesihlanu 8:00-17:00 Harare time.`,
+    general: `🤖 Siyabonga ngokuxhumana neCognify @{USER}! Phendula ngokuthi *ENROLL* ukuze ubhalise ezifundweni.`
   }
 };
 
-function generateReply(text) {
+function generateReply(text, senderJid = '') {
   const settings = loadSettings();
   if (!settings.ai_enabled) return null;
   if (settings.paused_until && new Date() < new Date(settings.paused_until)) return null;
@@ -102,7 +165,17 @@ function generateReply(text) {
   const lang = detectLanguage(text);
   const intent = detectIntent(text);
   const r = RESPONSES[lang] || RESPONSES.en;
-  return r[intent] || r.general;
+  let replyText = r[intent] || r.general;
+
+  // Extract phone number to tag (e.g., 263786434988)
+  const userPhone = senderJid ? senderJid.split('@')[0] : '';
+  const mentionTag = userPhone ? `@${userPhone}` : 'there';
+  replyText = replyText.replace(/@{USER}/g, mentionTag);
+
+  return {
+    text: replyText,
+    mentions: userPhone ? [senderJid] : []
+  };
 }
 
 // ─── Message logging ─────────────────────────────────────────────────────────
@@ -201,11 +274,14 @@ async function connectWhatsApp(usePairingCode = false, phoneNumber = null) {
         const delay = 1500 + Math.random() * 1500;
         await new Promise(r => setTimeout(r, delay));
 
-        const reply = generateReply(text);
-        if (reply && sock && connectionState === 'connected') {
+        const replyData = generateReply(text, from);
+        if (replyData && sock && connectionState === 'connected') {
           try {
-            await sock.sendMessage(from, { text: reply });
-            logMessage('outbound', 'bot', from, reply);
+            await sock.sendMessage(from, {
+              text: replyData.text,
+              mentions: replyData.mentions || []
+            });
+            logMessage('outbound', 'bot', from, replyData.text);
           } catch (e) {
             logger.error(e, 'Failed to send reply');
           }
