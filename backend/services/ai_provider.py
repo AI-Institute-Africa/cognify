@@ -238,6 +238,7 @@ class AIProvider:
         import os
         base_name = os.path.basename(filename)
         search_dirs = [
+            r"c:\Users\USER 2\Desktop",
             r"c:\Users\USER 2\Downloads",
             r"c:\Users\USER 2\Downloads\takudzwaAIIA-cognify-main\takudzwaAIIA-cognify-main\uploaded_public_docs",
             r"c:\Users\USER 2\Downloads\takudzwaAIIA-cognify-main\takudzwaAIIA-cognify-main\source_uploads",
