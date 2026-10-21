@@ -4,8 +4,12 @@ import jwt
 from datetime import datetime, timezone, timedelta
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from .config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
-from .database import db
+try:
+    from .config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
+    from .database import db
+except (ImportError, ValueError):
+    from config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
+    from database import db
 
 security = HTTPBearer()
 

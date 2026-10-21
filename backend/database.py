@@ -1,9 +1,14 @@
 """MongoDB database connection"""
 from motor.motor_asyncio import AsyncIOMotorClient
-from config import MONGO_URL, DB_NAME
+
+try:
+    from .config import MONGO_URL, DB_NAME
+except (ImportError, ValueError):
+    from config import MONGO_URL, DB_NAME
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
+
 
 async def close_db():
     """Close database connection"""

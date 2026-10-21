@@ -3,16 +3,22 @@ Avatar Learning Orchestrator - HeyGen Integration
 Handles: Script generation, HeyGen video creation, interactive tutor Q&A,
 multi-language dubbing, assessment generation, adaptive difficulty
 """
-import os
-import logging
-import uuid
-import json
 import asyncio
-import httpx
+import json
+import logging
+import os
+import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Depends, Body, Request
-from database import db
-from auth_utils import get_current_user, serialize_doc
+
+import httpx
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
+
+try:
+    from backend.auth_utils import get_current_user, serialize_doc
+    from backend.database import db
+except ImportError:  # pragma: no cover - compatibility with script execution
+    from auth_utils import get_current_user, serialize_doc
+    from database import db
 
 logger = logging.getLogger(__name__)
 

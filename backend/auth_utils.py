@@ -1,12 +1,17 @@
 """Shared authentication utilities"""
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from datetime import datetime, timezone, timedelta
-import jwt
-import bcrypt
+from datetime import datetime, timedelta, timezone
 
-from database import db
-from config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
+import bcrypt
+import jwt
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+try:
+    from .config import JWT_ALGORITHM, JWT_EXPIRATION_HOURS, JWT_SECRET
+    from .database import db
+except (ImportError, ValueError):
+    from config import JWT_ALGORITHM, JWT_EXPIRATION_HOURS, JWT_SECRET
+    from database import db
 
 security = HTTPBearer()
 

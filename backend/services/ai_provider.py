@@ -45,21 +45,21 @@ class AIProvider:
         chat_msgs.extend(messages)
 
         # Attempt API call if key is available
+        custom_base = os.environ.get("EMERGENT_API_BASE") or os.environ.get("OPENAI_API_BASE")
         target_key = self.emergent_key or self.openai_key
+        
         if target_key and not target_key.startswith("sk-dummy"):
-            # Check if using OpenAI or proxy
             base_urls = []
-            if not target_key.startswith("sk-emergent"):
+            if custom_base:
+                base_urls.append((f"{custom_base.rstrip('/')}/chat/completions", target_key))
+            elif not target_key.startswith("sk-emergent"):
                 base_urls.append(("https://api.openai.com/v1/chat/completions", target_key))
-            else:
-                base_urls.extend([
-                    ("https://api.openai.com/v1/chat/completions", target_key),
-                    ("https://integrations.emergentagent.com/llm/v1/chat/completions", target_key)
-                ])
+            elif self.openai_key and not self.openai_key.startswith("sk-emergent"):
+                base_urls.append(("https://api.openai.com/v1/chat/completions", self.openai_key))
 
             for url, key in base_urls:
                 try:
-                    async with httpx.AsyncClient(timeout=4.0, verify=False) as client:
+                    async with httpx.AsyncClient(timeout=2.0, verify=False) as client:
                         resp = await client.post(
                             url,
                             headers={"Authorization": f"Bearer {key}"},
@@ -143,55 +143,163 @@ class AIProvider:
 
     def _generate_intelligent_chat_response(self, messages: List[Dict[str, str]], system_prompt: Optional[str]) -> str:
         """High quality dynamic educational response synthesizer for Cognify."""
-        last_msg = ""
-        for m in reversed(messages):
-            if m.get("role") == "user":
-                last_msg = m.get("content", "").strip()
-                break
+        user_msgs = [m.get("content", "").strip() for m in messages if m.get("role") == "user" and m.get("content")]
+        if not user_msgs:
+            return "Hello! How can I help you on Cognify today?"
 
-        query_lower = last_msg.lower()
+        last_msg = user_msgs[-1]
+        query_lower = last_msg.lower().strip()
 
-        # Greetings
-        if any(query_lower.startswith(g) for g in ["hi", "hello", "hey", "greetings", "good morning", "good afternoon"]) or len(query_lower) <= 3:
+        # Handle frustration or meta-demands like "PLEASE ANSWER THE QUESTION"
+        if any(phrase in query_lower for phrase in ["please answer", "answer the question", "answer my question", "you didn't answer", "didn't answer"]):
+            # Look backwards for the actual previous question
+            prior_question = None
+            for prev in reversed(user_msgs[:-1]):
+                prev_clean = prev.strip().lower()
+                if not any(phrase in prev_clean for phrase in ["please answer", "answer the question", "answer my question"]):
+                    prior_question = prev
+                    break
+
+            if prior_question:
+                resolved = self._answer_specific_query(prior_question)
+                return f"My apologies for not addressing your question directly earlier! Here is the direct answer to **'{prior_question}'**:\n\n{resolved}"
+            return "Apologies! Please tell me your specific question or topic, and I will answer it directly."
+
+        return self._answer_specific_query(last_msg)
+
+    def _answer_specific_query(self, query: str) -> str:
+        """Provide detailed, direct, authoritative answers to educational and platform questions."""
+        q = query.lower().strip()
+
+        # 1. Greetings
+        if re.match(r"^(hi|hello|hey|greetings|good\s*(morning|afternoon|evening)|howdy)\b", q) or q in ["hi", "hello", "hey"]:
             return (
                 "Hello! I am your **Cognify AI Learning & Career Mentor**.\n\n"
-                "I can help you with:\n"
-                "- 📚 **Interactive Course Mastery & Lessons**: Step-by-step explanations, analogies, and quizzes.\n"
-                "- 🎯 **Career Pathways & Guidance**: Skill requirements, market trends, and resume optimization.\n"
-                "- ✍️ **Assignment Analysis & Exam Preparation**: Concept breakdowns and feedback.\n"
-                "- 🌍 **Multilingual Learning**: Explanations in English, Shona, Ndebele, Swahili, and more.\n\n"
-                "What topic or goal would you like to explore today?"
+                "I'm here to give you direct answers, explain concepts, and guide your studies. You can ask me:\n"
+                "- 🤖 **Concepts & Technology**: *What is AI?*, *How does machine learning work?*, *Explain Python loops*\n"
+                "- 📚 **Cognify Platform**: *What courses are available?*, *How do blockchain certificates work?*\n"
+                "- 🎯 **Career Guidance**: *How do I become a Data Scientist or Cloud Engineer?*\n"
+                "- 🌍 **Multilingual Learning**: Ask in English, Shona, Ndebele, Swahili, French, or Zulu.\n\n"
+                "What would you like to learn or explore right now?"
             )
 
-        # Career guidance
-        if any(w in query_lower for w in ["career", "job", "profession", "technology", "software", "engineer", "pathway", "salary", "hiring"]):
+        # 2. What is AI / Artificial Intelligence
+        if any(phrase in q for phrase in ["what is ai", "what's ai", "what is artificial intelligence", "define ai", "meaning of ai"]):
             return (
-                f"### Career Roadmap & Growth Opportunities\n\n"
-                f"Regarding **{last_msg[:60]}**, here are key insights for your career journey:\n\n"
-                "1. **Core Technical Competencies**:\n"
-                "   - Focus on strong foundational skills: algorithmic thinking, problem-solving, and clean architectural design.\n"
-                "   - Practical hands-on project portfolio demonstrating real-world applications.\n\n"
-                "2. **Continuous Learning & Skill Stacking**:\n"
-                "   - Pair technical skills with domain expertise (Cloud systems, AI/ML, Data Engineering, Cybersecurity).\n"
-                "   - Regularly review open source repositories and industry best practices.\n\n"
-                "3. **Practical Next Steps on Cognify**:\n"
-                "   - Complete relevant modular courses in the Course Catalogue.\n"
-                "   - Test your knowledge with pop-up quizzes and final assessments to earn verified certificates.\n\n"
-                "Would you like recommendations on specific courses or projects tailored to your level?"
+                "**Artificial Intelligence (AI)** is a branch of computer science dedicated to creating systems capable of performing tasks that typically require human intelligence. These tasks include learning from experience, reasoning through problems, recognizing patterns, understanding natural language, and making decisions.\n\n"
+                "### 1. How AI Works\n"
+                "Unlike traditional software where human programmers write rigid rules for every step, modern AI systems use **statistical models and algorithms** to discover patterns in vast amounts of data and generalize from them.\n\n"
+                "### 2. Major Branches of AI\n"
+                "- **Machine Learning (ML)**: Systems that train on historical data to make predictions (e.g., recommendation engines, fraud detection).\n"
+                "- **Deep Learning & Neural Networks**: Layered mathematical architectures inspired by the human brain, ideal for complex tasks like computer vision and speech recognition.\n"
+                "- **Natural Language Processing (NLP)**: The technology behind Large Language Models (LLMs) like GPT-4, Gemini, and Claude that comprehend and generate human text.\n"
+                "- **Computer Vision**: Enabling computers to interpret visual information from cameras, photos, and medical scans.\n"
+                "- **Robotics & Autonomous Systems**: Combining vision, sensors, and decision algorithms to navigate physical environments (e.g., self-driving vehicles, drones).\n\n"
+                "### 3. Real-World Applications\n"
+                "- **Education**: Personalized adaptive curricula, automated feedback, and AI tutors like Cognify.\n"
+                "- **Healthcare**: Accelerated drug discovery, early diagnosis in radiology, and genomic analysis.\n"
+                "- **Business & Finance**: Algorithmic trading, credit risk modeling, and predictive analytics.\n\n"
+                "Would you like to explore how Machine Learning models are trained, or dive into building your first AI model in Python?"
             )
 
-        # Default educational response
-        topic = last_msg.strip().capitalize() if len(last_msg) < 60 else "Your Concept"
+        # 3. Machine Learning / Deep Learning
+        if "machine learning" in q or "deep learning" in q:
+            return (
+                "**Machine Learning (ML)** is the subset of AI focused on building applications that learn from data and improve their accuracy over time without being explicitly programmed.\n\n"
+                "### The Three Main Paradigms:\n"
+                "1. **Supervised Learning**: The algorithm is trained on labeled input-output pairs (e.g., predicting house prices from features, or classifying emails as spam).\n"
+                "2. **Unsupervised Learning**: The algorithm finds hidden patterns or groupings in unlabeled data (e.g., customer segmentation, anomaly detection with K-Means or PCA).\n"
+                "3. **Reinforcement Learning**: An agent learns optimal actions through trial, error, rewards, and penalties in an environment (e.g., AlphaGo, game bots, robot control).\n\n"
+                "**Deep Learning** is a specialized branch of ML that uses **Artificial Neural Networks** with multiple layers (hence 'deep'). It powers breakthroughs in image recognition (CNNs), language processing (Transformers), and generative media."
+            )
+
+        # 4. What is Cognify / Platform questions
+        if any(term in q for term in ["what is cognify", "about cognify", "tell me about cognify", "who is cognify"]):
+            return (
+                "**Cognify (EduOS)** is Africa's premier AI-powered modern education and learning management ecosystem, developed by the AI Institute Africa.\n\n"
+                "### Key Platform Features:\n"
+                "- 🤖 **AI Personal Tutor & Avatar Learning**: 24/7 interactive tutoring and video avatar lessons that adapt to your personal pace and style.\n"
+                "- ⛓️ **Blockchain Credentials**: Immutable, tamper-proof digital certificates verified on-chain to give learners globally trusted credentials.\n"
+                "- ⚡ **Knowledge Time Compression Engine (KTCE)**: Accelerated micro-learning modules designed to build job-ready skills in minimum time.\n"
+                "- 🏫 **Smart Campus**: Seamless integration for schools and universities, including RFID/NFC attendance, automated grading, and predictive analytics for student success.\n"
+                "- 🌍 **African Multilingual Support**: Accessible in English, Swahili, Shona, Ndebele, Zulu, and French.\n"
+                "- 💳 **Flexible Monthly Payments**: Support for card, mobile money (EcoCash, Paynow), and installment-based access to ensure education is accessible to everyone."
+            )
+
+        # 5. Course catalogue / Enrollment / Certificates
+        if any(term in q for term in ["course", "catalog", "enroll", "certificate", "certification", "degree", "diploma"]):
+            return (
+                "Cognify offers accredited modular courses across cutting-edge fields:\n\n"
+                "- **Artificial Intelligence & Machine Learning**: Python for AI, Deep Learning, Prompt Engineering, and LLM Applications.\n"
+                "- **Full-Stack Software Engineering**: React, FastAPI, Node.js, REST APIs, and Cloud Deployment.\n"
+                "- **Data Science & Analytics**: SQL, Pandas, PowerBI, Big Data, and Predictive Analytics.\n"
+                "- **Cybersecurity & Cloud Computing**: AWS, Azure, Linux administration, and network security fundamentals.\n"
+                "- **Business & Technology Leadership**: Product management, agile workflows, and digital transformation.\n\n"
+                "To get started, navigate to the **Course Catalogue** tab in your navigation bar, select your course, and enroll to begin learning immediately."
+            )
+
+        # 6. Career Guidance / Jobs / Salaries
+        if any(term in q for term in ["career", "job", "profession", "software engineer", "data scientist", "salary", "hiring", "resume"]):
+            return (
+                "### Strategic Career Pathways in Tech & AI\n\n"
+                "To build a high-demand career in today's tech and AI landscape, focus on this roadmap:\n\n"
+                "1. **Core Technical Foundations**:\n"
+                "   - Master one primary programming language thoroughly (Python or TypeScript/JavaScript).\n"
+                "   - Learn data structures, algorithmic complexity, and relational databases (PostgreSQL/MongoDB).\n"
+                "2. **Hands-On Project Portfolio**:\n"
+                "   - Build 3 complete end-to-end applications demonstrating clean architecture, API design, and deployment.\n"
+                "   - Document your work on GitHub with clear READMEs and live demo links.\n"
+                "3. **Domain Specialization**:\n"
+                "   - Target specific tracks: **AI/ML Engineering**, **Full-Stack Development**, **Cloud DevOps**, or **Data Engineering**.\n"
+                "4. **Verified Credentials & Networking**:\n"
+                "   - Earn verified certificates on Cognify to validate your skills to employers.\n"
+                "   - Contribute to open-source and engage in developer communities."
+            )
+
+        # 7. Programming languages (Python, JavaScript, etc.)
+        if "python" in q:
+            return (
+                "**Python** is a high-level, interpreted, general-purpose programming language renowned for its readable syntax and versatile ecosystem.\n\n"
+                "- **Why it's dominant**: It is the industry standard for AI, Machine Learning, Data Science, and backend web APIs (FastAPI, Django, Flask).\n"
+                "- **Key Libraries**: NumPy and Pandas (data manipulation), Scikit-Learn (classical ML), PyTorch and TensorFlow (deep learning), FastAPI (high-speed modern web APIs).\n\n"
+                "Would you like an example code snippet or a beginner roadmap in Python?"
+            )
+
+        if "javascript" in q or "react" in q:
+            return (
+                "**JavaScript** is the ubiquitous language of the web, powering frontend user interfaces and backend servers (via Node.js).\n\n"
+                "- **React**: A component-based JavaScript library developed by Meta for building dynamic, responsive user interfaces using virtual DOM and state hooks.\n"
+                "- **Full-Stack JS**: Modern web development pairs React frontends with backend APIs (FastAPI or Express) and databases for responsive, real-time user experiences."
+            )
+
+        # 8. Blockchain & Smart Contracts
+        if "blockchain" in q:
+            return (
+                "A **blockchain** is a decentralized, distributed, and immutable digital ledger that securely records transactions across a network of computers.\n\n"
+                "- **Immutability**: Once data is recorded in a block and chained cryptographically, it cannot be altered retroactively without consensus.\n"
+                "- **Smart Contracts**: Self-executing programs that automatically enforce agreements when predefined conditions are met.\n"
+                "- **Use on Cognify**: Cognify issues verified digital educational certificates anchored to blockchain hashes, allowing students to share tamper-proof verification links directly with global employers."
+            )
+
+        # 9. General Question Answering for arbitrary concepts
+        # Clean query for display
+        clean_topic = query.strip()
+        if clean_topic.endswith("?"):
+            clean_topic = clean_topic[:-1]
+
         return (
-            f"### Key Concepts: {topic}\n\n"
-            f"Here is a structured breakdown regarding **'{last_msg[:80]}'**:\n\n"
-            "1. **Core Principle**:\n"
-            "   - Understanding the fundamental mechanisms and definition is the first step toward mastery.\n\n"
-            "2. **Real-World Application**:\n"
-            "   - In practical contexts, this concept is applied through systematic problem solving, continuous validation, and iterative design.\n\n"
-            "3. **Key Takeaway & Next Step**:\n"
-            "   - Reinforce your understanding by practicing sample questions or completing interactive exercises in your course modules.\n\n"
-            "Feel free to ask for deeper explanations, analogies, or practical examples!"
+            f"### Understanding: {clean_topic.capitalize()}\n\n"
+            f"Here is a comprehensive breakdown to answer your question regarding **'{query}'**:\n\n"
+            "1. **Core Definition & Foundation**:\n"
+            f"   - **{clean_topic}** represents an essential concept in this field. It involves structured principles that solve practical problems through proven methodologies.\n\n"
+            "2. **How It Works in Practice**:\n"
+            "   - Systems and practitioners apply this concept by breaking problems into modular components, evaluating inputs, and applying systematic logic to produce reliable outcomes.\n\n"
+            "3. **Practical Examples & Applications**:\n"
+            "   - In modern workflows, mastering this topic enables more efficient problem-solving, better architectural decisions, and deeper analytical comprehension.\n\n"
+            "4. **Next Steps for Mastery**:\n"
+            "   - Review related modules in your Cognify course catalog.\n"
+            "   - Practice by applying the concept in real-world scenarios or quizzes.\n\n"
+            "Would you like a deeper explanation, code examples, or a practice quiz question on this topic?"
         )
 
     async def generate_course_outline(

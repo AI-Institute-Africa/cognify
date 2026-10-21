@@ -1,11 +1,16 @@
 """Certificate generation, verification, and PDF download routes"""
-from fastapi import APIRouter, HTTPException, Depends, Body
-from fastapi.responses import StreamingResponse
 from datetime import datetime, timezone
 import uuid
 
-from database import db
-from auth_utils import get_current_user
+from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+
+try:
+    from backend.auth_utils import get_current_user
+    from backend.database import db
+except ImportError:  # pragma: no cover - compatibility with script execution
+    from auth_utils import get_current_user
+    from database import db
 
 certificates_api_router = APIRouter(prefix="/certificates", tags=["Certificates"])
 
