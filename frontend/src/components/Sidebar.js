@@ -48,7 +48,8 @@ import {
   BarChart3,
   Shield,
   UserCheck,
-  Newspaper
+  Newspaper,
+  MessageCircle
 } from 'lucide-react';
 
 const navItems = {
@@ -247,6 +248,7 @@ const navItems = {
     { path: '/super-admin', icon: Shield, label: 'Super Admin Console' },
     { path: '/super-admin/payment-management', icon: CreditCard, label: 'Payment Management' },
     { path: '/super-admin/publishing', icon: Newspaper, label: 'Publishing Config' },
+    { path: '/super-admin/whatsapp', icon: MessageCircle, label: 'WhatsApp Control' },
     { divider: true, label: 'System' },
     { path: '/public', icon: Globe, label: 'Public Library' },
     { path: '/courses', icon: BookOpen, label: 'All Courses' },
