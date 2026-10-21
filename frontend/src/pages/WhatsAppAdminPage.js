@@ -13,7 +13,7 @@ export default function WhatsAppAdminPage() {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connectMethod, setConnectMethod] = useState('qr');
-  const [phoneInput, setPhoneInput] = useState('');
+  const [phoneInput, setPhoneInput] = useState('+263786434988');
   const [recipients, setRecipients] = useState([]);
   const [messages, setMessages] = useState([]);
   const [newRecipient, setNewRecipient] = useState({ name: '', phone: '', alerts: ['morning', 'evening', 'weekly', 'registration'] });
@@ -22,10 +22,13 @@ export default function WhatsAppAdminPage() {
   const [sending, setSending] = useState(false);
   const [activeTab, setActiveTab] = useState('connection');
 
-  const getHeaders = () => ({
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${localStorage.getItem('token')}`
-  });
+  const getHeaders = () => {
+    const token = localStorage.getItem('cognify_token') || localStorage.getItem('token') || '';
+    return {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    };
+  };
 
   const fetchStatus = useCallback(async () => {
     try {
