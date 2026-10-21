@@ -16,6 +16,7 @@ const PORT = process.env.PORT || 3001;
 const COGNIFY_BACKEND = process.env.COGNIFY_BACKEND_URL || 'http://localhost:8000';
 const AUTH_DIR = path.join(__dirname, 'data', 'baileys_auth');
 const SETTINGS_FILE = path.join(__dirname, 'data', 'whatsapp_ai_settings.json');
+const LID_MAP_FILE = path.join(__dirname, 'data', 'lid_mappings.json');
 
 // Ensure data directory exists
 if (!fs.existsSync(path.join(__dirname, 'data'))) fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
@@ -32,7 +33,7 @@ const messageLog = []; // in-memory last 100 messages
 
 const logger = pino({ level: 'info' }, pino.destination('./data/whatsapp.log'));
 
-// ─── Settings helpers ────────────────────────────────────────────────────────
+// ─── Settings & LID helpers ──────────────────────────────────────────────────
 function loadSettings() {
   try {
     if (fs.existsSync(SETTINGS_FILE)) return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
@@ -41,6 +42,65 @@ function loadSettings() {
 }
 function saveSettings(s) {
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify(s, null, 2));
+}
+
+function loadLidMappings() {
+  try {
+    if (fs.existsSync(LID_MAP_FILE)) return JSON.parse(fs.readFileSync(LID_MAP_FILE, 'utf8'));
+  } catch {}
+  return {};
+}
+
+function saveLidMapping(lid, phone) {
+  try {
+    const mappings = loadLidMappings();
+    mappings[lid] = phone;
+    fs.writeFileSync(LID_MAP_FILE, JSON.stringify(mappings, null, 2));
+    logger.info({ lid, phone }, 'Saved LID to phone mapping');
+  } catch (e) {
+    logger.error(e, 'Failed to save LID mapping');
+  }
+}
+
+function extractPhoneFromTextOrJid(text, participantJid) {
+  const cleanText = (text || '').replace(/[\s\-\(\)]/g, ' ');
+
+  // 1. Check if user typed a local Zimbabwe number (e.g. 0771234567, 078..., 071..., 073...)
+  const zwLocalMatch = cleanText.match(/\b(07[1-8]\d{7})\b/);
+  if (zwLocalMatch) {
+    return '263' + zwLocalMatch[1].slice(1);
+  }
+
+  // 2. Check if user typed an international Zimbabwe number (+2637... or 2637...)
+  const zwIntlMatch = cleanText.match(/\b(?:\+?263)([1-9]\d{8})\b/);
+  if (zwIntlMatch) {
+    return '263' + zwIntlMatch[1];
+  }
+
+  // 3. Generic international number with + (9 to 13 digits)
+  const genericMatch = cleanText.match(/(?:\+)([1-9]\d{8,12})\b/);
+  if (genericMatch) {
+    return genericMatch[1];
+  }
+
+  // 4. Check if participant JID has real phone number (@s.whatsapp.net)
+  if (participantJid && participantJid.endsWith('@s.whatsapp.net')) {
+    const rawDigits = participantJid.split('@')[0].split(':')[0].replace(/\D/g, '');
+    if (rawDigits.length >= 9 && rawDigits.length <= 13) {
+      return rawDigits;
+    }
+  }
+
+  // 5. Check if this participant LID was previously mapped
+  const lidKey = participantJid ? participantJid.split('@')[0].split(':')[0] : '';
+  if (lidKey) {
+    const mappings = loadLidMappings();
+    if (mappings[lidKey]) {
+      return mappings[lidKey];
+    }
+  }
+
+  return null;
 }
 
 // ─── AI Intent & Language Detection ──────────────────────────────────────────
@@ -268,32 +328,47 @@ async function connectWhatsApp(usePairingCode = false, phoneNumber = null) {
         const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
         if (!text) continue;
 
-        logMessage('inbound', from, 'bot', text);
-        logger.info({ from, text }, 'Inbound message');
+        // ── Resolve sender JID ───────────────────────────────────────────────
+        // In group chats: remoteJid = group@g.us, participant = sender JID (may be @lid or @s.whatsapp.net)
+        // In DMs:         remoteJid = sender JID (@s.whatsapp.net or @lid)
+        const isGroup = from.endsWith('@g.us');
+        const participantJid = isGroup ? (msg.key.participant || '') : from;
+        const replyJid = from;
+        const mentionJid = participantJid || replyJid;
+
+        // Extract phone number from text, real JID, or LID mappings
+        const realPhone = extractPhoneFromTextOrJid(text, mentionJid);
+
+        logMessage('inbound', replyJid, 'bot', text);
+        logger.info({ replyJid, participantJid, realPhone, text }, 'Inbound message');
 
         // Safe jitter delay between 1.5s - 3s to mimic human response
         const delay = 1500 + Math.random() * 1500;
         await new Promise(r => setTimeout(r, delay));
 
-        // If intent is ENROLL, bundle direct account creation & OTP in one message directly to the sender JID
+        // Detect if user wants to enroll (keyword or sending a standalone phone number)
         const intent = detectIntent(text);
-        if (intent === 'enroll' && sock && connectionState === 'connected') {
+        const isStandalonePhone = /^(?:\+?263\s?[1-9]\d{8}|07[1-8]\d{7})$/.test(text.trim().replace(/[\s\-\(\)]/g, ''));
+        const isEnrollIntent = intent === 'enroll' || isStandalonePhone;
+
+        if (isEnrollIntent && sock && connectionState === 'connected') {
           try {
-            await generateAndSendEnrollment(from, text, msg.pushName);
+            await handleEnrollmentFlow(replyJid, mentionJid, realPhone, text, msg.pushName);
           } catch (e) {
-            logger.error(e, 'Failed generateAndSendEnrollment');
+            logger.error(e, 'Failed handleEnrollmentFlow');
           }
           continue;
         }
 
-        const replyData = generateReply(text, from);
+        // Regular AI auto-responder
+        const replyData = generateReply(text, mentionJid);
         if (replyData && sock && connectionState === 'connected') {
           try {
-            await sock.sendMessage(from, {
+            await sock.sendMessage(replyJid, {
               text: replyData.text,
               mentions: replyData.mentions || []
             });
-            logMessage('outbound', 'bot', from, replyData.text);
+            logMessage('outbound', 'bot', replyJid, replyData.text);
           } catch (e) {
             logger.error(e, 'Failed to send reply');
           }
@@ -311,36 +386,74 @@ async function connectWhatsApp(usePairingCode = false, phoneNumber = null) {
 function getSock() { return sock; }
 function getConnectionState() { return connectionState; }
 
-// Helper to bundle and directly send OTP
-async function generateAndSendEnrollment(fromJid, text, pushName) {
+// Full enrollment handler with real phone resolution & OTP delivery
+async function handleEnrollmentFlow(replyJid, mentionJid, realPhone, text, pushName) {
   if (!sock || connectionState !== 'connected') return;
   const lang = detectLanguage(text);
+  const userTag = mentionJid ? mentionJid.split('@')[0] : 'there';
+  const mentionTag = `@${userTag}`;
+  const lidKey = mentionJid ? mentionJid.split('@')[0].split(':')[0] : '';
 
+  // 1. If we don't have a verified real phone number yet, ask the user for it
+  if (!realPhone) {
+    logger.info({ mentionJid }, 'Real phone not resolved yet — prompting user for mobile number');
+    let promptMsg = '';
+    if (lang === 'sn') {
+      promptMsg = `🎓 *Kunyoresa Pakarepo paCognify* emi ${mentionTag}\n\n` +
+        `Kuti tigadzire account yenyu yeCognify nekukutumirai OTP ye login, ndapota pindurai nenhamba yenyu ye mobile:\n\n` +
+        `👉 *ENROLL <nhamba-yefoni>*\n` +
+        `_Semuenzaniso: *ENROLL 0771234567* kana *ENROLL +263771234567*_\n\n` +
+        `Account yenyu inobva yagadzirwa ipapo nenhamba yenyu chaiyo!`;
+    } else if (lang === 'nd') {
+      promptMsg = `🎓 *Ukubhalisa Ngokushesha kuCognify* kwakho ${mentionTag}\n\n` +
+        `Ukuze sakhe i-akhawunti yakho ye-Cognify futhi sikuthumelele i-OTP yokungena, sicela uphendule ngenombolo yakho yocingo:\n\n` +
+        `👉 *ENROLL <inombolo-yocingo>*\n` +
+        `_Isibonelo: *ENROLL 0771234567* noma *ENROLL +263771234567*_\n\n` +
+        `I-akhawunti yakho izokwenziwa ngokushesha ngenombolo yakho yangempela!`;
+    } else {
+      promptMsg = `🎓 *Cognify Instant WhatsApp Enrollment* for ${mentionTag}\n\n` +
+        `To create your Cognify account and send your secure 6-digit login OTP, please reply with your mobile phone number:\n\n` +
+        `👉 *ENROLL <your-phone-number>*\n` +
+        `_Example: *ENROLL 0771234567* or *ENROLL +263771234567*_\n\n` +
+        `Your account will be created immediately with your real mobile number, and your login code will appear right here!`;
+    }
+
+    await sock.sendMessage(replyJid, {
+      text: promptMsg,
+      mentions: [mentionJid]
+    });
+    logMessage('outbound', 'bot', replyJid, promptMsg);
+    return;
+  }
+
+  // 2. If sender had an LID, persist mapping so future messages auto-recognize them
+  if (mentionJid.includes('@lid') && lidKey) {
+    saveLidMapping(lidKey, realPhone);
+  }
+
+  // 3. Call backend /api/whatsapp/direct-enroll with the real phone number
   try {
-    // 1. Call backend to get real OTP code and create/find account
-    const cleanPhone = fromJid.replace(/@.*$/, '').replace(/\D/g, '');
     const res = await axios.post(`${COGNIFY_BACKEND}/api/whatsapp/direct-enroll`, {
-      phone_number: cleanPhone,
+      phone_number: realPhone,
       name: pushName || null
     });
 
     const { code, is_new_user, phone } = res.data;
-    const userPhone = fromJid.split('@')[0];
-    const mentionTag = `@${userPhone}`;
+    const displayPhone = phone || `+${realPhone}`;
 
-    // 2. Build one comprehensive message with instructions + the actual 6-digit OTP code
+    // 4. Build bundled response with real phone number + OTP
     let finalMessage = '';
     if (lang === 'sn') {
       finalMessage = `🎓 *Kunyoresa Pakarepo paCognify* emi ${mentionTag}\n\n` +
         `🎉 *Account yenyu yagadzirwa ipapo!*\n\n` +
         `🔐 *Code Yenyu yeOTP*: *${code}*\n\n` +
         `1️⃣ *Zvinhu zvekupinda nazvo*:\n` +
-        `• Nhamba: *${userPhone}*\n` +
+        `• Nhamba yeFoni: *${displayPhone}*\n` +
         `• Code yeOTP: *${code}*\n\n` +
         `2️⃣ *Kupinda muPortal*:\n` +
         `• Vhura: http://localhost:3000/login\n` +
         `• Sarudza *Phone (OTP)*\n` +
-        `• Isa nhamba yako ne code: *${code}*\n\n` +
+        `• Isa nhamba: *${displayPhone}* ne code: *${code}*\n\n` +
         `3️⃣ *Profile Yako*:\n` +
         `• Kana wangopinda, zadzisa zita nezvidzidzo pasi pe *Settings*!\n\n` +
         `🚀 _Tanga kudzidza ne AI Mentor pakarepo!_`;
@@ -349,12 +462,12 @@ async function generateAndSendEnrollment(fromJid, text, pushName) {
         `🎉 *I-akhawunti yakho isidaliwe ngqo!*\n\n` +
         `🔐 *Ikhodi Yakho ye-OTP*: *${code}*\n\n` +
         `1️⃣ *Imininingwane Yokungena*:\n` +
-        `• Inombolo: *${userPhone}*\n` +
+        `• Inombolo Yocingo: *${displayPhone}*\n` +
         `• Ikhodi ye-OTP: *${code}*\n\n` +
         `2️⃣ *Ukungena ku-Portal*:\n` +
         `• Vakashela: http://localhost:3000/login\n` +
         `• Khetha *Phone (OTP)*\n` +
-        `• Faka inombolo yakho nekhodi: *${code}*\n\n` +
+        `• Faka inombolo: *${displayPhone}* nekhodi: *${code}*\n\n` +
         `3️⃣ *Qedela I-Profile*:\n` +
         `• Uma ungena, qedela igama nezifundo ku *Settings*!\n\n` +
         `🚀 _Qala ukufunda ne-AI Mentor ngokushesha!_`;
@@ -363,30 +476,27 @@ async function generateAndSendEnrollment(fromJid, text, pushName) {
         `🎉 *Your Cognify account has been created!*\n\n` +
         `🔐 *Your Secure Login OTP*: *${code}*\n\n` +
         `1️⃣ *Your Login Credentials*:\n` +
-        `• Mobile Number: *${userPhone}*\n` +
+        `• Mobile Number: *${displayPhone}*\n` +
         `• 6-Digit OTP Code: *${code}*\n\n` +
         `2️⃣ *One-Click Direct Login*:\n` +
         `• Go to: http://localhost:3000/login\n` +
         `• Select *Login with Phone (OTP)*\n` +
-        `• Enter your number: *${userPhone}* and Code: *${code}*\n\n` +
+        `• Enter your number: *${displayPhone}* and Code: *${code}*\n\n` +
         `3️⃣ *Complete Your Profile*:\n` +
         `• Head to *Settings / Profile* after login to customize your tracks & goals.\n\n` +
         `🚀 _Your courses and AI Mentor are waiting for you!_`;
     }
 
-    await sock.sendMessage(fromJid, {
+    await sock.sendMessage(replyJid, {
       text: finalMessage,
-      mentions: [fromJid]
+      mentions: [mentionJid]
     });
-    logMessage('outbound', 'bot', fromJid, finalMessage);
-    logger.info({ fromJid, code }, 'Bundled enrollment reply with real OTP sent successfully');
+    logMessage('outbound', 'bot', replyJid, finalMessage);
+    logger.info({ replyJid, mentionJid, displayPhone, code }, 'Bundled enrollment reply with real OTP sent successfully');
   } catch (err) {
-    logger.error(err, 'Failed in generateAndSendEnrollment');
-    // Fallback: send standard response
-    const replyData = generateReply(text, fromJid);
-    if (replyData) {
-      await sock.sendMessage(fromJid, { text: replyData.text, mentions: replyData.mentions || [] });
-    }
+    logger.error(err, 'Failed in handleEnrollmentFlow');
+    const errMsg = `⚠️ Unable to complete enrollment: ${err?.response?.data?.detail || err.message}. Please reply with *ENROLL <your-phone-number>*.`;
+    await sock.sendMessage(replyJid, { text: errMsg, mentions: [mentionJid] });
   }
 }
 app.get('/status', (req, res) => {

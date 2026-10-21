@@ -40,8 +40,21 @@ def normalize_phone_number(raw_phone: str) -> str:
     if not raw_phone:
         raise ValueError("Phone number is required")
     
-    cleaned = re.sub(r"[\s\-\(\)]", "", str(raw_phone).strip())
+    raw_str = str(raw_phone).strip()
+    if "@lid" in raw_str.lower():
+        raise ValueError("Invalid phone number: WhatsApp Linked Device ID (LID) cannot be used as a phone number.")
     
+    cleaned = re.sub(r"[\s\-\(\)]", "", raw_str)
+    
+    # Reject known WhatsApp LID patterns (e.g. 14-15 digit non-phone IDs)
+    if cleaned.startswith("+"):
+        digits = cleaned[1:]
+    else:
+        digits = cleaned
+        
+    if digits.isdigit() and (len(digits) >= 14 and not digits.startswith("263")) and (digits.startswith("1045") or digits.startswith("3535") or len(digits) > 13):
+        raise ValueError(f"Invalid mobile number: '{raw_phone}' appears to be an internal WhatsApp device ID (LID), not a valid phone number. Please provide a real mobile number.")
+
     # If starts with +, ensure digits only after
     if cleaned.startswith("+"):
         digits = cleaned[1:]
