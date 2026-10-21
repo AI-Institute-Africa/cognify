@@ -3763,21 +3763,22 @@ async def landing_upload_file(
         filename = file.filename.lower() if file.filename else ""
         
         # Check file type
+        user_question = question.strip() if question and question.strip() else "Please provide a comprehensive technical analysis of this document, summarizing its key components, architecture, and specifications."
+
         if file.content_type and file.content_type.startswith("image/"):
             # Vision analysis for images
             base64_image = base64.b64encode(content).decode('utf-8')
             image_data = f"data:{file.content_type};base64,{base64_image}"
             
-            system_message = """You are Cognify's AI assistant on the landing page, analyzing an uploaded image.
-            Describe what you see in detail. If it's educational content (notes, diagrams, problems), explain it helpfully.
-            Encourage the user to sign up for full access to our AI tutoring features."""
+            system_message = f"""You are Cognify's AI assistant analyzing the uploaded image: '{file.filename}'.
+Describe what you see in detail. If it contains educational diagrams, architecture models, or study material, break it down clearly."""
             
             chat = LlmChat(api_key=api_key, session_id=f"landing-img-{uuid.uuid4()}", system_message=system_message)
             chat.with_model("openai", "gpt-5.2")
             
-            user_question = question if question else "What do you see in this image?"
+            user_msg_text = f"[ATTACHED IMAGE: {file.filename}]\nUser Request: {user_question}"
             response = await chat.send_message(UserMessage(
-                text=user_question,
+                text=user_msg_text,
                 image_url=image_data
             ))
         elif filename.endswith('.pdf'):
@@ -3792,30 +3793,31 @@ async def landing_upload_file(
                     tmp_path = tmp.name
                 
                 doc = fitz.open(tmp_path)
-                for page in doc:
-                    text_content += page.get_text()
+                for page_idx, page in enumerate(doc):
+                    p_txt = page.get_text()
+                    if p_txt.strip():
+                        text_content += f"\n--- Page {page_idx + 1} ---\n" + p_txt
                 doc.close()
                 os.unlink(tmp_path)
             except Exception as pdf_error:
                 logging.warning(f"PDF extraction error: {pdf_error}")
-                text_content = content.decode('utf-8', errors='ignore')[:5000]
+                text_content = content.decode('utf-8', errors='ignore')[:25000]
             
-            system_message = f"""You are Cognify's AI assistant, analyzing a PDF document.
-            
-            Document content (first 5000 chars):
-            {text_content[:5000]}
-            
-            Provide a helpful summary, answer questions, and offer insights about the document.
-            Encourage the user to sign up for full AI tutoring features."""
+            system_message = f"""You are Cognify's AI assistant analyzing the PDF document '{file.filename}'.
+Provide a thorough, comprehensive technical summary and analysis."""
             
             chat = LlmChat(api_key=api_key, session_id=f"landing-pdf-{uuid.uuid4()}", system_message=system_message)
             chat.with_model("openai", "gpt-5.2")
             
-            user_question = question if question else "Please summarize this PDF document and highlight the key points."
-            response = await chat.send_message(UserMessage(text=user_question))
+            user_prompt = f"""[ATTACHED DOCUMENT: {file.filename}]
+User Request: {user_question}
+
+DOCUMENT CONTENT:
+{text_content[:35000]}"""
+            response = await chat.send_message(UserMessage(text=user_prompt))
             
         elif filename.endswith(('.doc', '.docx')):
-            # Extract text from Word documents
+            # Extract text and tables from Word documents
             import tempfile
             text_content = ""
             
@@ -3827,28 +3829,37 @@ async def landing_upload_file(
                 
                 doc = docx.Document(tmp_path)
                 for para in doc.paragraphs:
-                    text_content += para.text + "\n"
+                    p_text = para.text.strip()
+                    if p_text:
+                        text_content += p_text + "\n"
+                
+                for table in doc.tables:
+                    text_content += "\n[TABLE DATA]\n"
+                    for row in table.rows:
+                        row_cells = [c.text.strip().replace('\n', ' ') for c in row.cells]
+                        if any(row_cells):
+                            text_content += " | ".join(row_cells) + "\n"
+                            
                 os.unlink(tmp_path)
             except Exception as doc_error:
                 logging.warning(f"DOCX extraction error: {doc_error}")
-                text_content = content.decode('utf-8', errors='ignore')[:5000]
+                text_content = content.decode('utf-8', errors='ignore')[:25000]
             
-            system_message = f"""You are Cognify's AI assistant, analyzing a Word document.
-            
-            Document content:
-            {text_content[:5000]}
-            
-            Provide a helpful summary and offer insights.
-            Encourage the user to sign up for full AI tutoring features."""
+            system_message = f"""You are Cognify's AI assistant analyzing the Word document '{file.filename}'.
+Provide a thorough, comprehensive technical summary and analysis."""
             
             chat = LlmChat(api_key=api_key, session_id=f"landing-doc-{uuid.uuid4()}", system_message=system_message)
             chat.with_model("openai", "gpt-5.2")
             
-            user_question = question if question else "Please summarize this document and highlight the key points."
-            response = await chat.send_message(UserMessage(text=user_question))
+            user_prompt = f"""[ATTACHED DOCUMENT: {file.filename}]
+User Request: {user_question}
+
+DOCUMENT CONTENT:
+{text_content[:35000]}"""
+            response = await chat.send_message(UserMessage(text=user_prompt))
             
         elif filename.endswith(('.ppt', '.pptx')):
-            # Extract text from PowerPoint
+            # Extract text and tables from PowerPoint
             import tempfile
             text_content = ""
             
@@ -3859,48 +3870,86 @@ async def landing_upload_file(
                     tmp_path = tmp.name
                 
                 prs = Presentation(tmp_path)
-                for slide in prs.slides:
+                for slide_idx, slide in enumerate(prs.slides):
+                    text_content += f"\n--- Slide {slide_idx + 1} ---\n"
                     for shape in slide.shapes:
-                        if hasattr(shape, "text"):
-                            text_content += shape.text + "\n"
+                        if hasattr(shape, "text") and shape.text.strip():
+                            text_content += shape.text.strip() + "\n"
+                        if shape.has_table:
+                            for row in shape.table.rows:
+                                row_cells = [cell.text.strip().replace('\n', ' ') for cell in row.cells]
+                                if any(row_cells):
+                                    text_content += " | ".join(row_cells) + "\n"
                 os.unlink(tmp_path)
             except Exception as ppt_error:
                 logging.warning(f"PPTX extraction error: {ppt_error}")
-                text_content = content.decode('utf-8', errors='ignore')[:5000]
+                text_content = content.decode('utf-8', errors='ignore')[:25000]
             
-            system_message = f"""You are Cognify's AI assistant, analyzing a PowerPoint presentation.
-            
-            Presentation content:
-            {text_content[:5000]}
-            
-            Provide a summary of the presentation slides and key points.
-            Encourage the user to sign up for full AI tutoring features."""
+            system_message = f"""You are Cognify's AI assistant analyzing the PowerPoint presentation '{file.filename}'.
+Provide a comprehensive slide-by-slide analysis and key takeaways."""
             
             chat = LlmChat(api_key=api_key, session_id=f"landing-ppt-{uuid.uuid4()}", system_message=system_message)
             chat.with_model("openai", "gpt-5.2")
             
-            user_question = question if question else "Please summarize this presentation and highlight the main points."
-            response = await chat.send_message(UserMessage(text=user_question))
+            user_prompt = f"""[ATTACHED DOCUMENT: {file.filename}]
+User Request: {user_question}
+
+DOCUMENT CONTENT:
+{text_content[:35000]}"""
+            response = await chat.send_message(UserMessage(text=user_prompt))
+        elif filename.endswith(('.xlsx', '.xls', '.csv')):
+            # Spreadsheet analysis
+            import tempfile
+            text_content = ""
+            try:
+                if filename.endswith('.csv'):
+                    text_content = content.decode('utf-8', errors='ignore')[:25000]
+                else:
+                    import openpyxl
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp:
+                        tmp.write(content)
+                        tmp_path = tmp.name
+                    wb = openpyxl.load_workbook(tmp_path, read_only=True, data_only=True)
+                    for sheetname in wb.sheetnames[:5]:
+                        ws = wb[sheetname]
+                        text_content += f"\n[SHEET: {sheetname}]\n"
+                        for row in list(ws.iter_rows(values_only=True))[:100]:
+                            row_vals = [str(v).strip() for v in row if v is not None]
+                            if row_vals:
+                                text_content += " | ".join(row_vals) + "\n"
+                    wb.close()
+                    os.unlink(tmp_path)
+            except Exception as xl_err:
+                logging.warning(f"Spreadsheet error: {xl_err}")
+                text_content = content.decode('utf-8', errors='ignore')[:25000]
+
+            system_message = f"""You are Cognify's AI assistant analyzing the dataset '{file.filename}'."""
+            chat = LlmChat(api_key=api_key, session_id=f"landing-sheet-{uuid.uuid4()}", system_message=system_message)
+            chat.with_model("openai", "gpt-5.2")
+            
+            user_prompt = f"""[ATTACHED DOCUMENT: {file.filename}]
+User Request: {user_question}
+
+DOCUMENT CONTENT:
+{text_content[:35000]}"""
+            response = await chat.send_message(UserMessage(text=user_prompt))
         else:
             # Text analysis for other documents
             try:
-                text_content = content.decode('utf-8', errors='ignore')[:5000]
-            except:
+                text_content = content.decode('utf-8', errors='ignore')[:25000]
+            except Exception:
                 text_content = "[Binary file uploaded]"
             
-            system_message = f"""You are Cognify's AI assistant on the landing page, analyzing an uploaded document.
-            
-            Document content:
-            {text_content}
-            
-            Provide a helpful summary or answer questions about the document.
-            Encourage the user to sign up for full access to our AI tutoring features."""
-            
+            system_message = f"""You are Cognify's AI assistant analyzing the document '{file.filename}'."""
             chat = LlmChat(api_key=api_key, session_id=f"landing-doc-{uuid.uuid4()}", system_message=system_message)
             chat.with_model("openai", "gpt-5.2")
             
-            user_question = question if question else "Please summarize this document."
-            response = await chat.send_message(UserMessage(text=user_question))
+            user_prompt = f"""[ATTACHED DOCUMENT: {file.filename}]
+User Request: {user_question}
+
+DOCUMENT CONTENT:
+{text_content[:35000]}"""
+            response = await chat.send_message(UserMessage(text=user_prompt))
         
         return {"response": response}
         
