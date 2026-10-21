@@ -1,7 +1,7 @@
 require('dotenv').config();
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 const express = require('express');
-const { makeWASocket, useMultiFileAuthState, DisconnectReason, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys');
+const { makeWASocket, useMultiFileAuthState, DisconnectReason, makeCacheableSignalKeyStore, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const qrcode = require('qrcode');
 const cron = require('node-cron');
@@ -119,39 +119,44 @@ async function connectWhatsApp(usePairingCode = false, phoneNumber = null) {
   pairingCode = null;
 
   try {
+    if (sock) {
+      try { sock.end(undefined); } catch {}
+      sock = null;
+    }
+
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
 
     sock = makeWASocket({
       auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
       printQRInTerminal: false,
       logger,
-      browser: ['Cognify', 'Chrome', '1.0.0'],
+      browser: Browsers.macOS('Desktop'),
       syncFullHistory: false,
     });
 
-    if (usePairingCode && phoneNumber && !sock.authState.creds.registered) {
-      setTimeout(async () => {
-        try {
-          const code = await sock.requestPairingCode(phoneNumber.replace(/\D/g, ''));
-          pairingCode = code;
-          connectionState = 'qr_ready';
-          logger.info({ code }, 'Pairing code generated');
-        } catch (e) {
-          logger.error(e, 'Failed to get pairing code');
-        }
-      }, 3000);
-    }
-
     sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+    sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
       if (qr) {
         connectionState = 'qr_ready';
         qrcode.toDataURL(qr, (err, url) => {
           if (!err) latestQR = url;
         });
         logger.info('QR code ready');
+
+        // If user requested pairing code, request it as soon as the socket is ready for registration
+        if (usePairingCode && phoneNumber && !sock.authState.creds.registered && !pairingCode) {
+          try {
+            const rawNum = phoneNumber.replace(/\D/g, '');
+            const code = await sock.requestPairingCode(rawNum);
+            pairingCode = code;
+            logger.info({ code }, 'Pairing code generated successfully');
+          } catch (e) {
+            logger.error(e, 'Error generating pairing code');
+          }
+        }
       }
+
       if (connection === 'open') {
         connectionState = 'connected';
         reconnectAttempts = 0;
@@ -159,12 +164,20 @@ async function connectWhatsApp(usePairingCode = false, phoneNumber = null) {
         pairingCode = null;
         logger.info('WhatsApp connected successfully');
       }
+
       if (connection === 'close') {
         connectionState = 'disconnected';
         const reason = lastDisconnect?.error?.output?.statusCode;
-        const shouldReconnect = reason !== DisconnectReason.loggedOut;
         logger.info({ reason }, 'Connection closed');
-        if (shouldReconnect && reconnectAttempts < MAX_RECONNECT) {
+        
+        if (reason === 401 || reason === DisconnectReason.loggedOut) {
+          logger.warn('Auth invalid or logged out, resetting session credentials');
+          fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+          fs.mkdirSync(AUTH_DIR, { recursive: true });
+          return;
+        }
+
+        if (reconnectAttempts < MAX_RECONNECT) {
           reconnectAttempts++;
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
           logger.info({ delay, reconnectAttempts }, 'Reconnecting...');
