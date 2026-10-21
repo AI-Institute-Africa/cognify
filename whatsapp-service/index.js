@@ -69,27 +69,28 @@ function detectIntent(text) {
 const RESPONSES = {
   en: {
     greeting: `👋 Hello @{USER}! Welcome to *Cognify* — Africa's AI-powered learning platform.\n\nI can help you with:\n📚 *Course & Program info*\n💰 *Fees & Payment*\n📋 *Application status*\n🎓 *Enrollment & Registration*\n\nHow can I assist you today?`,
-    enroll: `🎓 *Cognify Enrollment Steps* for @{USER}
+    enroll: `🎓 *Cognify Instant WhatsApp Enrollment* for @{USER}
 
-Welcome aboard! Follow these official steps to complete your registration:
+🎉 *Your Cognify account has been created directly here on WhatsApp!*
 
-1️⃣ *Create Your Account*:
-• Visit: http://localhost:3000/register
-• Choose *Phone (OTP)* or *Email* registration.
-• You will receive a verification code directly on your WhatsApp or SMS.
+You do not need to fill out a website registration form. Follow these quick steps to access your learning portal:
 
-2️⃣ *Select Your Program / Diploma*:
-• Browse courses: AI & Machine Learning, Data Science, Cloud Computing & Cybersecurity.
-• Choose between Self-Paced or Instructor-Led cohorts.
+1️⃣ *Your Login Credentials*:
+• Mobile Number: @{USER}
+• Verification Code: *Sent below via WhatsApp OTP*
 
-3️⃣ *Complete Tuition & Fee Verification*:
-• Flexible payment methods: EcoCash, InnBucks, Card, or Bank Transfer.
-• Submit proof of payment on your dashboard for fast-track 24h approval.
+2️⃣ *Direct One-Click Login*:
+• Go to: http://localhost:3000/login
+• Select *Login with Phone (OTP)*
+• Enter your number: @{USER} and your 6-digit WhatsApp OTP.
 
-4️⃣ *Access Your Learning Dashboard*:
-• Start interactive lessons, work with your AI mentor, and take practice quizzes immediately!
+3️⃣ *Complete Your Profile*:
+• Once logged in, go to *Settings / Profile* to choose your learning track, set your career goals, and add your name.
 
-📌 *Need Help?* Reply with *SUPPORT* or speak directly with an admissions officer at support@cognify.com.`,
+4️⃣ *Start Learning*:
+• Access your AI Mentor, interactive quizzes, courses, and certifications immediately!
+
+📌 Check your next incoming WhatsApp message for your secure 6-digit login OTP code.`,
     pricing: `💰 *Cognify Course Fees* for @{USER}\n\n• Individual Courses: from $10/month\n• Professional Certificates: from $25/month\n• Corporate Training Packages: Custom pricing\n• Organization Plans: Contact us for bulk pricing\n\n✅ All plans include AI mentor, quizzes & certificates.\n\nTo enroll, reply with *ENROLL* for instant step-by-step guidance.`,
     programs: `📚 *Cognify Learning Programs* for @{USER}\n\n🎓 *Professional Certificates*\n• AI & Machine Learning\n• Data Science & Analytics\n• Cybersecurity Fundamentals\n• Cloud Computing\n\n💼 *Corporate Training*\n• Custom corporate upskilling\n• Team learning dashboards\n• Progress tracking & reporting\n\n🌍 Available in English, Shona & Ndebele.\n\nReply *ENROLL* to get the registration steps!`,
     application_status: `📋 *Application Status* for @{USER}\n\nTo check your application status, please provide your *reference number* (e.g. CGN-2026-XXXX).\n\nAlternatively, log into your Cognify account at our platform and check your dashboard.`,
@@ -99,26 +100,26 @@ Welcome aboard! Follow these official steps to complete your registration:
   },
   sn: {
     greeting: `👋 Mhoro @{USER}! Makadii ku *Cognify* — nzvimbo yekudzidza neAI muAfrica.\n\nNdinogona kukubatsira ne:\n📚 *Zvemakosi*\n💰 *Mubhadharo*\n📋 *Mamiriro ekunyorera*\n\nNdingakubatsirei nhasi?`,
-    enroll: `🎓 *Matanho Ekunyoresa paCognify* emi @{USER}
+    enroll: `🎓 *Kunyoresa Pakarepo paWhatsApp* emi @{USER}
 
-Gamuchirwai! Tevedzerai matanho aya kuti mupedze kunyoresa:
+🎉 *Account yenyu yeCognify yagadzirwa ipapo paWhatsApp!*
 
-1️⃣ *Vhura Account Yenyu*:
-• Shanyirai: http://localhost:3000/register
-• Sarudzai *Phone (OTP)* kana *Email*.
-• Muchawana code yekusimbisa paWhatsApp kana SMS.
+Hapana chikonzero chekuvhura fomu pawebhusaiti:
 
-2️⃣ *Sarudza Kosi Yaunoda*:
-• AI & Machine Learning, Data Science, Cybersecurity kana Cloud Computing.
+1️⃣ *Zvinhu zvekupinda nazvo*:
+• Nhamba: @{USER}
+• Code yeOTP: *Yatove kuuya paWhatsApp yako*
 
-3️⃣ *Bhadhara Mari yeChikoro*:
-• Shandisa EcoCash, InnBucks, Card kana Bank Transfer.
-• Isa receipt pa portal kuti vatarise mukati memaawa 24.
+2️⃣ *Kupinda muPortal*:
+• Endai pa: http://localhost:3000/login
+• Sarudzai *Phone (OTP)*
+• Isa nhamba @{USER} ne code yawakatumirwa.
+
+3️⃣ *Pedzisa Profile Yako*:
+• Kana wangopinda, zadzisa zita rako nezvidzidzo zvaunoda pasi pe *Settings*.
 
 4️⃣ *Tanga Kudzidza*:
-• Pinda mudashboard rako utange kudzidza ne AI Mentor pakarepo!
-
-📌 Taura *SUPPORT* kana uchida rubatsiro rwakadzama.`,
+• AI Mentor nemakosi ose zvatovhurwa!`,
     pricing: `💰 *Mitengo yeCognify* ye @{USER}\n\n• Makosi: kutanga pa $10/mwedzi\n• Zvitupa: kutanga pa $25/mwedzi\n• Zvemakambani: Mitengo inotauriranwa\n\n✅ Zvese zvine AI mentor nezvitupa zvinotaridza kupasa.\n\nPindura *ENROLL* kuti uwane matanho ekunyoresa.`,
     programs: `📚 *Zvirongwa zvedu zveDzidzo* zve @{USER}\n\n🎓 *Zvitupa Zvepamusoro*\n• AI & Machine Learning\n• Data Science\n• Cybersecurity\n• Cloud Computing\n\n💼 *Dzidziso dzeMakambani*\n• Upskilling yevashandi\n• Team dashboards\n\nPindura *ENROLL* kuti utange.`,
     application_status: `📋 *Kutarisa Application* ya @{USER}\n\nNdokumbira unyore *reference number* yako (semuenzaniso: CGN-2026-XXXX) kana kupinda pane dashboard rako paCognify.`,
@@ -128,26 +129,26 @@ Gamuchirwai! Tevedzerai matanho aya kuti mupedze kunyoresa:
   },
   nd: {
     greeting: `👋 Sawubona @{USER}! Wamukelekile ku *Cognify* — inkundla yokufunda ye-AI e-Afrika.\n\nNgingakusiza nge:\n📚 *Izifundo nezinhlelo*\n💰 *Izimali zokufunda*\n📋 *Isimo sesicelo*\n\nNgingakusiza ngani namuhla?`,
-    enroll: `🎓 *Izinyathelo Zokubhalisa kuCognify* zakho @{USER}
+    enroll: `🎓 *Ukubhalisa Ngokushesha kuWhatsApp* kwakho @{USER}
 
-Wamukelekile! Landela lezi zinyathelo ezilandelayo ukuze uqedele ukubhalisa:
+🎉 *I-akhawunti yakho yeCognify isidaliwe ngqo lapha kuWhatsApp!*
 
-1️⃣ *Vula I-akhawunti Yakho*:
-• Vakashela: http://localhost:3000/register
-• Khetha *Phone (OTP)* noma *Email*.
-• Uzothola ikhodi yokungena ku-WhatsApp noma SMS.
+Akudingeki ugcwalise ifomu lewebhusayithi:
 
-2️⃣ *Khetha Isifundo Sakho*:
-• AI & Machine Learning, Data Science, Cybersecurity noma Cloud Computing.
+1️⃣ *Imininingwane Yakho Yokungena*:
+• Inombolo: @{USER}
+• Ikhodi ye-OTP: *Ithunyelwe ngqo kuWhatsApp yakho*
 
-3️⃣ *Khokha Imali Yesifundo*:
-• Khokha nge-EcoCash, InnBucks, Card noma Bank Transfer.
-• Layisha irisidi lakho ku-portal.
+2️⃣ *Ukungena ku-Portal*:
+• Vakashela: http://localhost:3000/login
+• Khetha *Phone (OTP)*
+• Faka inombolo @{USER} nekhodi oyitholile.
+
+3️⃣ *Qedela I-Profile Yakho*:
+• Uma ungena, yiya ku *Settings* ukuze uqedele igama lakho nezifundo ozithandayo.
 
 4️⃣ *Qala Ukufunda*:
-• Ngena ku-dashboard yakho uqale ukufunda ne-AI Mentor ngokushesha!
-
-📌 Phendula ngokuthi *SUPPORT* uma udinga usizo.`,
+• I-AI Mentor nezifundo kukulindile!`,
     pricing: `💰 *Izindleko zeCognify* zakho @{USER}\n\n• Izifundo: kusukela ku-$10 ngenyanga\n• Izitifiketi: kusukela ku-$25 ngenyanga\n• Amabhizinisi: Amanani akhethekile\n\nPhendula ngokuthi *ENROLL* ukuze uthole izinyathelo zokubhalisa.`,
     programs: `📚 *Izinhlelo zeCognify* zakho @{USER}\n\n🎓 *Izitifiketi Zobuchwepheshe*\n• AI & Machine Learning\n• Data Science\n• Cybersecurity\n• Cloud Computing\n\nPhendula *ENROLL* ukuze uqalise.`,
     application_status: `📋 *Isimo Sesicelo* sakho @{USER}\n\nSicela unikeze *i-reference number* yakho ukuze sihlolisise isimo sesicelo sakho.`,
@@ -282,6 +283,22 @@ async function connectWhatsApp(usePairingCode = false, phoneNumber = null) {
               mentions: replyData.mentions || []
             });
             logMessage('outbound', 'bot', from, replyData.text);
+
+            // If intent is ENROLL, automatically trigger direct account creation & OTP dispatch
+            const intent = detectIntent(text);
+            if (intent === 'enroll') {
+              const cleanPhone = from.replace(/@.*$/, '').replace(/\D/g, '');
+              const senderPushName = msg.pushName || null;
+              try {
+                logger.info({ cleanPhone }, 'Triggering direct WhatsApp account creation and OTP...');
+                await axios.post(`${COGNIFY_BACKEND}/api/whatsapp/direct-enroll`, {
+                  phone_number: cleanPhone,
+                  name: senderPushName
+                });
+              } catch (apiErr) {
+                logger.error(apiErr.response?.data || apiErr.message, 'Failed calling direct-enroll API');
+              }
+            }
           } catch (e) {
             logger.error(e, 'Failed to send reply');
           }

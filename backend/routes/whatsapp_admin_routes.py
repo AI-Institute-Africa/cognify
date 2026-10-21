@@ -1,5 +1,7 @@
 """WhatsApp Admin API Routes for Cognify."""
 from __future__ import annotations
+import os
+import uuid
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -37,9 +39,108 @@ class RecipientModel(BaseModel):
     alerts: List[str] = ["morning", "evening", "weekly", "registration", "corporate"]
 
 
+class WhatsAppEnrollRequest(BaseModel):
+    phone_number: str
+    name: Optional[str] = None
+
+
 def make_whatsapp_admin_router(db):
     router = APIRouter(prefix="/whatsapp", tags=["WhatsApp Admin"])
     svc = WhatsAppService(db)
+
+    # ── WhatsApp Instant Account Creation & OTP ─────────────────────────────
+    @router.post("/direct-enroll")
+    async def whatsapp_direct_enroll(req: WhatsAppEnrollRequest):
+        """Creates or retrieves a Cognify account directly from WhatsApp,
+
+        generates a WhatsApp OTP, and dispatches it directly to the user.
+        """
+        try:
+            from services.otp_service import OTPService, normalize_phone_number
+            from services.communication_service import NotificationService
+        except ImportError:
+            from backend.services.otp_service import OTPService, normalize_phone_number
+            from backend.services.communication_service import NotificationService
+
+        try:
+            norm_phone = normalize_phone_number(req.phone_number)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        user = await db.users.find_one({"phone_number": norm_phone})
+
+        is_new_user = False
+        if not user:
+            is_new_user = True
+            user_id = str(uuid.uuid4())
+            display_name = req.name or f"Learner {norm_phone[-4:]}"
+            user_doc = {
+                "id": user_id,
+                "email": f"wa_{norm_phone.replace('+', '')}@cognify.edu",
+                "full_name": display_name,
+                "role": "student",
+                "phone_number": norm_phone,
+                "phone_verified": True,
+                "preferred_contact_method": "whatsapp",
+                "is_active": True,
+                "profile_completed": False,
+                "created_via": "whatsapp_direct_enroll",
+                "created_at": now_iso,
+                "updated_at": now_iso
+            }
+            await db.users.insert_one(user_doc)
+
+            # Insert default student profile
+            await db.student_profiles.insert_one({
+                "id": str(uuid.uuid4()),
+                "user_id": user_id,
+                "grade": "Unassigned",
+                "section": "A",
+                "phone": norm_phone,
+                "organization_id": None,
+                "enrolled_courses": [],
+                "created_at": now_iso
+            })
+        else:
+            user_id = user["id"]
+            display_name = user.get("full_name") or f"Learner {norm_phone[-4:]}"
+
+        # Generate OTP
+        otp_service = OTPService(db)
+        try:
+            code, meta = await otp_service.generate_and_store_otp(norm_phone, purpose="login")
+        except HTTPException as e:
+            if e.status_code == 429:
+                return {
+                    "ok": True,
+                    "already_sent": True,
+                    "is_new_user": is_new_user,
+                    "phone": norm_phone,
+                    "message": "OTP was already generated recently. Please use the code already received."
+                }
+            raise e
+
+        # Dispatch OTP via WhatsApp microservice
+        login_url = "http://localhost:3000/login"
+        wa_otp_msg = (
+            f"🔐 *Your Cognify Verification Code*: *{code}*\n\n"
+            f"👋 Hello {display_name}!\n"
+            f"{'🎉 Your Cognify account has been created!' if is_new_user else 'Welcome back to Cognify!'}\n\n"
+            f"Use your phone number: *{norm_phone}* and OTP code: *{code}* to log in.\n\n"
+            f"🚀 Login: {login_url}\n"
+            f"After login, you can immediately explore courses and complete your profile!"
+        )
+
+        send_res = await svc.send_message(norm_phone, wa_otp_msg)
+
+        return {
+            "ok": True,
+            "is_new_user": is_new_user,
+            "phone": norm_phone,
+            "code": code,
+            "dispatched": send_res.get("ok", False)
+        }
 
     def require_super_admin(user=Depends(get_current_user)):
         if user.get("role") not in ("super_admin", "admin"):
