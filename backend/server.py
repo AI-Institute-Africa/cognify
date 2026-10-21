@@ -14995,6 +14995,7 @@ try:
     from routes.super_admin_payment_reports import make_super_admin_reports_router
     from routes.whatsapp_webhook_routes import make_whatsapp_webhook_router
     from routes.whatsapp_admin_routes import make_whatsapp_admin_router
+    from routes.sms_admin_routes import make_sms_admin_router
 
     app.include_router(make_phone_auth_router(db, get_current_user, hash_password, verify_password, create_token), prefix="/api")
     app.include_router(make_payment_period_router(db, get_current_user), prefix="/api")
@@ -15006,8 +15007,9 @@ try:
     app.include_router(_wa_router)
 
     app.include_router(make_whatsapp_admin_router(db), prefix="/api")
+    app.include_router(make_sms_admin_router(db))
 
-    logging.info("Phone Auth + Payment Period + External Payment + Super Admin Reports + WhatsApp Webhook + WhatsApp Admin routes successfully wired")
+    logging.info("Phone Auth + Payment Period + External Payment + Super Admin Reports + WhatsApp Webhook + WhatsApp Admin + SMS Admin routes successfully wired")
 except Exception as _e:
     logging.error("Failed wiring BRD payment enhancement routes: %s", _e)
 

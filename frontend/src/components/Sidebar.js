@@ -49,7 +49,8 @@ import {
   Shield,
   UserCheck,
   Newspaper,
-  MessageCircle
+  MessageCircle,
+  Radio
 } from 'lucide-react';
 
 const navItems = {
@@ -249,6 +250,7 @@ const navItems = {
     { path: '/super-admin/payment-management', icon: CreditCard, label: 'Payment Management' },
     { path: '/super-admin/publishing', icon: Newspaper, label: 'Publishing Config' },
     { path: '/super-admin/whatsapp', icon: MessageCircle, label: 'WhatsApp Control' },
+    { path: '/super-admin/sms', icon: Radio, label: 'SMS Control Engine' },
     { divider: true, label: 'System' },
     { path: '/public', icon: Globe, label: 'Public Library' },
     { path: '/courses', icon: BookOpen, label: 'All Courses' },

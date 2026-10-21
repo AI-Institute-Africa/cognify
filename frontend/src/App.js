@@ -79,6 +79,7 @@ import PublicContentViewPage from './pages/PublicContentViewPage';
 import SuperAdminDashboardPage from './pages/SuperAdminDashboardPage';
 import PaymentManagementPage from './pages/PaymentManagementPage';
 import WhatsAppAdminPage from './pages/WhatsAppAdminPage';
+import SMSAdminPage from './pages/SMSAdminPage';
 import WhatsAppCommunityBadge from './components/WhatsAppCommunityBadge';
 
 import './App.css';
@@ -520,6 +521,11 @@ function AppRoutes() {
       <Route path="/super-admin/whatsapp" element={
         <ProtectedRoute allowedRoles={['super_admin']}>
           <WhatsAppAdminPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/super-admin/sms" element={
+        <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+          <SMSAdminPage />
         </ProtectedRoute>
       } />
       
