@@ -644,7 +644,7 @@ app.post('/disconnect', async (req, res) => {
 });
 
 app.post('/send', async (req, res) => {
-  const { to, message } = req.body;
+  const { to, message, tag_all, mentions } = req.body;
   if (!sock || connectionState !== 'connected') {
     return res.status(503).json({ error: 'WhatsApp not connected' });
   }
@@ -658,11 +658,30 @@ app.post('/send', async (req, res) => {
       jid = cleanDigits + '@s.whatsapp.net';
     }
 
+    let mentionJids = [];
+    if (jid.endsWith('@g.us') && tag_all) {
+      try {
+        const metadata = await sock.groupMetadata(jid);
+        mentionJids = (metadata.participants || []).map(p => p.id);
+        logger.info({ jid, count: mentionJids.length }, 'Fetched group participants for tag_all');
+      } catch (metaErr) {
+        logger.warn({ err: metaErr.message }, 'Failed to fetch group participants for tag_all');
+      }
+    } else if (Array.isArray(mentions)) {
+      mentionJids = mentions;
+    }
+
     const delay = 1500 + Math.random() * 1500;
     await new Promise(r => setTimeout(r, delay));
-    await sock.sendMessage(jid, { text: message });
+
+    const sendPayload = { text: message };
+    if (mentionJids.length > 0) {
+      sendPayload.mentions = mentionJids;
+    }
+
+    await sock.sendMessage(jid, sendPayload);
     logMessage('outbound', 'server', jid, message);
-    res.json({ ok: true, to: jid });
+    res.json({ ok: true, to: jid, mentioned_count: mentionJids.length });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
