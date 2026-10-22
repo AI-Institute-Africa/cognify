@@ -81,7 +81,7 @@ export default function LoginPage() {
     }
     setOtpSending(true);
     try {
-      const res = await requestPhoneOtp(identifier.trim(), otpChannel);
+      const res = await requestPhoneOtp(identifier.trim(), otpChannel, 'login');
       toast.success(res.message || `OTP sent via ${otpChannel.toUpperCase()}!`);
       if (res.dev_simulator_code) {
         setDevOtpCode(res.dev_simulator_code);

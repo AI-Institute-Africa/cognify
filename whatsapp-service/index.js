@@ -33,6 +33,14 @@ const messageLog = []; // in-memory last 100 messages
 
 const logger = pino({ level: 'info' }, pino.destination('./data/whatsapp.log'));
 
+// Prevent unexpected process exits on network drop or protocol rejections
+process.on('unhandledRejection', (reason) => {
+  logger.warn({ reason: String(reason) }, 'Unhandled Promise Rejection caught');
+});
+process.on('uncaughtException', (err) => {
+  logger.error(err, 'Uncaught Exception caught');
+});
+
 // ─── Settings & LID helpers ──────────────────────────────────────────────────
 function loadSettings() {
   try {

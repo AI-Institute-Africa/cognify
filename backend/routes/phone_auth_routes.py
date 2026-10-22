@@ -259,38 +259,92 @@ def make_phone_auth_router(db, get_current_user, hash_password, verify_password,
         except ValueError:
             pass
 
+        phone_key = norm_phone or raw_identifier.strip()
+        phone_variations = list(set([
+            raw_identifier.strip(),
+            phone_key,
+            phone_key.lstrip('+'),
+            f"+{phone_key.lstrip('+')}"
+        ]))
+
         query_conditions = []
-        if norm_phone:
-            query_conditions.append({"phone_number": norm_phone})
+        for pv in phone_variations:
+            query_conditions.append({"phone_number": pv})
+            query_conditions.append({"phone": pv})
         clean_id = raw_identifier.strip().lower()
         query_conditions.append({"email": clean_id})
-        query_conditions.append({"phone_number": raw_identifier.strip()})
 
         user = await db.users.find_one({"$or": query_conditions}, {"_id": 0})
+
         if not user:
-            raise HTTPException(status_code=401, detail="Account not found. Please check your credentials or register.")
+            # If user provided OTP, verify it and auto-provision account on the spot
+            if body.otp_code:
+                otp_doc = await db.otp_verifications.find_one(
+                    {"phone_number": {"$in": phone_variations}, "status": "pending"},
+                    sort=[("created_at", -1)]
+                )
+                purpose = otp_doc.get("purpose", "login") if otp_doc else "login"
+                verify_phone = otp_doc.get("phone_number") if otp_doc else phone_key
+
+                await otp_service.verify_otp(verify_phone, body.otp_code, purpose=purpose)
+
+                # OTP is verified! Automatically create the learner account
+                user_id = str(uuid.uuid4())
+                now_iso = datetime.now(timezone.utc).isoformat()
+                user = {
+                    "id": user_id,
+                    "full_name": f"Learner {phone_key[-4:]}",
+                    "phone_number": norm_phone or phone_key,
+                    "phone_verified": True,
+                    "phone_verified_at": now_iso,
+                    "email": None,
+                    "role": "student",
+                    "is_active": True,
+                    "registration_source": "phone_otp_auto",
+                    "created_at": now_iso,
+                    "updated_at": now_iso
+                }
+                await db.users.insert_one(user)
+                # Create empty student profile
+                await db.students.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "user_id": user_id,
+                    "full_name": user["full_name"],
+                    "phone_number": user["phone_number"],
+                    "enrolled_courses": [],
+                    "created_at": now_iso
+                })
+                logger.info(f"Auto-provisioned student account {user_id} for {norm_phone or phone_key}")
+            else:
+                raise HTTPException(status_code=401, detail="Account not found. Please check your credentials or register.")
 
         if user.get("is_active") is False:
             raise HTTPException(status_code=403, detail="Account has been deactivated. Please contact support.")
 
-        target_phone = user.get("phone_number") or norm_phone
+        target_phone = user.get("phone_number") or user.get("phone") or norm_phone or raw_identifier
 
         # Authenticate via OTP or Password
-        if body.otp_code:
-            if not target_phone:
-                raise HTTPException(status_code=400, detail="No phone number associated with this account for OTP verification.")
-            # Verify OTP with pending record
+        if body.otp_code and user.get("registration_source") != "phone_otp_auto":
+            # If user wasn't just created above, verify OTP
+            all_target_variations = list(set([
+                target_phone,
+                target_phone.lstrip('+'),
+                f"+{target_phone.lstrip('+')}",
+                *phone_variations
+            ]))
             otp_doc = await db.otp_verifications.find_one(
-                {"phone_number": target_phone, "status": "pending"},
+                {"phone_number": {"$in": all_target_variations}, "status": "pending"},
                 sort=[("created_at", -1)]
             )
             purpose = otp_doc.get("purpose", "login") if otp_doc else "login"
-            await otp_service.verify_otp(target_phone, body.otp_code, purpose=purpose)
-        elif body.password:
-            if not verify_password(body.password, user.get("password_hash", "")):
-                raise HTTPException(status_code=401, detail="Invalid phone number or password")
-        else:
-            raise HTTPException(status_code=400, detail="Please provide either password or 6-digit OTP code")
+            verify_phone = otp_doc.get("phone_number") if otp_doc else target_phone
+            await otp_service.verify_otp(verify_phone, body.otp_code, purpose=purpose)
+        elif not body.otp_code:
+            if body.password:
+                if not verify_password(body.password, user.get("password_hash", "")):
+                    raise HTTPException(status_code=401, detail="Invalid phone number or password")
+            else:
+                raise HTTPException(status_code=400, detail="Please provide either password or 6-digit OTP code")
 
         token = create_token(user["id"], user["role"], user.get("organization_id"))
         return {

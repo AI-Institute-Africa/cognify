@@ -1337,10 +1337,11 @@ export const getStudentProfileForTeacher = async (studentId) => {
 };
 
 // ==================== PHONE AUTH & OTP ====================
-export const requestPhoneOtp = async (phoneNumber, channel = 'sms') => {
+export const requestPhoneOtp = async (phoneNumber, channel = 'sms', purpose = 'registration') => {
   const response = await axios.post(`${API}/auth/phone/request-otp`, {
     phone_number: phoneNumber,
-    channel: channel
+    channel: channel,
+    purpose: purpose
   });
   return response.data;
 };
