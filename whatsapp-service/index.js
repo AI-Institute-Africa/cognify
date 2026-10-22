@@ -334,6 +334,25 @@ async function connectWhatsApp(usePairingCode = false, phoneNumber = null) {
         const replyJid = from;
         const mentionJid = participantJid || replyJid;
 
+        // ── Group message filter: only respond if bot is @tagged ──────────────
+        // In DMs (not group) → always respond.
+        // In a group → ONLY respond when the bot (@263786434988) is @mentioned.
+        if (isGroup) {
+          const botPhone = sock.user?.id?.split(':')[0] || '263786434988';
+          const mentions =
+            msg.message?.extendedTextMessage?.contextInfo?.mentionedJid ||
+            msg.message?.audioMessage?.contextInfo?.mentionedJid ||
+            [];
+          const botTagged = mentions.some(jid =>
+            jid.replace(/:\d+@.*$/, '').replace(/@.*$/, '') === botPhone ||
+            jid.startsWith(botPhone)
+          );
+          if (!botTagged) {
+            logger.info({ from, text: '(ignored – bot not @tagged)' }, 'Group message ignored');
+            continue; // silently skip — do NOT reply
+          }
+        }
+
         // Check if message is audio (voice note or audio file)
         const isAudio = Boolean(msg.message?.audioMessage);
         let audioTranscribedText = '';
