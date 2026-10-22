@@ -16,12 +16,14 @@ import PhoneInputWithCountry from '../components/PhoneInputWithCountry';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 const DEDICATED_PAYNOW_URL = 'https://www.paynow.co.zw/aiia';
+// Paynow EcoCash gateway — direct EcoCash bill payment link
+const PAYNOW_ECOCASH_GATEWAY_URL = 'https://www.paynow.co.zw/Payment/BillPaymentV2?q=aiia';
 
 const PAYMENT_METHODS = [
-  { id: 'paynow', name: 'Paynow Dedicated Portal', icon: Building2, color: 'blue', description: 'Pay directly via paynow.co.zw/aiia (All methods)' },
-  { id: 'ecocash', name: 'EcoCash Push Prompt', icon: Phone, color: 'green', description: 'Instant prompt sent to your mobile phone' },
+  { id: 'paynow', name: 'Paynow Dedicated Portal', icon: Building2, color: 'blue', description: 'Pay directly via paynow.co.zw/aiia — all methods' },
+  { id: 'ecocash', name: 'EcoCash Push Prompt', icon: Phone, color: 'green', description: 'Instant EcoCash USSD prompt sent to your phone' },
   { id: 'innbucks', name: 'InnBucks Wallet', icon: Phone, color: 'orange', description: 'Pay with InnBucks wallet' },
-  { id: 'mastercard', name: 'Visa / Mastercard', icon: CreditCard, color: 'red', description: 'Debit or Credit Card' },
+  { id: 'mastercard', name: 'Visa / Mastercard', icon: CreditCard, color: 'red', description: 'Debit or Credit Card via Paynow' },
 ];
 
 export default function PaymentPage() {
@@ -129,6 +131,15 @@ export default function PaymentPage() {
         return fallback;
       };
 
+      // NOTE: amount is intentionally omitted — the backend always uses the server-side course price.
+      const paynowPayload = {
+        course_id: courseId,
+        course_name: course?.title || 'Cognify Course',
+        payment_method: selectedMethod === 'paynow' ? 'paynow' : selectedMethod,
+        phone: phoneNumber || user?.phone_number || '',
+        phone_number: phoneNumber || user?.phone_number || '',
+      };
+
       // Dedicated Paynow portal payment
       if (selectedMethod === 'paynow') {
         const response = await fetch(`${API_URL}/api/payments/paynow/initiate`, {
@@ -137,13 +148,7 @@ export default function PaymentPage() {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            course_id: courseId,
-            course_name: course?.title || 'Cognify Course',
-            amount: amountToPay,
-            payment_method: 'paynow',
-            phone: phoneNumber || user?.phone_number || ''
-          })
+          body: JSON.stringify(paynowPayload)
         });
 
         const result = response.ok ? await response.json() : {};
@@ -151,14 +156,16 @@ export default function PaymentPage() {
         window.open(payUrl, '_blank');
         setPaymentResult({
           reference: result.reference || `COG-PAY-${Date.now().toString().slice(-6)}`,
+          amount: result.amount,
           payment_url: payUrl,
-          instructions: `Payment portal opened in a new tab. Please complete your transaction on Paynow using reference ${result.reference || 'COG-PAY'}.`
+          ecocash_gateway_url: result.ecocash_gateway_url || PAYNOW_ECOCASH_GATEWAY_URL,
+          instructions: result.instructions || `Payment portal opened in a new tab. Complete your transaction on Paynow using reference ${result.reference || 'COG-PAY'}.`
         });
         toast.info('Paynow Bill Portal opened in a new tab!');
         return;
       }
       
-      // Use Paynow for EcoCash and InnBucks push prompts
+      // EcoCash / InnBucks push prompt
       if (selectedMethod === 'ecocash' || selectedMethod === 'innbucks') {
         const response = await fetch(`${API_URL}/api/payments/paynow/initiate`, {
           method: 'POST',
@@ -166,19 +173,16 @@ export default function PaymentPage() {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            course_id: courseId,
-            course_name: course?.title || 'Cognify Course',
-            phone: phoneNumber,
-            phone_number: phoneNumber,
-            amount: amountToPay,
-            payment_method: selectedMethod === 'paynow' ? 'ecocash' : selectedMethod
-          })
+          body: JSON.stringify(paynowPayload)
         });
 
         if (response.ok) {
           const result = await response.json();
-          setPaymentResult(result);
+          // Enrich result with EcoCash gateway URL if not returned by server
+          setPaymentResult({
+            ...result,
+            ecocash_gateway_url: result.ecocash_gateway_url || PAYNOW_ECOCASH_GATEWAY_URL,
+          });
           
           // Poll for payment status
           const pollInterval = setInterval(async () => {
@@ -218,8 +222,8 @@ export default function PaymentPage() {
           toast.error(extractErrorMessage(errorData, 'Payment initiation failed'));
         }
       } else {
-        // Card payment - use Stripe
-        const response = await fetch(`${API_URL}/api/payments/initiate`, {
+        // Card / Mastercard — redirect to Paynow dedicated portal (server-controlled amount)
+        const response = await fetch(`${API_URL}/api/payments/paynow/initiate`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -228,32 +232,23 @@ export default function PaymentPage() {
           body: JSON.stringify({
             course_id: courseId,
             course_name: course?.title || 'Cognify Course',
-            amount: amountToPay,
-            method: selectedMethod,
-            phone: phoneNumber,
-            phone_number: phoneNumber
+            payment_method: 'card',
           })
         });
 
         if (response.ok) {
           const result = await response.json();
-          setPaymentResult(result);
-          
-          // Simulate payment confirmation for demo
-          setTimeout(async () => {
-            const confirmRes = await fetch(`${API_URL}/api/payments/confirm/${result.payment_id}`, {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            
-            if (confirmRes.ok) {
-              toast.success('Payment successful! You are now enrolled.');
-              setTimeout(() => navigate(`/course/${courseId}`), 2000);
-            }
-          }, 3000);
+          const payUrl = result.payment_url || DEDICATED_PAYNOW_URL;
+          window.open(payUrl, '_blank');
+          setPaymentResult({
+            ...result,
+            payment_url: payUrl,
+            ecocash_gateway_url: result.ecocash_gateway_url || PAYNOW_ECOCASH_GATEWAY_URL,
+          });
+          toast.info('Paynow payment portal opened in a new tab!');
         } else {
           const errorData = await response.json();
-          toast.error(extractErrorMessage(errorData, 'Card payment failed'));
+          toast.error(extractErrorMessage(errorData, 'Card payment initiation failed'));
         }
       }
     } catch (error) {
@@ -283,8 +278,15 @@ export default function PaymentPage() {
               <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
                 <Loader2 className="w-8 h-8 text-green-400 animate-spin" />
               </div>
-              <h2 className="text-2xl font-bold mb-2">Processing Payment</h2>
-              <p className="text-zinc-400 mb-6">Reference: {paymentResult.reference}</p>
+              <h2 className="text-2xl font-bold mb-1">Processing Payment</h2>
+              <p className="text-zinc-400 text-sm mb-1">Reference: <span className="font-mono text-blue-400">{paymentResult.reference}</span></p>
+              {paymentResult.amount && (
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 mb-5">
+                  <Lock className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="text-blue-300 font-semibold text-lg">${Number(paymentResult.amount).toFixed(2)}</span>
+                  <span className="text-xs text-zinc-500">— fixed by Cognify</span>
+                </div>
+              )}
               
               {paymentResult.instructions && (
                 <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/30 mb-4 text-left">
@@ -292,16 +294,28 @@ export default function PaymentPage() {
                 </div>
               )}
 
-              <div className="space-y-3 my-6">
+              <div className="space-y-3 my-4">
+                {/* Paynow dedicated bill portal */}
                 <a
                   href={paymentResult.payment_url || DEDICATED_PAYNOW_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-all shadow-lg shadow-blue-500/20"
                 >
-                  <ExternalLink className="w-4 h-4" /> Open Paynow Dedicated Bill Portal
+                  <ExternalLink className="w-4 h-4" /> Open Paynow Bill Portal
                 </a>
-                <p className="text-xs text-zinc-400">
+                {/* EcoCash direct gateway */}
+                <a
+                  href={paymentResult.ecocash_gateway_url || PAYNOW_ECOCASH_GATEWAY_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-green-700/60 hover:bg-green-700 text-white font-semibold transition-all border border-green-600/40"
+                >
+                  <Phone className="w-4 h-4 text-green-300" />
+                  <span>Pay via EcoCash Gateway</span>
+                  <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+                </a>
+                <p className="text-xs text-zinc-500 text-center">
                   Bill Link: <a href={DEDICATED_PAYNOW_URL} target="_blank" rel="noreferrer" className="font-mono text-blue-400 underline">{DEDICATED_PAYNOW_URL}</a>
                 </p>
               </div>
@@ -449,24 +463,45 @@ export default function PaymentPage() {
               <h2 className="text-xl font-bold mb-4">Payment Method</h2>
               
               {/* Dedicated Paynow Direct Bill Payment Banner */}
-              <div className="p-4 mb-5 rounded-xl bg-gradient-to-r from-blue-950/60 via-indigo-950/40 to-cyan-950/40 border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-xs font-semibold tracking-wider uppercase text-blue-400">Official Paynow Portal</span>
+              <div className="p-4 mb-5 rounded-xl bg-gradient-to-r from-blue-950/60 via-indigo-950/40 to-cyan-950/40 border border-blue-500/30 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-xs font-semibold tracking-wider uppercase text-blue-400">Official Paynow Portal</span>
+                    </div>
+                    <p className="text-sm font-medium text-white">Direct Online Bill Payment</p>
+                    <p className="text-xs text-zinc-400">EcoCash, OneMoney, InnBucks, Visa &amp; Mastercard accepted.</p>
                   </div>
-                  <p className="text-sm font-medium text-white">Direct Online Bill Payment</p>
-                  <p className="text-xs text-zinc-400">Pay directly with EcoCash, OneMoney, InnBucks, Visa & Mastercard on Paynow.</p>
+                  <div className="flex gap-2 shrink-0">
+                    <a
+                      href={PAYNOW_ECOCASH_GATEWAY_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-lg bg-green-700 hover:bg-green-600 text-white text-xs font-semibold whitespace-nowrap transition-colors"
+                    >
+                      <Phone className="w-3.5 h-3.5" /> EcoCash
+                    </a>
+                    <a
+                      href={DEDICATED_PAYNOW_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold whitespace-nowrap transition-colors"
+                    >
+                      Pay on Paynow
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
                 </div>
-                <a
-                  href={DEDICATED_PAYNOW_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold whitespace-nowrap transition-colors shadow-lg shadow-blue-500/20"
-                >
-                  Pay on Paynow
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+                {/* Fixed price notice */}
+                {course?.price && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg bg-white/5 border border-white/10">
+                    <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="text-xs text-zinc-300">
+                      Course price is <span className="font-bold text-white">${Number(course.price).toFixed(2)} USD</span> — fixed by Cognify, not editable.
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3 mb-6">
@@ -558,10 +593,14 @@ export default function PaymentPage() {
                 ) : (
                   <>
                     <Lock className="w-4 h-4 mr-2" />
-                    Pay ${course?.price || 99.99}
+                    Pay ${course?.price != null ? Number(course.price).toFixed(2) : '—'} USD
+                    <span className="ml-2 text-xs font-normal opacity-70">(fixed price)</span>
                   </>
                 )}
               </Button>
+              <p className="text-xs text-center text-zinc-600 mt-2">
+                Price is server-authoritative and cannot be altered by the client.
+              </p>
             </div>
           </div>
         </div>
