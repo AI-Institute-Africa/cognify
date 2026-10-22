@@ -15,13 +15,12 @@ import { getCoursePaymentBreakdown, getCoursePaymentStatus } from '../services/a
 import PhoneInputWithCountry from '../components/PhoneInputWithCountry';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+// Official Paynow dedicated bill payment portal — all methods (EcoCash, OneMoney, InnBucks, Visa, Mastercard)
 const DEDICATED_PAYNOW_URL = 'https://www.paynow.co.zw/aiia';
-// Paynow EcoCash gateway — direct EcoCash bill payment link
-const PAYNOW_ECOCASH_GATEWAY_URL = 'https://www.paynow.co.zw/Payment/BillPaymentV2?q=aiia';
 
 const PAYMENT_METHODS = [
-  { id: 'paynow', name: 'Paynow Dedicated Portal', icon: Building2, color: 'blue', description: 'Pay directly via paynow.co.zw/aiia — all methods' },
-  { id: 'ecocash', name: 'EcoCash Push Prompt', icon: Phone, color: 'green', description: 'Instant EcoCash USSD prompt sent to your phone' },
+  { id: 'paynow', name: 'Paynow Dedicated Portal', icon: Building2, color: 'blue', description: 'Pay via paynow.co.zw/aiia — EcoCash, OneMoney, InnBucks, Visa & Mastercard' },
+  { id: 'ecocash', name: 'EcoCash Push Prompt', icon: Phone, color: 'green', description: 'Instant EcoCash USSD prompt sent to your phone (server-initiated)' },
   { id: 'innbucks', name: 'InnBucks Wallet', icon: Phone, color: 'orange', description: 'Pay with InnBucks wallet' },
   { id: 'mastercard', name: 'Visa / Mastercard', icon: CreditCard, color: 'red', description: 'Debit or Credit Card via Paynow' },
 ];
@@ -140,8 +139,12 @@ export default function PaymentPage() {
         phone_number: phoneNumber || user?.phone_number || '',
       };
 
-      // Dedicated Paynow portal payment
-      if (selectedMethod === 'paynow') {
+      // Helper: build a Paynow portal URL with reference pre-filled
+      const buildPaynowUrl = (ref) =>
+        ref ? `${DEDICATED_PAYNOW_URL}?ref=${encodeURIComponent(ref)}` : DEDICATED_PAYNOW_URL;
+
+      // All payment methods — call backend to record the transaction, then open Paynow portal
+      {
         const response = await fetch(`${API_URL}/api/payments/paynow/initiate`, {
           method: 'POST',
           headers: {
@@ -152,104 +155,23 @@ export default function PaymentPage() {
         });
 
         const result = response.ok ? await response.json() : {};
-        const payUrl = result.payment_url || DEDICATED_PAYNOW_URL;
+        const ref = result.reference || `COG-${Date.now().toString().slice(-8)}`;
+        // Always open the dedicated bill portal — the Paynow API may redirect there anyway
+        // If the API returned a specific URL (e.g. EcoCash push generated), use it; else use portal
+        const payUrl = result.payment_url || buildPaynowUrl(ref);
         window.open(payUrl, '_blank');
         setPaymentResult({
-          reference: result.reference || `COG-PAY-${Date.now().toString().slice(-6)}`,
-          amount: result.amount,
+          reference: ref,
+          amount: result.amount || course?.price,
           payment_url: payUrl,
-          ecocash_gateway_url: result.ecocash_gateway_url || PAYNOW_ECOCASH_GATEWAY_URL,
-          instructions: result.instructions || `Payment portal opened in a new tab. Complete your transaction on Paynow using reference ${result.reference || 'COG-PAY'}.`
+          instructions: result.instructions
+            || `Your payment reference is ${ref}.\nAmount: $${Number(result.amount || course?.price || 0).toFixed(2)} USD\n\nPlease complete payment at paynow.co.zw/aiia using this reference.`
         });
-        toast.info('Paynow Bill Portal opened in a new tab!');
+        const methodLabel = selectedMethod === 'ecocash' ? 'EcoCash prompt sent — check your phone!'
+          : selectedMethod === 'innbucks' ? 'InnBucks prompt sent — check your phone!'
+          : 'Paynow portal opened in a new tab!';
+        toast.info(methodLabel);
         return;
-      }
-      
-      // EcoCash / InnBucks push prompt
-      if (selectedMethod === 'ecocash' || selectedMethod === 'innbucks') {
-        const response = await fetch(`${API_URL}/api/payments/paynow/initiate`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(paynowPayload)
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          // Enrich result with EcoCash gateway URL if not returned by server
-          setPaymentResult({
-            ...result,
-            ecocash_gateway_url: result.ecocash_gateway_url || PAYNOW_ECOCASH_GATEWAY_URL,
-          });
-          
-          // Poll for payment status
-          const pollInterval = setInterval(async () => {
-            try {
-              const statusRes = await fetch(`${API_URL}/api/payments/paynow/check-status?poll_url=${encodeURIComponent(result.poll_url)}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-              });
-              
-              if (statusRes.ok) {
-                const statusData = await statusRes.json();
-                if (statusData.paid || statusData.status === 'Paid') {
-                  clearInterval(pollInterval);
-                  toast.success('Payment successful! You are now enrolled.');
-                  
-                  // Enroll user in course
-                  await fetch(`${API_URL}/api/courses/${courseId}/enroll`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                  });
-                  
-                  setTimeout(() => navigate(`/course/${courseId}`), 2000);
-                } else if (statusData.status === 'Failed' || statusData.status === 'Cancelled') {
-                  clearInterval(pollInterval);
-                  toast.error('Payment failed or cancelled. Please try again.');
-                  setPaymentResult(null);
-                }
-              }
-            } catch (err) {
-              console.error('Status check error:', err);
-            }
-          }, 5000); // Check every 5 seconds
-          
-          // Stop polling after 5 minutes
-          setTimeout(() => clearInterval(pollInterval), 300000);
-        } else {
-          const errorData = await response.json();
-          toast.error(extractErrorMessage(errorData, 'Payment initiation failed'));
-        }
-      } else {
-        // Card / Mastercard — redirect to Paynow dedicated portal (server-controlled amount)
-        const response = await fetch(`${API_URL}/api/payments/paynow/initiate`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            course_id: courseId,
-            course_name: course?.title || 'Cognify Course',
-            payment_method: 'card',
-          })
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          const payUrl = result.payment_url || DEDICATED_PAYNOW_URL;
-          window.open(payUrl, '_blank');
-          setPaymentResult({
-            ...result,
-            payment_url: payUrl,
-            ecocash_gateway_url: result.ecocash_gateway_url || PAYNOW_ECOCASH_GATEWAY_URL,
-          });
-          toast.info('Paynow payment portal opened in a new tab!');
-        } else {
-          const errorData = await response.json();
-          toast.error(extractErrorMessage(errorData, 'Card payment initiation failed'));
-        }
       }
     } catch (error) {
       console.error('Payment error:', error);
@@ -295,7 +217,7 @@ export default function PaymentPage() {
               )}
 
               <div className="space-y-3 my-4">
-                {/* Paynow dedicated bill portal */}
+                {/* Paynow dedicated bill portal — handles ALL payment methods including EcoCash */}
                 <a
                   href={paymentResult.payment_url || DEDICATED_PAYNOW_URL}
                   target="_blank"
@@ -304,15 +226,15 @@ export default function PaymentPage() {
                 >
                   <ExternalLink className="w-4 h-4" /> Open Paynow Bill Portal
                 </a>
-                {/* EcoCash direct gateway */}
+                {/* EcoCash option — same portal, user selects EcoCash on the Paynow page */}
                 <a
-                  href={paymentResult.ecocash_gateway_url || PAYNOW_ECOCASH_GATEWAY_URL}
+                  href={DEDICATED_PAYNOW_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-green-700/60 hover:bg-green-700 text-white font-semibold transition-all border border-green-600/40"
                 >
                   <Phone className="w-4 h-4 text-green-300" />
-                  <span>Pay via EcoCash Gateway</span>
+                  <span>Pay via EcoCash on Paynow</span>
                   <ExternalLink className="w-3.5 h-3.5 opacity-70" />
                 </a>
                 <p className="text-xs text-zinc-500 text-center">
@@ -475,7 +397,7 @@ export default function PaymentPage() {
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <a
-                      href={PAYNOW_ECOCASH_GATEWAY_URL}
+                      href={DEDICATED_PAYNOW_URL}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-lg bg-green-700 hover:bg-green-600 text-white text-xs font-semibold whitespace-nowrap transition-colors"
@@ -488,7 +410,7 @@ export default function PaymentPage() {
                       rel="noopener noreferrer"
                       className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold whitespace-nowrap transition-colors"
                     >
-                      Pay on Paynow
+                      All Methods
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   </div>

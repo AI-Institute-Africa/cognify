@@ -6609,7 +6609,7 @@ async def get_payment_history(current_user: dict = Depends(get_current_user)):
 # ====================  PAYNOW ZIMBABWE INTEGRATION ====================
 
 DEDICATED_PAYNOW_URL = os.environ.get("PAYNOW_BILL_URL", "https://www.paynow.co.zw/aiia")
-PAYNOW_ECOCASH_GATEWAY_URL = "https://www.paynow.co.zw/Payment/BillPaymentV2?q=aiia"
+# For EcoCash, users select it on the main Paynow portal — same URL, no separate endpoint needed
 
 class PaynowPaymentRequest(BaseModel):
     course_id: str
@@ -6625,84 +6625,136 @@ async def initiate_paynow_payment(
     request: PaynowPaymentRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Initiate a Paynow payment (EcoCash, OneMoney, or Card).
-    
-    IMPORTANT: The amount is ALWAYS resolved server-side from the course record.
-    Any client-supplied amount is intentionally ignored to prevent price tampering.
-    """
-    from services.payment_service import PaynowService, generate_payment_reference
+    """Initiate a Paynow payment.
 
-    # ── 1. Resolve AUTHORITATIVE price from the course DB record ────────────
+    Pricing is ALWAYS resolved server-side from the course record — client-supplied
+    amount is intentionally ignored to prevent price tampering.
+
+    If Paynow API credentials are not configured (PAYNOW_INTEGRATION_ID /
+    PAYNOW_INTEGRATION_KEY) OR the server is running on localhost, we skip the API
+    call entirely and return the dedicated bill portal URL directly.  The user
+    completes payment manually on https://www.paynow.co.zw/aiia.
+    """
+    from services.payment_service import generate_payment_reference
+
+    # ── 1. Authoritative price from DB ──────────────────────────────────────
     c_doc = await db.courses.find_one({"id": request.course_id}, {"_id": 0})
     if not c_doc:
         raise HTTPException(status_code=404, detail="Course not found")
-    
-    course_title = c_doc.get("title") or c_doc.get("name") or request.course_name or f"Course {request.course_id[:8]}"
-    # Server-side authoritative price — client-supplied amount is NEVER used
+
+    course_title = (
+        c_doc.get("title") or c_doc.get("name")
+        or request.course_name or f"Course {request.course_id[:8]}"
+    )
     authoritative_amount = float(c_doc.get("price", 0))
     if authoritative_amount <= 0:
         raise HTTPException(status_code=400, detail="Course has no valid price configured")
 
-    base_url = os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8001')
-    paynow = PaynowService(
-        result_url=f"{base_url}/api/payments/paynow/result",
-        return_url=f"{base_url.replace('/api', '')}/payment-success"
+    # ── 2. Contact details ───────────────────────────────────────────────────
+    effective_phone = (
+        request.phone or request.phone_number
+        or current_user.get("phone_number") or current_user.get("phone") or ""
+    )
+    effective_email = (
+        current_user.get("email")
+        or f"user_{current_user.get('id', 'guest')[:8]}@cognify.ac.zw"
     )
 
-    # ── 2. Resolve contact details ───────────────────────────────────────────
-    effective_phone = request.phone or request.phone_number or current_user.get('phone_number') or current_user.get('phone') or ''
-    effective_email = current_user.get('email') or f"user_{current_user.get('id', 'guest')[:8]}@cognify.ac.zw"
-
-    # ── 3. Generate reference & store pending record ─────────────────────────
-    reference = generate_payment_reference(request.course_id, current_user['id'])
+    # ── 3. Reference & pending record ───────────────────────────────────────
+    reference = generate_payment_reference(request.course_id, current_user["id"])
     payment_record = {
         "id": str(uuid.uuid4()),
         "reference": reference,
-        "user_id": current_user['id'],
+        "user_id": current_user["id"],
         "user_email": effective_email,
         "course_id": request.course_id,
         "course_name": course_title,
-        "amount": authoritative_amount,          # always server-side price
+        "amount": authoritative_amount,
         "currency": request.currency,
         "payment_method": request.payment_method,
         "gateway": "paynow",
         "status": "pending",
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "payment_url": DEDICATED_PAYNOW_URL,
+        "dedicated_bill_url": DEDICATED_PAYNOW_URL,
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.payments.insert_one(payment_record)
 
-    # ── 4. Initiate payment via Paynow API with server-controlled amount ─────
-    if request.payment_method in ['ecocash', 'onemoney', 'innbucks']:
-        if not effective_phone:
-            raise HTTPException(status_code=400, detail="Phone number required for mobile payments")
-        result = await paynow.initiate_mobile_payment(
-            reference=reference,
-            email=effective_email,
-            phone=effective_phone,
-            method=request.payment_method if request.payment_method in ['ecocash', 'onemoney'] else 'ecocash',
-            amount=authoritative_amount,         # server-side price
-            item_description=f"Cognify: {course_title}"
-        )
-    else:
-        result = await paynow.initiate_web_payment(
-            reference=reference,
-            email=effective_email,
-            amount=authoritative_amount,         # server-side price
-            item_description=f"Cognify: {course_title}"
-        )
+    # ── 4. Check whether Paynow API credentials are properly configured ──────
+    paynow_id = os.environ.get("PAYNOW_INTEGRATION_ID", "").strip()
+    paynow_key = os.environ.get("PAYNOW_INTEGRATION_KEY", "").strip()
+    base_url = os.environ.get("REACT_APP_BACKEND_URL", "").strip()
 
-    if result.get('success'):
-        payment_link = result.get('paymentUrl') or DEDICATED_PAYNOW_URL
-        # Update payment record with poll URL & payment link
+    api_configured = (
+        paynow_id and paynow_id not in ("test_integration_id", "")
+        and paynow_key and paynow_key not in ("test_integration_key", "")
+        and base_url and "localhost" not in base_url and "127.0.0.1" not in base_url
+    )
+
+    # ── 5a. API not configured → return dedicated bill URL immediately ───────
+    if not api_configured:
+        logger.info(
+            "Paynow API credentials not configured or localhost detected — "
+            "directing user to dedicated bill portal: %s", DEDICATED_PAYNOW_URL
+        )
+        instructions = (
+            f"Please visit {DEDICATED_PAYNOW_URL} to complete your payment.\n"
+            f"Amount: ${authoritative_amount:.2f} USD\n"
+            f"Reference: {reference}\n"
+            f"You can pay with EcoCash, OneMoney, InnBucks, Visa or Mastercard."
+        )
+        return {
+            "success": True,
+            "reference": reference,
+            "amount": authoritative_amount,
+            "currency": request.currency,
+            "payment_url": DEDICATED_PAYNOW_URL,
+            "dedicated_bill_url": DEDICATED_PAYNOW_URL,
+            "poll_url": None,
+            "instructions": instructions,
+        }
+
+    # ── 5b. API configured → attempt Paynow API call ────────────────────────
+    from services.payment_service import PaynowService
+    paynow = PaynowService(
+        result_url=f"{base_url}/api/payments/paynow/result",
+        return_url=f"{base_url}/payment-success",
+    )
+
+    try:
+        if request.payment_method in ["ecocash", "onemoney", "innbucks"]:
+            if not effective_phone:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Phone number required for mobile payments"
+                )
+            result = await paynow.initiate_mobile_payment(
+                reference=reference,
+                email=effective_email,
+                phone=effective_phone,
+                method="ecocash" if request.payment_method == "innbucks" else request.payment_method,
+                amount=authoritative_amount,
+                item_description=f"Cognify: {course_title}",
+            )
+        else:
+            result = await paynow.initiate_web_payment(
+                reference=reference,
+                email=effective_email,
+                amount=authoritative_amount,
+                item_description=f"Cognify: {course_title}",
+            )
+    except Exception as exc:
+        logger.error("Paynow API call failed: %s — falling back to bill portal", exc)
+        result = {"success": False, "error": str(exc)}
+
+    if result.get("success"):
+        payment_link = result.get("paymentUrl") or DEDICATED_PAYNOW_URL
         await db.payments.update_one(
             {"reference": reference},
             {"$set": {
-                "poll_url": result.get('pollUrl'),
-                "paynow_reference": result.get('paynow_reference'),
+                "poll_url": result.get("pollUrl"),
+                "paynow_reference": result.get("paynow_reference"),
                 "payment_url": payment_link,
-                "dedicated_bill_url": DEDICATED_PAYNOW_URL,
-                "ecocash_gateway_url": PAYNOW_ECOCASH_GATEWAY_URL,
-                "amount": authoritative_amount,
             }}
         )
         return {
@@ -6712,21 +6764,15 @@ async def initiate_paynow_payment(
             "currency": request.currency,
             "payment_url": payment_link,
             "dedicated_bill_url": DEDICATED_PAYNOW_URL,
-            "ecocash_gateway_url": PAYNOW_ECOCASH_GATEWAY_URL,
-            "poll_url": result.get('pollUrl'),
-            "instructions": result.get('instructions') or f"Please complete your payment of ${authoritative_amount:.2f} on Paynow using reference {reference}."
+            "poll_url": result.get("pollUrl"),
+            "instructions": (
+                result.get("instructions")
+                or f"Complete your payment of ${authoritative_amount:.2f} on Paynow. Reference: {reference}"
+            ),
         }
     else:
-        # Fallback to direct dedicated bill payment URL
-        await db.payments.update_one(
-            {"reference": reference},
-            {"$set": {
-                "payment_url": DEDICATED_PAYNOW_URL,
-                "dedicated_bill_url": DEDICATED_PAYNOW_URL,
-                "ecocash_gateway_url": PAYNOW_ECOCASH_GATEWAY_URL,
-                "amount": authoritative_amount,
-            }}
-        )
+        # API failed — fall back to dedicated bill portal
+        logger.warning("Paynow API returned failure (%s) — directing to bill portal", result.get("error"))
         return {
             "success": True,
             "reference": reference,
@@ -6734,11 +6780,11 @@ async def initiate_paynow_payment(
             "currency": request.currency,
             "payment_url": DEDICATED_PAYNOW_URL,
             "dedicated_bill_url": DEDICATED_PAYNOW_URL,
-            "ecocash_gateway_url": PAYNOW_ECOCASH_GATEWAY_URL,
+            "poll_url": None,
             "instructions": (
-                f"Please complete your payment of ${authoritative_amount:.2f} on the official Paynow portal "
-                f"({DEDICATED_PAYNOW_URL}) using reference: {reference}"
-            )
+                f"Please visit {DEDICATED_PAYNOW_URL} to complete your payment of "
+                f"${authoritative_amount:.2f} USD. Reference: {reference}"
+            ),
         }
 
 @payments_router.post("/paynow/check-status")
