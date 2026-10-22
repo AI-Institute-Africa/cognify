@@ -120,7 +120,7 @@ class PaynowService:
         values["hash"] = self.generate_hash(values)
         
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(verify=False) as client:
                 response = await client.post(
                     f"{self.base_url}/initiatetransaction",
                     data=values,
@@ -174,7 +174,7 @@ class PaynowService:
         values["hash"] = self.generate_hash(values)
         
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(verify=False) as client:
                 response = await client.post(
                     f"{self.base_url}/remotetransaction",
                     data=values,
@@ -212,7 +212,7 @@ class PaynowService:
         import httpx
         
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(verify=False) as client:
                 response = await client.post(poll_url, timeout=15)
                 
                 # Parse response

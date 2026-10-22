@@ -6609,11 +6609,12 @@ async def get_payment_history(current_user: dict = Depends(get_current_user)):
 # ====================  PAYNOW ZIMBABWE INTEGRATION ====================
 class PaynowPaymentRequest(BaseModel):
     course_id: str
-    course_name: str
+    course_name: Optional[str] = None
     amount: float
     currency: str = "USD"
-    payment_method: str  # 'ecocash', 'onemoney', 'card'
+    payment_method: str = "ecocash"  # 'ecocash', 'onemoney', 'card', 'innbucks', 'paynow'
     phone: Optional[str] = None
+    phone_number: Optional[str] = None
 
 @payments_router.post("/paynow/initiate")
 async def initiate_paynow_payment(
@@ -6629,6 +6630,16 @@ async def initiate_paynow_payment(
         return_url=f"{base_url.replace('/api', '')}/payment-success"
     )
     
+    # Resolve course name if missing
+    course_title = request.course_name
+    if not course_title:
+        c_doc = await db.courses.find_one({"id": request.course_id}, {"_id": 0, "title": 1})
+        course_title = c_doc.get("title") if c_doc else f"Course {request.course_id[:8]}"
+
+    # Resolve phone number
+    effective_phone = request.phone or request.phone_number or current_user.get('phone_number') or current_user.get('phone') or ''
+    effective_email = current_user.get('email') or f"user_{current_user.get('id', 'guest')[:8]}@cognify.ac.zw"
+
     # Generate unique reference
     reference = generate_payment_reference(request.course_id, current_user['id'])
     
@@ -6637,9 +6648,9 @@ async def initiate_paynow_payment(
         "id": str(uuid.uuid4()),
         "reference": reference,
         "user_id": current_user['id'],
-        "user_email": current_user.get('email', ''),
+        "user_email": effective_email,
         "course_id": request.course_id,
-        "course_name": request.course_name,
+        "course_name": course_title,
         "amount": request.amount,
         "currency": request.currency,
         "payment_method": request.payment_method,
@@ -6650,25 +6661,25 @@ async def initiate_paynow_payment(
     await db.payments.insert_one(payment_record)
     
     # Initiate payment based on method
-    if request.payment_method in ['ecocash', 'onemoney']:
-        if not request.phone:
+    if request.payment_method in ['ecocash', 'onemoney', 'innbucks']:
+        if not effective_phone:
             raise HTTPException(status_code=400, detail="Phone number required for mobile payments")
         
         result = await paynow.initiate_mobile_payment(
             reference=reference,
-            email=current_user.get('email', 'customer@cognify.edu'),
-            phone=request.phone,
-            method=request.payment_method,
+            email=effective_email,
+            phone=effective_phone,
+            method=request.payment_method if request.payment_method in ['ecocash', 'onemoney'] else 'ecocash',
             amount=request.amount,
-            item_description=f"Course: {request.course_name}"
+            item_description=f"Course: {course_title}"
         )
     else:
         # Card payment
         result = await paynow.initiate_web_payment(
             reference=reference,
-            email=current_user.get('email', 'customer@cognify.edu'),
+            email=effective_email,
             amount=request.amount,
-            item_description=f"Course: {request.course_name}"
+            item_description=f"Course: {course_title}"
         )
     
     if result.get('success'):

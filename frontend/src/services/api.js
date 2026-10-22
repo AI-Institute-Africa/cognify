@@ -1462,14 +1462,21 @@ export const updateCoursePaymentConfig = async (courseId, config) => {
 // ==================== ERROR SANITIZER HELPER ====================
 export const getErrorMessage = (error, defaultMessage = 'An unexpected error occurred') => {
   if (!error) return defaultMessage;
-  const detail = error.response?.data?.detail;
+  if (typeof error === 'string') return error;
+
+  const detail = error.response?.data?.detail ?? error.response?.data?.message ?? error.detail ?? error.msg;
   if (typeof detail === 'string') return detail;
   if (Array.isArray(detail)) {
     // Pydantic validation error array [{loc, msg, type, ...}]
-    return detail.map((d) => (typeof d === 'string' ? d : d.msg || JSON.stringify(d))).join('; ') || defaultMessage;
+    return detail.map((d) => (typeof d === 'string' ? d : d.msg || d.message || JSON.stringify(d))).join('; ') || defaultMessage;
   }
   if (detail && typeof detail === 'object') {
-    return detail.message || detail.msg || JSON.stringify(detail);
+    return detail.msg || detail.message || JSON.stringify(detail);
   }
-  return error.message || defaultMessage;
+  if (typeof error.message === 'string') return error.message;
+  try {
+    return JSON.stringify(error);
+  } catch (_) {
+    return defaultMessage;
+  }
 };

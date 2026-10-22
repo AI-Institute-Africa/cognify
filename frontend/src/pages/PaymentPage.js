@@ -114,6 +114,19 @@ export default function PaymentPage() {
     setProcessing(true);
     try {
       const token = localStorage.getItem('cognify_token');
+
+      const extractErrorMessage = (errData, fallback = 'Payment initiation failed') => {
+        if (!errData) return fallback;
+        const detail = errData.detail || errData.message;
+        if (typeof detail === 'string') return detail;
+        if (Array.isArray(detail)) {
+          return detail.map(d => (typeof d === 'string' ? d : d.msg || JSON.stringify(d))).join('; ') || fallback;
+        }
+        if (typeof detail === 'object' && detail !== null) {
+          return detail.msg || detail.message || JSON.stringify(detail);
+        }
+        return fallback;
+      };
       
       // Use Paynow for EcoCash and InnBucks
       if (selectedMethod === 'ecocash' || selectedMethod === 'innbucks' || selectedMethod === 'paynow') {
@@ -125,6 +138,8 @@ export default function PaymentPage() {
           },
           body: JSON.stringify({
             course_id: courseId,
+            course_name: course?.title || 'Cognify Course',
+            phone: phoneNumber,
             phone_number: phoneNumber,
             amount: amountToPay,
             payment_method: selectedMethod === 'paynow' ? 'ecocash' : selectedMethod
@@ -170,7 +185,7 @@ export default function PaymentPage() {
           setTimeout(() => clearInterval(pollInterval), 300000);
         } else {
           const errorData = await response.json();
-          toast.error(errorData.detail || 'Payment initiation failed');
+          toast.error(extractErrorMessage(errorData, 'Payment initiation failed'));
         }
       } else {
         // Card payment - use Stripe
@@ -182,8 +197,10 @@ export default function PaymentPage() {
           },
           body: JSON.stringify({
             course_id: courseId,
+            course_name: course?.title || 'Cognify Course',
             amount: amountToPay,
             method: selectedMethod,
+            phone: phoneNumber,
             phone_number: phoneNumber
           })
         });
@@ -204,6 +221,9 @@ export default function PaymentPage() {
               setTimeout(() => navigate(`/course/${courseId}`), 2000);
             }
           }, 3000);
+        } else {
+          const errorData = await response.json();
+          toast.error(extractErrorMessage(errorData, 'Card payment failed'));
         }
       }
     } catch (error) {
