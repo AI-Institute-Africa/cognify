@@ -288,22 +288,22 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Dev/Demo Simulator Helper Box */}
+                {/* Dev/Demo Simulator Helper Box — only shown when real delivery not confirmed */}
                 {devOtpCode && (
-                  <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-xs space-y-1.5 animate-in fade-in duration-300">
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs space-y-1.5 animate-in fade-in duration-300">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-blue-400 flex items-center gap-1.5">
-                        <Info className="w-3.5 h-3.5" /> SMS / WhatsApp Sandbox Notice
+                      <span className="font-semibold text-amber-400 flex items-center gap-1.5">
+                        <Info className="w-3.5 h-3.5" /> Delivery Fallback Notice
                       </span>
-                      <span className="text-[10px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded font-mono">
-                        SIMULATOR
+                      <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-mono">
+                        FALLBACK
                       </span>
                     </div>
                     <p className="text-zinc-400 text-[11px] leading-relaxed">
-                      Twilio SMS/WhatsApp credentials not configured in backend .env. Simulator verification code:
+                      OTP could not be confirmed as delivered. Use this code to continue:
                     </p>
                     <div className="flex items-center justify-between pt-1">
-                      <span className="text-base font-mono font-bold text-blue-400 tracking-widest">{devOtpCode}</span>
+                      <span className="text-base font-mono font-bold text-amber-400 tracking-widest">{devOtpCode}</span>
                       <div className="flex gap-2">
                         {whatsAppLink && (
                           <a
@@ -321,7 +321,7 @@ export default function LoginPage() {
                             setOtpCode(devOtpCode);
                             toast.success('Verification code auto-filled!');
                           }}
-                          className="px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded text-xs transition-colors font-medium"
+                          className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded text-xs transition-colors font-medium"
                         >
                           Auto-fill Code
                         </button>

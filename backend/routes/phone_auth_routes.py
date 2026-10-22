@@ -86,16 +86,17 @@ def make_phone_auth_router(db, get_current_user, hash_password, verify_password,
         # Determine requested channels (honor body.channel if specified)
         requested_channel = (body.channel or "sms").lower()
         channels = [requested_channel]
-        # If whatsapp requested, also attempt whatsapp
         if requested_channel not in ["sms", "whatsapp"]:
             channels = ["sms"]
+            requested_channel = "sms"
 
-        # Dispatch via Notification Service
+        # Dispatch via Notification Service — pass channel so template can tailor the message
         notify_res = await notification_service.notify_user(
             recipient_phone=norm_phone,
             event="registration_otp",
             channels=channels,
-            code=code
+            code=code,
+            channel=requested_channel
         )
 
         res_channel = notify_res.get("results", {}) if isinstance(notify_res, dict) else {}
@@ -108,14 +109,15 @@ def make_phone_auth_router(db, get_current_user, hash_password, verify_password,
 
         # Determine if real delivery succeeded on the requested channel
         real_delivery_success = False
-        if requested_channel == "sms" and sms_res.get("success") and sms_res.get("provider") != "simulator":
+        if requested_channel == "sms" and sms_res.get("success") and sms_res.get("provider") not in ["simulator", None]:
             real_delivery_success = True
-        elif requested_channel == "whatsapp" and wa_res.get("success") and wa_res.get("provider") != "simulator":
+        elif requested_channel == "whatsapp" and wa_res.get("success") and wa_res.get("provider") not in ["simulator", "baileys_fallback", None]:
             real_delivery_success = True
 
+        channel_label = "WhatsApp" if requested_channel == "whatsapp" else "SMS"
         return {
             "success": True,
-            "message": f"Verification code sent to {norm_phone} via {requested_channel.upper()}",
+            "message": f"✅ Verification code sent to {norm_phone} via {channel_label}",
             "expires_in_seconds": meta["expires_in_seconds"],
             "resend_in_seconds": meta["resend_in_seconds"],
             # Only provide dev_simulator_code if real delivery did not succeed

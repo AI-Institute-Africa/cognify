@@ -50,6 +50,9 @@ class SMSPoPProvider(SMSProvider):
         self.sender_id = os.environ.get("SMSPOP_SENDER_ID") or os.environ.get("SMS_SENDER_ID", "SMSPoP")
         self.base_url = os.environ.get("SMSPOP_BASE_URL", "https://smspop.co.zw/api")
 
+    # Known resolved IP for smspop.co.zw — used as fallback when DNS resolution fails
+    _SMSPOP_FALLBACK_IP = "208.73.204.88"
+
     async def send_sms(self, to_phone: str, message: str) -> dict:
         if not self.api_key:
             logger.info(f"[SMS Simulator] To: {to_phone} | Message: {message}")
@@ -62,50 +65,68 @@ class SMSPoPProvider(SMSProvider):
         if clean_phone.startswith("0") and len(clean_phone) == 10:
             clean_phone = "263" + clean_phone[1:]
 
-        try:
-            import httpx
-            async with httpx.AsyncClient(timeout=15.0, verify=False) as client:
-                payload = {
-                    "name": "Cognify Notification",
-                    "message": message,
-                    "sender_id": self.sender_id,
-                    "contact_import_method": "manual",
-                    "manual_contacts": clean_phone
-                }
-                headers = {
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                    "Accept": "application/json"
-                }
-                resp = await client.post(
-                    f"{self.base_url.rstrip('/')}/campaigns",
-                    json=payload,
-                    headers=headers
-                )
-                
-                try:
-                    data = resp.json()
-                except Exception:
-                    data = {}
+        # Determine API endpoint base. Extract hostname from configured base_url.
+        import re as _re
+        _host_match = _re.search(r'https?://([^/]+)', self.base_url)
+        _hostname = _host_match.group(1) if _host_match else "smspop.co.zw"
+        _base_clean = self.base_url.rstrip('/')
 
-                if resp.status_code in [200, 201] and data.get("success"):
-                    summary = data.get("data", {}).get("summary", {})
-                    contacts = data.get("data", {}).get("contacts", [{}])
-                    msg_id = contacts[0].get("message_id") if contacts else None
-                    logger.info(f"[SMSPoP] Dispatched SMS to {clean_phone} (message_id={msg_id})")
-                    return {
-                        "success": True,
-                        "provider": "smspop",
-                        "provider_id": str(msg_id or data.get("data", {}).get("campaign", {}).get("id")),
-                        "credits_remaining": summary.get("credits_remaining")
-                    }
-                else:
-                    err_msg = data.get("message") or resp.text
-                    logger.error(f"[SMSPoP Error] ({resp.status_code}): {err_msg}")
-                    return {"success": False, "error": f"SMSPoP error: {err_msg}"}
-        except Exception as e:
-            logger.error(f"[SMSPoP Exception]: {e}")
-            return {"success": False, "error": str(e)}
+        # Build candidate URL list: primary domain first, IP fallback second
+        _fallback_base = self.base_url.replace(_hostname, self._SMSPOP_FALLBACK_IP) if _hostname not in ["localhost", "127.0.0.1"] else None
+        _candidates = [(_base_clean, {})]
+        if _fallback_base and _fallback_base != _base_clean:
+            _candidates.append((_fallback_base, {"Host": _hostname}))
+
+        payload = {
+            "name": "Cognify OTP",
+            "message": message,
+            "sender_id": self.sender_id,
+            "contact_import_method": "manual",
+            "manual_contacts": clean_phone
+        }
+        base_headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+
+        last_error = None
+        for endpoint_base, extra_headers in _candidates:
+            try:
+                import httpx
+                headers = {**base_headers, **extra_headers}
+                async with httpx.AsyncClient(timeout=15.0, verify=False) as client:
+                    resp = await client.post(
+                        f"{endpoint_base}/campaigns",
+                        json=payload,
+                        headers=headers
+                    )
+                    try:
+                        data = resp.json()
+                    except Exception:
+                        data = {}
+
+                    if resp.status_code in [200, 201] and data.get("success"):
+                        summary = data.get("data", {}).get("summary", {})
+                        contacts = data.get("data", {}).get("contacts", [{}])
+                        msg_id = contacts[0].get("message_id") if contacts else None
+                        logger.info(f"[SMSPoP] Dispatched SMS to {clean_phone} via {endpoint_base} (message_id={msg_id})")
+                        return {
+                            "success": True,
+                            "provider": "smspop",
+                            "provider_id": str(msg_id or data.get("data", {}).get("campaign", {}).get("id")),
+                            "credits_remaining": summary.get("credits_remaining")
+                        }
+                    else:
+                        err_msg = data.get("message") or resp.text
+                        logger.warning(f"[SMSPoP] Non-success response from {endpoint_base} ({resp.status_code}): {err_msg}")
+                        last_error = f"SMSPoP error: {err_msg}"
+            except Exception as e:
+                logger.warning(f"[SMSPoP] Request to {endpoint_base} failed: {e} — trying fallback")
+                last_error = str(e)
+
+        logger.error(f"[SMSPoP] All endpoints exhausted. Last error: {last_error}")
+        return {"success": False, "error": last_error or "SMSPoP unreachable"}
 
 
 class TwilioSMSProvider(SMSProvider):
@@ -277,8 +298,18 @@ class NotificationService:
 
     def format_template(self, event: str, **kwargs) -> str:
         """Centralized notification templates as specified in BRD."""
+        channel = kwargs.get('channel', 'sms')
         if event == "registration_otp":
-            return f"Your Cognify verification code is {kwargs.get('code')}."
+            code = kwargs.get('code', '')
+            if channel == 'whatsapp':
+                return (
+                    f"🔐 *Cognify Verification Code*\n\n"
+                    f"Your secure OTP code is: *{code}*\n\n"
+                    f"This code is valid for *10 minutes*. Do not share it with anyone.\n\n"
+                    f"_Cognify — Africa's AI Learning Platform_"
+                )
+            else:
+                return f"Cognify OTP: {code}. Valid 10 mins. Do not share. - Cognify AI Platform"
         elif event == "phone_verified":
             return "Your phone number has been successfully verified on Cognify. Welcome aboard!"
         elif event == "course_enrolment":

@@ -77,21 +77,30 @@ def make_sms_admin_router(db):
         except Exception:
             pass
 
-        # Try to retrieve recent campaigns from SMSPoP
+        # Try to retrieve recent campaigns from SMSPoP (with IP fallback for DNS issues)
         credits_remaining = None
+        SMSPOP_FALLBACK_IP = "208.73.204.88"
         if is_configured:
-            try:
-                import httpx
-                async with httpx.AsyncClient(timeout=8.0, verify=False) as client:
-                    resp = await client.get(
-                        f"{base_url.rstrip('/')}/campaigns",
-                        headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
-                    )
-                    if resp.status_code == 200:
-                        c_data = resp.json().get("data", {})
-                        recent_campaigns = c_data.get("campaigns", [])[:10]
-            except Exception as e:
-                logger.warning(f"Failed to fetch SMSPoP campaigns: {e}")
+            import re as _re
+            _host_match = _re.search(r'https?://([^/]+)', base_url)
+            _hostname = _host_match.group(1) if _host_match else "smspop.co.zw"
+            _base_clean = base_url.rstrip('/')
+            _fallback_base = _base_clean.replace(_hostname, SMSPOP_FALLBACK_IP)
+            _candidates = [(_base_clean, {}), (_fallback_base, {"Host": _hostname})]
+            for _ep, _extra in _candidates:
+                try:
+                    import httpx
+                    async with httpx.AsyncClient(timeout=8.0, verify=False) as client:
+                        resp = await client.get(
+                            f"{_ep}/campaigns",
+                            headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json", **_extra}
+                        )
+                        if resp.status_code == 200:
+                            c_data = resp.json().get("data", {})
+                            recent_campaigns = c_data.get("campaigns", [])[:10]
+                            break
+                except Exception as e:
+                    logger.warning(f"Failed to fetch SMSPoP campaigns from {_ep}: {e}")
 
         return {
             "status": "connected" if is_configured else "unconfigured",
