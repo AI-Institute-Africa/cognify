@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Header } from '../components/Header';
 import { getFees, payFee } from '../services/api';
-import { CreditCard, CheckCircle, Clock, AlertTriangle, DollarSign, Receipt } from 'lucide-react';
+import { CreditCard, CheckCircle, Clock, AlertTriangle, DollarSign, Receipt, ExternalLink } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
@@ -17,6 +17,8 @@ import {
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
+
+const DEDICATED_PAYNOW_URL = 'https://www.paynow.co.zw/aiia';
 
 export default function FeesPage() {
   const { user } = useAuth();
@@ -155,6 +157,29 @@ export default function FeesPage() {
             className="h-3 bg-zinc-800" 
           />
         </div>
+
+        {/* Dedicated Paynow Direct Bill Payment Banner */}
+        <div className="glass-card p-6 mb-8 bg-gradient-to-r from-blue-950/60 via-indigo-950/40 to-cyan-950/40 border border-blue-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-semibold tracking-wider uppercase text-blue-400">Official Paynow Portal</span>
+            </div>
+            <h4 className="text-lg font-bold text-white">Direct Online Bill Payment via Paynow</h4>
+            <p className="text-sm text-zinc-300">
+              Pay your tuition or student balance directly at <span className="font-mono text-blue-300">paynow.co.zw/aiia</span> using EcoCash, OneMoney, InnBucks, Visa, or Mastercard.
+            </p>
+          </div>
+          <a
+            href={DEDICATED_PAYNOW_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm whitespace-nowrap transition-colors shadow-lg shadow-blue-500/25"
+          >
+            Pay on Paynow
+            <ExternalLink className="w-4 h-4" />
+          </a>
+        </div>
         
         {/* Fee List */}
         {fees.length === 0 ? (
@@ -278,6 +303,22 @@ export default function FeesPage() {
                 </div>
               </div>
               
+              <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-blue-300">Fast Direct Payment</p>
+                  <p className="text-xs text-zinc-400">Pay directly on official Paynow page</p>
+                </div>
+                <a
+                  href={DEDICATED_PAYNOW_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold"
+                >
+                  paynow.co.zw/aiia
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+
               <div className="flex justify-end gap-3 pt-4">
                 <Button variant="ghost" onClick={() => setPaymentDialog(null)}>
                   Cancel

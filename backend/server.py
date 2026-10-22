@@ -6682,25 +6682,45 @@ async def initiate_paynow_payment(
             item_description=f"Course: {course_title}"
         )
     
+    DEDICATED_PAYNOW_URL = os.environ.get("PAYNOW_BILL_URL", "https://www.paynow.co.zw/aiia")
+
     if result.get('success'):
-        # Update payment record with poll URL
+        payment_link = result.get('paymentUrl') or DEDICATED_PAYNOW_URL
+        # Update payment record with poll URL & payment link
         await db.payments.update_one(
             {"reference": reference},
             {"$set": {
                 "poll_url": result.get('pollUrl'),
-                "paynow_reference": result.get('paynow_reference')
+                "paynow_reference": result.get('paynow_reference'),
+                "payment_url": payment_link,
+                "dedicated_bill_url": DEDICATED_PAYNOW_URL
             }}
         )
         
         return {
             "success": True,
             "reference": reference,
-            "payment_url": result.get('paymentUrl'),
+            "payment_url": payment_link,
+            "dedicated_bill_url": DEDICATED_PAYNOW_URL,
             "poll_url": result.get('pollUrl'),
-            "instructions": result.get('instructions')
+            "instructions": result.get('instructions') or f"Please complete your payment on Paynow using reference {reference}."
         }
     else:
-        return {"success": False, "error": result.get('error', 'Payment initiation failed')}
+        # Fallback to direct dedicated bill payment URL so user can complete payment directly on Paynow!
+        await db.payments.update_one(
+            {"reference": reference},
+            {"$set": {
+                "payment_url": DEDICATED_PAYNOW_URL,
+                "dedicated_bill_url": DEDICATED_PAYNOW_URL
+            }}
+        )
+        return {
+            "success": True,
+            "reference": reference,
+            "payment_url": DEDICATED_PAYNOW_URL,
+            "dedicated_bill_url": DEDICATED_PAYNOW_URL,
+            "instructions": f"Please complete your payment on the official Paynow bill portal ({DEDICATED_PAYNOW_URL}) using reference: {reference}"
+        }
 
 @payments_router.post("/paynow/check-status")
 async def check_paynow_status(

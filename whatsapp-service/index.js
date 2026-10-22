@@ -159,10 +159,10 @@ You do not need to fill out a website registration form. Follow these quick step
 • Access your AI Mentor, interactive quizzes, courses, and certifications immediately!
 
 📌 Check your next incoming WhatsApp message for your secure 6-digit login OTP code.`,
-    pricing: `💰 *Cognify Course Fees* for @{USER}\n\n• Individual Courses: from $10/month\n• Professional Certificates: from $25/month\n• Corporate Training Packages: Custom pricing\n• Organization Plans: Contact us for bulk pricing\n\n✅ All plans include AI mentor, quizzes & certificates.\n\nTo enroll, reply with *ENROLL* for instant step-by-step guidance.`,
+    pricing: `💰 *Cognify Course Fees* for @{USER}\n\n• Individual Courses: from $10/month\n• Professional Certificates: from $25/month\n• Corporate Training Packages: Custom pricing\n• Organization Plans: Contact us for bulk pricing\n\n✅ All plans include AI mentor, quizzes & certificates.\n\n💳 *Pay Instantly via Paynow:*\n👉 https://www.paynow.co.zw/aiia\n_(Supports EcoCash, OneMoney, InnBucks, Visa & Mastercard)_\n\nTo enroll, reply with *ENROLL* for instant step-by-step guidance.`,
     programs: `📚 *Cognify Learning Programs* for @{USER}\n\n🎓 *Professional Certificates*\n• AI & Machine Learning\n• Data Science & Analytics\n• Cybersecurity Fundamentals\n• Cloud Computing\n\n💼 *Corporate Training*\n• Custom corporate upskilling\n• Team learning dashboards\n• Progress tracking & reporting\n\n🌍 Available in English, Shona & Ndebele.\n\nReply *ENROLL* to get the registration steps!`,
     application_status: `📋 *Application Status* for @{USER}\n\nTo check your application status, please provide your *reference number* (e.g. CGN-2026-XXXX).\n\nAlternatively, log into your Cognify account at our platform and check your dashboard.`,
-    payment_proof: `✅ *Payment Submission* for @{USER}\n\nTo submit your payment proof:\n1. Log into your Cognify account\n2. Go to *Fees & Payments*\n3. Upload your receipt/proof of payment\n\nPayments are verified within 24 hours. For urgent queries, contact our admin office.`,
+    payment_proof: `✅ *Payment & Billing Portal* for @{USER}\n\n💳 *Pay Directly via Paynow:*\n👉 https://www.paynow.co.zw/aiia\n\nTo submit your payment proof:\n1. Log into your Cognify account\n2. Go to *Fees & Payments*\n3. Upload your receipt/proof of payment\n\nPayments are verified within 24 hours. For urgent queries, contact our admin office.`,
     support: `📞 *Cognify Support* for @{USER}\n\n🌐 Platform: Visit our website\n📧 Email: support@cognify.com\n⏰ Support hours: Mon–Fri, 8:00–17:00 (Harare)\n\nOur team will respond within 2 business hours.`,
     general: `🤖 Hello @{USER}! Thank you for reaching out to *Cognify*!\n\nI can help with:\n• 📚 Courses & Programs\n• 🎓 Enrollment Steps (Reply *ENROLL*)\n• 💰 Fees & Payments\n• 📋 Application Status\n\nPlease describe what you need or reply with one of the keywords above.`
   },
@@ -188,10 +188,10 @@ Hapana chikonzero chekuvhura fomu pawebhusaiti:
 
 4️⃣ *Tanga Kudzidza*:
 • AI Mentor nemakosi ose zvatovhurwa!`,
-    pricing: `💰 *Mitengo yeCognify* ye @{USER}\n\n• Makosi: kutanga pa $10/mwedzi\n• Zvitupa: kutanga pa $25/mwedzi\n• Zvemakambani: Mitengo inotauriranwa\n\n✅ Zvese zvine AI mentor nezvitupa zvinotaridza kupasa.\n\nPindura *ENROLL* kuti uwane matanho ekunyoresa.`,
+    pricing: `💰 *Mitengo yeCognify* ye @{USER}\n\n• Makosi: kutanga pa $10/mwedzi\n• Zvitupa: kutanga pa $25/mwedzi\n• Zvemakambani: Mitengo inotauriranwa\n\n✅ Zvese zvine AI mentor nezvitupa zvinotaridza kupasa.\n\n💳 *Bhadhara paPaynow:*\n👉 https://www.paynow.co.zw/aiia\n\nPindura *ENROLL* kuti uwane matanho ekunyoresa.`,
     programs: `📚 *Zvirongwa zvedu zveDzidzo* zve @{USER}\n\n🎓 *Zvitupa Zvepamusoro*\n• AI & Machine Learning\n• Data Science\n• Cybersecurity\n• Cloud Computing\n\n💼 *Dzidziso dzeMakambani*\n• Upskilling yevashandi\n• Team dashboards\n\nPindura *ENROLL* kuti utange.`,
     application_status: `📋 *Kutarisa Application* ya @{USER}\n\nNdokumbira unyore *reference number* yako (semuenzaniso: CGN-2026-XXXX) kana kupinda pane dashboard rako paCognify.`,
-    payment_proof: `✅ *Payment Proof* ye @{USER}\n\nIsa umbowo hwekubhadhara pa portal pasi pe *Fees & Payments*. Verification inoitwa mukati memaawa 24.`,
+    payment_proof: `✅ *Mubhadharo paPaynow* we @{USER}\n\n💳 *Bhadhara paPaynow:*\n👉 https://www.paynow.co.zw/aiia\n\nIsa umbowo hwekubhadhara pa portal pasi pe *Fees & Payments*. Verification inoitwa mukati memaawa 24.`,
     support: `📞 *Rubatsiro* rwe @{USER}\n\n📧 Email: support@cognify.com\n⏰ Muvhuro-Chishanu 8:00-17:00 Harare time.`,
     general: `🤖 Mazvita nekutaura neCognify @{USER}! Nyorai *ENROLL* kana muchida kunyoresa makosi.`
   },

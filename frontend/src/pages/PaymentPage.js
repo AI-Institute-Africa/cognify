@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { 
   CreditCard, Phone, Building2, CheckCircle, 
-  Loader2, Lock, ArrowLeft, Shield, AlertTriangle, Calendar, Info
+  Loader2, Lock, ArrowLeft, Shield, AlertTriangle, Calendar, Info, ExternalLink
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -15,12 +15,13 @@ import { getCoursePaymentBreakdown, getCoursePaymentStatus } from '../services/a
 import PhoneInputWithCountry from '../components/PhoneInputWithCountry';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+const DEDICATED_PAYNOW_URL = 'https://www.paynow.co.zw/aiia';
 
 const PAYMENT_METHODS = [
-  { id: 'ecocash', name: 'EcoCash', icon: Phone, color: 'green', description: 'Pay with EcoCash mobile money' },
-  { id: 'paynow', name: 'Paynow', icon: Building2, color: 'blue', description: 'Pay via Paynow Zimbabwe' },
-  { id: 'innbucks', name: 'InnBucks', icon: Phone, color: 'orange', description: 'Pay with InnBucks wallet' },
-  { id: 'mastercard', name: 'Card Payment', icon: CreditCard, color: 'red', description: 'Visa/Mastercard' },
+  { id: 'paynow', name: 'Paynow Dedicated Portal', icon: Building2, color: 'blue', description: 'Pay directly via paynow.co.zw/aiia (All methods)' },
+  { id: 'ecocash', name: 'EcoCash Push Prompt', icon: Phone, color: 'green', description: 'Instant prompt sent to your mobile phone' },
+  { id: 'innbucks', name: 'InnBucks Wallet', icon: Phone, color: 'orange', description: 'Pay with InnBucks wallet' },
+  { id: 'mastercard', name: 'Visa / Mastercard', icon: CreditCard, color: 'red', description: 'Debit or Credit Card' },
 ];
 
 export default function PaymentPage() {
@@ -127,9 +128,38 @@ export default function PaymentPage() {
         }
         return fallback;
       };
+
+      // Dedicated Paynow portal payment
+      if (selectedMethod === 'paynow') {
+        const response = await fetch(`${API_URL}/api/payments/paynow/initiate`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            course_id: courseId,
+            course_name: course?.title || 'Cognify Course',
+            amount: amountToPay,
+            payment_method: 'paynow',
+            phone: phoneNumber || user?.phone_number || ''
+          })
+        });
+
+        const result = response.ok ? await response.json() : {};
+        const payUrl = result.payment_url || DEDICATED_PAYNOW_URL;
+        window.open(payUrl, '_blank');
+        setPaymentResult({
+          reference: result.reference || `COG-PAY-${Date.now().toString().slice(-6)}`,
+          payment_url: payUrl,
+          instructions: `Payment portal opened in a new tab. Please complete your transaction on Paynow using reference ${result.reference || 'COG-PAY'}.`
+        });
+        toast.info('Paynow Bill Portal opened in a new tab!');
+        return;
+      }
       
-      // Use Paynow for EcoCash and InnBucks
-      if (selectedMethod === 'ecocash' || selectedMethod === 'innbucks' || selectedMethod === 'paynow') {
+      // Use Paynow for EcoCash and InnBucks push prompts
+      if (selectedMethod === 'ecocash' || selectedMethod === 'innbucks') {
         const response = await fetch(`${API_URL}/api/payments/paynow/initiate`, {
           method: 'POST',
           headers: {
@@ -257,10 +287,24 @@ export default function PaymentPage() {
               <p className="text-zinc-400 mb-6">Reference: {paymentResult.reference}</p>
               
               {paymentResult.instructions && (
-                <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/30 mb-4">
-                  <p className="text-blue-400">{paymentResult.instructions}</p>
+                <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/30 mb-4 text-left">
+                  <p className="text-blue-300 text-sm leading-relaxed">{paymentResult.instructions}</p>
                 </div>
               )}
+
+              <div className="space-y-3 my-6">
+                <a
+                  href={paymentResult.payment_url || DEDICATED_PAYNOW_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-all shadow-lg shadow-blue-500/20"
+                >
+                  <ExternalLink className="w-4 h-4" /> Open Paynow Dedicated Bill Portal
+                </a>
+                <p className="text-xs text-zinc-400">
+                  Bill Link: <a href={DEDICATED_PAYNOW_URL} target="_blank" rel="noreferrer" className="font-mono text-blue-400 underline">{DEDICATED_PAYNOW_URL}</a>
+                </p>
+              </div>
               
               <p className="text-sm text-zinc-500">
                 {selectedMethod === 'ecocash' || selectedMethod === 'innbucks'
@@ -404,6 +448,27 @@ export default function PaymentPage() {
             <div className="glass-card p-6">
               <h2 className="text-xl font-bold mb-4">Payment Method</h2>
               
+              {/* Dedicated Paynow Direct Bill Payment Banner */}
+              <div className="p-4 mb-5 rounded-xl bg-gradient-to-r from-blue-950/60 via-indigo-950/40 to-cyan-950/40 border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-xs font-semibold tracking-wider uppercase text-blue-400">Official Paynow Portal</span>
+                  </div>
+                  <p className="text-sm font-medium text-white">Direct Online Bill Payment</p>
+                  <p className="text-xs text-zinc-400">Pay directly with EcoCash, OneMoney, InnBucks, Visa & Mastercard on Paynow.</p>
+                </div>
+                <a
+                  href={DEDICATED_PAYNOW_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold whitespace-nowrap transition-colors shadow-lg shadow-blue-500/20"
+                >
+                  Pay on Paynow
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+
               <div className="space-y-3 mb-6">
                 {PAYMENT_METHODS.map((method) => (
                   <button

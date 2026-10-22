@@ -315,18 +315,27 @@ class NotificationService:
         elif event == "course_enrolment":
             return f"You have been enrolled in {kwargs.get('course_name', 'your course')} on Cognify."
         elif event == "payment_confirmation":
-            return f"Your Cognify payment of ${float(kwargs.get('amount', 0)):.2f} has been received."
+            return f"Your Cognify payment of ${float(kwargs.get('amount', 0)):.2f} has been received. Thank you!"
         elif event == "partial_payment":
             return (
                 f"We received your payment of ${float(kwargs.get('amount', 0)):.2f}. "
-                f"You need ${float(kwargs.get('remaining', 0)):.2f} more to meet the current monthly requirement."
+                f"You need ${float(kwargs.get('remaining', 0)):.2f} more to meet the monthly requirement. "
+                f"Complete payment via Paynow: https://www.paynow.co.zw/aiia"
             )
         elif event == "payment_due":
-            return f"Your Cognify course payment of ${float(kwargs.get('amount', 0)):.2f} is due for {kwargs.get('course_name', 'your course')}."
+            return (
+                f"Your Cognify course payment of ${float(kwargs.get('amount', 0)):.2f} is due for {kwargs.get('course_name', 'your course')}. "
+                f"Pay online directly on Paynow: https://www.paynow.co.zw/aiia"
+            )
         elif event == "payment_overdue":
             return (
                 f"Your Cognify assessment access is currently locked because your payment is overdue. "
-                f"Pay ${float(kwargs.get('remaining', 0)):.2f} to restore eligibility."
+                f"Pay ${float(kwargs.get('remaining', 0)):.2f} via Paynow to restore eligibility: https://www.paynow.co.zw/aiia"
+            )
+        elif event == "invoice_issued":
+            return (
+                f"Invoice {kwargs.get('invoice_ref', '')} for ${float(kwargs.get('amount', 0)):.2f} is ready. "
+                f"Pay securely on Paynow: https://www.paynow.co.zw/aiia"
             )
         elif event == "assessment_restored":
             return "Your payment requirement has been met. Your Cognify assessment access is now available."
@@ -357,7 +366,25 @@ class NotificationService:
                     ch_res = await self.wa_provider.send_whatsapp(recipient_phone, message_text)
                 elif ch == "email" and recipient_email:
                     subject = kwargs.get("subject", "Cognify Notification")
-                    html = f"<div style='font-family:sans-serif;'><p>{message_text}</p></div>"
+                    pay_btn_html = (
+                        "<div style='margin: 24px 0; text-align: center;'>"
+                        "<a href='https://www.paynow.co.zw/aiia' target='_blank' style='background: #2563eb; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 15px; display: inline-block;'>"
+                        "💳 Pay Directly on Paynow"
+                        "</a>"
+                        "<p style='color: #71717a; font-size: 12px; margin-top: 10px;'>"
+                        "Dedicated Bill Payment URL: <a href='https://www.paynow.co.zw/aiia' style='color: #3b82f6;'>https://www.paynow.co.zw/aiia</a>"
+                        "</p>"
+                        "</div>"
+                    )
+                    html = (
+                        f"<div style='font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; color: #18181b; max-width: 580px; margin: 0 auto; padding: 24px; border: 1px solid #e4e4e7; border-radius: 12px;'>"
+                        f"<h2 style='color: #1e3a8a; margin-top: 0;'>Cognify Platform</h2>"
+                        f"<p style='font-size: 15px; line-height: 1.6;'>{message_text}</p>"
+                        f"{pay_btn_html if any(w in event for w in ['payment', 'invoice', 'fee']) else ''}"
+                        f"<hr style='border: none; border-top: 1px solid #e4e4e7; margin: 24px 0;' />"
+                        f"<p style='color: #a1a1aa; font-size: 11px;'>AI Institute of Africa · Cognify Learning Platform</p>"
+                        f"</div>"
+                    )
                     ch_res = await self.email_provider.send_email(recipient_email, subject, html)
             except Exception as e:
                 logger.error(f"Failed to send on channel {ch}: {e}")
