@@ -222,13 +222,17 @@ export default function OrgAdminDashboardPage() {
         newCourse.price
       );
       
-      toast.success(`Course created with ${result.lessons_created} lessons!`);
+      if (result.generation_status === 'generating') {
+        toast.info('Course generation is still in progress. Check the Courses page shortly.');
+      } else {
+        toast.success(`Course created with ${result.lessons_created} lessons!`);
+      }
       setShowCreateCourseDialog(false);
       setNewCourse({ title: '', category: 'certificate', price: 0, file: null });
       loadDashboardData();
     } catch (error) {
       console.error('Failed to create course:', error);
-      toast.error('Failed to create course from PDF');
+      toast.error(error.response?.data?.detail || error.message || 'Failed to create course from PDF');
     } finally {
       setCreatingCourse(false);
     }

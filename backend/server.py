@@ -1565,27 +1565,52 @@ async def get_course_content_list(
         query["type"] = content_type
     
     contents = await db.course_contents.find(query, {"_id": 0}).to_list(200)
+    for content in contents:
+        content["text"] = (
+            content.get("text")
+            or content.get("content")
+            or content.get("content_text")
+            or ""
+        )
     
     # Also fetch lessons from the lessons collection and merge
     lessons = await db.lessons.find({"course_id": course_id}, {"_id": 0}).sort("order", 1).to_list(100)
-    existing_ids = {c.get('id') for c in contents}
+    existing_content = {c.get('id'): c for c in contents if c.get('id')}
     for lesson in lessons:
-        if lesson.get('id') not in existing_ids:
+        lesson_text = (
+            lesson.get('text')
+            or lesson.get('content')
+            or lesson.get('content_text')
+            or ""
+        )
+        existing = existing_content.get(lesson.get('id'))
+        if existing:
+            # Older course-content records may share an ID but lack the lesson body.
+            existing["text"] = existing.get("text") or lesson_text
+            existing["description"] = existing.get("description") or lesson.get("description", "")
+            existing["key_points"] = existing.get("key_points") or lesson.get("key_points", [])
+            existing["duration"] = existing.get("duration") or lesson.get("duration", "30 min")
+            existing["source"] = existing.get("source") or lesson.get("source", "")
+            existing["source_filename"] = existing.get("source_filename") or lesson.get("source_filename", "")
+        else:
             # Convert lesson to content format
-            contents.append({
+            lesson_content = {
                 "id": lesson.get('id'),
                 "course_id": course_id,
                 "type": "text",
                 "title": lesson.get('title', 'Lesson'),
                 "description": lesson.get('description', ''),
-                "text": lesson.get('content', ''),
+                "text": lesson_text,
                 "key_points": lesson.get('key_points', []),
                 "order": lesson.get('order', len(contents) + 1),
                 "duration": lesson.get('duration', '30 min'),
                 "source": lesson.get('source', ''),
                 "source_filename": lesson.get('source_filename', ''),
                 "created_at": lesson.get('created_at', '')
-            })
+            }
+            contents.append(lesson_content)
+            if lesson_content.get("id"):
+                existing_content[lesson_content["id"]] = lesson_content
     
     # Also check embedded course lessons
     if not contents:
@@ -1598,7 +1623,7 @@ async def get_course_content_list(
                     "type": "text",
                     "title": cl.get('title', f'Lesson {i+1}'),
                     "description": cl.get('description', ''),
-                    "text": cl.get('content', ''),
+                    "text": cl.get('text') or cl.get('content') or cl.get('content_text', ''),
                     "key_points": cl.get('key_points', []),
                     "order": i + 1,
                     "duration": cl.get('duration', '30 min')
@@ -8012,30 +8037,44 @@ Return JSON with: {
             chat.send_message(UserMessage(text=f"Create a course structure from this content:\n\n{text_content[:8000]}")),
             timeout=180,
         )
+        response_text = response.text if hasattr(response, "text") else str(response)
         parsed = {}
         try:
-            js_start = response.find('{')
-            js_end = response.rfind('}') + 1
+            js_start = response_text.find('{')
+            js_end = response_text.rfind('}') + 1
             if js_start >= 0:
-                parsed = json.loads(response[js_start:js_end])
+                parsed = json.loads(response_text[js_start:js_end])
         except Exception as _e:
             logging.warning(f"pdf-course LLM parse failed: {_e}")
 
+        generated_lessons = parsed.get("lessons")
+        if not isinstance(generated_lessons, list) or not generated_lessons:
+            raise ValueError("AI did not return any lessons for this PDF. Please try another document.")
+
         lesson_ids = []
-        for idx, lesson in enumerate(parsed.get('lessons', [])):
+        for idx, lesson in enumerate(generated_lessons):
+            if not isinstance(lesson, dict):
+                continue
+            lesson_content = lesson.get("content") or lesson.get("text") or lesson.get("content_text") or ""
+            if not lesson_content.strip():
+                continue
             lesson_id = str(uuid.uuid4())
             lesson_record = {
                 "id": lesson_id,
                 "course_id": course_id,
-                "content_type": "text",
+                "type": "text",
                 "title": lesson.get('title', f'Lesson {idx+1}'),
-                "description": lesson.get('content', '')[:500],
-                "content_text": lesson.get('content', ''),
-                "order": idx,
+                "description": lesson.get('description', ''),
+                "text": lesson_content,
+                "content": lesson_content,
+                "order": idx + 1,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
-            await db.course_content.insert_one(lesson_record)
+            await db.lessons.insert_one(lesson_record)
             lesson_ids.append(lesson_id)
+
+        if not lesson_ids:
+            raise ValueError("AI returned lessons without any lesson content. Please try another PDF.")
 
         await db.courses.update_one({"id": course_id}, {"$set": {
             "description": parsed.get("description") or f"Course created from PDF: {filename}",
@@ -8070,6 +8109,8 @@ async def create_course_from_pdf(
     try:
         import fitz  # PyMuPDF
         api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI service is not configured. Please contact your administrator.")
 
         content = await file.read()
         pdf_doc = fitz.open(stream=content, filetype="pdf")
@@ -8077,6 +8118,11 @@ async def create_course_from_pdf(
         for page in pdf_doc:
             text_content += page.get_text()
         pdf_doc.close()
+        if not text_content.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="No selectable text was found in this PDF. Please upload a text-based PDF rather than a scanned image.",
+            )
 
         course_id = str(uuid.uuid4())
         course = {
@@ -8101,7 +8147,14 @@ async def create_course_from_pdf(
         await db.courses.insert_one(course)
 
         # Kick off background AI generation
-        asyncio.create_task(_generate_pdf_course_background(course_id, text_content, file.filename, api_key))
+        task = asyncio.create_task(_generate_pdf_course_background(course_id, text_content, file.filename, api_key))
+        task.add_done_callback(
+            lambda completed: logging.error(
+                "PDF course generation task ended unexpectedly for %s: %s",
+                course_id,
+                completed.exception(),
+            ) if not completed.cancelled() and completed.exception() else None
+        )
 
         return {
             "message": "Course creation started. Poll /api/courses/{id}/generation-status for progress.",
@@ -8110,6 +8163,8 @@ async def create_course_from_pdf(
             "lessons_created": 0,
             "generation_status": "generating",
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"PDF course creation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -10496,9 +10551,10 @@ class CustomCourseRequest(BaseModel):
     include_video: bool = False
     include_slides: bool = True
     language: str = "en"
+    uploaded_file_ids: list = []  # Optional list of source upload file IDs
 
 async def _generate_course_background(course_id: str, request_data: dict, current_user_id: str, api_key: str):
-    """Background task: run LLM, create lessons, mark course ready."""
+    """Background task: generate course lessons one-by-one with LLM, using any uploaded source documents."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     import json
 
@@ -10511,95 +10567,183 @@ async def _generate_course_background(course_id: str, request_data: dict, curren
         target_audience = request_data.get("target_audience", "")
         duration_weeks = request_data.get("duration_weeks", 4)
         include_quizzes = request_data.get("include_quizzes", False)
+        uploaded_file_ids = request_data.get("uploaded_file_ids", [])
 
-        system_message = f"""You are a curriculum designer. Return ONLY valid JSON.
-{{
-    "course_title": "title",
-    "description": "short description",
-    "lessons": [
-        {{"title": "Lesson title", "description": "Brief summary", "duration": "30 min", "content": "lesson content (100-150 words)", "key_points": ["point1", "point2"]{', "quiz_questions": [{"question": "...", "options": ["a","b","c","d"], "correct": 0}]' if include_quizzes else ''}}}
-    ],
-    "learning_objectives": ["obj1", "obj2"]
-}}
-Create exactly {num_lessons} lessons. Keep content concise. Language: {request_language}."""
+        # ── Step 1: Fetch any uploaded source material ─────────────────────
+        source_context = ""
+        if uploaded_file_ids:
+            for fid in uploaded_file_ids:
+                try:
+                    doc = await db.source_uploads.find_one(
+                        {"file_id": fid}, {"_id": 0, "extracted_text": 1}
+                    )
+                    if doc and doc.get("extracted_text"):
+                        source_context += doc["extracted_text"][:3000] + "\n\n"
+                except Exception as src_err:
+                    logging.warning(f"Could not fetch source upload {fid}: {src_err}")
 
-        chat = LlmChat(api_key=api_key, session_id=f"custom-course-{course_id}", system_message=system_message)
-        chat.with_model("openai", "gpt-5.2")
+        source_snippet = source_context[:4000] if source_context else ""
 
-        prompt = f"""Create a {duration_weeks}-week course with {num_lessons} lessons.
-Title: {title}
-Goal: {learning_goal}
-Description: {description}
-Audience: {target_audience}
-Keep each lesson concise (100-150 words)."""
+        # ── Step 2: Generate course outline (titles + objectives) ──────────
+        outline_system = (
+            f"You are an expert curriculum designer. Return ONLY valid JSON with no markdown fencing. "
+            f"Language for all content: {request_language}."
+        )
+        if source_snippet:
+            outline_system += f"\n\nBase the course on this source material:\n{source_snippet}"
 
-        response = None
+        outline_prompt = (
+            f"Create an outline for a {duration_weeks}-week course titled \"{title}\" "
+            f"with exactly {num_lessons} lessons.\n"
+            f"Learning goal: {learning_goal}\n"
+            f"Description: {description}\n"
+            f"Target audience: {target_audience}\n\n"
+            f"Return JSON:\n"
+            f'{{"course_title": "...", "description": "...", '
+            f'"learning_objectives": ["...", "..."], '
+            f'"lessons": [{{"title": "Lesson N: ...", "description": "one-sentence summary"}}]}}'
+        )
+
+        outline_chat = LlmChat(
+            api_key=api_key,
+            session_id=f"course-outline-{course_id}",
+            system_message=outline_system,
+        )
+        outline_chat.with_model("openai", "gpt-5.2")
+
+        outline_response = None
         try:
-            response = await asyncio.wait_for(
-                chat.send_message(UserMessage(text=prompt)),
-                timeout=180  # give the background task room to breathe
+            outline_response = await asyncio.wait_for(
+                outline_chat.send_message(UserMessage(text=outline_prompt)),
+                timeout=120,
             )
         except Exception as err:
-            logging.warning(f"LLM background attempt failed: {err}")
+            logging.warning(f"Outline LLM call failed: {err}")
 
-        # Parse
-        course_structure = None
-        if response:
+        # Parse outline
+        outline_data = None
+        if outline_response:
             try:
-                json_start = response.find('{')
-                json_end = response.rfind('}') + 1
-                if json_start >= 0 and json_end > json_start:
-                    course_structure = json.loads(response[json_start:json_end])
-            except Exception as _e:
-                logging.warning(f"LLM json parse failed: {_e}")
+                js = outline_response[outline_response.find('{'):outline_response.rfind('}')+1]
+                outline_data = json.loads(js)
+            except Exception as pe:
+                logging.warning(f"Outline JSON parse failed: {pe}")
 
-        if not course_structure:
-            # Fallback structure so the course is still usable
-            course_structure = {
-                "course_title": title,
-                "description": description or learning_goal,
-                "lessons": [
-                    {"title": f"Lesson {i+1}: {title}",
-                     "description": f"Part {i+1} of {title}",
-                     "duration": "30 min",
-                     "content": (response[:1000] if response and i == 0 else f"Content for lesson {i+1} of {title}."),
-                     "key_points": ["Key concept 1", "Key concept 2", "Key concept 3"],
-                     "quiz_questions": []}
-                    for i in range(min(num_lessons, 5))
-                ],
-                "learning_objectives": ["Master the fundamentals", "Apply knowledge practically"],
-            }
+        # Build lesson stubs from outline (or fallback)
+        lesson_stubs = []
+        if outline_data and outline_data.get("lessons"):
+            for stub in outline_data["lessons"][:num_lessons]:
+                lesson_stubs.append({
+                    "title": stub.get("title", f"Lesson {len(lesson_stubs)+1}: {title}"),
+                    "description": stub.get("description", ""),
+                })
+        # Pad if outline returned fewer lessons than requested
+        while len(lesson_stubs) < num_lessons:
+            i = len(lesson_stubs) + 1
+            lesson_stubs.append({"title": f"Lesson {i}: {title}", "description": ""})
 
-        # Update the course header
+        # Update course header from outline
         await db.courses.update_one({"id": course_id}, {"$set": {
-            "name": course_structure.get("course_title") or title,
-            "title": course_structure.get("course_title") or title,
-            "description": course_structure.get("description") or description,
-            "learning_objectives": course_structure.get("learning_objectives", []),
-            "prerequisites": course_structure.get("prerequisites", []),
+            "name": (outline_data or {}).get("course_title") or title,
+            "title": (outline_data or {}).get("course_title") or title,
+            "description": (outline_data or {}).get("description") or description,
+            "learning_objectives": (outline_data or {}).get("learning_objectives", []),
         }})
 
-        # Create lessons
+        # ── Step 3: Generate each lesson individually ──────────────────────
+        lesson_system = (
+            f"You are a subject-matter expert and curriculum writer. "
+            f"Write rich, educational lesson content. Language: {request_language}. "
+            f"Return ONLY valid JSON with no markdown fencing."
+        )
+        if source_snippet:
+            lesson_system += f"\n\nDraw all content from this source material:\n{source_snippet}"
+
         lessons = []
-        for idx, lesson_data in enumerate(course_structure.get("lessons", [])[:num_lessons]):
+        for idx, stub in enumerate(lesson_stubs):
+            lesson_title = stub["title"]
+            lesson_desc = stub["description"]
+
+            quiz_schema = (
+                ', "quiz_questions": [{"question": "...", "options": ["a","b","c","d"], "correct": 0}]'
+                if include_quizzes else ""
+            )
+            lesson_prompt = (
+                f"Write lesson {idx+1} of {num_lessons} for the course \"{title}\".\n"
+                f"Lesson title: {lesson_title}\n"
+                f"Lesson summary: {lesson_desc}\n"
+                f"Learning goal of the whole course: {learning_goal}\n"
+                f"Target audience: {target_audience}\n\n"
+                f"Write 400–600 words of engaging lesson content.\n"
+                f"Return JSON:\n"
+                f'{{"title": "{lesson_title}", "description": "...", '
+                f'"content": "full lesson text here (400-600 words)", '
+                f'"key_points": ["...", "...", "...", "..."]{quiz_schema}}}'
+            )
+
+            lesson_chat = LlmChat(
+                api_key=api_key,
+                session_id=f"course-lesson-{course_id}-{idx}",
+                system_message=lesson_system,
+            )
+            lesson_chat.with_model("openai", "gpt-5.2")
+
+            lesson_response = None
+            try:
+                lesson_response = await asyncio.wait_for(
+                    lesson_chat.send_message(UserMessage(text=lesson_prompt)),
+                    timeout=120,
+                )
+            except Exception as err:
+                logging.warning(f"Lesson {idx+1} LLM call failed: {err}")
+
+            # Parse lesson JSON
+            lesson_data = None
+            if lesson_response:
+                try:
+                    js = lesson_response[lesson_response.find('{'):lesson_response.rfind('}')+1]
+                    lesson_data = json.loads(js)
+                except Exception as pe:
+                    logging.warning(f"Lesson {idx+1} JSON parse failed: {pe}")
+
+            # Build lesson document — use raw LLM response as fallback content
             lesson_id = str(uuid.uuid4())
-            lesson = {
+            if lesson_data:
+                content_text = lesson_data.get("content", "")
+                key_pts = lesson_data.get("key_points", [])
+                l_title = lesson_data.get("title", lesson_title)
+                l_desc = lesson_data.get("description", lesson_desc)
+                quiz_qs = lesson_data.get("quiz_questions", [])
+            else:
+                # Graceful fallback: use raw LLM text if available, not a placeholder
+                content_text = lesson_response if lesson_response else (
+                    f"# {lesson_title}\n\n{lesson_desc or learning_goal}\n\n"
+                    f"This lesson is part of the {title} course.\n"
+                    f"Please refer to your course materials for detailed content."
+                )
+                key_pts = [learning_goal] if learning_goal else []
+                l_title = lesson_title
+                l_desc = lesson_desc
+                quiz_qs = []
+
+            lesson_doc = {
                 "id": lesson_id,
                 "course_id": course_id,
-                "title": lesson_data.get("title", f"Lesson {idx + 1}"),
-                "description": lesson_data.get("description", ""),
-                "text": lesson_data.get("content", ""),
-                "duration": lesson_data.get("duration", "30 min"),
-                "key_points": lesson_data.get("key_points", []),
+                "title": l_title,
+                "description": l_desc,
+                "text": content_text,
+                "duration": "30 min",
+                "key_points": key_pts,
                 "order": idx + 1,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
-            await db.lessons.insert_one(lesson)
-            lesson.pop("_id", None)
-            lessons.append(lesson)
+            await db.lessons.insert_one(lesson_doc)
+            lesson_doc.pop("_id", None)
+            lessons.append(lesson_doc)
 
-            if include_quizzes and lesson_data.get("quiz_questions"):
-                for q_idx, quiz in enumerate(lesson_data.get("quiz_questions", [])[:3]):
+            # Optional quizzes
+            if include_quizzes and quiz_qs:
+                for q_idx, quiz in enumerate(quiz_qs[:3]):
                     quiz_record = {
                         "id": str(uuid.uuid4()),
                         "lesson_id": lesson_id,
@@ -10611,7 +10755,9 @@ Keep each lesson concise (100-150 words)."""
                     }
                     await db.lesson_quizzes.insert_one(quiz_record)
 
-        # Mark ready
+            logging.info(f"Course {course_id} — lesson {idx+1}/{num_lessons} generated ({len(content_text)} chars)")
+
+        # ── Step 4: Mark course ready ──────────────────────────────────────
         await db.courses.update_one({"id": course_id}, {"$set": {
             "generation_status": "ready",
             "generation_completed_at": datetime.now(timezone.utc).isoformat(),

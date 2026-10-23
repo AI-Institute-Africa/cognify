@@ -114,6 +114,16 @@ def make_phone_auth_router(db, get_current_user, hash_password, verify_password,
         elif requested_channel == "whatsapp" and wa_res.get("success") and wa_res.get("provider") not in ["simulator", "baileys_fallback", None]:
             real_delivery_success = True
 
+        if requested_channel == "sms" and not real_delivery_success:
+            await db.otp_verifications.update_one(
+                {"id": meta["record_id"]},
+                {"$set": {"status": "delivery_failed", "delivery_failed_at": datetime.now(timezone.utc).isoformat()}},
+            )
+            error = sms_res.get("error", "SMS provider did not confirm delivery")
+            if "sender id" in error.lower():
+                error = "SMSPoP rejected the sender ID. Have SMSPoP approve a sender ID for your account and set SMSPOP_SENDER_ID in backend/.env."
+            raise HTTPException(status_code=502, detail=f"SMS delivery failed: {error}")
+
         channel_label = "WhatsApp" if requested_channel == "whatsapp" else "SMS"
         return {
             "success": True,

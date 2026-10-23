@@ -13,7 +13,7 @@ export default function WhatsAppAdminPage() {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connectMethod, setConnectMethod] = useState('qr');
-  const [phoneInput, setPhoneInput] = useState('+263786434988');
+  const [phoneInput, setPhoneInput] = useState('+263790499962');
   const [recipients, setRecipients] = useState([]);
   const [messages, setMessages] = useState([]);
   const [newRecipient, setNewRecipient] = useState({ name: '', phone: '', alerts: ['morning', 'evening', 'weekly', 'registration'] });

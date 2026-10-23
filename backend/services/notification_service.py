@@ -55,11 +55,7 @@ async def send_email(
         return {"success": False, "error": str(e)}
 
 
-# ====================  WHATSAPP NOTIFICATIONS (TWILIO) ====================
-
-TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
-TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
-TWILIO_WHATSAPP_NUMBER = os.environ.get('TWILIO_WHATSAPP_NUMBER', '')
+# ====================  WHATSAPP NOTIFICATIONS ====================
 
 async def send_whatsapp(
     phone_number: str,
@@ -68,61 +64,32 @@ async def send_whatsapp(
     template_params: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
-    Send WhatsApp message via Twilio
+    Send WhatsApp through Cognify's linked Baileys account.
     """
     try:
-        # Clean phone number and format for Zimbabwe
         clean_phone = phone_number.replace('+', '').replace(' ', '').replace('-', '')
         if clean_phone.startswith('0'):
-            clean_phone = '263' + clean_phone[1:]  # Zimbabwe country code
-        
-        formatted_phone = f'+{clean_phone}'
-        
-        if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_WHATSAPP_NUMBER:
-            # Production: Use Twilio WhatsApp API
-            import httpx
-            from base64 import b64encode
-            
-            auth_string = f"{TWILIO_ACCOUNT_SID}:{TWILIO_AUTH_TOKEN}"
-            auth_header = b64encode(auth_string.encode()).decode()
-            
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Messages.json",
-                    headers={
-                        "Authorization": f"Basic {auth_header}",
-                        "Content-Type": "application/x-www-form-urlencoded"
-                    },
-                    data={
-                        "From": f"whatsapp:{TWILIO_WHATSAPP_NUMBER}",
-                        "To": f"whatsapp:{formatted_phone}",
-                        "Body": message
-                    },
-                    timeout=30
-                )
-                
-                if response.status_code in [200, 201]:
-                    response_data = response.json()
-                    return {
-                        "success": True,
-                        "message_id": response_data.get('sid'),
-                        "status": response_data.get('status')
-                    }
-                else:
-                    logger.error(f"Twilio WhatsApp error: {response.status_code} - {response.text}")
-                    return {"success": False, "error": f"WhatsApp message failed: {response.text}"}
-        else:
-            # Fallback: Generate wa.me link when Twilio not configured
-            encoded_message = message.replace(' ', '%20').replace('\n', '%0A')
-            whatsapp_link = f"https://wa.me/{clean_phone}?text={encoded_message}"
-            
-            logger.warning("Twilio not configured - generating wa.me link instead")
-            return {
-                "success": True,
-                "method": "link",
-                "whatsapp_link": whatsapp_link,
-                "message": "Twilio not configured - wa.me link generated"
-            }
+            clean_phone = '263' + clean_phone[1:]
+
+        import httpx
+        service_url = os.environ.get('WHATSAPP_SERVICE_URL', 'http://localhost:3001').rstrip('/')
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                f"{service_url}/send",
+                json={"to": clean_phone, "message": message}
+            )
+
+        if response.status_code == 200:
+            response_data = response.json()
+            if response_data.get('ok'):
+                return {
+                    "success": True,
+                    "provider": "baileys",
+                    "message_id": response_data.get('to')
+                }
+
+        logger.error(f"Baileys WhatsApp error: {response.status_code} - {response.text}")
+        return {"success": False, "provider": "baileys", "error": "WhatsApp message failed"}
             
     except Exception as e:
         logger.error(f"WhatsApp error: {e}")

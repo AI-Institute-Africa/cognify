@@ -867,7 +867,8 @@ export const createCourseFromPDF = async (file, title, category = 'certificate',
   formData.append('category', category);
   formData.append('price', price.toString());
   const response = await axios.post(`${API}/org-admin/create-course-from-pdf`, formData, {
-    headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' },
+    // Let the browser set the multipart boundary for FormData.
+    headers: getAuthHeaders(),
     timeout: 90000,
   });
   const result = response.data;
@@ -877,20 +878,23 @@ export const createCourseFromPDF = async (file, title, category = 'certificate',
     const maxMs = 5 * 60 * 1000;
     while (Date.now() - started < maxMs) {
       await new Promise((r) => setTimeout(r, 3000));
+      let status;
       try {
-        const { data: status } = await axios.get(
+        const response = await axios.get(
           `${API}/courses/${result.course_id}/generation-status`,
           { headers: getAuthHeaders(), timeout: 20000 }
         );
+        status = response.data;
         if (onProgress) onProgress(status);
-        if (status.status === 'ready') {
-          return { ...result, ...status, lessons_created: status.num_lessons_generated };
-        }
-        if (status.status === 'failed') {
-          throw new Error(status.generation_error || 'Course generation failed');
-        }
       } catch (e) {
-        if (e.message && e.message.includes('Course generation failed')) throw e;
+        console.warn('PDF course generation status check failed:', e);
+        continue;
+      }
+      if (status.status === 'ready') {
+        return { ...result, ...status, lessons_created: status.num_lessons_generated };
+      }
+      if (status.status === 'failed') {
+        throw new Error(status.generation_error || 'Course generation failed');
       }
     }
     // Timed out — return placeholder so user isn't stuck

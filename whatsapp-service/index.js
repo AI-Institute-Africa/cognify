@@ -13,7 +13,7 @@ const app = express();
 app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
-const COGNIFY_BACKEND = process.env.COGNIFY_BACKEND_URL || 'http://localhost:8000';
+const COGNIFY_BACKEND = process.env.COGNIFY_BACKEND_URL || 'http://127.0.0.1:8000';
 const AUTH_DIR = path.join(__dirname, 'data', 'baileys_auth');
 const SETTINGS_FILE = path.join(__dirname, 'data', 'whatsapp_ai_settings.json');
 const LID_MAP_FILE = path.join(__dirname, 'data', 'lid_mappings.json');
@@ -226,25 +226,119 @@ Akudingeki ugcwalise ifomu lewebhusayithi:
   }
 };
 
-function generateReply(text, senderJid = '') {
+async function generateReply(text, senderJid = '') {
   const settings = loadSettings();
   if (!settings.ai_enabled) return null;
   if (settings.paused_until && new Date() < new Date(settings.paused_until)) return null;
   
   const lang = detectLanguage(text);
-  const intent = detectIntent(text);
-  const r = RESPONSES[lang] || RESPONSES.en;
-  let replyText = r[intent] || r.general;
+  try {
+    const response = await axios.post(`${COGNIFY_BACKEND}/api/whatsapp/answer`, {
+      question: text,
+      language: lang
+    }, { timeout: 10000 });
+    const answer = response.data?.reply?.trim();
+    if (answer) {
+      const userPhone = senderJid ? senderJid.split('@')[0] : '';
+      return { text: answer, mentions: userPhone ? [senderJid] : [] };
+    }
+  } catch (e) {
+    logger.warn({ err: e.message }, 'Cognify answer service unavailable; using local FAQ fallback');
+  }
 
-  // Extract phone number to tag (e.g., 263786434988)
+  const replyText = `I can only answer from Cognify's course and support information. Send COURSES to browse, or ask about enrollment, course access, payments, or support.`;
   const userPhone = senderJid ? senderJid.split('@')[0] : '';
   const mentionTag = userPhone ? `@${userPhone}` : 'there';
-  replyText = replyText.replace(/@{USER}/g, mentionTag);
 
   return {
-    text: replyText,
+    text: `${mentionTag}, ${replyText}`,
     mentions: userPhone ? [senderJid] : []
   };
+}
+
+function isLearningCommand(text) {
+  const message = text.trim();
+  return /^(?:help|menu|start|learning|courses?|catalog(?:ue)?|programs?|programmes?|available courses|enroll\s+course\s+\d+|learn(?:\s+\d+)?|(?:mode\s+)?(?:text|audio|slides?|video)|next(?: lesson)?|lang(?:uage)?\s+[a-z-]{2,20})$/i.test(message) ||
+    /\b(what|which|show|list|available)\b.*\b(courses?|catalogue|catalog|programmes?|programs?)\b/i.test(message) ||
+    /\bhow (?:do|can) i enroll\b|\bhow to enroll\b|\bhow do i register\b/i.test(message);
+}
+
+async function handleLearningCommand(replyJid, mentionJid, realPhone, text) {
+  const response = await axios.post(`${COGNIFY_BACKEND}/api/whatsapp/learning`, {
+    sender_jid: mentionJid,
+    phone_number: realPhone || undefined,
+    message: text
+  }, { timeout: 20000 });
+
+  const reply = response.data?.reply || 'Cognify could not load that course information right now.';
+  await sock.sendMessage(replyJid, { text: reply, mentions: mentionJid ? [mentionJid] : [] });
+  logMessage('outbound', 'bot', replyJid, reply);
+
+  const media = response.data?.media;
+  if (!media) return;
+
+  try {
+    if (media.type === 'tts') {
+      const voiceResponse = await axios.post(`${COGNIFY_BACKEND}/api/whatsapp/generate-voice`, {
+        text: media.text,
+        lang: media.language || 'en'
+      }, { timeout: 30000 });
+      if (!voiceResponse.data?.ok || !voiceResponse.data?.audio_base64) {
+        logger.warn({ language: media.language }, 'Cognify voice generation unavailable for selected language');
+        await sock.sendMessage(replyJid, {
+          text: `Cognify sent the lesson text above, but audio isn't available for language code "${media.language || 'en'}" right now.`
+        });
+        return;
+      }
+      await sock.sendMessage(replyJid, {
+        audio: Buffer.from(voiceResponse.data.audio_base64, 'base64'),
+        mimetype: voiceResponse.data.mimetype || 'audio/ogg; codecs=opus',
+        ptt: true
+      });
+      return;
+    }
+
+    const mediaUrl = new URL(media.url, `${COGNIFY_BACKEND}/`);
+    const backendOrigin = new URL(COGNIFY_BACKEND).origin;
+    if (mediaUrl.origin !== backendOrigin) {
+      await sock.sendMessage(replyJid, { text: `Open the Cognify course resource here: ${mediaUrl.href}` });
+      return;
+    }
+
+    const file = await axios.get(mediaUrl.href, {
+      responseType: 'arraybuffer',
+      timeout: 30000,
+      maxContentLength: 80 * 1024 * 1024,
+      maxBodyLength: 80 * 1024 * 1024
+    });
+    const buffer = Buffer.from(file.data);
+    if (media.type === 'audio') {
+      await sock.sendMessage(replyJid, {
+        audio: buffer,
+        mimetype: media.mime_type || file.headers['content-type'] || 'audio/mpeg',
+        ptt: false
+      });
+    } else if (media.type === 'video') {
+      await sock.sendMessage(replyJid, {
+        video: buffer,
+        mimetype: media.mime_type || file.headers['content-type'] || 'video/mp4',
+        caption: media.caption || ''
+      });
+    } else {
+      await sock.sendMessage(replyJid, {
+        document: buffer,
+        mimetype: media.mime_type || file.headers['content-type'] || 'application/pdf',
+        fileName: media.filename || 'Cognify-course-slides.pdf',
+        caption: media.caption || ''
+      });
+    }
+  } catch (e) {
+    logger.warn({ err: e.message, mediaType: media.type }, 'Could not deliver Cognify lesson media');
+    if (media.url) {
+      const mediaUrl = new URL(media.url, `${COGNIFY_BACKEND}/`);
+      await sock.sendMessage(replyJid, { text: `The Cognify lesson file couldn't be attached. Try opening its course resource: ${mediaUrl.href}` });
+    }
+  }
 }
 
 // ─── Message logging ─────────────────────────────────────────────────────────
@@ -266,7 +360,15 @@ async function connectWhatsApp(usePairingCode = false, phoneNumber = null) {
       sock = null;
     }
 
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+    let { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+    const requestedPhone = phoneNumber?.replace(/\D/g, '');
+    const savedPhone = state.creds.me?.id?.split(':')[0].split('@')[0];
+    if (requestedPhone && savedPhone && requestedPhone !== savedPhone) {
+      logger.warn({ savedPhone, requestedPhone }, 'Clearing saved WhatsApp session for a different number');
+      fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+      fs.mkdirSync(AUTH_DIR, { recursive: true });
+      ({ state, saveCreds } = await useMultiFileAuthState(AUTH_DIR));
+    }
 
     sock = makeWASocket({
       auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
@@ -344,9 +446,9 @@ async function connectWhatsApp(usePairingCode = false, phoneNumber = null) {
 
         // ── Group message filter: only respond if bot is @tagged ──────────────
         // In DMs (not group) → always respond.
-        // In a group → ONLY respond when the bot (@263786434988) is @mentioned.
+        // In a group → ONLY respond when the bot (@263790499962) is @mentioned.
         if (isGroup) {
-          const botPhone = sock.user?.id?.split(':')[0] || '263786434988';
+          const botPhone = sock.user?.id?.split(':')[0] || '263790499962';
           const mentions =
             msg.message?.extendedTextMessage?.contextInfo?.mentionedJid ||
             msg.message?.audioMessage?.contextInfo?.mentionedJid ||
@@ -408,6 +510,19 @@ async function connectWhatsApp(usePairingCode = false, phoneNumber = null) {
         const isStandalonePhone = /^(?:\+?263\s?[1-9]\d{8}|07[1-8]\d{7})$/.test(text.trim().replace(/[\s\-\(\)]/g, ''));
         const isEnrollIntent = intent === 'enroll' || isStandalonePhone || (isAudio && (text.toLowerCase().includes('enroll') || realPhone));
 
+        if (isLearningCommand(text) && sock && connectionState === 'connected') {
+          try {
+            await handleLearningCommand(replyJid, mentionJid, realPhone, text);
+          } catch (e) {
+            logger.error({ err: e.message }, 'Cognify WhatsApp learning command failed');
+            await sock.sendMessage(replyJid, {
+              text: 'Cognify course access is temporarily unavailable. Please try again shortly.',
+              mentions: mentionJid ? [mentionJid] : []
+            });
+          }
+          continue;
+        }
+
         if (isEnrollIntent && sock && connectionState === 'connected') {
           try {
             await handleEnrollmentFlow(replyJid, mentionJid, realPhone, text, msg.pushName, isAudio);
@@ -418,7 +533,7 @@ async function connectWhatsApp(usePairingCode = false, phoneNumber = null) {
         }
 
         // Regular AI auto-responder
-        const replyData = generateReply(text, mentionJid);
+        const replyData = await generateReply(text, mentionJid);
         if (replyData && sock && connectionState === 'connected') {
           try {
             await sock.sendMessage(replyJid, {
@@ -691,6 +806,39 @@ app.post('/send', async (req, res) => {
     logMessage('outbound', 'server', jid, message);
     res.json({ ok: true, to: jid, mentioned_count: mentionJids.length });
   } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/send-to-group-by-name', async (req, res) => {
+  const { subject, message } = req.body;
+  if (!subject?.trim() || !message?.trim()) {
+    return res.status(400).json({ error: 'Group name and message are required' });
+  }
+  if (!sock || connectionState !== 'connected') {
+    return res.status(503).json({ error: 'WhatsApp not connected' });
+  }
+
+  try {
+    const groups = await sock.groupFetchAllParticipating();
+    const normalizedSubject = subject.trim().toLocaleLowerCase();
+    const matches = Object.entries(groups).filter(([, group]) =>
+      group.subject?.trim().toLocaleLowerCase() === normalizedSubject
+    );
+
+    if (matches.length !== 1) {
+      return res.status(matches.length ? 409 : 404).json({
+        error: matches.length ? 'Group name is ambiguous' : 'Group not found',
+        match_count: matches.length
+      });
+    }
+
+    const [jid] = matches[0];
+    await sock.sendMessage(jid, { text: message });
+    logMessage('outbound', 'server', jid, message);
+    res.json({ ok: true, subject: matches[0][1].subject });
+  } catch (e) {
+    logger.error({ err: e.message }, 'Failed to send message to named group');
     res.status(500).json({ error: e.message });
   }
 });

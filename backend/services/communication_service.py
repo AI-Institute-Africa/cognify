@@ -47,7 +47,8 @@ class SMSPoPProvider(SMSProvider):
     slug = "smspop_sms"
     def __init__(self):
         self.api_key = os.environ.get("SMSPOP_API_KEY") or os.environ.get("SMS_API_KEY", "")
-        self.sender_id = os.environ.get("SMSPOP_SENDER_ID") or os.environ.get("SMS_SENDER_ID", "SMSPoP")
+        self.sender_id = os.environ.get("SMSPOP_SENDER_ID") or os.environ.get("SMS_SENDER_ID", "")
+        self.campaign_name = os.environ.get("SMSPOP_CAMPAIGN_NAME", "Cognify OTP")
         self.base_url = os.environ.get("SMSPOP_BASE_URL", "https://smspop.co.zw/api")
 
     # Known resolved IP for smspop.co.zw — used as fallback when DNS resolution fails
@@ -55,8 +56,13 @@ class SMSPoPProvider(SMSProvider):
 
     async def send_sms(self, to_phone: str, message: str) -> dict:
         if not self.api_key:
-            logger.info(f"[SMS Simulator] To: {to_phone} | Message: {message}")
-            return {"success": True, "provider": "simulator", "provider_id": f"sim_sms_{uuid.uuid4().hex[:8]}"}
+            return {"success": False, "provider": self.slug, "error": "SMSPoP API key is not configured"}
+        if not self.sender_id:
+            return {
+                "success": False,
+                "provider": self.slug,
+                "error": "Configure SMSPOP_SENDER_ID with a sender ID approved by SMSPoP",
+            }
 
         # Format Zimbabwean or international MSISDN (e.g., 0771234567 -> 263771234567)
         clean_phone = to_phone.strip().replace(" ", "").replace("-", "")
@@ -78,7 +84,7 @@ class SMSPoPProvider(SMSProvider):
             _candidates.append((_fallback_base, {"Host": _hostname}))
 
         payload = {
-            "name": "Cognify OTP",
+            "name": self.campaign_name,
             "message": message,
             "sender_id": self.sender_id,
             "contact_import_method": "manual",
@@ -121,6 +127,8 @@ class SMSPoPProvider(SMSProvider):
                         err_msg = data.get("message") or resp.text
                         logger.warning(f"[SMSPoP] Non-success response from {endpoint_base} ({resp.status_code}): {err_msg}")
                         last_error = f"SMSPoP error: {err_msg}"
+                        if 400 <= resp.status_code < 500 and resp.status_code not in (408, 429):
+                            break
             except Exception as e:
                 logger.warning(f"[SMSPoP] Request to {endpoint_base} failed: {e} — trying fallback")
                 last_error = str(e)
@@ -138,8 +146,11 @@ class TwilioSMSProvider(SMSProvider):
 
     async def send_sms(self, to_phone: str, message: str) -> dict:
         if not (self.account_sid and self.auth_token and self.from_number):
-            logger.info(f"[SMS Simulator] To: {to_phone} | Message: {message}")
-            return {"success": True, "provider": "simulator", "provider_id": f"sim_sms_{uuid.uuid4().hex[:8]}"}
+            return {
+                "success": False,
+                "provider": self.slug,
+                "error": "Twilio SMS account, credentials, and sender number must all be configured",
+            }
 
         try:
             import httpx

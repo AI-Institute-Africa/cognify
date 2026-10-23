@@ -1,12 +1,15 @@
 """WhatsApp Admin API Routes for Cognify."""
 from __future__ import annotations
+import asyncio
 import os
+import ipaddress
+import json
 import uuid
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field
 try:
     from auth_utils import get_current_user
 except ImportError:
@@ -52,6 +55,17 @@ class WhatsAppTTSRequest(BaseModel):
 class WhatsAppTranscribeRequest(BaseModel):
     audio_base64: str
     lang: Optional[str] = "en"
+
+
+class WhatsAppQuestionRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=1500)
+    language: str = "en"
+
+
+class WhatsAppLearningRequest(BaseModel):
+    sender_jid: str = Field(..., min_length=1, max_length=200)
+    message: str = Field(..., min_length=1, max_length=1000)
+    phone_number: Optional[str] = None
 
 
 def normalize_spoken_digits(text: str) -> str:
@@ -135,6 +149,7 @@ def make_whatsapp_admin_router(db):
         """Generates a WhatsApp-compatible Opus OGG voice note from text."""
         try:
             from gtts import gTTS
+            from gtts.lang import tts_langs
             import imageio_ffmpeg
             import subprocess
             import tempfile
@@ -142,11 +157,10 @@ def make_whatsapp_admin_router(db):
             import os
 
             ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-            tts_lang = req.lang if req.lang in ["en", "sn", "nd"] else "en"
-            try:
-                tts = gTTS(text=req.text, lang=tts_lang, tld="co.uk")
-            except Exception:
-                tts = gTTS(text=req.text, lang="en", tld="co.uk")
+            tts_lang = req.lang or "en"
+            if tts_lang not in tts_langs():
+                return {"ok": False, "error": f"Cognify voice generation does not support language code '{tts_lang}'"}
+            tts = gTTS(text=req.text, lang=tts_lang, tld="co.uk")
 
             with tempfile.TemporaryDirectory() as td:
                 mp3_path = os.path.join(td, "voice.mp3")
@@ -172,6 +186,441 @@ def make_whatsapp_admin_router(db):
         except Exception as e:
             logger.error(f"WhatsApp voice generation failed: {e}")
             return {"ok": False, "error": str(e)}
+
+    @router.post("/answer")
+    async def whatsapp_answer(req: WhatsAppQuestionRequest, request: Request):
+        """Answer WhatsApp questions using Cognify information and the public course catalogue."""
+        client_host = request.client.host if request.client else ""
+        try:
+            is_local_request = ipaddress.ip_address(client_host).is_loopback
+        except ValueError:
+            is_local_request = False
+        if not is_local_request:
+            raise HTTPException(status_code=403, detail="This endpoint is for the local WhatsApp service")
+
+        course_filter = {
+            "is_active": True,
+            "$or": [
+                {"organization_id": None},
+                {"organization_id": {"$exists": False}},
+                {"is_public": True},
+                {"visibility": "public"},
+            ],
+        }
+        course_projection = {
+            "_id": 0,
+            "name": 1,
+            "title": 1,
+            "description": 1,
+            "subject": 1,
+            "grade_level": 1,
+            "duration_hours": 1,
+            "duration_weeks": 1,
+            "duration_months": 1,
+            "is_free": 1,
+            "price": 1,
+            "currency": 1,
+            "credits": 1,
+        }
+        courses = []
+        try:
+            courses = await asyncio.wait_for(
+                db.courses.find(course_filter, course_projection).limit(30).to_list(length=30),
+                timeout=2.5,
+            )
+        except Exception as e:
+            logger.warning("WhatsApp answer catalogue unavailable: %s", e)
+
+        language = req.language if req.language in {"en", "sn", "nd"} else "en"
+        has_model_endpoint = bool(
+            (os.environ.get("EMERGENT_API_BASE") and os.environ.get("EMERGENT_LLM_KEY"))
+            or (os.environ.get("OPENAI_API_KEY") and not os.environ["OPENAI_API_KEY"].startswith("sk-dummy"))
+        )
+        if not has_model_endpoint:
+            question = req.question.strip().lower()
+            pricing_terms = ("fee", "fees", "price", "cost", "payment", "pay", "invoice", "tuition")
+            course_terms = ("course", "catalog", "programme", "program", "study", "learn")
+            if any(term in question for term in course_terms) and not any(term in question for term in pricing_terms):
+                if courses:
+                    course_lines = []
+                    seen_courses = set()
+                    for course in courses[:12]:
+                        title = course.get("title") or course.get("name") or "Course"
+                        if title.strip().casefold() in seen_courses:
+                            continue
+                        seen_courses.add(title.strip().casefold())
+                        details = [course.get("subject"), course.get("grade_level")]
+                        details = [detail for detail in details if detail]
+                        line = f"- {title}"
+                        if details:
+                            line += f" ({', '.join(details)})"
+                        if course.get("is_free"):
+                            line += " - Free"
+                        elif course.get("price") is not None and course.get("price") > 0:
+                            line += f" — {course.get('currency') or 'USD'} {course['price']}"
+                        course_lines.append(line)
+                    reply = "Here are courses currently listed in Cognify:\n" + "\n".join(course_lines)
+                else:
+                    reply = "I can't retrieve the live course catalogue right now. Sign in to Cognify and open Course Catalogue to see current courses and details."
+            elif any(term in question for term in ("enroll", "enrol", "register", "registration", "join")):
+                reply = "To start enrollment, reply ENROLL here. I can guide you through account setup and send a sign-in verification code to this WhatsApp number."
+            elif any(term in question for term in ("fee", "fees", "price", "cost", "payment", "pay", "invoice", "tuition")):
+                priced_courses = [
+                    course for course in courses
+                    if course.get("is_free") or (course.get("price") is not None and course.get("price") > 0)
+                ]
+                if priced_courses:
+                    price_lines = []
+                    seen_courses = set()
+                    for course in priced_courses[:12]:
+                        title = course.get("title") or course.get("name") or "Course"
+                        if title.strip().casefold() in seen_courses:
+                            continue
+                        seen_courses.add(title.strip().casefold())
+                        if course.get("is_free"):
+                            price_lines.append(f"- {title}: Free")
+                        else:
+                            price_lines.append(
+                                f"- {title}: {course.get('currency') or 'USD'} {course['price']}"
+                            )
+                    pricing_details = "\n".join(price_lines)
+                else:
+                    pricing_details = "Current course prices aren't available in the catalogue data I can access. Check the course page in Cognify for its current price."
+                reply = (
+                    f"{pricing_details}\n\n"
+                    "You can pay through Cognify's Paynow page: https://www.paynow.co.zw/aiia. "
+                    "For a payment or invoice status, sign in and check Fees & Payments."
+                )
+            elif any(term in question for term in ("otp", "login", "log in", "password", "account", "verification")):
+                reply = "For account access, open Cognify and use the phone sign-in/verification flow. If you started WhatsApp enrollment, the verification code is sent in a separate message. Never share your code with anyone."
+            elif any(term in question for term in ("certificate", "certification", "credential")):
+                reply = "Cognify provides course learning and certificate features. Available credentials depend on the course and your completion status; check the course page and your Certificates area for details."
+            elif any(term in question for term in ("support", "contact", "help", "number", "whatsapp")):
+                reply = "Cognify WhatsApp support is available on this number: +263790499962. You can also email support@cognify.com. For account-specific help, please sign in first."
+            else:
+                reply = "I can help with Cognify courses, enrollment, account access, fees and payments, certificates, and support. Ask me about one of those, or sign in to Cognify for account-specific information."
+            return {"ok": True, "reply": reply}
+
+        try:
+            from services.ai_provider import ai_provider
+        except ImportError:
+            from backend.services.ai_provider import ai_provider
+
+        system_prompt = (
+            "You are Cognify's WhatsApp information assistant. Answer questions about Cognify, "
+            "its learning platform, courses, enrollment, student accounts, payments, certificates, "
+            "and support. Use only the current course catalogue supplied with the question and "
+            "information explicitly supported by the question or Cognify context. Do not invent "
+            "course availability, prices, accreditation, deadlines, policies, or account/payment "
+            "status. If information is missing, say so briefly and direct the user to sign in to "
+            "Cognify or contact support. Do not expose another learner's data. For unrelated "
+            "questions, politely say you can help with Cognify services. Keep replies concise and "
+            f"answer in language code {language}."
+        )
+        question = (
+            f"Question: {req.question.strip()}\n\n"
+            "Current public course catalogue (JSON):\n"
+            f"{json.dumps(courses, ensure_ascii=False, default=str)}"
+        )
+        try:
+            reply = await ai_provider.chat_completion(
+                [{"role": "user", "content": question}],
+                system_prompt=system_prompt,
+                temperature=0.2,
+                max_tokens=600,
+            )
+            return {"ok": True, "reply": reply}
+        except Exception as e:
+            logger.exception("WhatsApp Cognify question answering failed")
+            raise HTTPException(status_code=503, detail="Cognify answers are temporarily unavailable") from e
+
+    @router.post("/learning")
+    async def whatsapp_learning(req: WhatsAppLearningRequest, request: Request):
+        """List, enroll in, and access stored Cognify course content from WhatsApp."""
+        client_host = request.client.host if request.client else ""
+        try:
+            is_local_request = ipaddress.ip_address(client_host).is_loopback
+        except ValueError:
+            is_local_request = False
+        if not is_local_request:
+            raise HTTPException(status_code=403, detail="This endpoint is for the local WhatsApp service")
+
+        import re
+        sender_jid = req.sender_jid.strip()
+        command = req.message.strip()
+        lowered = command.casefold()
+        session_col = db.whatsapp_learning_sessions
+        session = await session_col.find_one({"sender_jid": sender_jid}, {"_id": 0}) or {}
+        language = session.get("language", "en")
+
+        from services.otp_service import normalize_phone_number
+        phone_number = None
+        try:
+            if req.phone_number:
+                phone_number = normalize_phone_number(req.phone_number)
+        except ValueError:
+            phone_number = None
+        if phone_number:
+            await session_col.update_one(
+                {"sender_jid": sender_jid},
+                {"$set": {"sender_jid": sender_jid, "phone_number": phone_number}},
+                upsert=True,
+            )
+        else:
+            phone_number = session.get("phone_number")
+        user = await db.users.find_one({"phone_number": phone_number}, {"_id": 0}) if phone_number else None
+
+        lang_match = re.fullmatch(r"(?:lang|language)\s+([a-zA-Z-]{2,20})", command, re.IGNORECASE)
+        if lang_match:
+            requested_language = lang_match.group(1).lower()
+            try:
+                from services.multilingual import SUPPORTED_LANGUAGES
+            except ImportError:
+                from backend.services.multilingual import SUPPORTED_LANGUAGES
+            language = requested_language if requested_language in SUPPORTED_LANGUAGES else next(
+                (code for code, details in SUPPORTED_LANGUAGES.items()
+                 if requested_language in {details["name"].lower(), details["native"].lower()}),
+                None,
+            )
+            if not language:
+                supported = ", ".join(SUPPORTED_LANGUAGES.keys())
+                return {"reply": f"That language isn't in Cognify's supported list. Use one of these codes: {supported}. Example: LANG sn."}
+            await session_col.update_one(
+                {"sender_jid": sender_jid},
+                {"$set": {"sender_jid": sender_jid, "language": language, **({"phone_number": phone_number} if phone_number else {})}},
+                upsert=True,
+            )
+            return {"reply": f"Language preference saved as {language}. Send COURSES to browse Cognify's catalogue."}
+
+        org_id = user.get("organization_id") if user else None
+        course_filter = {
+            "is_active": True,
+            "$or": ([{"organization_id": org_id}] if org_id else []) + [
+                {"organization_id": None},
+                {"organization_id": {"$exists": False}},
+                {"is_public": True},
+                {"visibility": "public"},
+            ],
+        }
+        courses = await db.courses.find(course_filter, {"_id": 0}).limit(100).to_list(length=100)
+        unique_courses = []
+        seen_courses = set()
+        for course in courses:
+            title = (course.get("title") or course.get("name") or "").strip().casefold()
+            code = (course.get("code") or "").strip().casefold()
+            org = course.get("organization_id") or course.get("org_id") or ""
+            identity = (title, code, org)
+            if title and identity not in seen_courses:
+                seen_courses.add(identity)
+                unique_courses.append(course)
+        courses = unique_courses
+
+        if lowered in {"help", "menu", "start", "learning"}:
+            return {"reply": "Cognify WhatsApp learning commands:\nCOURSES - list available courses\nENROLL COURSE <number> - enroll in a course\nLEARN <number> - select an enrolled course\nTEXT / AUDIO / SLIDES / VIDEO - choose a lesson mode\nNEXT - continue to the next lesson\nLANG <code> - set language, e.g. LANG sn or LANG fr"}
+
+        course_list_request = lowered in {"courses", "course", "catalog", "catalogue", "programs", "programmes", "available courses"} or bool(
+            re.search(r"\b(what|which|show|list|available)\b.*\b(courses?|catalogue|catalog|programmes?|programs?)\b", lowered)
+        )
+        if course_list_request:
+            if not courses:
+                return {"reply": "There are no active public courses in Cognify's catalogue right now."}
+            lines = ["*Active Cognify courses:*\n"]
+            for index, course in enumerate(courses, 1):
+                title = course.get("title") or course.get("name") or course.get("code") or f"Course {index}"
+                description = (course.get("description") or "").strip()
+                price = float(course.get("price") or course.get("total_price") or 0)
+                is_free = course.get("is_free", price == 0)
+                fee = "Free" if is_free else f"{course.get('currency') or 'USD'} {price:g}"
+                lines.append(f"{index}. *{title}* - {fee}")
+                if description:
+                    lines.append(f"   {description[:180]}")
+            lines.append("\nReply *ENROLL COURSE <number>* to enroll in a free course, or *LEARN <number>* to open a course you already have access to.")
+            return {"reply": "\n".join(lines)}
+
+        enroll_match = re.fullmatch(r"enroll\s+course\s+(\d+)", command, re.IGNORECASE)
+        learn_match = re.fullmatch(r"learn(?:\s+(\d+))?", command, re.IGNORECASE)
+        mode_match = re.fullmatch(r"(?:mode\s+)?(text|audio|slides?|video)", command, re.IGNORECASE)
+        next_match = lowered in {"next", "next lesson"}
+        if not (enroll_match or learn_match or mode_match or next_match):
+            if any(phrase in lowered for phrase in ("how do i enroll", "how can i enroll", "how to enroll", "how do i register")):
+                return {"reply": "To study on Cognify WhatsApp: first send ENROLL <your mobile number> to set up/sign in. Then send COURSES, choose a course with ENROLL COURSE <number>, and use LEARN <number> to start after access is confirmed."}
+            return {"reply": "I can help with Cognify courses and lessons. Send COURSES to browse, ENROLL COURSE <number> to enroll, LEARN <number> to open an enrolled course, or MODE TEXT/AUDIO/SLIDES/VIDEO."}
+
+        if not user:
+            return {"reply": "To enroll or open course lessons, first connect your Cognify account by replying *ENROLL <your mobile number>* (for example, ENROLL 0771234567). Then repeat your course command. You can browse COURSES without an account."}
+        if user.get("role") != "student":
+            return {"reply": "WhatsApp course learning is available for student accounts. Sign in to Cognify with a student account to continue."}
+
+        profile = await db.student_profiles.find_one({"user_id": user["id"]}, {"_id": 0}) or {}
+        enrolled_ids = set(profile.get("enrolled_courses", []))
+        paid_enrollments = await db.enrollments.find(
+            {"student_id": user["id"], "payment_status": "completed"}, {"_id": 0, "course_id": 1}
+        ).to_list(length=200)
+        enrolled_ids.update(item.get("course_id") for item in paid_enrollments if item.get("course_id"))
+
+        if enroll_match:
+            course_index = int(enroll_match.group(1))
+            if course_index < 1 or course_index > len(courses):
+                return {"reply": "That course number is not in the current Cognify catalogue. Send COURSES to see the available numbers."}
+            course = courses[course_index - 1]
+            course_id = course["id"]
+            price = float(course.get("price") or course.get("total_price") or 0)
+            is_free = course.get("is_free", price == 0)
+            if not is_free and price > 0 and course_id not in enrolled_ids:
+                payment = await db.payments.find_one(
+                    {"user_id": user["id"], "course_id": course_id, "status": "paid"}, {"_id": 0, "id": 1}
+                )
+                if not payment:
+                    return {"reply": f"*{course.get('title') or course.get('name')}* requires payment ({course.get('currency') or 'USD'} {price:g}). Use Cognify's payment page: https://www.paynow.co.zw/aiia. After payment is recorded, send ENROLL COURSE {course_index} again."}
+            if course_id in enrolled_ids:
+                return {"reply": f"You are already enrolled in *{course.get('title') or course.get('name')}*. Send LEARN {course_index} to begin."}
+            await db.student_profiles.update_one(
+                {"user_id": user["id"]},
+                {"$setOnInsert": {"user_id": user["id"], "completed_courses": [], "quiz_scores": []},
+                 "$addToSet": {"enrolled_courses": course_id}},
+                upsert=True,
+            )
+            await db.courses.update_one({"id": course_id}, {"$addToSet": {"enrolled_students": user["id"]}})
+            return {"reply": f"You are enrolled in *{course.get('title') or course.get('name')}*. Send LEARN {course_index} to open its lessons."}
+
+        selected_course_id = session.get("course_id")
+        if learn_match and learn_match.group(1):
+            course_index = int(learn_match.group(1))
+            if course_index < 1 or course_index > len(courses):
+                return {"reply": "That course number is not in the current Cognify catalogue. Send COURSES to see the available numbers."}
+            course = courses[course_index - 1]
+            selected_course_id = course["id"]
+            if selected_course_id not in enrolled_ids:
+                return {"reply": f"Your account isn't enrolled in *{course.get('title') or course.get('name')}*. Send ENROLL COURSE {course_index} to check enrollment options."}
+            await session_col.update_one(
+                {"sender_jid": sender_jid},
+                {"$set": {"sender_jid": sender_jid, "phone_number": phone_number, "course_id": selected_course_id, "lesson_index": 0}},
+                upsert=True,
+            )
+        elif selected_course_id not in enrolled_ids:
+            return {"reply": "Select a course you are enrolled in first. Send COURSES, then LEARN <number>."}
+
+        course = next((item for item in courses if item.get("id") == selected_course_id), None)
+        if not course:
+            return {"reply": "That course is no longer in the active Cognify catalogue. Send COURSES to refresh your list."}
+
+        course_price = float(course.get("price") or course.get("total_price") or 0)
+        if not course.get("is_free", course_price == 0) and course_price > 0:
+            payment = await db.payments.find_one(
+                {"user_id": user["id"], "course_id": selected_course_id, "status": "paid"},
+                {"_id": 0, "id": 1},
+            )
+            completed_enrollment = await db.enrollments.find_one(
+                {"student_id": user["id"], "course_id": selected_course_id, "payment_status": "completed"},
+                {"_id": 0, "id": 1},
+            )
+            if not payment and not completed_enrollment:
+                return {"reply": f"Access to *{course.get('title') or course.get('name')}* is locked until Cognify records its payment. Use https://www.paynow.co.zw/aiia, then check Fees & Payments or contact support."}
+
+        if mode_match:
+            selected_mode = mode_match.group(1).lower().rstrip("s")
+            if selected_mode == "slide":
+                selected_mode = "slides"
+            await session_col.update_one(
+                {"sender_jid": sender_jid}, {"$set": {"mode": selected_mode}}, upsert=True
+            )
+            session["mode"] = selected_mode
+        selected_mode = session.get("mode", "text")
+
+        contents = await db.course_contents.find(
+            {"course_id": selected_course_id}, {"_id": 0}
+        ).to_list(length=200)
+        lessons = await db.lessons.find(
+            {"course_id": selected_course_id}, {"_id": 0}
+        ).sort("order", 1).to_list(length=100)
+        items_by_id = {}
+        for index, item in enumerate(contents + lessons):
+            item_id = item.get("id") or f"{item.get('title', 'item')}:{index}"
+            if item_id in items_by_id:
+                merged = {**items_by_id[item_id], **item}
+                for text_key in ("text", "content", "content_text", "description"):
+                    merged[text_key] = item.get(text_key) or items_by_id[item_id].get(text_key)
+                items_by_id[item_id] = merged
+            else:
+                items_by_id[item_id] = item
+        items = sorted(items_by_id.values(), key=lambda item: (item.get("order", 999), item.get("title", "")))
+        if not items and course.get("lessons"):
+            items = course["lessons"]
+
+        def item_type(item):
+            kind = str(item.get("type") or item.get("content_type") or "text").lower()
+            url = str(item.get("url") or item.get("video_url") or item.get("audio_url") or "").lower()
+            if "video" in kind or url.endswith((".mp4", ".mov", ".webm", ".avi")):
+                return "video"
+            if "audio" in kind or item.get("audio_url") or url.endswith((".mp3", ".wav", ".ogg", ".m4a")):
+                return "audio"
+            if any(token in kind for token in ("slide", "presentation", "document")) or url.endswith((".pdf", ".ppt", ".pptx")):
+                return "slides"
+            return "text"
+
+        if selected_mode == "text":
+            candidates = [item for item in items if item.get("text") or item.get("content") or item.get("content_text") or item.get("description")]
+        else:
+            candidates = [item for item in items if item_type(item) == selected_mode]
+            if selected_mode == "audio" and not candidates:
+                candidates = [item for item in items if item.get("text") or item.get("content") or item.get("content_text")]
+
+        if not candidates:
+            return {"reply": f"Cognify has no {selected_mode} lesson material uploaded for *{course.get('title') or course.get('name')}* yet. Try MODE TEXT or another available mode."}
+
+        lesson_index = int(session.get("lesson_index", 0))
+        if next_match:
+            lesson_index += 1
+            await session_col.update_one(
+                {"sender_jid": sender_jid}, {"$set": {"lesson_index": lesson_index}}, upsert=True
+            )
+        if lesson_index >= len(candidates):
+            return {"reply": "You've reached the end of the available Cognify material in this mode. Choose another mode or send LEARN <number> to restart a course."}
+
+        item = candidates[lesson_index]
+        title = item.get("title") or item.get("name") or f"Lesson {lesson_index + 1}"
+        body = item.get("text") or item.get("content") or item.get("content_text") or item.get("description") or ""
+        media_url = item.get("url") or item.get("video_url") or item.get("audio_url")
+        media = None
+        if selected_mode == "text" or (selected_mode == "audio" and not media_url):
+            reply = f"*{course.get('title') or course.get('name')} - {title}*\n\n{body[:3500]}"
+            if selected_mode == "audio":
+                media = {"type": "tts", "text": body[:3500], "language": language}
+        else:
+            reply = f"*{course.get('title') or course.get('name')} - {title}*"
+            if media_url:
+                media = {
+                    "type": selected_mode,
+                    "url": media_url,
+                    "mime_type": item.get("mime_type"),
+                    "filename": item.get("original_filename") or item.get("filename") or f"{title}.{ 'mp4' if selected_mode == 'video' else 'pdf' }",
+                    "caption": reply,
+                }
+            elif body:
+                reply += f"\n\n{body[:3000]}"
+        if lesson_index + 1 < len(candidates):
+            reply += f"\n\nSend NEXT for item {lesson_index + 2} of {len(candidates)}."
+
+        has_translation_model = bool(os.environ.get("EMERGENT_API_BASE") and os.environ.get("EMERGENT_LLM_KEY")) or bool(os.environ.get("OPENAI_API_KEY"))
+        if language != "en":
+            if has_translation_model:
+                try:
+                    from services.multilingual import translate_text
+                except ImportError:
+                    from backend.services.multilingual import translate_text
+                translated, error = await translate_text(reply, language, "en")
+                if translated and not error:
+                    reply = translated
+                    if media:
+                        media["caption"] = translated
+                        if media.get("type") == "tts":
+                            media["text"] = translated
+            else:
+                reply += f"\n\nTranslation to {language} isn't configured in Cognify right now; the course material is shown in its original language."
+                if media and media.get("type") == "tts":
+                    media = None
+
+        return {"reply": reply, "media": media}
 
     # ── WhatsApp Instant Account Creation & OTP ─────────────────────────────
     @router.post("/direct-enroll")

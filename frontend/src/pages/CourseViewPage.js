@@ -264,14 +264,20 @@ export default function CourseViewPage() {
       // Handle enrollment gate response
       if (contentData && contentData.access_restricted) {
         // Student hasn't paid - show restricted content
-        finalContent = contentData.contents || [];
+        finalContent = (contentData.contents || []).map((lesson) => ({
+          ...lesson,
+          text: lesson.text || lesson.content || lesson.content_text || ''
+        }));
         setContent(finalContent);
         setAccessRestricted(true);
         setRestrictionMessage(contentData.message);
         setCoursePrice(contentData.course_price);
         toast.info(contentData.message);
       } else {
-        finalContent = Array.isArray(contentData) ? contentData : [];
+        finalContent = (Array.isArray(contentData) ? contentData : []).map((lesson) => ({
+          ...lesson,
+          text: lesson.text || lesson.content || lesson.content_text || ''
+        }));
         setContent(finalContent);
         setAccessRestricted(false);
       }
