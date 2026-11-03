@@ -1154,10 +1154,33 @@ export const processGoogleSessionV2 = async (sessionId) => {
   return response.data;
 };
 
+export const processDirectGoogleAuth = async (credential, accessToken = null, email = null, name = null) => {
+  const response = await axios.post(`${API}/auth/google/direct`, {
+    credential,
+    access_token: accessToken,
+    email,
+    name,
+  });
+  return response.data;
+};
+
 export const initiateGoogleLogin = (redirectPath = '/dashboard') => {
-  // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS - THIS BREAKS THE AUTH
-  const redirectUrl = window.location.origin + redirectPath;
-  window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+  const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+
+  if (clientId) {
+    // Direct Google OAuth 2.0 authorization URL
+    const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${encodeURIComponent(clientId)}&` +
+      `redirect_uri=${encodeURIComponent(window.location.origin + '/login')}&` +
+      `response_type=token%20id_token&` +
+      `scope=openid%20email%20profile&` +
+      `nonce=${Date.now()}&` +
+      `prompt=select_account`;
+    window.location.href = googleAuthUrl;
+  } else {
+    // Never redirect to accounts.google.com without client_id! Route to /login with prompt
+    window.location.href = '/login?google=1';
+  }
 };
 
 // ==================== FILE UPLOADS ====================
@@ -1463,6 +1486,38 @@ export const updateCoursePaymentConfig = async (courseId, config) => {
   });
   return response.data;
 };
+// ==================== COGNIFY AI BILLING & ENTITLEMENTS ====================
+export const getLearnerEntitlements = async () => {
+  const billingToken = localStorage.getItem('cognify_billing_token');
+  const billingApiUrl = process.env.REACT_APP_BILLING_API_URL || 'http://127.0.0.1:8001';
+  if (billingToken) {
+    try {
+      const resp = await axios.get(`${billingApiUrl}/entitlements/me`, {
+        headers: { Authorization: `Bearer ${billingToken}` },
+        timeout: 4000
+      });
+      if (resp.data) return resp.data;
+    } catch (_) {
+      // Fallback to backend proxy
+    }
+  }
+
+  const response = await axios.get(`${API}/entitlements/me`, { headers: getAuthHeaders() });
+  if (response.data?.billing_access_token) {
+    localStorage.setItem('cognify_billing_token', response.data.billing_access_token);
+  }
+  return response.data;
+};
+
+export const completeCourse = async (courseId, studentId = null) => {
+  const response = await axios.post(
+    `${API}/courses/${courseId}/complete`,
+    { student_id: studentId },
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+};
+
 // ==================== ERROR SANITIZER HELPER ====================
 export const getErrorMessage = (error, defaultMessage = 'An unexpected error occurred') => {
   if (!error) return defaultMessage;

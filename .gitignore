@@ -1,20 +1,7 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# IDE and editors
-.idea/
-.vscode/
-
 # Dependencies
 node_modules/
-/node_modules
 /.pnp
 .pnp.js
-.yarn/install-state.gz
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
 
 # Testing
 /coverage
@@ -30,188 +17,51 @@ next-env.d.ts
 dist/
 dist
 
-# Environment files (comprehensive coverage)
-
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
 *token.json*
 *credentials.json*
 
-# Logs and debug files
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
-dump.rdb
 
-# System files
-.DS_Store
-*.pem
+# IDE
+.idea/
+.vscode/
 
 # Python
 __pycache__/
-*pyc*
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.eggs/
+*.egg
 venv/
 .venv/
+env/
+ENV/
 
-# Development tools
-chainlit.md
-.chainlit
-.ipynb_checkpoints/
-.ac
+# WhatsApp service auth state & logs
+whatsapp-service/data/baileys_auth/
+whatsapp-service/data/*.log
+whatsapp-service/.env
+whatsapp-service/node_modules/
 
-# Deployment
-.vercel
+# Mirror / duplicate folder (kept for reference, not source of truth)
+takudzwaAIIA-cognify-main/
 
-# Data and databases
-agenthub/agents/youtube/db
-
-# Archive files and large assets
-**/*.zip
-**/*.tar.gz
-**/*.tar
-**/*.tgz
-*.pack
-*.deb
-*.dylib
-
-# Build caches
-.cache/
-
-# Mobile development
-android-sdk/ frontend/node_modules/.cache/default-development/0.pack
-frontend/node_modules/.cache/default-development/0.pack
-frontend/node_modules/.cache/default-development/3.pack
-frontend/node_modules/.cache/default-development/6.pack
-frontend/node_modules/.cache/default-development/7.pack
-frontend/node_modules/.cache/default-development/1.pack
-frontend/node_modules/.cache/default-development/2.pack
-frontend/node_modules/.cache/default-development/4.pack
-frontend/node_modules/.cache/default-development/5.pack
-frontend/node_modules/.cache/default-development/8.pack
-frontend/node_modules/.cache/default-development/9.pack
-frontend/node_modules/.cache/default-development/10.pack
-frontend/node_modules/.cache/default-development/11.pack
-frontend/node_modules/.cache/default-development/12.pack
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
-frontend/node_modules/.cache/default-development/14.pack
-frontend/node_modules/.cache/default-development/15.pack
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
-frontend/node_modules/.cache/default-development/13.pack
-frontend/node_modules/.cache/default-development/16.pack
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
-frontend/node_modules/.cache/default-development/1.pack_
--e 
-# Environment files
-*.env
-*.env.*
-frontend/node_modules/.cache/default-development/18.pack
-frontend/node_modules/.cache/default-development/18.pack
--e 
-# Environment and credential files
-.env
-.env.*
-*.env
-credentials.json
-*.pem
-*.key
-.credentials
-frontend/node_modules/.cache/default-development/19.pack
-frontend/node_modules/.cache/default-development/20.pack
-frontend/node_modules/.cache/default-development/22.pack
--e 
-# Environment and credential files
-.env
-.env.*
-*.env
-credentials.json
-*.pem
-*.key
-.credentials
-frontend/node_modules/.cache/default-development/27.pack
--e 
-# Environment and credential files
-.env
-.env.*
-*.env
-credentials.json
-*.pem
-*.key
-.credentials
-frontend/node_modules/.cache/default-development/21.pack
-frontend/node_modules/.cache/default-development/25.pack
+# Misc
+.DS_Store
+Thumbs.db
+*.log
+patch_billing_root.py

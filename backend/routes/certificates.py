@@ -73,6 +73,38 @@ async def generate_certificate(
         "organization_id": course.get('organization_id')
     }
     await db.credentials.insert_one(credential)
+
+    # Mark enrollment and profile completed, and recycle unused course tokens to Central Token Bank
+    try:
+        from services.billing_service import BillingService
+        billing_svc = BillingService(db)
+        enrollment = await db.enrollments.find_one({
+            "$or": [
+                {"user_id": target_student_id, "course_id": course_id},
+                {"student_id": target_student_id, "course_id": course_id},
+            ]
+        }, {"_id": 0})
+        enrollment_id = enrollment.get("id") or enrollment.get("enrollment_id") if enrollment else f"enr-{target_student_id[:8]}-{course_id[:8]}"
+        user_email = student.get("email") or f"user_{target_student_id}@cognify.africa"
+        completion_event_id = f"cert-{certificate['id']}"
+
+        await db.enrollments.update_many(
+            {
+                "$or": [
+                    {"user_id": target_student_id, "course_id": course_id},
+                    {"student_id": target_student_id, "course_id": course_id},
+                ]
+            },
+            {"$set": {"status": "completed", "completed_at": certificate['issued_at']}}
+        )
+        await db.student_profiles.update_one(
+            {"user_id": target_student_id},
+            {"$addToSet": {"completed_courses": course_id}},
+            upsert=True
+        )
+        await billing_svc.sync_course_completion(enrollment_id, user_email, completion_event_id)
+    except Exception as _b_err:
+        logger.warning(f"Billing token recycling on certificate generation failed: {_b_err}")
     
     return {
         "message": "Certificate generated successfully",

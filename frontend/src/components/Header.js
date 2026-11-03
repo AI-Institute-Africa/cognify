@@ -13,6 +13,7 @@ import {
 } from '../components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
+import { AITokenBalancePill } from './AITokenBalancePill';
 
 export const Header = ({ title, subtitle }) => {
   const { user, logout } = useAuth();
@@ -141,6 +142,9 @@ export const Header = ({ title, subtitle }) => {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* AI Learning Token Balance Pill */}
+          <AITokenBalancePill />
 
           {/* Notifications */}
           <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications}>

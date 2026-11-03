@@ -26,6 +26,7 @@ import { Progress } from '../components/ui/progress';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Link } from 'react-router-dom';
+import { AITokenBalancePill } from '../components/AITokenBalancePill';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -238,6 +239,11 @@ export default function DashboardPage() {
           )}
         </div>
         
+        {/* Learner AI Entitlements Card */}
+        {user?.role === 'student' && (
+          <AITokenBalancePill variant="dashboard-card" />
+        )}
+
         {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Courses Section */}

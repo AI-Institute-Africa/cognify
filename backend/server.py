@@ -1,6 +1,6 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Form, Query, Request, Body, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Form, Query, Request, Body, BackgroundTasks, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse, HTMLResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -41,6 +41,42 @@ SUPPORTED_LANGUAGES = ['en', 'sn', 'nd', 'sw', 'zu']  # English, Shona, Ndebele,
 
 # Create the main app
 app = FastAPI(title="Cognify 2026", description="AI-Powered School Management Platform - Phase 2")
+
+@app.get("/")
+async def root(accept: str = Header(default="")):
+    if "text/html" in accept:
+        return HTMLResponse("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Cognify API</title>
+            <meta http-equiv="refresh" content="1;url=http://localhost:3000">
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #09090b; color: white; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+                .card { text-align: center; max-width: 440px; padding: 32px; background: #121215; border-radius: 16px; border: 1px solid #27272a; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+                h2 { margin: 0 0 8px; color: #fff; }
+                p { color: #a1a1aa; font-size: 14px; margin: 0 0 24px; line-height: 1.5; }
+                .btn { display: inline-block; background: #2563eb; color: white; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 14px; transition: background 0.2s; }
+                .btn:hover { background: #1d4ed8; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h2>Cognify Backend API</h2>
+                <p>This is the backend service. Redirecting you to the platform interface at <strong>http://localhost:3000</strong>...</p>
+                <a class="btn" href="http://localhost:3000">Open Cognify Platform &rarr;</a>
+            </div>
+        </body>
+        </html>
+        """)
+    return {
+        "name": "Cognify Learning Platform API",
+        "status": "online",
+        "version": "2.0",
+        "frontend_url": "http://localhost:3000",
+        "api_docs_url": "http://localhost:8000/docs",
+        "billing_api_url": "http://localhost:8001"
+    }
 
 # Create routers
 api_router = APIRouter(prefix="/api")
@@ -739,6 +775,14 @@ async def enroll_participant(
     user_dict['created_at'] = user_dict['created_at'].isoformat()
     
     await db.users.insert_one(user_dict)
+
+    # Sync account with Cognify AI Billing System
+    try:
+        from services.billing_service import BillingService
+        billing_svc = BillingService(db)
+        await billing_svc.sync_user(user.id, user.email, phone_verified=False)
+    except Exception as _b_err:
+        logging.warning(f"Billing user sync failed: {_b_err}")
     
     # Create profile based on role
     if user_data.role == UserRole.STUDENT:
@@ -1105,6 +1149,20 @@ async def mentor_chat(chat_data: ChatMessage, current_user: dict = Depends(get_c
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         
+        # Billing guardrail: preflight cost estimate for text tutoring
+        from services.billing_service import BillingService
+        billing_svc = BillingService(db)
+        b_token = await billing_svc.get_or_create_billing_token(current_user)
+        in_units = max(10, len(chat_data.message.split()) * 2)
+        quote = await billing_svc.estimate_usage(
+            billing_access_token=b_token,
+            resource="text",
+            model="gpt-6-luna",
+            quantity=0,
+            input_units=in_units,
+            output_units=200
+        )
+        
         api_key = os.environ.get('EMERGENT_LLM_KEY')
         if not api_key:
             raise HTTPException(status_code=500, detail="AI service not configured")
@@ -1157,6 +1215,19 @@ If they struggle, provide hints and analogies. Remember their strengths and weak
         
         user_message = UserMessage(text=chat_data.message)
         response = await chat.send_message(user_message)
+
+        # Settle billing usage for text tutoring
+        if quote and quote.get("quote_id"):
+            out_units = max(10, len(response.split()) * 2)
+            await billing_svc.settle_usage(
+                billing_access_token=b_token,
+                quote_id=quote["quote_id"],
+                resource="text",
+                model="gpt-6-luna",
+                quantity=0,
+                input_units=in_units,
+                output_units=out_units
+            )
         
         # Store conversation
         convo = {
@@ -2177,6 +2248,14 @@ async def register(user_data: UserCreate):
     user_dict['created_at'] = user_dict['created_at'].isoformat()
     
     await db.users.insert_one(user_dict)
+
+    # Sync account with Cognify AI Billing System
+    try:
+        from services.billing_service import BillingService
+        billing_svc = BillingService(db)
+        await billing_svc.sync_user(user.id, user.email, phone_verified=False)
+    except Exception as _b_err:
+        logging.warning(f"Billing user sync failed: {_b_err}")
     
     if user_data.role == UserRole.STUDENT:
         student_profile = StudentProfile(
@@ -2285,6 +2364,14 @@ async def register_org_user(request: OrgRegisterRequest):
     }
     
     await db.users.insert_one(user_dict)
+
+    # Sync account with Cognify AI Billing System
+    try:
+        from services.billing_service import BillingService
+        billing_svc = BillingService(db)
+        await billing_svc.sync_user(user.id, user.email, phone_verified=False)
+    except Exception as _b_err:
+        logging.warning(f"Billing user sync failed: {_b_err}")
     user_dict.pop('_id', None)
     
     # Create profile
@@ -2331,6 +2418,17 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         org = await db.organizations.find_one({"id": current_user['organization_id']}, {"_id": 0})
         if org:
             user_data['organization'] = serialize_doc(org)
+
+    # Ensure user has billing access token
+    if not user_data.get("billing_access_token"):
+        try:
+            from services.billing_service import BillingService
+            billing_svc = BillingService(db)
+            b_token = await billing_svc.get_or_create_billing_token(current_user)
+            if b_token:
+                user_data["billing_access_token"] = b_token
+        except Exception as _b_err:
+            logging.debug(f"Lazy billing sync in /me: {_b_err}")
     
     return user_data
 
@@ -2754,6 +2852,78 @@ Create 3-8 lessons. Use REAL content from the document. Do not invent facts."""
         raise HTTPException(status_code=500, detail=f"Failed to generate lessons: {str(e)}")
 
 
+async def trigger_billing_course_payment_sync(user_id: str, course_id: str, payment_id: Optional[str] = None, amount_paid: Optional[float] = None):
+    """Synchronize course enrollment and payment with the Cognify AI Billing System."""
+    try:
+        from services.billing_service import BillingService
+        billing_svc = BillingService(db)
+        user = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+        course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+        if not user or not course:
+            return
+
+        # Ensure user account is synced in billing system
+        if not user.get("billing_access_token"):
+            await billing_svc.sync_user(
+                user_id,
+                user.get("email") or f"user_{user_id}@cognify.africa",
+                phone_verified=bool(user.get("phone_verified") or user.get("phone_number"))
+            )
+
+        # Get or create enrollment record
+        enrollment = await db.enrollments.find_one({
+            "$or": [
+                {"user_id": user_id, "course_id": course_id},
+                {"student_id": user_id, "course_id": course_id},
+            ]
+        }, {"_id": 0})
+        if not enrollment:
+            enr_id = str(uuid.uuid4())
+            now_iso = datetime.now(timezone.utc).isoformat()
+            enrollment = {
+                "id": enr_id,
+                "enrollment_id": enr_id,
+                "user_id": user_id,
+                "student_id": user_id,
+                "course_id": course_id,
+                "status": "active",
+                "payment_status": "COMPLETED",
+                "enrolled_at": now_iso,
+                "created_at": now_iso
+            }
+            await db.enrollments.insert_one(dict(enrollment))
+
+        enr_id = enrollment.get("id") or enrollment.get("enrollment_id") or str(uuid.uuid4())
+        pay_id = payment_id or f"pay-{enr_id[:12]}"
+        course_name = course.get("name") or course.get("title") or "Course"
+        user_email = user.get("email") or f"user_{user_id}@cognify.africa"
+        plan_code = "diploma-individual"
+        course_price_val = float(course.get("price", 0) or 49.99)
+        course_price_minor = int(course_price_val * 100) if course_price_val > 0 else 4999
+        paid_val = float(amount_paid if amount_paid is not None else course_price_val)
+        paid_minor = int(paid_val * 100) if paid_val > 0 else course_price_minor
+        currency = course.get("currency", "USD") or "USD"
+
+        duration_weeks = int(course.get("duration_weeks", 12) or 12)
+        end_date = datetime.now(timezone.utc) + timedelta(days=max(30, duration_weeks * 7))
+
+        await billing_svc.sync_course_payment(
+            payment_id=pay_id,
+            enrollment_id=enr_id,
+            course_id=course_id,
+            course_name=course_name,
+            user_email=user_email,
+            plan_code=plan_code,
+            course_price_minor=course_price_minor,
+            paid_total_minor=paid_minor,
+            currency=currency,
+            course_end=end_date
+        )
+        logging.info(f"Course payment synced to billing for user {user_id}, course {course_id}")
+    except Exception as _sync_err:
+        logging.warning(f"Failed to sync course payment to billing: {_sync_err}")
+
+
 @courses_router.post("/{course_id}/enroll")
 async def enroll_course(course_id: str, current_user: dict = Depends(get_current_user)):
     if current_user['role'] not in ['student', 'teacher', 'org_admin', 'admin']:
@@ -2813,6 +2983,8 @@ async def enroll_course(course_id: str, current_user: dict = Depends(get_current
         {"id": course_id},
         {"$addToSet": {"enrolled_students": current_user['id']}}
     )
+    # Sync course payment / enrollment to Cognify AI Billing
+    await trigger_billing_course_payment_sync(current_user['id'], course_id)
     return {"message": "Enrolled successfully", "enrolled": True}
 
 
@@ -2869,6 +3041,8 @@ async def create_enrollment_endpoint(
         {"id": body.course_id},
         {"$addToSet": {"enrolled_students": target_student_id}}
     )
+    # Sync course payment / enrollment to Cognify AI Billing
+    await trigger_billing_course_payment_sync(target_student_id, body.course_id)
     enrollment_doc.pop("_id", None)
     return enrollment_doc
 
@@ -5441,9 +5615,27 @@ async def generate_avatar(
     current_user: dict = Depends(get_current_user)
 ):
     """Generate AI tutor avatar image"""
+    # Billing guardrail: preflight cost estimate for image/avatar
+    from services.billing_service import BillingService
+    billing_svc = BillingService(db)
+    b_token = await billing_svc.get_or_create_billing_token(current_user)
+    quote = await billing_svc.estimate_usage(
+        billing_access_token=b_token,
+        resource="image",
+        model="dall-e-3-standard",
+        quantity=1
+    )
     image, error = await generate_avatar_image(prompt, style)
     if error:
         raise HTTPException(status_code=500, detail=error)
+    if quote and quote.get("quote_id"):
+        await billing_svc.settle_usage(
+            billing_access_token=b_token,
+            quote_id=quote["quote_id"],
+            resource="image",
+            model="dall-e-3-standard",
+            quantity=1
+        )
     return {"image_url": image, "prompt": prompt, "style": style}
 
 # Educational Visual Generation
@@ -5455,9 +5647,27 @@ async def generate_visual(
     current_user: dict = Depends(get_current_user)
 ):
     """Generate educational visuals"""
+    # Billing guardrail: preflight cost estimate for image/visual
+    from services.billing_service import BillingService
+    billing_svc = BillingService(db)
+    b_token = await billing_svc.get_or_create_billing_token(current_user)
+    quote = await billing_svc.estimate_usage(
+        billing_access_token=b_token,
+        resource="image",
+        model="dall-e-3-standard",
+        quantity=1
+    )
     image, error = await generate_educational_visual(concept, visual_type, subject)
     if error:
         raise HTTPException(status_code=500, detail=error)
+    if quote and quote.get("quote_id"):
+        await billing_svc.settle_usage(
+            billing_access_token=b_token,
+            quote_id=quote["quote_id"],
+            resource="image",
+            model="dall-e-3-standard",
+            quantity=1
+        )
     return {"image_url": image, "concept": concept, "type": visual_type}
 
 # Micro-hints
@@ -6595,6 +6805,14 @@ async def confirm_payment(payment_id: str, current_user: dict = Depends(get_curr
         {"$addToSet": {"enrolled_students": current_user['id']}}
     )
 
+    # Sync payment to Cognify AI Billing
+    await trigger_billing_course_payment_sync(
+        user_id=current_user['id'],
+        course_id=payment['course_id'],
+        payment_id=payment_id,
+        amount_paid=payment.get('amount')
+    )
+
     # Send SMS and account payment notifications
     try:
         from services.communication_service import NotificationService
@@ -6854,6 +7072,14 @@ async def check_paynow_status(
             {"$addToSet": {"enrolled_students": current_user['id']}}
         )
         
+        # Sync course payment / enrollment to Cognify AI Billing
+        await trigger_billing_course_payment_sync(
+            user_id=current_user['id'],
+            course_id=payment['course_id'],
+            payment_id=payment.get('id'),
+            amount_paid=payment.get('amount')
+        )
+        
         # Dispatch SMS notifications
         try:
             from services.communication_service import NotificationService
@@ -6909,6 +7135,14 @@ async def paynow_webhook(request: Request):
                     await db.courses.update_one(
                         {"id": payment['course_id']},
                         {"$addToSet": {"enrolled_students": payment['user_id']}}
+                    )
+
+                    # Sync course payment / enrollment to Cognify AI Billing
+                    await trigger_billing_course_payment_sync(
+                        user_id=payment['user_id'],
+                        course_id=payment['course_id'],
+                        payment_id=payment.get('id'),
+                        amount_paid=payment.get('amount')
                     )
 
                     # Dispatch SMS payment notification
@@ -7009,10 +7243,37 @@ async def mentor_chat(msg: MentorMessage, current_user: dict = Depends(get_curre
         
         Be warm, supportive, and remember you are their permanent learning companion."""
         
+        # Billing guardrail: preflight cost estimate for text tutoring
+        from services.billing_service import BillingService
+        billing_svc = BillingService(db)
+        b_token = await billing_svc.get_or_create_billing_token(current_user)
+        in_units = max(10, len(msg.message.split()) * 2)
+        quote = await billing_svc.estimate_usage(
+            billing_access_token=b_token,
+            resource="text",
+            model="gpt-6-luna",
+            quantity=0,
+            input_units=in_units,
+            output_units=200
+        )
+
         chat = LlmChat(api_key=api_key, session_id=f"mentor-{current_user['id']}", system_message=system_message)
         chat.with_model("openai", "gpt-5.2")
         
         response = await chat.send_message(UserMessage(text=msg.message))
+
+        # Settle billing usage for text tutoring
+        if quote and quote.get("quote_id"):
+            out_units = max(10, len(response.split()) * 2)
+            await billing_svc.settle_usage(
+                billing_access_token=b_token,
+                quote_id=quote["quote_id"],
+                resource="text",
+                model="gpt-6-luna",
+                quantity=0,
+                input_units=in_units,
+                output_units=out_units
+            )
         
         # Store conversation
         await db.mentor_conversations.insert_one({
@@ -7352,7 +7613,28 @@ async def generate_video_content(
         
         # Sora 2 supports up to ~12 seconds; clamp to safe range
         duration = max(4, min(int(duration or 12), 12))
-        
+
+        # Billing guardrail: preflight cost estimate for video
+        from services.billing_service import BillingService
+        billing_svc = BillingService(db)
+        b_token = await billing_svc.get_or_create_billing_token(current_user)
+        quote = await billing_svc.estimate_usage(
+            billing_access_token=b_token,
+            resource="video",
+            model="sora-2-720p",
+            quantity=duration,
+            quality="720p"
+        )
+        if quote and quote.get("quote_id"):
+            await billing_svc.settle_usage(
+                billing_access_token=b_token,
+                quote_id=quote["quote_id"],
+                resource="video",
+                model="sora-2-720p",
+                quantity=duration,
+                quality="720p"
+            )
+
         prompt = f"Educational explainer video about {topic}. Professional, engaging visuals with clear diagrams and animations. Suitable for students learning this concept."
         
         video_id = str(uuid.uuid4())
@@ -7603,6 +7885,29 @@ async def generate_slides_content(
 
     # Clamp inputs
     slide_count = max(1, min(int(slide_count or 5), 10))
+
+    # Billing guardrail: preflight cost estimate
+    from services.billing_service import BillingService
+    billing_svc = BillingService(db)
+    b_token = await billing_svc.get_or_create_billing_token(current_user)
+    quote = await billing_svc.estimate_usage(
+        billing_access_token=b_token,
+        resource="slides",
+        model="claude-sonnet-5.5",
+        quantity=slide_count,
+        input_units=500,
+        output_units=500
+    )
+    if quote and quote.get("quote_id"):
+        await billing_svc.settle_usage(
+            billing_access_token=b_token,
+            quote_id=quote["quote_id"],
+            resource="slides",
+            model="claude-sonnet-5.5",
+            quantity=slide_count,
+            input_units=500,
+            output_units=500
+        )
 
     slideshow_id = str(uuid.uuid4())
     record = {
@@ -8852,6 +9157,14 @@ async def process_google_session(session_id: str):
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
             await db.users.insert_one(new_user)
+            # Sync new Google OAuth user with Cognify AI Billing System
+            try:
+                from services.billing_service import BillingService
+                billing_svc = BillingService(db)
+                await billing_svc.sync_user(user_id, new_user["email"], phone_verified=False)
+            except Exception as _b_err:
+                logging.warning(f"Billing user sync failed (Google OAuth): {_b_err}")
+            
             user = {k: v for k, v in new_user.items() if k != 'password_hash'}
             
             # Create student profile
@@ -8880,6 +9193,7 @@ async def process_google_session(session_id: str):
         )
         
         return {
+            "token": token,
             "access_token": token,
             "token_type": "bearer",
             "user": user
@@ -8888,6 +9202,102 @@ async def process_google_session(session_id: str):
     except Exception as e:
         logging.error(f"Google auth error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+class DirectGoogleAuthRequest(BaseModel):
+    credential: Optional[str] = None
+    access_token: Optional[str] = None
+    email: Optional[str] = None
+    name: Optional[str] = None
+
+@api_router.post("/auth/google/direct")
+async def process_direct_google_auth(req: DirectGoogleAuthRequest):
+    """Direct Google OAuth authentication (Google Identity Services / OAuth 2.0 / Local Google Sign-In)"""
+    import httpx
+    
+    email = None
+    name = ""
+    picture = ""
+    google_sub = None
+    
+    if req.email:
+        email = req.email.lower().strip()
+        name = req.name or email.split("@")[0].replace(".", " ").title()
+        google_sub = f"google-{email}"
+    elif req.credential:
+        # Verify Google ID token via Google's tokeninfo API
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={req.credential}")
+            if res.status_code != 200:
+                raise HTTPException(status_code=401, detail="Invalid Google credential token")
+            token_info = res.json()
+            email = token_info.get("email")
+            name = token_info.get("name") or token_info.get("given_name", "")
+            picture = token_info.get("picture", "")
+            google_sub = token_info.get("sub")
+    elif req.access_token:
+        # Verify Google access token via Google's userinfo API
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {req.access_token}"}
+            )
+            if res.status_code != 200:
+                raise HTTPException(status_code=401, detail="Invalid Google access token")
+            user_info = res.json()
+            email = user_info.get("email")
+            name = user_info.get("name", "")
+            picture = user_info.get("picture", "")
+            google_sub = user_info.get("sub")
+    else:
+        raise HTTPException(status_code=400, detail="Either email, credential, or access_token is required")
+        
+    if not email:
+        raise HTTPException(status_code=400, detail="Google account has no associated email")
+        
+    email_clean = email.lower().strip()
+    user = await db.users.find_one({"email": email_clean}, {"_id": 0, "password_hash": 0})
+    
+    if not user:
+        user_id = str(uuid.uuid4())
+        new_user = {
+            "id": user_id,
+            "email": email_clean,
+            "full_name": name or email_clean.split("@")[0],
+            "profile_image": picture,
+            "role": "student",
+            "auth_provider": "google",
+            "google_id": google_sub,
+            "email_verified": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(new_user)
+        try:
+            from services.billing_service import BillingService
+            billing_svc = BillingService(db)
+            await billing_svc.sync_user(user_id, email_clean, phone_verified=False)
+        except Exception as _b_err:
+            logging.warning(f"Billing user sync failed (Direct Google Auth): {_b_err}")
+            
+        new_user.pop("_id", None)
+        user = {k: v for k, v in new_user.items() if k not in ("_id", "password_hash")}
+        await db.student_profiles.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "enrolled_courses": [],
+            "gpa": 0.0,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+    user.pop("_id", None)
+    token_data = {"sub": user["id"], "email": user["email"], "role": user.get("role", "student")}
+    jwt_token = jwt.encode(token_data, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    
+    return {
+        "token": jwt_token,
+        "access_token": jwt_token,
+        "token_type": "bearer",
+        "user": user
+    }
 
 # ==================== ALL STUDY GROUPS (FOR DISCOVERY) ====================
 
@@ -10031,6 +10441,14 @@ async def verify_email_and_complete_registration(email: str, verification_code: 
     
     await db.users.insert_one(new_user)
     
+    # Sync account with Cognify AI Billing System
+    try:
+        from services.billing_service import BillingService
+        billing_svc = BillingService(db)
+        await billing_svc.sync_user(user_id, new_user["email"], phone_verified=False)
+    except Exception as _b_err:
+        logging.warning(f"Billing user sync failed during email verification: {_b_err}")
+    
     # Create profile based on role
     if pending["role"] == "student":
         await db.student_profiles.insert_one({
@@ -10211,6 +10629,13 @@ async def process_google_session(session_id: str):
                     "updated_at": datetime.now(timezone.utc)
                 }
                 await db.users.insert_one(new_user)
+                # Sync new Google OAuth user with Cognify AI Billing System
+                try:
+                    from services.billing_service import BillingService
+                    billing_svc = BillingService(db)
+                    await billing_svc.sync_user(user_id, new_user["email"], phone_verified=False)
+                except Exception as _b_err:
+                    logging.warning(f"Billing user sync failed (Google OAuth 2): {_b_err}")
                 
                 # Create student profile
                 await db.student_profiles.insert_one({
@@ -10230,6 +10655,7 @@ async def process_google_session(session_id: str):
             }, JWT_SECRET, algorithm=JWT_ALGORITHM)
             
             return {
+                "token": token,
                 "access_token": token,
                 "token_type": "bearer",
                 "user": {
@@ -11849,6 +12275,14 @@ async def invite_staff_member(
     }
     await db.users.insert_one(new_user)
     
+    # Sync account with Cognify AI Billing System
+    try:
+        from services.billing_service import BillingService
+        billing_svc = BillingService(db)
+        await billing_svc.sync_user(user_id, new_user["email"], phone_verified=False)
+    except Exception as _b_err:
+        logging.warning(f"Billing user sync failed during email verification: {_b_err}")
+    
     # Create teacher profile
     await db.teacher_profiles.insert_one({
         "id": str(uuid.uuid4()),
@@ -11917,6 +12351,14 @@ async def org_enroll_participant(
         "created_at": datetime.now(timezone.utc)
     }
     await db.users.insert_one(new_user)
+    
+    # Sync account with Cognify AI Billing System
+    try:
+        from services.billing_service import BillingService
+        billing_svc = BillingService(db)
+        await billing_svc.sync_user(user_id, new_user["email"], phone_verified=False)
+    except Exception as _b_err:
+        logging.warning(f"Billing user sync failed during email verification: {_b_err}")
     
     # Create profile
     if role == "student":
@@ -11997,6 +12439,13 @@ async def org_bulk_enroll_participants(
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
             await db.users.insert_one(new_user)
+            # Sync account with Cognify AI Billing System
+            try:
+                from services.billing_service import BillingService
+                billing_svc = BillingService(db)
+                await billing_svc.sync_user(user_id, new_user["email"], phone_verified=False)
+            except Exception as _b_err:
+                logging.warning(f"Billing user sync failed: {_b_err}")
             new_user.pop('_id', None)
             
             # Create student profile if role is student
@@ -12383,6 +12832,13 @@ async def accept_magic_link(token: str, password: str, full_name: str):
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         await db.users.insert_one(new_user)
+        # Sync account with Cognify AI Billing System
+        try:
+            from services.billing_service import BillingService
+            billing_svc = BillingService(db)
+            await billing_svc.sync_user(user_id, new_user["email"], phone_verified=False)
+        except Exception as _b_err:
+            logging.warning(f"Billing user sync failed: {_b_err}")
         
         # Create student profile
         await db.student_profiles.insert_one({
@@ -15251,7 +15707,11 @@ try:
     app.include_router(make_whatsapp_admin_router(db), prefix="/api")
     app.include_router(make_sms_admin_router(db))
 
-    logging.info("Phone Auth + Payment Period + External Payment + Super Admin Reports + WhatsApp Webhook + WhatsApp Admin + SMS Admin routes successfully wired")
+    # Cognify AI Billing System Routes
+    from routes.billing_routes import make_billing_router
+    app.include_router(make_billing_router(db))
+
+    logging.info("Phone Auth + Payment Period + External Payment + Super Admin Reports + WhatsApp Webhook + WhatsApp Admin + SMS Admin + Billing routes successfully wired")
 except Exception as _e:
     logging.error("Failed wiring BRD payment enhancement routes: %s", _e)
 

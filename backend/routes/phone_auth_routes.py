@@ -197,6 +197,15 @@ def make_phone_auth_router(db, get_current_user, hash_password, verify_password,
 
         await db.users.insert_one(user_doc)
 
+        # Sync with Cognify AI Billing System
+        try:
+            from services.billing_service import BillingService
+            billing_svc = BillingService(db)
+            sync_email = user_doc.get("email") or f"phone_{norm_phone}@cognify.africa"
+            await billing_svc.sync_user(user_id, sync_email, phone_verified=True)
+        except Exception as _b_err:
+            logger.warning(f"Billing user sync failed during phone registration: {_b_err}")
+
         # Create role profile
         if user_doc["role"] == "student":
             await db.student_profiles.insert_one({
@@ -315,6 +324,15 @@ def make_phone_auth_router(db, get_current_user, hash_password, verify_password,
                     "updated_at": now_iso
                 }
                 await db.users.insert_one(user)
+
+                # Sync with Cognify AI Billing System
+                try:
+                    from services.billing_service import BillingService
+                    billing_svc = BillingService(db)
+                    sync_email = user.get("email") or f"phone_{norm_phone}@cognify.africa"
+                    await billing_svc.sync_user(user_id, sync_email, phone_verified=True)
+                except Exception as _b_err:
+                    logger.warning(f"Billing user sync failed during auto-provisioning: {_b_err}")
                 # Create empty student profile
                 await db.students.insert_one({
                     "id": str(uuid.uuid4()),
